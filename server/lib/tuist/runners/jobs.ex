@@ -46,12 +46,14 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -510,9 +512,12 @@ defmodule Tuist.Runners.Jobs do
   The outbox makes divergence transient by construction, so this reads
   zero in steady state and any non-zero value means a replica row that
   will not converge on its own: a terminal job emits no further events,
-  so nothing lands to correct it. `settled_before` excludes rows young
-  enough to be mid-flush, which is also what keeps genuinely in-flight
-  jobs out of the count — those are non-terminal in both stores.
+  so nothing lands to correct it. `settled_before` bounds both stores: the
+  replica row must not have changed since, and the Postgres completion
+  must predate it. The second keeps a long-running job out of the count
+  in the minute between its completion and the flush that carries it,
+  when its replica row is old but the completion is still in the outbox.
+  Jobs still in flight are non-terminal in both stores and never count.
 
   Scans at most `limit` candidates so a systemic divergence can't hand
   Postgres an unbounded id list; a truncated scan is logged rather than
@@ -525,14 +530,19 @@ defmodule Tuist.Runners.Jobs do
       Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
     end
 
-    terminal =
-      candidates
-      |> Enum.map(& &1.workflow_job_id)
-      |> WorkflowJobs.terminal_completions()
+    settled = settled_terminal_ids(candidates, settled_before)
 
     candidates
-    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.filter(&MapSet.member?(settled, &1.workflow_job_id))
     |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  defp settled_terminal_ids(candidates, settled_before) do
+    candidates
+    |> Enum.map(& &1.workflow_job_id)
+    |> WorkflowJobs.terminal_completions()
+    |> Enum.filter(fn {_workflow_job_id, completed_at} -> DateTime.before?(completed_at, settled_before) end)
+    |> MapSet.new(fn {workflow_job_id, _completed_at} -> workflow_job_id end)
   end
 
   # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
@@ -1335,6 +1345,19 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.RunnerSessions.workflow_job_id_for_runner/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    with {:ok, workflow_job_id} <- RunnerSessions.workflow_job_id_for_runner(runner_name, account_id),
+         %WorkflowJob{} = job <- Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
@@ -1418,11 +1441,24 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(row.account_id, "completed")
 
+    if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => row.account_id,
+          "workflow_run_id" => row.workflow_run_id,
+          "workflow_job_id" => row.workflow_job_id
+        },
+        row.workflow_job_id
+      )
+    end
+
     {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
+    previous = if conclusion == "failure", do: Repo.get(WorkflowJob, Map.fetch!(attrs, :workflow_job_id))
 
     persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
     :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
@@ -1434,6 +1470,19 @@ defmodule Tuist.Runners.Jobs do
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
+
+    if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => Map.fetch!(attrs, :account_id),
+          "workflow_run_id" => Map.fetch!(attrs, :workflow_run_id),
+          "workflow_job_id" => Map.fetch!(attrs, :workflow_job_id)
+        },
+        Map.fetch!(attrs, :workflow_job_id)
+      )
+    end
+
     :ok
   end
 

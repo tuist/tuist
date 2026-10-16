@@ -312,23 +312,24 @@ defmodule Tuist.Authorization.Checks do
   defp grant_expired?(%{exp: exp}) when is_integer(exp), do: exp <= System.system_time(:second)
   defp grant_expired?(_), do: true
 
-  # Resolves any object passed to ops_access/ops_write_access to the
-  # customer account id it belongs to (mirrors user_role/3's object
-  # handling). Unknown shapes return nil so the grant check fails
-  # closed.
-  defp object_account_id(%Project{account_id: account_id}), do: account_id
-  defp object_account_id(%Account{id: id}), do: id
-  defp object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
-  defp object_account_id(%{account: %Account{id: id}}), do: id
+  @doc """
+  Resolves any object passed to ops_access/ops_write_access to the customer
+  account id it belongs to (mirrors user_role/3's object handling). Unknown
+  shapes return nil so the grant check fails closed.
+  """
+  def object_account_id(%Project{account_id: account_id}), do: account_id
+  def object_account_id(%Account{id: id}), do: id
+  def object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
+  def object_account_id(%{account: %Account{id: id}}), do: id
 
-  defp object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
+  def object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
     case Projects.get_project_by_id(project_id) do
       %Project{account_id: account_id} -> account_id
       _ -> nil
     end
   end
 
-  defp object_account_id(_), do: nil
+  def object_account_id(_), do: nil
 
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
     project_reader?(user, project)

@@ -2,8 +2,7 @@
 # Buildkite global `environment` hook. Runs inside the agent before the
 # job's command, for every job the agent takes.
 #
-# Identical on the macOS and Linux fleets; only the path it reads differs,
-# and that arrives as TUIST_RUNNER_JOB_ENV. Keep the two copies in step.
+# Shared with macOS except the Linux-only cache-volume routing exports.
 #
 # dispatch-poll.sh writes the settings the server sent with this job's
 # dispatch, but the agent sanitizes the job environment, so a variable
@@ -42,3 +41,10 @@ fi
 if [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then
   export TUIST_CACHE_SIGNING_GRANT
 fi
+
+
+for volume_var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+  if [ -n "${!volume_var:-}" ]; then
+    export "$volume_var"
+  fi
+done

@@ -62,6 +62,7 @@ end %>
       }
     </style>
     <%= if not @email_version? do %>
+      <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <meta name="description" content={Tuist.Marketing.Newsletter.description()} />
       <meta

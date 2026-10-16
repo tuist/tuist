@@ -6,6 +6,7 @@ defmodule AtlasWeb.Endpoint do
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
   alias AtlasWeb.Plugs.CacheRawBody
+  alias AtlasWeb.Plugs.DemoGuard
   alias Phoenix.Ecto.CheckRepoStatus
   alias Phoenix.LiveDashboard.RequestLogger
   alias Phoenix.LiveView.Socket
@@ -18,8 +19,8 @@ defmodule AtlasWeb.Endpoint do
   ]
 
   socket "/live", Socket,
-    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
-    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
+    websocket: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]]
 
   # Health check endpoint (runs before force_ssl)
   plug AtlasWeb.HealthCheck
@@ -53,6 +54,8 @@ defmodule AtlasWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug Sentry.PlugContext
+
+  plug DemoGuard
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

@@ -1,0 +1,176 @@
+<div id="test-case-run-detail">
+  <.button
+    label={@run.command_display || dgettext("dashboard_tests", "Test Run")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={test_run_path(assigns, @run)}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={status_class(@test_case) == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
+        </div>
+        <div :if={status_class(@test_case) == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
+        <div :if={status_class(@test_case) == "skipped"} data-part="badge-warning">
+          <div data-part="icon">
+            <.alert_hexagon />
+          </div>
+        </div>
+        <h1 data-part="label">{@test_case.name}</h1>
+      </div>
+      <div :if={@test_case.suite_id || @test_case.module} data-part="badges">
+        <.badge
+          :if={@test_case.suite_id}
+          label={"#{dgettext("dashboard_tests", "Target")}: #{@test_case.suite_id}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@test_case.module && @test_case.module != @test_case.suite_id}
+          label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case.module}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+      </div>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch="?tab=overview"
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Failures")}
+      selected={@selected_tab == "failures"}
+      patch="?tab=failures"
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+
+  <div :if={@selected_tab == "overview"} data-part="overview">
+    <.card
+      title={dgettext("dashboard_tests", "Run Details")}
+      icon="chart_arcs"
+      data-part="run-details"
+    >
+      <.card_section data-part="run-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Status")}</div>
+              <.badge
+                :if={status_class(@test_case) == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status_class(@test_case) == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status_class(@test_case) == "skipped"}
+                label={dgettext("dashboard_tests", "Skipped")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status_class(@test_case) not in ~w(success failure skipped)}
+                label={status_label(@test_case)}
+                color="neutral"
+                style="fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
+              <span data-part="value">
+                <.history />
+                {format_duration(@test_case.duration_ms)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Attempt")}</div>
+              <span data-part="value">{@test_case.attempt || 1}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Ran at")}</div>
+              <span data-part="value">
+                {format_datetime(@test_case.finished_at, assigns[:user_timezone])}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Case id")}</div>
+              <span data-part="value">{@test_case.case_id}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Test run")}</div>
+              <span data-part="value">
+                <.link navigate={test_run_path(assigns, @run)}>{@run.run_id}</.link>
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "failures"} data-part="failures">
+    <.card
+      title={dgettext("dashboard_tests", "Failures")}
+      icon="alert_circle"
+      data-part="failure"
+    >
+      <.card_section
+        :if={@test_case.failure_message not in [nil, ""]}
+        data-part="failure-section"
+      >
+        <pre data-part="failure-message"><%= @test_case.failure_message %></pre>
+      </.card_section>
+      <.empty_card_section
+        :if={@test_case.failure_message in [nil, ""]}
+        title={dgettext("dashboard_tests", "No failures detected")}
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_table_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_table_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  </div>
+</div>

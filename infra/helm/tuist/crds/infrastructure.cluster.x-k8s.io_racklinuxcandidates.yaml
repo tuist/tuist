@@ -1,0 +1,177 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: racklinuxcandidates.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: RackLinuxCandidate
+    listKind: RackLinuxCandidateList
+    plural: racklinuxcandidates
+    shortNames:
+      - rlc
+    singular: racklinuxcandidate
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.serial
+          name: Serial
+          type: string
+        - jsonPath: .status.bootMAC
+          name: BootMAC
+          type: string
+        - jsonPath: .status.declaredAs
+          name: DeclaredAs
+          type: string
+        - jsonPath: .status.lastSeen
+          name: LastSeen
+          type: date
+        - jsonPath: .status.conflict.reason
+          name: Conflict
+          type: string
+        - jsonPath: .status.site
+          name: Site
+          priority: 1
+          type: string
+        - jsonPath: .status.product
+          name: Product
+          priority: 1
+          type: string
+        - jsonPath: .status.seenBy
+          name: SeenBy
+          priority: 1
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackLinuxCandidate is a machine on a rack's management segment as its install
+            stick announced it, named after its SMBIOS UUID: a box to declare in
+            rackLinuxFleet.hosts by that UUID, rather than one whose MAC someone reads
+            off its label. The RackLinuxHost declaring it takes its boot MAC and model
+            from it. The operator keeps it from the stick's announcements, and drops an
+            undeclared one after a week without one.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackLinuxCandidateSpec is empty: a candidate is only what a machine
+                announced about itself.
+              type: object
+            status:
+              description: |-
+                RackLinuxCandidateStatus is what a machine's install stick announced to a
+                rack's boot server while no install was published for it.
+              properties:
+                address:
+                  description: Address is the address it announced from.
+                  type: string
+                bootMAC:
+                  description: |-
+                    BootMAC is the MAC to declare as the host's bootMAC: its i226-LM, the port
+                    on the management switch that carries AMT.
+                  type: string
+                conflict:
+                  description: |-
+                    Conflict is the last announcement under the same UUID that did not
+                    match what the machine first announced. What a machine announced first
+                    is kept: the RackLinuxHost declaring the UUID takes its hardware from a
+                    candidate only while it has no conflict.
+                  properties:
+                    address:
+                      description: Address is the address it came from, and SeenBy the edge that heard it.
+                      type: string
+                    at:
+                      description: At is when it came.
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Reason is what it announced differently.
+                      type: string
+                    seenBy:
+                      type: string
+                  required:
+                    - at
+                    - reason
+                  type: object
+                declaredAs:
+                  description: DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
+                  type: string
+                ek:
+                  description: |-
+                    EK is its TPM's RSA endorsement key, base64 PKIX DER, and
+                    EKFingerprint the key's SHA-256.
+                  type: string
+                ekFingerprint:
+                  type: string
+                firstSeen:
+                  description: FirstSeen and LastSeen bound its announcements.
+                  format: date-time
+                  type: string
+                lastSeen:
+                  format: date-time
+                  type: string
+                nics:
+                  description: NICs are the machine's network ports.
+                  items:
+                    description: RackLinuxCandidateNIC is one network port a machine announced.
+                    properties:
+                      driver:
+                        description: Driver is the Linux driver bound to the port, such as igc or i40e.
+                        type: string
+                      mac:
+                        description: MAC is the port's MAC address.
+                        type: string
+                      pciDevice:
+                        description: PCIDevice is the port's PCI device ID, such as 0x125b for an i226-LM.
+                        type: string
+                    required:
+                      - mac
+                    type: object
+                  type: array
+                product:
+                  description: Product is the machine's SMBIOS vendor and product name.
+                  type: string
+                seenBy:
+                  description: SeenBy is the edge whose boot server heard it last.
+                  type: string
+                serial:
+                  description: Serial is the machine's SMBIOS serial number, as printed on its label.
+                  type: string
+                site:
+                  description: Site is the site of the edge whose boot server heard it.
+                  type: string
+                uuid:
+                  description: UUID is the machine's SMBIOS UUID, which is also the candidate's name.
+                  type: string
+              required:
+                - uuid
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

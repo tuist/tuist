@@ -122,6 +122,35 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert Repo.aggregate(AirUsageNotification, :count) == 3
   end
 
+  test "warns an account on usage-based pricing about the cache allowances, not hits" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, true} = FunWithFlags.enable(:usage_based_pricing, for_actor: user.account)
+
+    Accounts.update_account_current_month_usage(user.account.id, %{
+      remote_cache_hits_count: 500,
+      cache_egress_megabytes: 85_000,
+      cache_requests: 100_000
+    })
+
+    assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
+
+    assert [%{metric: :cache_egress_megabytes, threshold: 80, usage: 85_000, limit: 100_000}] =
+             Repo.all(AirUsageNotification)
+  end
+
+  test "keeps warning an account on the previous pricing about hits alone" do
+    user = AccountsFixtures.user_fixture()
+
+    Accounts.update_account_current_month_usage(user.account.id, %{
+      remote_cache_hits_count: 160,
+      cache_egress_megabytes: 150_000,
+      cache_requests: 2_000_000
+    })
+
+    assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
+    assert [%{metric: :remote_cache_hits, threshold: 80}] = Repo.all(AirUsageNotification)
+  end
+
   test "does not notify for a refresh from a previous month" do
     user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 200)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, Timex.shift(DateTime.utc_now(), months: -1))

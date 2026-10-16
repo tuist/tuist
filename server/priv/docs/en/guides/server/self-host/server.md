@@ -23,21 +23,23 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-We release new versions of Tuist continuously as new releasable changes land on main. We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility.
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
 
-The major component is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+
+See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
 ## Continuous deployment {#continuous-deployment}
 
-We strongly recommend setting up a continuous deployment pipeline that automatically deploys the latest version of Tuist every day. This ensures you always have access to the latest features, improvements, and security updates.
+We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
 
-Here's an example GitHub Actions workflow that checks for and deploys new versions daily:
+If you would rather absorb new features as they become stable without touching your manifests, pin `:latest`. The tag moves once a week on Monday morning, so schedule your deploy window accordingly. Here's an example GitHub Actions workflow that checks for and deploys the latest stable image on that cadence:
 
 ```yaml
 name: Update Tuist Server
 on:
   schedule:
-    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+    - cron: '0 8 * * 1' # Mondays 08:00 UTC, after the weekly stable promote
   workflow_dispatch: # Allow manual runs
 
 jobs:
@@ -189,14 +191,11 @@ The configuration of the service is done at runtime through environment variable
 
 ### License configuration {#license-configuration}
 
-As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+As an on-premise user, you'll receive a license that you'll need to expose as an environment variable. The license is used to validate the deployment and ensure that the service is running within the terms of the agreement.
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_LICENSE` | The license provided after signing the service level agreement | Yes* | | `******` |
-| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes* | | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
-
-\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be provided, but not both. Use `TUIST_LICENSE` for standard deployments.
+| `TUIST_LICENSE` | The license provided after signing the service level agreement. Accepts either the standard license key or the base64-encoded certificate used in air-gapped environments where the server cannot contact external services. | Yes | | `******` |
 
 > [!WARNING]
 > **Expiration Date**
@@ -223,6 +222,11 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
 | `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
+
+> [!WARNING]
+> **Serve the app over HTTPS**
+>
+> Session cookies are flagged `Secure`, so browsers drop them over plain `http://` and users cannot sign in. Terminate TLS in front of the server (a reverse proxy with a certificate from your internal CA is enough) and set `TUIST_APP_URL` to the `https://` URL, even for internal or VPN-only deployments.
 
 ### Database configuration {#database-configuration}
 
@@ -511,6 +515,60 @@ Your Tuist server also needs outbound access to your CI provider's OIDC issuer t
 
 The env vars above only configure Tuist's github.com App. To integrate Tuist with a GitHub Enterprise Server (GHES) instance instead, organization admins switch to the **Enterprise server** tab on the integrations page and enter the GHES base URL — Tuist walks them through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) to register a fresh Tuist App on their GHES instance. The new App's credentials are stored encrypted per installation; no additional `TUIST_GITHUB_APP_*` env vars are needed.
 
+#### Origin {#platform-origin}
+
+A self-hosted Tuist server needs its own Origin app, configured with your deployment's URLs and signing key. Register a separate app for each Tuist environment so that installations and credentials stay independent.
+
+##### Registering the App {#platform-origin-registering-the-app}
+
+1. Generate an Ed25519 signing key pair using OpenSSL with Ed25519 support:
+
+   ```sh
+   umask 077
+   openssl genpkey -algorithm ED25519 -out origin-app-private.pem
+   openssl pkey -in origin-app-private.pem -pubout -out origin-app-public.pem
+   ```
+
+2. Create an app in [Origin app settings](https://cursor.com/codebase/settings/apps). Register the contents of `origin-app-public.pem` as its public signing key. Keep `origin-app-private.pem` secret; you will provide it to the Tuist server, not upload it to Cursor.
+3. Configure the following settings, replacing `YOUR_APP_URL` with your Tuist deployment's HTTPS base URL:
+
+   | Setting | Value |
+   | --- | --- |
+   | Homepage URL | `YOUR_APP_URL` |
+   | Redirect URI | `YOUR_APP_URL/integrations/origin/setup` |
+   | Webhook URL | `YOUR_APP_URL/webhooks/origin` |
+
+4. Copy the registered App ID, which starts with `app_`.
+
+Tuist requests the following permissions during installation:
+
+| Scope | Used for |
+| --- | --- |
+| `repository:pull_requests:read` | Find pull requests and their current head commit. |
+| `repository:pull_requests:reviews:write` | Read, post, and update report comments. Origin includes the corresponding review-read permission. |
+| `repository:metadata:read` | Discover repositories and read their default branches. Granted automatically by Origin. |
+
+Leave optional repository webhook events unselected. Installation lifecycle notifications are sufficient; source-code access, merge permissions, and check-run permissions are not required.
+
+##### Configuring the server {#platform-origin-configuring-the-server}
+
+Set the following environment variables, then restart the server:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_ORIGIN_APP_ID` | The App ID copied from Origin app settings. | Yes | | `app_...` |
+| `TUIST_ORIGIN_APP_PRIVATE_KEY` | The complete contents of `origin-app-private.pem`, including the `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines and all line breaks. | Yes | | `-----BEGIN PRIVATE KEY-----...` |
+
+Store the private key in your deployment's secret manager. Preserve its multiline PEM format; this setting does not accept a base64-encoded replacement. Never commit the key to source control or expose it in logs. Both variables must belong to the same registered app.
+
+Your Tuist server needs outbound HTTPS access to `api.cursor.com`. Cursor must be able to deliver requests to the webhook URL, and administrators must be able to return to the redirect URI in their browser. Both registered URLs must match your deployment's HTTPS base URL.
+
+##### Installing the App {#platform-origin-installing-the-app}
+
+Once the server restarts, an administrator opens **Settings → Integrations**, chooses **Connect** under Origin, and approves the app's access to the appropriate Origin account and repositories. Then they choose **Add new project connection** to link a Tuist project to a native repository.
+
+Follow the <.localized_link href="/guides/integrations/gitforge/origin">Origin integration guide</.localized_link> for project connections and result-upload requirements. Installing the app does not start build or test workflows; those workflows continue reporting results to your Tuist server.
+
 ## Testing Locally {#testing-locally}
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
@@ -628,6 +686,8 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
 
 ### License {#helm-license}
 
+The `server.license.key` value accepts both the standard license key and, for air-gapped installations, the Base64-encoded license certificate; the server auto-detects which one it is.
+
 Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
 
 ```yaml
@@ -640,21 +700,9 @@ server:
       certificateBase64: ""
 ```
 
-For an air-gapped installation, reference the Base64-encoded license certificate instead:
+The entry under `existingSecretKeys.key` names the field in your Secret that holds the license value, which can be the license key or, for air-gapped installations, the Base64-encoded license certificate. Each entry under `existingSecretKeys` defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string, as `certificateBase64` is above. Otherwise the pods reference keys that don't exist and fail to start. Create the Secret in the release namespace before you install or upgrade the chart.
 
-```yaml
-# values.yaml
-server:
-  license:
-    existingSecret: tuist-license
-    existingSecretKeys:
-      key: ""
-      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
-```
-
-Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
-
-Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
+Configure the license through one source only: `server.license.key` or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 

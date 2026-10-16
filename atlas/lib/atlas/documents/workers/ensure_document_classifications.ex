@@ -1,7 +1,7 @@
 defmodule Atlas.Documents.Workers.EnsureDocumentClassifications do
   @moduledoc """
   Enqueues metadata classification jobs for processed documents missing
-  classifier-derived metadata.
+  classifier-derived metadata or finance invoices.
   """
 
   use Oban.Worker,
@@ -24,6 +24,7 @@ defmodule Atlas.Documents.Workers.EnsureDocumentClassifications do
       |> ClassifyDocumentMetadata.new_unique()
       |> Oban.insert()
       |> case do
+        {:ok, %{conflict?: true}} -> {:cont, {:ok, count}}
         {:ok, _job} -> {:cont, {:ok, count + 1}}
         {:error, changeset} -> {:halt, {:error, changeset}}
       end

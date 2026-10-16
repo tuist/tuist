@@ -2,11 +2,13 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 
+public typealias ServerProjectBuildSystem = Operations.createProject.Input.Body.jsonPayload.build_systemPayload
+
 @Mockable
 public protocol CreateProjectServicing {
     func createProject(
         fullHandle: String,
-        buildSystem: Components.Schemas.Project.build_systemPayload?,
+        buildSystem: ServerProjectBuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject
 }
@@ -32,7 +34,7 @@ public struct CreateProjectService: CreateProjectServicing {
 
     public func createProject(
         fullHandle: String,
-        buildSystem: Components.Schemas.Project.build_systemPayload?,
+        buildSystem: ServerProjectBuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
@@ -41,9 +43,7 @@ public struct CreateProjectService: CreateProjectServicing {
             .init(
                 body: .json(
                     .init(
-                        build_system: buildSystem.flatMap {
-                            .init(rawValue: $0.rawValue)
-                        },
+                        build_system: buildSystem,
                         full_handle: fullHandle
                     )
                 )

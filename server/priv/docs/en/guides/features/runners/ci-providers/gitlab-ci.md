@@ -42,7 +42,7 @@ Tuist reads `CI_JOB_TAGS` from each assignment and resolves the profile within t
 
 Jobs use GitLab's **shell executor** inside an isolated machine. Checkout, CI variables, `before_script`, `script`, `after_script`, artifacts and cancellation are handled by GitLab Runner. The pipeline's `image:` and `services:` settings do not configure this shell environment; use tools installed on the <.localized_link href="/guides/features/runners/profiles">runner image</.localized_link> or install them in your script.
 
-The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Shared account cache volumes and cache-signing grants are currently withheld for GitLab jobs; GitLab CI variables can be overridden by a pipeline and cannot establish whether a job is trusted.
+The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Automatic shared account caches and cache-signing grants are currently withheld for GitLab jobs. Custom Linux cache volumes verify job identity and save permission through GitLab’s API; overridable CI variables do not establish trust.
 
 GitLab marks a job as running, and starts its timeout, as soon as Tuist acquires it. While the jobs Tuist has already acquired use up your account's concurrency limit, further jobs stay pending in GitLab. An acquired job waits for a machine for up to its job timeout, at most 12 hours. If no machine becomes available by then, Tuist fails the assignment with `runner_system_failure`, and the retry policy above lets GitLab retry it. The same policy covers a lost runner machine.
 
@@ -51,3 +51,7 @@ GitLab marks a job as running, and starts its timeout, as soon as Tuist acquires
 Update the connection's token and choose **Save changes** to rotate it. Leaving the token blank preserves the existing credential.
 
 **Disconnect** stops acquisition and fails waiting assignments. Running jobs continue with their own credentials. If GitLab cannot be reached, Tuist retains the disabled connection while retrying the cancellation of waiting assignments. The connection is removed once those assignments have settled.
+
+## Cache volumes {#cache-volumes}
+
+Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#gitlab-ci">cache volumes</.localized_link>. Attach the volume before installing dependencies.

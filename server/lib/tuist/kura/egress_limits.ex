@@ -47,6 +47,7 @@ defmodule Tuist.Kura.EgressLimits do
   alias Tuist.Billing.Entitlements
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimit
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -315,8 +316,8 @@ defmodule Tuist.Kura.EgressLimits do
   account, and across how many replicas, or `nil` when they sit on none yet.
   See `Tuist.Kura.Capacity`.
   """
-  def node_headroom(%Account{name: name}, %Regions{id: region_id}) do
-    Capacity.egress_headroom(region_id, String.downcase(name))
+  def node_headroom(%Account{} = account, %Regions{id: region_id}) do
+    Capacity.egress_headroom(region_id, Identity.tenant_id(account))
   end
 
   @doc """

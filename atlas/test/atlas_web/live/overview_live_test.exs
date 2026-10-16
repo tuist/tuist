@@ -30,6 +30,16 @@ defmodule AtlasWeb.OverviewLiveTest do
            delta_pct: 23.4,
            series: [{~D[2026-09-01], 1000}, {~D[2026-09-30], 1234}]
          }},
+      active_users:
+        {:ok,
+         %{
+           total: 612,
+           current_value: 612,
+           previous_value: 590,
+           delta_pct: 3.7,
+           series: [{~D[2026-09-01], 780}, {~D[2026-09-30], 140}],
+           trend: [{~D[2026-09-01], 600}, {~D[2026-09-30], 620}]
+         }},
       organizations:
         {:ok,
          %{
@@ -87,6 +97,7 @@ defmodule AtlasWeb.OverviewLiveTest do
 
     assert has_element?(view, "#overview")
     assert has_element?(view, "#overview-widget-users [data-part='value']", "1,234")
+    assert has_element?(view, "#overview-widget-active-users [data-part='value']", "612")
     assert has_element?(view, "#overview-widget-organizations [data-part='value']", "56")
     assert has_element?(view, "#overview-widget-projects [data-part='value']", "789")
     assert has_element?(view, "#overview-widget-jobs [data-part='value']", "4,321")
@@ -105,6 +116,32 @@ defmodule AtlasWeb.OverviewLiveTest do
 
     assert has_element?(view, "[id^='overview-chart-cache_operations-']")
     refute has_element?(view, "[id^='overview-chart-users-']")
+  end
+
+  test "active users is selectable and charts its own daily series", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
+
+    render_click(view, "select_widget", %{"widget" => "active_users"})
+
+    assert has_element?(view, "[id^='overview-chart-active_users-']")
+    refute has_element?(view, "[id^='overview-chart-users-']")
+  end
+
+  test "plots the trend series alongside the raw one only for metrics that carry it", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    {:ok, view, _html} = live(conn, ~p"/")
+    render_async(view, @render_async_timeout)
+
+    render_click(view, "select_widget", %{"widget" => "active_users"})
+    active_users_chart = render(view)
+
+    assert active_users_chart =~ "7-day average"
+
+    render_click(view, "select_widget", %{"widget" => "organizations"})
+
+    refute render(view) =~ "7-day average"
   end
 
   test "shows an empty state when the Tuist server is not connected", %{conn: conn} do

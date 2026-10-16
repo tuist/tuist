@@ -15,7 +15,10 @@ import { CacheMinimalOverhead } from "./hooks/cache-minimal-overhead.js";
 import { CacheObservability } from "./hooks/cache-observability.js";
 import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
 import { KaTeX } from "./hooks/katex.js";
-import { PlatformBackground } from "./hooks/platform-background.js";
+import { HomeHeroWave } from "./hooks/home-hero-wave.js";
+import { HomeCacheCount } from "./hooks/home-cache-count.js";
+import { CustomersCarousel } from "./hooks/customers-carousel.js";
+import { CustomersDotsMorph } from "./hooks/customers-dots-morph.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
 import { ComputeSpark } from "./hooks/compute-spark.js";
 import { ComputeHeroDiff } from "./hooks/compute-hero-diff.js";
@@ -36,8 +39,6 @@ import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
 import { ThemeSwitcher } from "./hooks/theme-switcher.js";
 import { DitherPing } from "./hooks/dither-ping.js";
 import { DitherGlobe } from "./hooks/dither-globe.js";
-import { CustomersDitherDots } from "./hooks/customers-dither-dots.js";
-import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
 import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 import { BlogViewPreference } from "./hooks/blog-view-preference.js";
@@ -45,14 +46,17 @@ import { PricingPlanSelect } from "./hooks/pricing-plan-select.js";
 import { NotFoundOutline } from "./hooks/not-found-outline.js";
 import { NewsletterForm } from "./hooks/newsletter-form.js";
 import { NewsletterIssuesSort } from "./hooks/newsletter-issues-sort.js";
+import { CacheGlobe } from "./hooks/cache-globe.js";
+import { SplitFlap } from "./hooks/split-flap.js";
 
 const Hooks = {
   GoogleOneTap,
-  PlatformBackground,
+  HomeHeroWave,
+  HomeCacheCount,
+  CustomersCarousel,
+  CustomersDotsMorph,
   DitherTexture,
   DitherBlocks,
-  CustomersDitherDots,
-  CustomersDitherLine,
   ComputeSpark,
   ComputeHeroDiff,
   ComputeHeroGrid,
@@ -94,6 +98,8 @@ const Hooks = {
   NotFoundOutline,
   NewsletterForm,
   NewsletterIssuesSort,
+  CacheGlobe,
+  SplitFlap,
 };
 
 export { Hooks };

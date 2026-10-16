@@ -67,6 +67,10 @@ pub struct CacheGrants {
     /// never having had access, and the two need different answers.
     #[serde(default)]
     pub payment_required: Vec<String>,
+    /// The subset of `payment_required` whose paid plan lapsed because a
+    /// subscription payment failed, which needs a different answer again.
+    #[serde(default)]
+    pub payment_failed: Vec<String>,
 }
 
 impl CacheGrants {
@@ -81,6 +85,10 @@ impl CacheGrants {
             body.get("cache_payment_required")
                 .or_else(|| body.get("payment_required")),
         );
+        grants.payment_failed = normalized_handles(
+            body.get("cache_payment_failed")
+                .or_else(|| body.get("payment_failed")),
+        );
         grants
     }
 
@@ -91,6 +99,22 @@ impl CacheGrants {
             .any(|handle| handle == target.account.as_ref())
     }
 
+    /// The billing refusal the target was withheld for, if any.
+    pub fn payment_refusal_for(&self, target: &RequestTarget<'_>) -> Option<Access> {
+        let payment_failed = self
+            .payment_failed
+            .iter()
+            .any(|handle| handle == target.account.as_ref());
+
+        if payment_failed {
+            Some(Access::PaymentFailed)
+        } else if self.payment_required_for(target) {
+            Some(Access::PaymentRequired)
+        } else {
+            None
+        }
+    }
+
     /// The level these grants give one target: write implies read, so the
     /// answer is the highest action the buckets name it for.
     pub fn level(&self, target: &RequestTarget<'_>) -> Access {
@@ -98,10 +122,8 @@ impl CacheGrants {
             Access::ReadWrite
         } else if self.allow(target, &Action::Read) {
             Access::Read
-        } else if self.payment_required_for(target) {
-            Access::PaymentRequired
         } else {
-            Access::Refused
+            self.payment_refusal_for(target).unwrap_or(Access::Refused)
         }
     }
 
@@ -110,6 +132,7 @@ impl CacheGrants {
             // Filled in by `from_body`, which sees the enclosing object this
             // only receives the grants out of.
             payment_required: Vec::new(),
+            payment_failed: Vec::new(),
             account: GrantBucket::from_value(grants.and_then(|grants| grants.get("account"))),
             project: GrantBucket::from_value(grants.and_then(|grants| grants.get("project"))),
         }
@@ -178,6 +201,29 @@ mod tests {
             assert_eq!(
                 grants.level(&target(Scope::Project, "acme/ios")),
                 Access::PaymentRequired
+            );
+        }
+    }
+
+    // The server names these as a subset of the accounts withheld for payment,
+    // so a node that does not read the list still answers with a payment
+    // refusal, only a less specific one.
+    #[test]
+    fn names_an_account_withheld_for_a_failed_payment() {
+        for body in [
+            json!({
+                "cache_grants": {},
+                "cache_payment_required": ["acme"],
+                "cache_payment_failed": ["acme"]
+            }),
+            json!({ "projects": [], "payment_required": ["ACME"], "payment_failed": ["ACME"] }),
+        ] {
+            let grants = CacheGrants::from_body(&body);
+
+            assert!(grants.payment_required_for(&target(Scope::Project, "acme/ios")));
+            assert_eq!(
+                grants.level(&target(Scope::Project, "acme/ios")),
+                Access::PaymentFailed
             );
         }
     }

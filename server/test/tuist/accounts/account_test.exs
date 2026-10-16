@@ -25,6 +25,13 @@ defmodule Tuist.AccountTest do
     assert "must contain only alphanumeric characters" in errors_on(changeset).name
   end
 
+  test "environment suffixes are reserved case-insensitively" do
+    for name <- ["acme-staging", "acme-canary", "Acme-STAGING", "Acme-CANARY"] do
+      changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
+      assert "must not end in -staging or -canary" in errors_on(changeset).name
+    end
+  end
+
   describe "handle validity" do
     test "it fails the validation if a handle starts or ends with a hyphen" do
       for name <- ["-handle", "handle-", "-"] do

@@ -31,6 +31,46 @@ Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse i
 
 No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
 
+#### App permissions and webhook events {#github-app-permissions}
+
+Tuist requires the following **repository permissions** for PR comments and bundle-size checks:
+
+| Permission | Access | Used for |
+|---|---|---|
+| Metadata (`metadata`) | Read-only | Basic repository metadata; required by GitHub for every App |
+| Pull requests (`pull_requests`) | Read and write | Reading pull requests, including their head commit SHA, and listing, posting, and updating PR comments |
+| Checks (`checks`) | Read and write | Creating and updating check runs, including bundle-size pass/fail checks |
+
+Tuist uses the `check_run` webhook event to handle bundle-size check actions. The manifest flow configures this subscription automatically.
+
+For manual App setup on github.com with a self-hosted Tuist server, see <.localized_link href="/guides/server/self-host/server#platform-github-registering-the-app">the self-hosting guide</.localized_link>.
+
+#### Separate browser and API URLs {#separate-browser-and-api-urls}
+
+If engineers access GitHub Enterprise through an internal hostname while third-party services use an external proxy, configure both addresses before clicking install:
+
+| Field | Example | Used by |
+|---|---|---|
+| **Server URL** | `https://github.internal.company.com` | Your browser, for App registration and installation, and links to GitHub from Tuist |
+| **API URL** | `https://github-proxy.company.com/api/v3` | Tuist's servers, for the manifest-code exchange, access tokens, repository access, PR comments, and checks |
+
+The API URL is the full REST API base URL, including `/api/v3` or the equivalent path exposed by your proxy. Tuist does not append `/api/v3` to an explicit API URL. Leave it empty if one hostname works for both your browser and Tuist; existing connections keep using `<Server URL>/api/v3`.
+
+Both addresses must route to the **same GitHub Enterprise instance**. Your browser only needs to reach the Server URL, not the API proxy. Tuist's servers only need to reach the API URL, not the internal browser hostname.
+
+For the external proxy:
+
+- Use HTTPS with a certificate trusted by Tuist's servers and public DNS resolving to public IP addresses. API URL overrides do not bypass Tuist's private-IP/SSRF protections. The override must target your Enterprise instance, not `github.com` or a `*.github.com` endpoint.
+- Allowlist every Tuist <.localized_link href="/guides/server/network#outbound-ip-addresses">outbound IP address</.localized_link>.
+- Forward the REST API endpoints Tuist uses, including `POST /api/v3/app-manifests/{code}/conversions`, `POST /api/v3/app/installations/{installation_id}/access_tokens`, and repository API endpoints for comments and checks. These are GitHub's upstream paths; translate them if your proxy exposes a different prefix.
+- Forward requests to GitHub without HTTP redirects or an interactive sign-in page. Tuist does not automatically follow Enterprise API redirects, so they cannot bypass public-IP checks. The manifest conversion endpoint must be reachable during setup, before Tuist has the App's credentials. GitHub Actions log downloads are an exception: Tuist follows signed archive redirects only over HTTPS, checks and pins every destination to a public IP, and does not forward the installation token.
+
+GitHub may return pagination links using its internal hostname. Tuist rebases links from the configured GitHub instance onto the API URL, preserving your proxy's path prefix; links to unrelated origins are rejected.
+
+Separately, GitHub must be able to deliver webhooks to `https://tuist.dev/webhooks/github` (or `/webhooks/github` on your self-hosted Tuist server). Engineers must be able to return to Tuist to complete the browser callbacks. The API URL does not change either destination.
+
+Organization administrators can also change or clear the API URL on an existing Enterprise integration using **Save API URL** in the integration card. No App reinstallation or project reconnection is needed. Clearing it restores `<Server URL>/api/v3`. Saving validates the URL format, not proxy connectivity. Webhook processing may take up to one minute to use a changed address because installation lookups are cached; requests already in flight may still use the previous address.
+
 > [!NOTE]
 > **Enterprise plan only on the hosted Tuist server**
 >

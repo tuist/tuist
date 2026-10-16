@@ -12,7 +12,10 @@ defmodule Atlas.MCP.Tools.UpdateSpec do
           "description" => "Spec identifier, public number, or /engineering/specs/:number URL."
         },
         "title" => %{"type" => "string"},
-        "body" => %{"type" => "string"},
+        "body" => %{
+          "type" => "string",
+          "description" => "Spec body in Markdown. Fenced ```mermaid blocks render as diagrams."
+        },
         "summary" => %{
           "type" => "string",
           "description" => "Short spec description for summaries and OpenGraph cards. Do not use em dashes."

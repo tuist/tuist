@@ -55,11 +55,23 @@ defmodule Tuist.ClickHouse.Workers.ParityWorker do
 
     case Parity.compare(since: since) do
       {:ok, report} ->
-        drift = length(report.schema.missing_on_destination) + length(report.schema.differing_columns)
+        drift =
+          length(report.schema.missing_on_destination) + length(report.schema.missing_on_source) +
+            length(report.schema.differing_columns)
 
+        # `skipped` is emitted alongside the rest because it is the check's
+        # coverage, and the tables it drops are the largest ones: without it
+        # the only trace of a table leaving the hourly comparison is `compared`
+        # falling, which reads as a table being removed rather than as one
+        # growing past what a window can bound.
         :telemetry.execute(
           [:tuist, :clickhouse, :parity],
-          %{compared: report.compared, differing: length(report.differing), schema_drift: drift},
+          %{
+            compared: report.compared,
+            skipped: length(report.skipped),
+            differing: length(report.differing),
+            schema_drift: drift
+          },
           %{}
         )
 

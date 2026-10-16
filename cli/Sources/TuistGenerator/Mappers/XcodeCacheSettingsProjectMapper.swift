@@ -50,11 +50,33 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // settings carry no default, for staged adoption), so opt in explicitly.
         // Enabling them changes every key, but only ever at a boundary where the
         // compiler version already invalidated the cache.
-        if await isPrefixMappingSupported() {
-            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = "YES"
-            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
-            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = "YES"
-            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+        //
+        // The compiler writes the mapped paths (`/^src/…`, `/^root/…`) into the
+        // coverage mapping too, and xccov drops every source compiled with them
+        // from the report. Tuist's own upload maps them back (it exports with
+        // llvm-cov and reads each target's compilation-prefix-map.json), but Xcode's
+        // coverage UI, xccov and tooling built on it don't, so a coverage build
+        // compiles unmapped by default: `SWIFT_ENABLE_PREFIX_MAPPING` and
+        // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
+        // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
+        // that gather coverage. A project that only needs Tuist's coverage keeps
+        // those builds path-independent with `enableCoveragePrefixMapping`.
+        if await Self.isPrefixMappingSupported() {
+            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
+            // The project mappings (`/^src`, `/^derived`, `/^built`, `/^workspace`) name a
+            // different directory in every project, and the debugger gets a single source
+            // map, so it would resolve other projects' paths against the debugged target's
+            // project. The workspace-wide mappings from XcodeCachePrefixMappingWorkspaceMapper
+            // cover the same directories, so they stay off unless a project turns them on.
+            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
+            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
+            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] =
+                tuist.project.generatedProject?.generationOptions.enableCoveragePrefixMapping == true ? "YES" : "NO"
         }
 
         var casPluginOptions: [String] = []
@@ -102,6 +124,11 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                     Environment.current.casProxySocketPathString()
                 )
+                // With a remote service, every local miss is followed by a key query
+                // task that asks the remote cache. On execution lanes only a few run
+                // at once, so a cold build waits on the cache round trips a lane at a
+                // time; detached, the queries overlap.
+                baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] = "YES"
             } else {
                 // The bundled dylib is absent, so the build silently falls back to
                 // local-only caching (no remote). Warn rather than let a cold cache
@@ -136,6 +163,10 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         return (project, [])
     }
 
+    private static let prefixMappingForCoverageSetting = "TUIST_PREFIX_MAPPING_FOR_COVERAGE"
+    private static let prefixMappingUnlessCoverage: SettingValue =
+        "$(\(prefixMappingForCoverageSetting)_$(CLANG_COVERAGE_MAPPING))"
+
     /// Whether the selected Xcode's build system implements the source/build
     /// directory prefix mappings that make compilation-cache keys path-independent
     /// (Xcode 27 / Swift 6.4 and later).
@@ -143,7 +174,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
     /// A version that can't be determined degrades to `false` — the status quo,
     /// path-dependent keys — rather than failing generation over a cache
     /// optimization.
-    private func isPrefixMappingSupported() async -> Bool {
+    static func isPrefixMappingSupported() async -> Bool {
         guard let version = try? await XcodeController.current.selectedVersion() else { return false }
         return version >= Version(27, 0, 0)
     }

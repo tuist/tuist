@@ -30,7 +30,7 @@ open class GetCacheEndpointsService(
         val api = retrofitProvider(serverURL, tokenProvider).create(CacheApi::class.java)
         val call = api.getCacheEndpoints(accountHandle)
         if (timeoutMs != null) {
-            call.timeout().timeout(timeoutMs, TimeUnit.MILLISECONDS)
+            call.timeout().deadline(timeoutMs, TimeUnit.MILLISECONDS)
         }
         val response = call.execute()
         if (!response.isSuccessful) {

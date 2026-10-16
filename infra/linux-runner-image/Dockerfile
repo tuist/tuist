@@ -34,7 +34,9 @@ ARG TARGETARCH=amd64
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
+    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
 WORKDIR /src
@@ -121,6 +123,13 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
 FROM ubuntu:22.04
+
+# GitHub-hosted runners set ImageOS, and setup actions such as
+# erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
+# in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
+# is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
+# `ubuntu22-arm64`.
+ENV ImageOS=ubuntu22
 
 # renovate: datasource=github-releases depName=actions/runner
 ARG RUNNER_VERSION=2.337.0
@@ -383,6 +392,8 @@ COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
 # metrics-sampler.sh runs in the `metrics` native-sidecar container
 # (holds the SA token like the poller; never the runner container) and
 # POSTs the microVM's machine metrics for the job detail page.

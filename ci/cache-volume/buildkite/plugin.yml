@@ -1,0 +1,24 @@
+name: Tuist cache volumes
+description: Attach private persistent cache volumes on Tuist Linux runners.
+author: https://github.com/tuist
+requirements: [bash, jq, tuist-cache-volume]
+configuration:
+  type: object
+  additionalProperties: false
+  required: [volumes]
+  properties:
+    volumes:
+      type: array
+      minItems: 1
+      maxItems: 8
+      items:
+        type: object
+        additionalProperties: false
+        required: [key, path]
+        properties:
+          key:
+            type: string
+            minLength: 1
+          path:
+            type: string
+            minLength: 1

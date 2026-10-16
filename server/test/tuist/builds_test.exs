@@ -1259,7 +1259,7 @@ defmodule Tuist.BuildsTest do
       url = Builds.build_ci_run_url(build)
 
       # Then
-      assert url == "https://app.circleci.com/pipelines/github/owner/project/42"
+      assert url == "https://app.circleci.com/jobs/github/owner/project/42"
     end
 
     test "returns Buildkite URL for Buildkite provider" do

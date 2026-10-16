@@ -127,7 +127,14 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    let runtime = RuntimeState::new();
+    crate::serving_authority::AuthorityConfig::validate_volume(
+        &config.data_dir,
+        config.serving_authority.as_ref(),
+    )?;
+    let runtime = match &config.serving_authority {
+        Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
+        None => RuntimeState::new(),
+    };
     let mut bootstrap = Bootstrap::start(
         SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)),
         metrics.clone(),
@@ -253,9 +260,13 @@ async fn initialize_and_serve(
         Err(error) => tracing::warn!(%error, "failed to read analytics outbox depth at startup"),
     }
     let store = Arc::new(store);
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
         config.analytics.as_ref(),
         &config.node_url,
@@ -297,6 +308,9 @@ async fn initialize_and_serve(
         config.sync_peer_serving_max_inflight,
     ));
     let state = Arc::new(AppState {
+        account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
+            config.tenant_id.clone(),
+        )),
         config,
         _data_dir_lock: data_dir_lock,
         store,
@@ -337,6 +351,13 @@ async fn initialize_and_serve(
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
     Usage::spawn_tasks(state.clone());
+    // The analytics outbox forwarder drains the shared column family into
+    // the server's webhook endpoints. In this release the pipeline is
+    // empty because no producer routes through it yet, so the tasks idle
+    // on the depth gauge; landing them ahead of the producer switch keeps
+    // activation independent from the code change that starts filling
+    // the outbox.
+    crate::analytics_forwarder::spawn_tasks(&state);
 
     if let Some(registration) =
         crate::registration::RegistrationConfig::from_env(&state.config.node_url)
@@ -347,12 +368,17 @@ async fn initialize_and_serve(
     spawn_snapshot_task(state.clone());
     spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
+    state.runtime.authority.bind_store(state.store.clone());
+    crate::handover::spawn(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_segment_promotion_task(state.clone());
+    spawn_supervised("segment_reclamation", state.clone(), |state| async move {
+        state.store.run_segment_reclamation_worker().await;
+    });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart, and prove mesh-membership
@@ -367,6 +393,11 @@ async fn initialize_and_serve(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.update_account_identity(
+            enrollment.account_handle.as_deref(),
+            enrollment.account_aliases.as_deref(),
+            enrollment.endpoint_redirects.as_ref(),
+        );
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -1350,6 +1381,11 @@ pub(crate) async fn apply_renewed_enrollment(
     }
 
     // Pick up any newly-learned peers for discovery.
+    state.update_account_identity(
+        outcome.account_handle.as_deref(),
+        outcome.account_aliases.as_deref(),
+        outcome.endpoint_redirects.as_ref(),
+    );
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
     Ok(())
 }

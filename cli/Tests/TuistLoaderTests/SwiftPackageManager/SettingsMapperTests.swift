@@ -192,34 +192,6 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
-    func test_set_OTHER_SWIFT_FLAGS() throws {
-        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
-            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
-            .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["NewFeature"]),
-            .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
-            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
-        ]
-
-        let mapper = SettingsMapper(
-            headerSearchPaths: [],
-            mainRelativePath: try RelativePath(validating: "path"),
-            settings: settings
-        )
-
-        let resolvedSettings = try mapper.settingsDictionary()
-
-        XCTAssertEqual(
-            resolvedSettings["OTHER_SWIFT_FLAGS"],
-            .array([
-                "$(inherited)",
-                "ArbitraryFlag",
-                "-enable-upcoming-feature \"NewFeature\"",
-                "-enable-experimental-feature \"Experimental\"",
-                "-swift-version 5",
-            ])
-        )
-    }
-
     func test_set_OTHER_LDFLAGS() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
@@ -240,22 +212,6 @@ final class SettingsMapperTests: XCTestCase {
                 "ArbitraryFlag",
             ])
         )
-    }
-
-    func test_set_SWIFT_VERSION() throws {
-        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
-            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
-        ]
-
-        let mapper = SettingsMapper(
-            headerSearchPaths: [],
-            mainRelativePath: try RelativePath(validating: "path"),
-            settings: settings
-        )
-
-        let resolvedSettings = try mapper.settingsDictionary()
-
-        XCTAssertEqual(resolvedSettings["SWIFT_VERSION"], .string("6"))
     }
 
     func test_strict_memory_safety_no_arguments() throws {
@@ -623,4 +579,51 @@ extension PackageInfo.Platform {
     static var watchos = PackageInfo.Platform(platformName: "watchos", version: "4.0", options: [])
     static var tvos = PackageInfo.Platform(platformName: "tvos", version: "12.0", options: [])
     static var visionos = PackageInfo.Platform(platformName: "visionos", version: "1.0", options: [])
+}
+
+struct SettingsMapperSwiftLanguageModeTests {
+    @Test func set_OTHER_SWIFT_FLAGS_without_swift_version_flag() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
+            .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["NewFeature"]),
+            .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        #expect(
+            resolvedSettings["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "ArbitraryFlag",
+                "-enable-upcoming-feature \"NewFeature\"",
+                "-enable-experimental-feature \"Experimental\"",
+            ])
+        )
+    }
+
+    @Test func swiftLanguageMode_sets_only_SWIFT_VERSION() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        #expect(resolvedSettings["SWIFT_VERSION"] == .string("6"))
+        // Xcode 27 warns if -swift-version is passed alongside SWIFT_VERSION,
+        // so swiftLanguageMode must not inject the flag into OTHER_SWIFT_FLAGS.
+        #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == nil)
+    }
 }

@@ -19,14 +19,17 @@ controller does the two things caph deliberately doesn't:
    only writes them to `spec.status.hardwareDetails` (a deliberate
    safety — `spec` is operator intent). The controller watches
    for hosts where `hardwareDetails` is populated but
-   `rootDeviceHints` is empty, and patches every discovered WWN
-   into `spec.rootDeviceHints.raid.wwn`. Every disk, not the first
-   pair: a four-disk box whose hints name two of them installs
-   across two and silently leaves the rest out of the array, and
-   the layout is fixed at install. The RAID level is not chosen
-   here at all; it comes from the `statefulRaidLevel` ClusterClass
-   variable, which is 1 on the two-disk AX-class boxes and 10 on
-   production's four-disk EX131.
+   `rootDeviceHints` is empty, and patches the WWNs of one disk
+   group into `spec.rootDeviceHints.raid.wwn`: the same-size group
+   holding the most capacity. installimage hands the set to mdadm,
+   which sizes every member to the smallest, so an array spanning
+   a box's two 1.92 TB disks and its two 7.68 TB ones installs as
+   3.84 TB usable out of 19.2 TB of flash, and the layout is fixed
+   at install. Capacity rather than disk count decides, and a
+   group too small to mirror is skipped. The RAID level is not
+   chosen here at all; it comes from the `statefulRaidLevel`
+   ClusterClass variable, which has to agree with the selection: 1
+   for a two-disk selection, 10 for a four-disk one.
 
 Net: the operator's bring-up workflow becomes "order in Robot
 panel with `tuist-bm-staging-N` naming → bump replicas." No

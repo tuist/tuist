@@ -179,11 +179,9 @@ alone on join. The navbar does the same. --%>
       <div data-part="brand">
         <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
           <%!-- One wordmark for both themes (see wordmark/1), so nothing
-          depends on a theme rule hiding a second image. --%>
+          depends on a theme rule hiding a second image; outline mode strokes
+          its paths in place. --%>
           <.wordmark data-part="logo" role="img" aria-label="Tuist" />
-          <svg data-part="logo-outline" viewBox="0 0 84 32" aria-hidden="true">
-            <use href="#footer-wordmark-shape" width="84" height="32" />
-          </svg>
         </.link>
         <span
           data-part="soc-badge"

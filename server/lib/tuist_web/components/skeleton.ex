@@ -18,6 +18,7 @@ defmodule TuistWeb.Components.Skeleton do
         <span
           data-part="title"
           class="tuist-loading-skeleton"
+          aria-hidden="true"
           style={@title_width && "min-width: #{@title_width}"}
         >
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
@@ -26,6 +27,7 @@ defmodule TuistWeb.Components.Skeleton do
       <span
         data-part="value"
         class="tuist-loading-skeleton"
+        aria-hidden="true"
         style={@value_width && "min-width: #{@value_width}"}
       >
         &nbsp;&nbsp;&nbsp;
@@ -40,6 +42,7 @@ defmodule TuistWeb.Components.Skeleton do
     ~H"""
     <div
       class="noora-chart tuist-loading-skeleton"
+      aria-hidden="true"
       style={
         [
           "width: 100%",
@@ -62,6 +65,7 @@ defmodule TuistWeb.Components.Skeleton do
     ~H"""
     <div
       class="tuist-loading-skeleton"
+      aria-hidden="true"
       style={
         [
           "width: #{@width}",

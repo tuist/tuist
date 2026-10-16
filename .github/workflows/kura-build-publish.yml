@@ -1,0 +1,356 @@
+name: Kura Build & Publish
+
+# Reusable build+publish pipeline for Kura, shared by the canary, RC, and
+# promote workflows. The caller computes the version + exact commit to build;
+# this workflow only builds, packages, and publishes.
+#
+# The four build stages (prepare → binaries matrix → docker → publish) are
+# cloned from what used to live inline in server-production-deployment.yml as
+# `release-kura-prepare` / `release-kura-binaries` / `release-kura-docker`.
+# The only behavioral differences from that inline path are:
+#   * Version + commit come from the caller (inputs), not check-releases.
+#   * `:latest` is pushed only when the caller opts in via `make_latest`
+#     (canaries + RCs are prereleases; only the Monday promote is stable).
+#   * The GitHub Release is minted here via softprops/action-gh-release@v2,
+#     replacing the "Create Kura GitHub Release" step that used to live in
+#     publish-releases.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Bare semver (e.g. 4.192.0, 4.192.0-canary.5, 4.192.0-rc.1) to stamp into the binary and tag as kura@<version>"
+        required: true
+        type: string
+      ref:
+        description: "Resolved commit SHA to check out, build, and tag (not a branch name)"
+        required: true
+        type: string
+      changelog_from:
+        description: "Full git tag to diff release notes from (e.g. kura@1.4.0); empty falls back to the latest kura@ stable tag"
+        required: false
+        type: string
+        default: ""
+      make_latest:
+        description: "Whether GitHub marks this release as 'Latest' and whether the Docker manifest also pushes the :latest tag"
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  release-kura-prepare:
+    name: Release Kura Metadata
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "git-cliff rust"
+          cache: "false"
+          working-directory: kura
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        working-directory: kura
+        run: |
+          set -euo pipefail
+          LATEST_VERSION="${{ inputs.changelog_from }}"
+          if [ -z "$LATEST_VERSION" ]; then
+            LATEST_VERSION=$(git tag -l | grep -E "^kura@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1 || true)
+          fi
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update Kura package version
+        working-directory: kura
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" Cargo.toml
+          sed -i "s/^_KURA_VERSION = \".*\"/_KURA_VERSION = \"${VERSION}\"/" BUILD.bazel
+          env -u RUSTUP_TOOLCHAIN cargo update -w
+
+      - name: Update CHANGELOG.md
+        working-directory: kura
+        env:
+          VERSION: ${{ inputs.version }}
+        run: git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --tag "kura@${VERSION}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Upload Kura release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: kura-release-metadata
+          path: |
+            kura/CHANGELOG.md
+            kura/BUILD.bazel
+            kura/Cargo.toml
+            kura/Cargo.lock
+          retention-days: 1
+
+  release-kura-binaries:
+    name: Release Kura Binary (${{ matrix.target }})
+    needs: release-kura-prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    # id-token: OIDC for `tuist bazel setup`. Job permissions replace (not
+    # merge) the workflow's, so contents:read must be restated for checkout.
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # All targets build with Bazel and reuse the Tuist remote cache. macOS
+        # x86_64 is the only non-native target: it cross-compiles from the
+        # arm64 runner via --config=macos-x86_64-cross (apple_support supplies
+        # the cross cc toolchain for the -sys crates). The rest are native.
+        include:
+          - runner: tuist-linux
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: tuist-macos
+            target: aarch64-apple-darwin
+          - runner: tuist-macos
+            target: x86_64-apple-darwin
+            compile-args: "--config=macos-x86_64-cross"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust bazel tuist"
+          cache: "false"
+          working_directory: kura
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Download Kura release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-release-metadata
+          path: kura
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Set up the Tuist remote cache
+        working-directory: kura
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: hashFiles('kura/.bazelrc.tuist') == ''
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
+      - name: Build Kura binary
+        working-directory: kura
+        run: |
+          TARGET="${{ matrix.target }}"
+          ARTIFACT_DIR="$GITHUB_WORKSPACE/build-kura"
+          ARTIFACT_NAME="kura-${TARGET}.tar.gz"
+
+          mkdir -p "$ARTIFACT_DIR"
+
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
+
+          STAGE_DIR="$(mktemp -d)"
+          cp bazel-bin/kura "$STAGE_DIR/kura"
+          chmod +x "$STAGE_DIR/kura"
+
+          tar -C "$STAGE_DIR" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
+          shasum -a 256 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha256.txt"
+          shasum -a 512 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha512.txt"
+
+      - name: Upload Kura binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kura-binary-${{ matrix.target }}-artifacts
+          path: |
+            build-kura/kura-${{ matrix.target }}.tar.gz
+            build-kura/sha256.txt
+            build-kura/sha512.txt
+          retention-days: 1
+
+  release-kura-docker:
+    name: Release Kura Docker Image
+    needs: [release-kura-prepare, release-kura-binaries]
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download Kura amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        env:
+          VERSION: ${{ inputs.version }}
+          MAKE_LATEST: ${{ inputs.make_latest }}
+        run: |
+          set -euo pipefail
+          tags="ghcr.io/tuist/kura:${VERSION}"
+          # The :latest pointer moves only on stable promotes; canaries and
+          # RCs push their own versioned tag but must not overwrite :latest.
+          if [ "${MAKE_LATEST}" = "true" ]; then
+            tags="${tags}"$'\n'"ghcr.io/tuist/kura:latest"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./kura
+          file: ./kura/Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=kura-runtime
+          cache-to: type=gha,mode=max,scope=kura-runtime
+          tags: ${{ steps.tags.outputs.tags }}
+
+  publish-release:
+    name: Publish Kura GitHub Release
+    needs: [release-kura-prepare, release-kura-binaries, release-kura-docker]
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+      - name: Download Kura Linux x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: build-kura/x86_64-unknown-linux-gnu
+
+      - name: Download Kura Linux aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: build-kura/aarch64-unknown-linux-gnu
+
+      - name: Download Kura macOS x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-x86_64-apple-darwin-artifacts
+          path: build-kura/x86_64-apple-darwin
+
+      - name: Download Kura macOS aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-apple-darwin-artifacts
+          path: build-kura/aarch64-apple-darwin
+
+      - name: Merge Kura artifacts into build directory
+        run: |
+          set -euo pipefail
+          mkdir -p build-kura
+
+          : > build-kura/sha256.txt
+          : > build-kura/sha512.txt
+
+          for target in \
+            x86_64-unknown-linux-gnu \
+            aarch64-unknown-linux-gnu \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin; do
+            cat "build-kura/$target/sha256.txt" >> build-kura/sha256.txt
+            cat "build-kura/$target/sha512.txt" >> build-kura/sha512.txt
+            mv "build-kura/$target"/kura-*.tar.gz build-kura/
+          done
+
+      - name: Create Kura GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          target_commitish: ${{ inputs.ref }}
+          make_latest: ${{ inputs.make_latest }}
+          prerelease: ${{ inputs.prerelease }}
+          name: Kura ${{ inputs.version }}
+          tag_name: kura@${{ inputs.version }}
+          body: |
+            Docker image: `ghcr.io/tuist/kura:${{ inputs.version }}`
+
+            ${{ needs.release-kura-prepare.outputs.release-notes }}
+          files: |
+            build-kura/kura-x86_64-unknown-linux-gnu.tar.gz
+            build-kura/kura-aarch64-unknown-linux-gnu.tar.gz
+            build-kura/kura-x86_64-apple-darwin.tar.gz
+            build-kura/kura-aarch64-apple-darwin.tar.gz
+            build-kura/sha256.txt
+            build-kura/sha512.txt

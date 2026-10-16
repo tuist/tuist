@@ -125,6 +125,21 @@ defmodule Atlas.Slack do
   end
 
   @doc """
+  Looks up a channel by its human name (with or without the leading `#`).
+  Returns the `Channel` struct or `nil` when the bot has never seen that
+  channel. Useful for well-known channels (`customers`, `commercial`) that
+  we address by name rather than a rotating ID.
+  """
+  def find_channel_by_name(app_key, name) when is_binary(name) do
+    slack_app = Bot.normalize_app_key!(app_key)
+    normalized = String.trim_leading(name, "#")
+
+    Channel
+    |> where([c], c.slack_app == ^slack_app and c.channel_name == ^normalized)
+    |> Repo.one()
+  end
+
+  @doc """
   Updates the `account_id` foreign key on a channel using a dedicated
   changeset that does not call `cast`.
   """

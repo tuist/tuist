@@ -107,6 +107,34 @@
     line-height: 1.5;
   }
 
+  & [data-part="mermaid"] {
+    &[data-state="pending"] {
+      min-height: var(--noora-spacing-13);
+    }
+
+    &:not([data-state="error"]) > [data-part="mermaid-source"] {
+      display: none;
+    }
+
+    & > [data-part="mermaid-diagram"] {
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+
+      & svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      & p {
+        margin: 0;
+        color: inherit;
+        font: inherit;
+        line-height: inherit;
+      }
+    }
+  }
+
   & pre code {
     box-shadow: none;
     background: transparent;

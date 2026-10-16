@@ -100,10 +100,49 @@ defmodule AtlasWeb.InferenceController do
     end
   end
 
+  def decisions(conn, params) do
+    binding = conn.assigns.inference_model_binding
+    token = conn.assigns.inference_token
+
+    with {:ok, requested_model} <- fetch_requested_model(params),
+         true <- Inference.model_allowed?(binding, requested_model),
+         :ok <- decision_token_allowed(token),
+         false <- streamed?(params),
+         {:ok, request} <- Inference.relay_decision_request(binding, params) do
+      proxy_upstream(conn, binding, token, request, :decision)
+    else
+      {:error, :missing_model} ->
+        openai_error(conn, :bad_request, "The request must include a model.", "invalid_request_error")
+
+      false ->
+        openai_error(conn, :forbidden, "This token is not allowed to use the requested model.", "invalid_request_error")
+
+      true ->
+        openai_error(conn, :bad_request, "Decision requests do not support streaming.", "invalid_request_error")
+
+      {:error, :atlas_role_token} ->
+        openai_error(conn, :forbidden, "Decision requests require a dedicated profile token.", "invalid_request_error")
+
+      {:error, :decision_not_configured} ->
+        openai_error(conn, :bad_request, "The provider has no decision endpoint configured.", "invalid_request_error")
+
+      {:error, :upstream_not_configured} ->
+        openai_error(
+          conn,
+          :bad_gateway,
+          "The requested model is not configured with an upstream provider.",
+          "server_error"
+        )
+    end
+  end
+
+  defp decision_token_allowed(%Token{atlas_role: nil}), do: :ok
+  defp decision_token_allowed(%Token{}), do: {:error, :atlas_role_token}
+
   defp proxy_upstream(conn, %ModelBinding{} = binding, %Token{} = token, request, operation \\ :chat_completion) do
     case Inference.request_fun().(request) do
       {:ok, response} ->
-        if Inference.streaming_required?(response) do
+        if operation == :chat_completion and Inference.streaming_required?(response) do
           proxy_streaming_completion(conn, binding, token, request, operation)
         else
           record_relay(binding, token, response, nil, operation)
@@ -284,11 +323,15 @@ defmodule AtlasWeb.InferenceController do
       "upstream_model" => binding.upstream_model,
       "status" => status,
       "token_id" => token.id,
+      "token_name" => token.name,
+      "path" => "/admin/inference/profiles/#{binding.id}",
       "input_tokens" => usage.input_tokens,
       "output_tokens" => usage.output_tokens,
       "total_tokens" => usage.total_tokens,
       "cost_usd" => usage.cost_usd
     }
+
+    metadata = decision_usage_metadata(metadata, response, binding, operation)
 
     Audit.record(:"inference.relayed", %{
       target_type: "inference_model",
@@ -297,6 +340,22 @@ defmodule AtlasWeb.InferenceController do
       metadata: metadata
     })
   end
+
+  defp decision_usage_metadata(metadata, response, binding, :decision) do
+    if response_status(response) in 200..299 do
+      reported? = Inference.decision_usage_reported?(response)
+
+      if not reported? do
+        Logger.warning("Decision provider omitted valid token usage for profile #{binding.id}; cost is unknown")
+      end
+
+      Map.put(metadata, "usage_reported", reported?)
+    else
+      metadata
+    end
+  end
+
+  defp decision_usage_metadata(metadata, _response, _binding, _operation), do: metadata
 
   defp fetch_requested_model(%{"model" => model}) when is_binary(model) and model != "", do: {:ok, model}
 

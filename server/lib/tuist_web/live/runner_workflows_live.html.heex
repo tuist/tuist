@@ -106,7 +106,9 @@
     </.date_picker>
   </div>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@failed_workflow_runs_count, @workflow_runs_count, @workflows_duration]}
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
     data-part="workflows-analytics"
@@ -119,12 +121,12 @@
         description={
           dgettext("dashboard_runners", "Distinct workflow runs invoked in the last 30 days.")
         }
-        value={if @workflow_runs_count.ok?, do: format_number(@workflow_runs_count.result.count)}
-        loading={!@workflow_runs_count.ok?}
+        value={if ready?, do: format_number(@workflow_runs_count.result.count)}
+        loading={!ready?}
         selected={@analytics_selected_widget == "workflow_runs"}
         phx_click="select_widget"
         phx_value_widget="workflow_runs"
-        trend_value={if @workflow_runs_count.ok?, do: @workflow_runs_count.result.trend}
+        trend_value={if ready?, do: @workflow_runs_count.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
       />
@@ -139,16 +141,14 @@
           )
         }
         value={
-          if @failed_workflow_runs_count.ok?,
+          if ready?,
             do: format_number(@failed_workflow_runs_count.result.count)
         }
-        loading={!@failed_workflow_runs_count.ok?}
+        loading={!ready?}
         selected={@analytics_selected_widget == "failed_workflow_runs"}
         phx_click="select_widget"
         phx_value_widget="failed_workflow_runs"
-        trend_value={
-          if @failed_workflow_runs_count.ok?, do: @failed_workflow_runs_count.result.trend
-        }
+        trend_value={if ready?, do: @failed_workflow_runs_count.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
       />
@@ -169,7 +169,7 @@
           )
         }
         value={
-          if @workflows_duration.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @workflows_duration.result,
@@ -179,12 +179,12 @@
           end
         }
         metrics={
-          if @workflows_duration.ok?,
+          if ready?,
             do: TuistWeb.RunnersLive.percentile_metrics_for(@workflows_duration.result)
         }
         selected_type={@workflow_duration_percentile}
         event_name="select_workflow_duration_percentile"
-        loading={!@workflows_duration.ok?}
+        loading={!ready?}
         legend_color={
           TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)
         }
@@ -192,7 +192,7 @@
         phx_click="select_widget"
         phx_value_widget="workflow_duration"
         trend_value={
-          if @workflows_duration.ok? do
+          if ready? do
             TuistWeb.RunnersLive.percentile_trend(
               @workflows_duration.result,
               @workflow_duration_percentile
@@ -203,9 +203,9 @@
         trend_label={@analytics_trend_label}
       />
     </div>
-    <.card_section data-part="analytics-card-chart-section">
+    <.card_section data-part="analytics-card-chart-section" data-chart-frame="standard">
       <%= cond do %>
-        <% @analytics_selected_widget == "workflow_runs" and !@workflow_runs_count.ok? -> %>
+        <% @analytics_selected_widget == "workflow_runs" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "workflow_runs" -> %>
           <.chart
@@ -232,7 +232,7 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "failed_workflow_runs" and !@failed_workflow_runs_count.ok? -> %>
+        <% @analytics_selected_widget == "failed_workflow_runs" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "failed_workflow_runs" -> %>
           <.chart
@@ -259,7 +259,7 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
+        <% @analytics_selected_widget == "workflow_duration" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "workflow_duration" -> %>
           <.chart
@@ -279,7 +279,7 @@
           <.skeleton_chart />
       <% end %>
     </.card_section>
-  </.card>
+  </.async_card>
 
   <.card
     title={dgettext("dashboard_runners", "Workflows")}

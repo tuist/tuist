@@ -1,11 +1,5 @@
 # runners-controller
 
-The optional read-only shadow scheduler compares central warm-runner assignment
-proposals with later observed claims. It has no actuator and is disabled by
-default. See [rollout and interpretation](shadow-scheduler.md) and
-[policy boundary](internal/shadow/AGENTS.md). Keep it separate from both
-production reconcilers; it receives only a Kubernetes `client.Reader`.
-
 Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
 cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
 server's dispatch endpoint authenticates via the TokenReview API.
@@ -32,8 +26,16 @@ independent workqueues:
   server's `/api/internal/runners/desired_replicas` endpoint and
   patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
-  `maxReplicas`, `scaleDownCooldownSeconds`) live in the
-  `RunnerPool` spec, so a tuning change is helm-only.
+  `maxReplicas`, `scaleDownCooldownSeconds`, `holdRecentPeak`) live in
+  the `RunnerPool` spec, so a tuning change is helm-only.
+
+  `holdRecentPeak` (default true) keeps a pool sized to the server's
+  hourly p95 of concurrent runners after load falls. A pool whose jobs
+  arrive in one-off bursts (the `ber1` smoke pool, dispatched by hand)
+  sets it false, so after a burst it sizes to load plus
+  `minWarmPoolFloor` instead of holding the burst's runners for an
+  hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
+  entries render it when their `autoscaling` block sets it.
 
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
@@ -57,6 +59,61 @@ independent workqueues:
   fleets shrink toward their real load, so a returning spike pays
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
+
+  **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
+  damps a pool's own oscillation, but it must not hold idle runners
+  while a sibling's queued jobs cannot be placed. When a pool is inside
+  its cooldown and the allocator has already lowered it, the autoscaler
+  checks its fleet for starved siblings and retires this pool's share of
+  idle runners at once instead of deferring:
+
+  - *Starved* means the sibling has Pods the scheduler refused with
+    `Insufficient …` for at least `preemptionWait` (30s), backed by
+    dispatchable `queued` jobs its own idle bound Pods cannot absorb:
+    `min(rejected, queued - idleBound)`. `withheld` work (accounts at
+    their concurrency limit) never preempts. Entitlement is not checked
+    here: a job is only queued on a site pool when dispatch routed it
+    there (`runner_site` accounts, or the pool's own dispatch label), and
+    the site spillover worker moves queued jobs off a site that is down.
+  - Demand is counted in the allocator's per-Pod cost, minus seats
+    already on their way back, so consecutive ticks do not over-preempt
+    while a Tart VM tears down. A pool returns the seats it holds above
+    its `spec.replicas`, counting Pods deleted within `preemptionSettle`
+    that are still on their node. A Pod that finished its job is not
+    counted: its pool is already replacing it, and the replacement takes
+    the seat.
+  - Victims are pools above their allocation that are not starved
+    themselves. They give up Pods one per pool per round in name order,
+    so every pool's reconcile computes the same split. The cut is taken
+    from the smaller of `spec.replicas` and the Pods that exist, so a
+    pool still recreating Pods retires every runner it marked. A victim
+    never drops below its allocation, so `minWarmPoolFloor` yields exactly as
+    the allocator already decides: floors are funded only after every
+    pool's real load, so a queued job outranks a sibling's warm floor.
+  - Only warm idle runners (`isIdle` + `isWarmCapacity`, the same
+    signals the node-drain reap uses) that have been warm for at least
+    `preemptionGrace` (2m) are eligible, oldest first, except that runners
+    on hosts already holding a starved pool's golden image
+    (`tuist.dev/golden-<hash>`) go before all others: the starved Pod takes
+    whichever seat frees, and on those hosts its job clones the image
+    instead of pulling it. A runner still
+    booting, just warm and about to claim, running a job, or on a stale
+    template is never chosen. Unbound idle Pods within the victim's
+    surplus go too, since they would race the starved Pods for the
+    freed seats.
+  - The autoscaler annotates the chosen Pods (`tuist.dev/preempted-for`,
+    `tuist.dev/preempted-at`), lowers `spec.replicas`, and stamps
+    `lastScaleDownAt`. The RunnerPool reconciler's scale-down retires
+    marked Pods first, emits `RunnerPodPreemptedForSiblingDemand` on
+    each, and counts them in
+    `tuist_runners_pool_preempted_pods_total{fleet_selector,pool}`
+    (runners dashboard, "Idle runners preempted for a starved sibling
+    pool"). A mark older than `preemptionSettle` is ignored.
+
+  Bytes are fleet-wide, like the allocator's budget, so preemption can
+  free two small seats on different hosts for a starved 12 vCPU guest
+  that needs one whole host. Accumulating a whole host is the node
+  reservation's job (below).
 
   The capacity unit is allocatable memory bytes on both platforms; only
   what the per-Pod cost includes differs:
@@ -182,7 +239,9 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
+    the fewest running jobs and, among those, one already holding the
+    pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
@@ -248,12 +307,14 @@ independent workqueues:
     status the scheduler never sees, which is why this lives in the
     controller.
 
-  Only nodes that report `Ready=True`, remain schedulable, and have no
-  memory, disk, or process identifier pressure contribute to either
-  budget. A fleet filtered to zero capacity still takes the existing
-  per-pool fallback, so a transient node roll never triggers a mass
-  scale-down of warm Pods. Pod creation has a separate fail-closed
-  healthy-node gate described below.
+  Only nodes that report `Ready=True`, remain schedulable, carry no
+  `tuist.dev/prewarming` taint (a joining macOS host still pulling its
+  runner images; see tart-kubelet's AGENTS.md), and have no memory, disk,
+  or process identifier pressure contribute to either budget. A fleet
+  filtered to zero capacity still takes the existing per-pool fallback,
+  so a transient node roll never triggers a mass scale-down of warm
+  Pods. Pod creation has a separate fail-closed healthy-node gate
+  described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
   the ClusterRole. Fleet-capacity, pool-list, and sibling-signal
@@ -1269,3 +1330,48 @@ catalog from two sides.
 
 Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
 the `apk add` on every Pod startup goes away.
+
+## Linux cache volumes
+
+Local reflink image clones are implemented in
+[`../runner-cache`](../runner-cache/AGENTS.md) and `cmd/cache-volumes`.
+They share journal and object-storage publication with the macOS APFS backend. The agent image includes ext4/loop tooling, with no Ceph dependency.
+See [host setup and rollout](cache-volumes.md).
+RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
+runner and DinD, guarded by Kata. Prefer the storage-readiness node label without
+requiring it: unavailable cache storage must not block ordinary Linux jobs. Incoming
+mount propagation must work through Kata. Staging has verified GitHub native and
+ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
+the remaining operational validation limits explicit in the rollout guide.
+Mount revision changes use the existing bounded idle rollout. No account-wide
+cache root or infrastructure credential crosses into workflow containers.
+
+Managed production enables custom volumes on normal deployment. The agent image
+ships the bounded filesystem provisioning script, invoked by an opt-in privileged
+init container in the host mount namespace. Existing/replacement nodes converge
+before the agent can advertise readiness. Provisioning reserves 200 GB, retains
+40 GB host headroom, and refuses nonempty paths, foreign mounts, symlinks, and
+size changes. Controller and agent share a release version; the component release
+tag is published only after both images exist.
+
+- Cache volume action distribution and implemented Buildkite/GitLab adapters are
+  documented in [cache-volume-integrations.md](cache-volume-integrations.md).
+  Do not enable provider allocation by removing the GitHub filter alone; require
+  verified provider/instance identity and publication policy first.
+
+The real cache-filesystem CI job runs on `ubuntu-latest`, outside Kata's minimal
+kernel, because the node agent is a host workload. Keep it a required image-build
+dependency. Manual branch image builds publish only commit tags; `latest` is
+reserved for main.
+
+- Cache-enabled Linux pods run a descriptor-based mount broker in the existing privileged DinD sidecar. The runner and Docker job containers retain their existing privileges and separate PID namespaces; only their pod-scoped work socket and cache subtree are shared. Update the cache revision when changing this wiring and validate against the matching runner image.
+
+Cache-agent metrics use a separate port 9091, annotated for Alloy discovery and
+allowed only from the observability namespace. Keep acquisition on 8090 scoped
+to runner pods. Low-cardinality phase/source/result counters and histograms cover
+restoration, publication and bounded prefetch; never label metrics with lease IDs,
+cache keys, paths or signed URLs. Non-production retains these metrics for recovery
+drills. See `cache-volumes.md` for queries and rollout evidence.
+The September 28 repeat-CI and recovery drill results are recorded in
+`cache-volume-validation.md`; distinguish measured workload gains from prefetch
+behavior that still needs production observation.

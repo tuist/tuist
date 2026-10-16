@@ -72,15 +72,39 @@ defmodule Tuist.Billing.UsagePricing do
   is left.
   """
   def meter_values(%Account{id: account_id}, %DateTime{} = period_start, %DateTime{} = period_end) do
-    cache = account_id |> UsageMeters.cache_downloads(period_start, period_end) |> cache_totals()
+    cache = metered_cache_usage(account_id, period_start, period_end)
     tests = account_id |> UsageMeters.test_case_runs(period_start, period_end) |> test_totals()
 
     [
-      %{event_name: @egress_meter, value: div(metered(cache.bytes, cache.runner_bytes), @bytes_per_megabyte)},
-      %{event_name: @request_meter, value: metered(cache.requests, cache.runner_requests)},
+      %{event_name: @egress_meter, value: cache.egress_megabytes},
+      %{event_name: @request_meter, value: cache.requests},
       %{event_name: @passing_test_case_meter, value: tests.passed}
     ]
   end
+
+  @doc """
+  The cache egress, in whole megabytes, and the cache requests an account is
+  metered for over `[period_start, period_end)`, with runner traffic counted
+  at half. It is what Stripe is sent, and what the Air limit is checked
+  against for an account on usage-based pricing.
+  """
+  def metered_cache_usage(account_id, %DateTime{} = period_start, %DateTime{} = period_end) do
+    cache = account_id |> UsageMeters.cache_downloads(period_start, period_end) |> cache_totals()
+
+    %{
+      egress_megabytes: div(metered(cache.bytes, cache.runner_bytes), @bytes_per_megabyte),
+      requests: metered(cache.requests, cache.runner_requests)
+    }
+  end
+
+  @doc """
+  Whether metered cache usage has reached either allowance.
+  """
+  def cache_allowance_reached?(%{egress_megabytes: egress_megabytes, requests: requests}) do
+    (egress_megabytes || 0) >= included_egress_megabytes() or (requests || 0) >= @included_requests
+  end
+
+  def included_egress_megabytes, do: div(@included_egress_bytes, @bytes_per_megabyte)
 
   @doc """
   The period's cache and test insights usage, what it is worth, and what the

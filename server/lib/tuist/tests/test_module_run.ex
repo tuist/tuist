@@ -34,6 +34,7 @@ defmodule Tuist.Tests.TestModuleRun do
     field :test_suite_count, Ch, type: "Int32"
     field :test_case_count, Ch, type: "Int32"
     field :avg_test_case_duration, Ch, type: "Int32"
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
     field :project_id, Ch, type: "Nullable(Int64)"

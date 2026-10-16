@@ -55,28 +55,51 @@ enum ManifestLoader {
     static let cacheFile = "package.json"
 
     static func cacheFilePath(packageDir: URL) -> URL {
-        packageDir
+        if let scratch = ManifestCache.scratchDirectory {
+            let root = scratch.appendingPathComponent("swifterpm/manifests")
+            if packageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+                return root.appendingPathComponent(cacheFile)
+            }
+            return root.appendingPathComponent("packages")
+                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+                .appendingPathComponent(cacheFile)
+        }
+        return legacyCacheFilePath(packageDir: packageDir)
+    }
+
+    static func legacyCacheFilePath(packageDir: URL) -> URL {
+        return packageDir
             .appendingPathComponent(cacheDirectory)
             .appendingPathComponent(cacheFile)
     }
 
-    static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
+    static func dumpPackage(packageDir: URL, disableSandbox: Bool, cacheFile: URL? = nil) async throws -> Any {
         try await requireManifest(packageDir: packageDir)
         do {
             let data = try await loadPackageJSON(
-                packageDir: packageDir, disableSandbox: disableSandbox
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+                inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
             )
-            return try JSONSerialization.jsonObject(with: data)
+            return try JSONSerialization.jsonObject(with: data.data)
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
         }
     }
 
-    static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
+    static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool, cacheFile: URL? = nil) async throws -> Data {
+        try await dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+            inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        ).data
+    }
+
+    static func dumpPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
         try await requireManifest(packageDir: packageDir)
         do {
             return try await loadPackageJSON(
-                packageDir: packageDir, disableSandbox: disableSandbox
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile, inputs: inputs
             )
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
@@ -103,9 +126,12 @@ enum ManifestLoader {
     /// cache, the `dump-package` hop, and (for `dumpPackage`) the JSON parse are all attributed
     /// once, by whichever entry point the caller used — a toolchain that prints ahead of the
     /// JSON must not fail as anonymously as the missing manifest this change is about.
-    private static func loadPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
-        if let cached = try await readCachedManifest(packageDir: packageDir) {
-            return cached
+    private static func loadPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
+        let cache = cacheFile ?? cacheFilePath(packageDir: packageDir)
+        if let inputs, let cached = await ManifestCache.read(at: cache, inputs: inputs) {
+            return (cached, inputs)
         }
 
         var args = ["package"]
@@ -119,12 +145,13 @@ enum ManifestLoader {
             workingDirectory: packageDir,
             customEnvironment: Environment.manifestValues
         )
-        let cache = cacheFilePath(packageDir: packageDir)
-        try? await fileSystem.atomicWrite(result.stdout, to: cache)
-        if let cachePath = try? cache.absolutePath {
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath)
+        if let inputs,
+           (try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)) == inputs
+        {
+            try? await ManifestCache.write(result.stdout, at: cache, inputs: inputs)
+            return (result.stdout, inputs)
         }
-        return result.stdout
+        return (result.stdout, nil)
     }
 
     /// `swift package dump-package` resolves the package root from its working directory and
@@ -177,29 +204,14 @@ enum ManifestLoader {
         }
     }
 
-    private static func readCachedManifest(packageDir: URL) async throws -> Data? {
-        let cache = cacheFilePath(packageDir: packageDir)
-        let manifest = packageDir.appendingPathComponent("Package.swift")
-        let cachePath = try cache.absolutePath
-        guard try await fileSystem.exists(cachePath) else { return nil }
-        guard let cacheDate = try await fileSystem.fileMetadata(at: cachePath)?.lastModificationDate,
-              let manifestDate = try await fileSystem.fileMetadata(at: manifest.absolutePath)?.lastModificationDate,
-              cacheDate >= manifestDate
-        else {
-            return nil
+    static func localCacheFilePath(rootPackageDir: URL, packageDir: URL) -> URL {
+        if rootPackageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+            return cacheFilePath(packageDir: packageDir)
         }
-        // A dump is reusable only when it was produced under the current environment. A
-        // missing sidecar means the cache predates environment fingerprinting (or the
-        // sidecar write failed), so the environment that produced the contents is
-        // unknown. Treat that as a miss and re-dump rather than blessing unknown contents
-        // with the current environment, otherwise a legacy cache that was already stale
-        // at upgrade time would stay stale indefinitely.
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cachePath) {
-        case .matching:
-            return try await fileSystem.readFile(at: cachePath)
-        case .mismatching, .missing:
-            return nil
-        }
+        let rootCache = cacheFilePath(packageDir: rootPackageDir).deletingLastPathComponent()
+        return rootCache.appendingPathComponent("local")
+            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+            .appendingPathComponent(cacheFile)
     }
 }
 
@@ -247,7 +259,8 @@ enum ManifestFileSystemDependencyGraph {
             do {
                 manifest = try await ManifestLoader.dumpPackage(
                     packageDir: packagePath,
-                    disableSandbox: disableSandbox
+                    disableSandbox: disableSandbox,
+                    cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: rootPackageDir, packageDir: packagePath)
                 )
             } catch {
                 throw ToolError.message(
@@ -332,7 +345,7 @@ enum ManifestParser {
                             location: location,
                             requirement: requirement(requirementJSON),
                             nameForTargetDependencyResolutionOnly:
-                                dependency["nameForTargetDependencyResolutionOnly"] as? String
+                            dependency["nameForTargetDependencyResolutionOnly"] as? String
                         ))
                 }
             }

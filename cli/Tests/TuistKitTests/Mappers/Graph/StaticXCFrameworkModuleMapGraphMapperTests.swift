@@ -512,6 +512,142 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_static_xcframework_library_is_linked_directly_by_a_kept_binary_cache_source_target() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let vendorPath = projectPath
+            .parentDirectory
+            .appending(component: "CVendor.xcframework")
+        let vendorHeadersPath = vendorPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: vendorHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: vendorHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let derivedDirectory = projectPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            ]
+        )
+
+        let vendor: GraphDependency = .testXCFramework(
+            path: vendorPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "libvendor.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                vendorHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let cachedWrapper: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "VendorWrapper.xcframework")
+        )
+        let graphWithSources: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "App"),
+                        .test(name: "VendorWrapper"),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "VendorWrapper", path: projectPath),
+                ],
+                .target(name: "VendorWrapper", path: projectPath): [
+                    vendor,
+                ],
+            ]
+        )
+        let keptSourceTarget: Target = .test(
+            name: "VendorWrapper",
+            metadata: .metadata(tags: ["tuist:binary-sources"])
+        )
+        let graphWithBinaryCache: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "App"),
+                        keptSourceTarget,
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    cachedWrapper,
+                ],
+                cachedWrapper: [
+                    vendor,
+                ],
+                .target(name: "VendorWrapper", path: projectPath): [
+                    vendor,
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = graphWithSources
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
+            graph: graphWithBinaryCache,
+            environment: environment
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            gotGraph.projects[projectPath]?.targets["App"]?.settings?.base,
+            [
+                "OTHER_SWIFT_FLAGS": [
+                    "-Xcc",
+                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CVendor/Headers/module.modulemap\"",
+                ],
+                "OTHER_C_FLAGS": [
+                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CVendor/Headers/module.modulemap\"",
+                ],
+                "HEADER_SEARCH_PATHS": [
+                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CVendor/Headers\"",
+                ],
+            ]
+        )
+        XCTAssertBetterEqual(
+            [
+                .directory(
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "CVendor", "Headers"))
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "CVendor", "Headers", "module.modulemap"),
+                        contents: "modulemap".data(using: .utf8)
+                    )
+                ),
+            ],
+            gotSideEffects
+        )
+    }
+
     func test_map_when_static_xcframework_library_is_linked_directly_for_other_platforms() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -558,7 +694,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     path: projectPath,
                     targets: [
                         .test(
-                            name: "App"
+                            name: "App",
+                            destinations: [.iPhone, .mac]
                         ),
                     ]
                 ),
@@ -585,9 +722,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         name: "App",
+                        destinations: [.iPhone, .mac],
                         settings: .test(
                             base: [
-                                "HEADER_SEARCH_PATHS": [
+                                "HEADER_SEARCH_PATHS[sdk=macosx*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/macos-arm64/Headers\"",
                                 ],
                             ]
@@ -2716,6 +2855,77 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
                         "-enable-experimental-feature", "StrictConcurrency",
                         "-enable-experimental-feature", "TypedThrows",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherSwiftDuplicates_preservesCASPluginOptions() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                    "-cas-plugin-option", "tuist-upload=false",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                        "-cas-plugin-option", "tuist-upload=false",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherSwiftDuplicates_preservesRepeatedFlagsWithSeparateArguments() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-module-alias", "Alpha=PackageAlpha",
+                    "-module-alias", "Beta=PackageBeta",
+                    "-D", "FOO",
+                    "-D", "BAR",
+                    "-module-alias", "Alpha=PackageAlpha",
+                    "-D", "FOO",
+                    "-warnings-as-errors",
+                    "$(inherited)",
+                    "-warnings-as-errors",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-module-alias", "Alpha=PackageAlpha",
+                        "-module-alias", "Beta=PackageBeta",
+                        "-D", "FOO",
+                        "-D", "BAR",
+                        "-warnings-as-errors",
                     ]
                 ),
             ]

@@ -106,7 +106,9 @@
     </.date_picker>
   </div>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@cumulative_minutes, @jobs_breakdown, @jobs_duration, @queue_time]}
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
     data-part="jobs-analytics"
@@ -123,7 +125,7 @@
           )
         }
         value={
-          if @jobs_breakdown.ok?,
+          if ready?,
             do:
               format_number(
                 TuistWeb.RunnerJobsLive.jobs_breakdown_value(
@@ -132,12 +134,12 @@
                 )
               )
         }
-        loading={!@jobs_breakdown.ok?}
+        loading={!ready?}
         selected={@analytics_selected_widget == "jobs"}
         phx_click="select_widget"
         phx_value_widget="jobs"
         trend_value={
-          if @jobs_breakdown.ok?,
+          if ready?,
             do:
               TuistWeb.RunnerJobsLive.jobs_breakdown_trend(
                 @jobs_breakdown.result,
@@ -159,7 +161,7 @@
               <span data-part="label">{dgettext("dashboard_runners", "All")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @jobs_breakdown.ok?,
+                {if ready?,
                   do: format_number(@jobs_breakdown.result.total.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
@@ -176,7 +178,7 @@
               <span data-part="label">{dgettext("dashboard_runners", "Passed")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @jobs_breakdown.ok?,
+                {if ready?,
                   do: format_number(@jobs_breakdown.result.successful.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
@@ -193,7 +195,7 @@
               <span data-part="label">{dgettext("dashboard_runners", "Failed")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @jobs_breakdown.ok?,
+                {if ready?,
                   do: format_number(@jobs_breakdown.result.failed.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
@@ -215,7 +217,7 @@
           dgettext("dashboard_runners", "Time each job takes from start to completion.")
         }
         value={
-          if @jobs_duration.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @jobs_duration.result,
@@ -225,18 +227,18 @@
           end
         }
         metrics={
-          if @jobs_duration.ok?,
+          if ready?,
             do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
         }
         selected_type={@job_duration_percentile}
         event_name="select_job_duration_percentile"
-        loading={!@jobs_duration.ok?}
+        loading={!ready?}
         legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
         selected={@analytics_selected_widget == "job_duration"}
         phx_click="select_widget"
         phx_value_widget="job_duration"
         trend_value={
-          if @jobs_duration.ok? do
+          if ready? do
             TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
           end
         }
@@ -260,25 +262,25 @@
           )
         }
         value={
-          if @queue_time.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(@queue_time.result, @queue_time_percentile)
             )
           end
         }
         metrics={
-          if @queue_time.ok?,
+          if ready?,
             do: TuistWeb.RunnersLive.percentile_metrics_for(@queue_time.result)
         }
         selected_type={@queue_time_percentile}
         event_name="select_queue_time_percentile"
-        loading={!@queue_time.ok?}
+        loading={!ready?}
         legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@queue_time_percentile)}
         selected={@analytics_selected_widget == "queue_time"}
         phx_click="select_widget"
         phx_value_widget="queue_time"
         trend_value={
-          if @queue_time.ok? do
+          if ready? do
             TuistWeb.RunnersLive.percentile_trend(@queue_time.result, @queue_time_percentile)
           end
         }
@@ -296,22 +298,22 @@
           )
         }
         value={
-          if @cumulative_minutes.ok? do
+          if ready? do
             format_number(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
           end
         }
-        loading={!@cumulative_minutes.ok?}
+        loading={!ready?}
         selected={@analytics_selected_widget == "cumulative_minutes"}
         phx_click="select_widget"
         phx_value_widget="cumulative_minutes"
-        trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
+        trend_value={if ready?, do: @cumulative_minutes.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
       />
     </div>
-    <.card_section data-part="analytics-card-chart-section">
+    <.card_section data-part="analytics-card-chart-section" data-chart-frame="standard">
       <%= cond do %>
-        <% @analytics_selected_widget == "jobs" and !@jobs_breakdown.ok? -> %>
+        <% @analytics_selected_widget == "jobs" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "jobs" -> %>
           <.chart
@@ -326,7 +328,7 @@
             series={TuistWeb.RunnerJobsLive.jobs_breakdown_chart_series(@jobs_breakdown.result)}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "cumulative_minutes" and !@cumulative_minutes.ok? -> %>
+        <% @analytics_selected_widget == "cumulative_minutes" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "cumulative_minutes" -> %>
           <.chart
@@ -353,7 +355,7 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "queue_time" and !@queue_time.ok? -> %>
+        <% @analytics_selected_widget == "queue_time" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "queue_time" -> %>
           <.chart_type_toggle
@@ -404,7 +406,7 @@
               )
             }
           />
-        <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
+        <% @analytics_selected_widget == "job_duration" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "job_duration" -> %>
           <.chart_type_toggle
@@ -459,7 +461,7 @@
           <.skeleton_chart />
       <% end %>
     </.card_section>
-  </.card>
+  </.async_card>
 
   <.card
     title={dgettext("dashboard_runners", "Jobs")}

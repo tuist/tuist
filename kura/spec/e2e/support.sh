@@ -73,8 +73,26 @@ resolve_host_port() {
 resolve_http_node() {
   local prefix="$1" service="$2" container_port="${3:-4000}" port
   port="$(resolve_host_port "$service" "$container_port")"
+  if [ -z "$port" ]; then
+    report_stopped_service "$service"
+  fi
   printf -v "${prefix}_PORT" '%s' "$port"
   printf -v "${prefix}_URL" 'http://localhost:%s' "$port"
+}
+
+# Print why SERVICE's container is not running to stderr, which shellspec
+# attaches to the failing example.
+report_stopped_service() {
+  local service="$1" container
+  container="$(dc ps -aq "$service" | head -n1)"
+  if [ -z "$container" ]; then
+    printf '%s has no container\n' "$service" >&2
+    return 0
+  fi
+  docker inspect --format \
+    "${service}: status={{.State.Status}} exit_code={{.State.ExitCode}} oom_killed={{.State.OOMKilled}} error={{.State.Error}}" \
+    "$container" >&2
+  dc logs --no-color --tail 40 "$service" >&2
 }
 
 compose_teardown() {
@@ -605,6 +623,11 @@ DNS.1 = kura-us.kura.internal
 DNS.2 = kura-eu.kura.internal
 DNS.3 = kura-ap.kura.internal
 DNS.4 = kura-ring.kura.internal
+DNS.5 = private-us.kura.internal
+DNS.6 = private-eu.kura.internal
+DNS.7 = private-ap.kura.internal
+DNS.8 = kura-ap-sibling.kura.internal
+DNS.9 = private-ap-sibling.kura.internal
 EOF
 
   openssl genrsa -out "${KURA_MTLS_CERT_DIR}/ca.key" 2048 >/dev/null 2>&1

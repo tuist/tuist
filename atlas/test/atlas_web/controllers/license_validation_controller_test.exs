@@ -13,7 +13,7 @@ defmodule AtlasWeb.LicenseValidationControllerTest do
 
   # The limiter is a singleton process shared by the whole node, so these tests
   # drive it through a stub instead of the real buckets. The window arithmetic
-  # itself is covered by `Atlas.Licenses.RateLimiter.BucketsTest`.
+  # itself is covered by `Atlas.Licenses.RateLimiterTest` and `Atlas.RateLimitTest`.
   setup do
     stub(RateLimiter, :check, fn _identifier -> :ok end)
     :ok
@@ -63,7 +63,7 @@ defmodule AtlasWeb.LicenseValidationControllerTest do
 
     assert license_id == license.id
     activity = Repo.get_by!(Activity, action: "license.validated", target_id: license.id)
-    assert activity.metadata["valid"] == "false"
+    assert activity.metadata["valid"] == false
   end
 
   test "requires the online key", %{conn: conn} do

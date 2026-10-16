@@ -1,0 +1,18 @@
+{
+  "sx3832": {
+    "product": "TP-Link Omada SX3832",
+    "banner": "!SX3832",
+    "verified": true,
+    "port_groups": [
+      { "prefix": "ten-gigabitEthernet", "unit": "1/0", "first": 1, "last": 32 }
+    ]
+  },
+  "tl-sg3452": {
+    "product": "TP-Link Omada SG3452",
+    "verified": true,
+    "banner": "!SG3452",
+    "port_groups": [
+      { "prefix": "gigabitEthernet", "unit": "1/0", "first": 1, "last": 52 }
+    ]
+  }
+}

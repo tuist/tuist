@@ -328,9 +328,9 @@ defmodule Tuist.Kura.PlacementTest do
     end
 
     test "asks Air for more than the paid plans before opening a region" do
-      # The ladder is ordered by how many regions a plan funds — Air 2, Pro 3,
-      # Enterprise 5 — so Air, which funds the fewest, is the one that has to
-      # see the most traffic before spending a slot. Pro and Enterprise share a
+      # Air funds two regions and the paid plans five, so Air, which funds the
+      # fewest, is the one that has to see the most traffic before spending a
+      # slot. Pro and Enterprise share a
       # floor: a second site earning a region is the same amount of traffic
       # whichever paid plan it is on.
       rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
@@ -346,17 +346,39 @@ defmodule Tuist.Kura.PlacementTest do
     end
 
     test "stops at the instance ceiling" do
-      # The primary keeps the majority, so nothing relocates; what is refused
-      # here is the fourth region on a plan that funds three.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west", "ap-southeast"],
-          rollups: daily("US-VA", 14, 500) ++ daily("US-OR", 14, 200) ++ daily("FR", 90, 20) ++ daily("SG", 90, 20)
-        )
+      # The primary keeps the majority, so nothing relocates. Pro funds five
+      # regions like Enterprise: a fourth still opens, and a sixth is refused.
+      rollups =
+        daily("US-VA", 14, 500) ++
+          daily("US-OR", 14, 200) ++
+          daily("FR", 90, 20) ++
+          daily("SG", 90, 20) ++
+          daily("BR", 90, 20) ++ daily("PL", 90, 20)
 
-      assert Placement.evaluate(context) == :none
+      permitted = @permitted ++ ["sa-west", "eu-east"]
+
+      for plan <- [:pro, :enterprise] do
+        assert {:expand, "us-west", _evidence} =
+                 Placement.evaluate(
+                   context(
+                     plan: plan,
+                     primary: "us-east",
+                     serving: ["us-east", "eu-west", "ap-southeast"],
+                     permitted: permitted,
+                     rollups: rollups
+                   )
+                 )
+
+        assert Placement.evaluate(
+                 context(
+                   plan: plan,
+                   primary: "us-east",
+                   serving: ["us-east", "eu-west", "ap-southeast", "sa-west", "eu-east"],
+                   permitted: permitted,
+                   rollups: rollups
+                 )
+               ) == :none
+      end
     end
 
     test "does not expand into a region it already holds" do

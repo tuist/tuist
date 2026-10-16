@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistServer
 
 public struct OrganizationInviteCommand: AsyncParsableCommand {
     public init() {}
@@ -25,6 +26,12 @@ public struct OrganizationInviteCommand: AsyncParsableCommand {
     var email: String
 
     @Option(
+        help: "The role the invitee gets when they accept the invitation. Defaults to user.",
+        envKey: .organizationInviteRole
+    )
+    var role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
@@ -36,7 +43,10 @@ public struct OrganizationInviteCommand: AsyncParsableCommand {
         try await OrganizationInviteService().run(
             organizationName: organizationName,
             email: email,
+            role: role,
             directory: path
         )
     }
 }
+
+extension Operations.createInvitation.Input.Body.jsonPayload.rolePayload: @retroactive ExpressibleByArgument {}

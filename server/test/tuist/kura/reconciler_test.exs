@@ -1,10 +1,16 @@
 defmodule Tuist.Kura.ReconcilerTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  # Not async: these tests enable and disable :kura_account_endpoint_migration for
+  # their own actors, and a FunWithFlags flag record and its ETS cache are global.
+  # The Ecto sandbox rolls back each test's gates but not the cache, so a
+  # concurrent module's enable overwrites the cached record and this module's
+  # gate reads false.
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
@@ -25,6 +31,16 @@ defmodule Tuist.Kura.ReconcilerTest do
     stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> false end)
     stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
     :ok
+  end
+
+  test "boot reconciliation reuses the existing incomplete job" do
+    first = Kura.enqueue_reconcile_orphaned_deployments()
+    second = Kura.enqueue_reconcile_orphaned_deployments()
+
+    assert first.id == second.id
+    assert second.conflict?
+    assert first.worker == "Tuist.Kura.Reconciler"
+    assert first.queue == "default"
   end
 
   test "routes version scheduling through the rollout orchestration by default" do
@@ -390,6 +406,61 @@ defmodule Tuist.Kura.ReconcilerTest do
     expect(Provisioner, :rollout, fn %Server{id: id, storage_claim_size: claim}, _inputs ->
       assert id == server.id
       assert claim == "24Gi"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "already-renamed endpoints stay put until per-account migration is enabled" do
+    {original, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    server = server |> Ecto.Changeset.change(region: "eu-west") |> Repo.update!()
+    mark_deployment_succeeded(deployment)
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: original})
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+
+    stub(Provisioner, :public_url, fn account, server -> call_original(Provisioner, :public_url, [account, server]) end)
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+    stub(Provisioner, :rollout, fn _, _ -> flunk("migration must not apply while disabled") end)
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+    assert Repo.get!(Server, server.id).public_host_drift_observed_at == nil
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: account)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    # Opt-in schedules host publication through the existing readiness hold;
+    # it does not immediately expose an unverified URL to discovery.
+    assert %DateTime{} = Repo.get!(Server, server.id).public_host_drift_observed_at
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+  end
+
+  test "the ordinary reconciliation tick withdraws expired URLs without an image change" do
+    {original, server, deployment} = create_server()
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: original)
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      assert Identity.client_handles(inputs.account) == [account.name]
       :ok
     end)
 

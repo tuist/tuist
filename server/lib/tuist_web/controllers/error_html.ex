@@ -149,12 +149,12 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
+  # Path-derived links (locale switcher, alternates) target the home page, never the missing path.
   defp render_marketing_not_found(assigns) do
-    conn = assigns.conn
-
     assigns =
       assigns
-      |> Map.put(:current_path, conn.request_path)
+      |> Map.put(:current_path, "/")
+      |> Map.put(:head_noindex, true)
       |> Map.put(:head_title, dgettext("marketing", "Page not found") <> " · Tuist")
       |> Map.put(
         :head_description,
@@ -180,6 +180,7 @@ defmodule TuistWeb.ErrorHTML do
         }
       </script>
       <head>
+        <TuistWeb.LayoutComponents.head_analytics_scripts page_section="dashboard" {assigns} />
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csp-nonce" content={get_csp_nonce()} />

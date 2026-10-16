@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -141,7 +142,7 @@ RebootWatchdogSec=5min
 	// kubeletClientCAPath is where the self-join drops the cluster CA so the
 	// kubelet's authentication.x509.clientCAFile can verify the apiserver's
 	// --kubelet-client-certificate. Kept under /var/lib/kubelet so it rides the
-	// same /data bind-mount as the kubeconfig on separate-/data boxes (Dedibox),
+	// same /data bind-mount as the kubeconfig on separate-/data boxes (OVH),
 	// rather than a path the mount would shadow.
 	kubeletClientCAPath = "/var/lib/kubelet/ca.crt"
 )
@@ -358,7 +359,7 @@ export DEBIAN_FRONTEND=noninteractive
 %[4]s
 %[6]s
 %[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-# Bare-metal boxes (e.g. Scaleway Dedibox) ship a small root partition plus a
+# Bare-metal boxes (e.g. OVH) ship a small root partition plus a
 # large separate /data. Point containerd's image store at /data so image pulls
 # land on the big disk, not the ~20G root. (The kubelet root is bind-mounted to
 # /data earlier, before its config is written, so the mount can't shadow it.)
@@ -610,7 +611,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
-%[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[8]s%[12]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
@@ -626,7 +627,7 @@ set -euxo pipefail
 %[5]s
 %[6]s
 %[7]s
-`,
+%[13]s`,
 		sudo,
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
@@ -638,7 +639,35 @@ set -euxo pipefail
 		dataKubeletMount(sudo),
 		caWrite,
 		dataProjectQuotaSetup(sudo, writeFile),
+		joinedGuard(sudo, opts.NodeName),
+		joinedMarker(sudo, opts.NodeName),
 	)
+}
+
+// joinedMarkerPath records the node name a completed self-join registered as.
+const joinedMarkerPath = "/var/lib/tuist/joined-node"
+
+// joinedGuard makes the SSH self-join a no-op on a host that already joined as
+// this node. A controller only records a successful bootstrap in the Machine's
+// status patch, so a manager restart between the SSH run and that patch makes
+// the next reconcile dial the host again. Re-running the join on a live node
+// deletes Cilium's sysctl overrides, re-applies the distribution's rp_filter
+// defaults, and restarts containerd under the running pods. The marker is
+// keyed by node name, so a box re-adopted under a new Machine still joins, and
+// a run that failed before the marker was written still retries in full.
+func joinedGuard(sudo, nodeName string) string {
+	return fmt.Sprintf(`if [ "$(%[1]scat %[2]s 2>/dev/null || true)" = %[3]s ] && systemctl is-active --quiet kubelet; then
+  echo "already joined as "%[3]s"; skipping the self-join"
+  exit 0
+fi
+`, sudo, joinedMarkerPath, shellSingleQuote(nodeName))
+}
+
+// joinedMarker writes the marker joinedGuard reads, as the last step of a
+// successful self-join.
+func joinedMarker(sudo, nodeName string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s\nprintf '%%s\\n' %[3]s | %[1]stee %[4]s > /dev/null\n",
+		sudo, path.Dir(joinedMarkerPath), shellSingleQuote(nodeName), joinedMarkerPath)
 }
 
 // dataProjectQuotaPath is where the self-join drops the script that turns
@@ -681,7 +710,7 @@ mountpoint -q "$data" || exit 0
 fstype="$(findmnt -no FSTYPE "$data")"
 if [ "$fstype" != xfs ]; then
   echo "tuist: $data is $fstype, but per-account cache quotas need xfs project quotas." >&2
-  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh / prep-dedibox) before it can rejoin." >&2
+  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh) before it can rejoin." >&2
   exit 1
 fi
 
@@ -716,8 +745,7 @@ fi
 `
 
 // kuraCacheTaintKey marks a box as a Kura cache region. Every cache fleet
-// template hardcodes it (ovh-fleet.yaml, ovh-fleets.yaml's default,
-// dedibox-fleet.yaml); a pool that is not a cache region overrides nodeTaints
+// template hardcodes it (ovh-fleet.yaml and ovh-fleets.yaml's default); a pool that is not a cache region overrides nodeTaints
 // with its own, which is already what keeps it out of the cache-only surfaces
 // keyed off that map. Reusing it here keeps one source of truth for "is this a
 // cache box" rather than adding a second that can drift from the taint.
@@ -851,7 +879,7 @@ func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) st
 
 // dataKubeletMount brings up the /data bind-mount for the kubelet root. The
 // SSH-script form runs it BEFORE writing the kubelet config so that on a box with
-// a separate /data disk (Scaleway Dedibox: small root + large /data) the mount
+// a separate /data disk (OVH: small root + large /data) the mount
 // doesn't shadow the freshly-written config.yaml + kubeconfig — the bug that left
 // the kubelet crash-looping on a missing config file. A no-op (the trailing `true`
 // keeps set -e happy) where /data is not its own filesystem (single-partition

@@ -1,11 +1,15 @@
 defmodule Atlas.AuditTest do
   use Atlas.DataCase, async: true
+  use Mimic
 
   alias Atlas.Accounts
   alias Atlas.Audit
   alias Atlas.Audit.Activity
+  alias Atlas.MCP.Proxy
+  alias Atlas.MCP.Server
   alias Atlas.Repo
   alias Atlas.Users.User
+  alias Atlas.UUIDv7
 
   test "records actor, interface, changed fields, and dashboard path from context operations" do
     user = insert_user!(%{email: "auditor@example.com", name: "Auditor"})
@@ -30,6 +34,33 @@ defmodule Atlas.AuditTest do
     assert activity.target_label == "Audit Account"
     assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
     assert activity.metadata["changed"]["name"] == "Audit Account"
+  end
+
+  # Operators read customer accounts through proxied Tuist tools without a
+  # grant, so this row is the record of what they looked at.
+  test "records proxied tool calls with the caller and arguments" do
+    user = insert_user!(%{email: "operator@tuist.dev", name: "Operator"})
+    conn = %{assigns: %{current_user: user}}
+    arguments = %{"account_handle" => "acme", "project_handle" => "app"}
+
+    expect(Proxy, :call_hoisted_tool, fn ^conn, "tuist__get_project", ^arguments ->
+      {:ok, %{"content" => [%{"type" => "text", "text" => "ok"}]}}
+    end)
+
+    Server.handle_message(conn, %{
+      "jsonrpc" => "2.0",
+      "id" => 1,
+      "method" => "tools/call",
+      "params" => %{"name" => "tuist__get_project", "arguments" => arguments}
+    })
+
+    activity = Repo.get_by!(Activity, action: "mcp.tool_called")
+
+    assert activity.actor_id == user.id
+    assert activity.interface == "mcp"
+    assert activity.target_id == "tuist__get_project"
+    assert activity.metadata["arguments"] == arguments
+    assert activity.metadata["status"] == "ok"
   end
 
   test "normalizes string-keyed attrs and serializes dashboard paths" do
@@ -109,6 +140,50 @@ defmodule Atlas.AuditTest do
     {activities, _meta} = Audit.list_activities(exclude_interface: "dashboard")
 
     assert Enum.map(activities, & &1.action) == ["blog_post_idea.created"]
+  end
+
+  test "keeps nil and boolean metadata values as they are instead of stringifying them" do
+    delivery_id = UUIDv7.generate()
+
+    Audit.record("gtm_delivery.delivered", %{
+      interface: "worker",
+      target_type: "gtm_delivery",
+      target_id: delivery_id,
+      target_label: "recipient@example.com",
+      metadata: %{
+        audience_id: nil,
+        broadcast_id: nil,
+        kind: "direct",
+        error: nil,
+        opened: false
+      }
+    })
+
+    activity = Repo.get_by!(Activity, action: "gtm_delivery.delivered", target_id: delivery_id)
+
+    assert Map.fetch!(activity.metadata, "audience_id") == nil
+    assert Map.fetch!(activity.metadata, "broadcast_id") == nil
+    assert Map.fetch!(activity.metadata, "error") == nil
+    assert Map.fetch!(activity.metadata, "opened") == false
+    assert activity.metadata["kind"] == "direct"
+
+    refute Map.has_key?(activity.metadata, "path")
+    assert is_nil(Audit.serialize(activity).target.path)
+  end
+
+  test "builds an audience path only from an audience id that is a uuid" do
+    audience_id = UUIDv7.generate()
+
+    assert Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => audience_id}) ==
+             "/outbound/email/audiences/#{audience_id}"
+
+    assert Audit.resource_path("gtm_broadcast", "broadcast-id", %{audience_id: audience_id}) ==
+             "/outbound/email/audiences/#{audience_id}"
+
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => "nil"}))
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => nil}))
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{}))
+    assert is_nil(Audit.resource_path("gtm_broadcast", "broadcast-id", %{"audience_id" => "../../admin/users"}))
   end
 
   defp insert_user!(attrs) do

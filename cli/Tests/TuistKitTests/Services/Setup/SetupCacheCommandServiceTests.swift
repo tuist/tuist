@@ -33,7 +33,6 @@ struct SetupCacheCommandServiceTests {
     private let gitController = MockGitControlling()
     private let cacheSocketService = MockCacheSocketServicing()
     private let xcodeController = MockXcodeControlling()
-    private let cacheURLStore = MockCacheURLStoring()
 
     init() {
         subject = SetupCacheCommandService(
@@ -46,18 +45,13 @@ struct SetupCacheCommandServiceTests {
             gitController: gitController,
             cacheSocketService: cacheSocketService,
             xcodeController: xcodeController,
-            cacheURLStore: cacheURLStore,
             cacheDaemonStartupTimeout: .zero
         )
-
-        given(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .any)
-            .willReturn(URL(string: "https://acme-eu-west-1.kura.tuist.dev")!)
 
         // The real answers come from `xcode-select`, and the developer directory
         // lands in the agent's environment, which these tests pin exactly.
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willThrow(TestError("no Xcode"))
         given(xcodeController)
             .selectedVersion()
@@ -279,7 +273,7 @@ struct SetupCacheCommandServiceTests {
 
         xcodeController.reset()
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willThrow(TestError("no Xcode"))
         given(xcodeController)
             .selectedVersion()
@@ -289,10 +283,13 @@ struct SetupCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES")
-        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {
@@ -749,50 +746,11 @@ struct SetupCacheCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
-    func setupCache_warnsWhenTheRemoteCacheIsBeingPrepared() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        let alertController = AlertController()
-        cacheURLStore.reset()
-        given(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .value("tuist"))
-            .willThrow(CacheURLStoreError.endpointBeingPrepared)
-
-        // When
-        try await AlertController.$current.withValue(alertController) {
-            try await subject.run(path: nil)
-        }
-
-        // Then
-        verify(launchAgentService)
-            .setupLaunchAgent(
-                label: .value("tuist.cas-proxy"),
-                plistFileName: .any,
-                programArguments: .any,
-                environmentVariables: .any
-            )
-            .called(1)
-        #expect(
-            alertController.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is still being prepared.",
-            ]
-        )
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
-    func setupCache_resolvesTheRemoteCacheBeforeStartingTheProxy() async throws {
+    func setupCache_startsTheProxyWithoutResolvingRemoteCapacity() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         var events: [String] = []
-        cacheURLStore.reset()
-        given(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .any)
-            .willProduce { _, _ in
-                events.append("resolve")
-                return URL(string: "https://acme-eu-west-1.kura.tuist.dev")!
-            }
         launchAgentService.reset()
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
@@ -820,7 +778,7 @@ struct SetupCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        #expect(events == ["resolve", "install"])
+        #expect(events == ["install"])
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
@@ -1315,10 +1273,10 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
-    /// The proxy resolves the Xcode it loads its CAS plugin from once, when it
-    /// starts. Recording that Xcode makes switching the machine to another one a
-    /// changed configuration, and the plugin a launch input, so an Xcode updated
-    /// in place restarts the proxy too.
+    /// The proxy loads its CAS plugin from the Xcode it is handed through
+    /// `DEVELOPER_DIR`, once, when it starts. Handing it that Xcode makes switching
+    /// to another one a changed configuration, and the plugin a launch input, so an
+    /// Xcode updated in place restarts the proxy too.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupCache_recordsTheXcodeTheProxyLoadsItsPluginFrom() async throws {
         // Given
@@ -1332,7 +1290,7 @@ struct SetupCacheCommandServiceTests {
         try await fileSystem.writeText("plugin", at: plugin)
         xcodeController.reset()
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willReturn(developerDirectory)
         given(xcodeController)
             .selectedVersion()
@@ -1347,7 +1305,7 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .matching { $0["TUIST_CAS_PROXY_DEVELOPER_DIR"] == developerDirectory.pathString },
+                environmentVariables: .matching { $0["DEVELOPER_DIR"] == developerDirectory.pathString },
                 launchInputs: .matching { $0.contains(plugin) }
             )
             .called(1)
@@ -1357,7 +1315,7 @@ struct SetupCacheCommandServiceTests {
                 plistFileName: .any,
                 programArguments: .any,
                 environmentVariables: .value([
-                    "TUIST_CAS_PROXY_DEVELOPER_DIR": developerDirectory.pathString,
+                    "DEVELOPER_DIR": developerDirectory.pathString,
                 ])
             )
             .called(1)

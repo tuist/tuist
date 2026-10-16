@@ -20,7 +20,12 @@ defmodule TuistWeb.GenerateRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Generations")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("generate-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Generations"),
+          fallback: "generate-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

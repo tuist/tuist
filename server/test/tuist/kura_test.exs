@@ -711,6 +711,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west"] end)
       stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
       stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+      stub(Capacity, :reserved_gib_by_instance, fn _region_id -> %{} end)
       stub(Capacity, :placeable?, fn _region, _server -> true end)
       # Two replicas of the plan's 16Gi fit under the line; two of 50Gi do not.
       stub(Capacity, :pressure_line_gib, fn _region_id -> 64 end)
@@ -1100,6 +1101,30 @@ defmodule Tuist.KuraTest do
       assert Kura.managed_cache_endpoint_urls(account) == [active_again.url]
     end
 
+    test "an account rename keeps the published endpoint until new DNS and HTTPS are ready" do
+      account = AccountsFixtures.organization_fixture().account
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+      stub(Provisioner, :public_url, fn _, _ -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+
+      stub(Provisioner, :public_url, fn current, _ ->
+        assert current.name == renamed.name
+        "https://new-name.kura.tuist.dev"
+      end)
+
+      stub(DNS, :record_published, fn _ -> {:error, :not_published} end)
+      assert {:error, {:public_host_not_resolvable, _, _}} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["http://localhost:4100"]
+      stub(DNS, :record_published, fn _ -> :ok end)
+      stub(Req, :get, fn _, _ -> {:error, %Mint.TransportError{reason: :closed}} end)
+      assert {:error, {:public_endpoint_not_ready, _, _}} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["http://localhost:4100"]
+      stub(Req, :get, fn _, _ -> {:ok, %Req.Response{status: 200}} end)
+      assert {:ok, _} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["https://new-name.kura.tuist.dev"]
+    end
+
     test "a changed public URL moves what the account resolves, leaving nothing behind" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -1380,6 +1405,44 @@ defmodule Tuist.KuraTest do
     # every private region is node-port today, so the configuration cannot be
     # built. `private_runner_cache_url/2` keeps the branch because it is what a
     # private region that omits `data_plane` would fall back to.
+  end
+
+  describe "runner_cache_endpoint_url/3 site routing" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+      end)
+
+      stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
+        {:ok,
+         %{url: "https://tuist-#{region}.kura.tuist.dev", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      for region <- ["scw-fr-par-runners", "ber1-runners"] do
+        {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: "0.5.2"})
+        {:ok, _active} = Kura.activate_server(server, "0.5.2")
+      end
+
+      %{account: account}
+    end
+
+    test "a fleet racked at a site takes that site's cache", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == "https://tuist-ber1-runners.kura.tuist.dev"
+    end
+
+    test "a fleet at no site never takes a site's cache", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos) == "https://tuist-scw-fr-par-runners.kura.tuist.dev"
+    end
+
+    test "a fleet at a site without a cache gets none rather than another site's", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ams1") == nil
+    end
   end
 
   describe "runner_cache_endpoint_url/2 public in-cluster fallback" do

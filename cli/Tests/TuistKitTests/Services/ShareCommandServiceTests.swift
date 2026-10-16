@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -14,6 +13,7 @@ import TuistCore
 import TuistGit
 import TuistKit
 import TuistNooraTesting
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -92,6 +92,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .any,
+                releaseNotes: .any,
                 updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
@@ -181,6 +182,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -298,6 +300,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -570,6 +573,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -720,6 +724,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -789,6 +794,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -860,7 +866,8 @@ struct ShareCommandServiceTests {
             platforms: [],
             derivedDataPath: nil,
             json: false,
-            track: "beta"
+            track: "beta",
+            releaseNotes: "Verify the sign-in fix"
         )
 
         // Then
@@ -873,6 +880,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("beta"),
+                releaseNotes: .value("Verify the sign-in fix"),
                 updateProgress: .any
             )
             .called(1)
@@ -933,6 +941,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("nightly"),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -991,6 +1000,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -1045,6 +1055,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("beta"),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
@@ -1144,6 +1155,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .value("abc123def456"),
                 gitRef: .value("refs/heads/feat/android"),
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)

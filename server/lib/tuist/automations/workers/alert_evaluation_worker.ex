@@ -359,8 +359,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp reject_unmeasurable_test_cases(candidates, alert) do
     measurable =
-      alert
-      |> FlakyTestsMonitor.measurable_test_case_ids(Enum.map(candidates, & &1.test_case_id))
+      candidates
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.chunk_every(@recovery_candidate_batch_size)
+      |> Enum.flat_map(&FlakyTestsMonitor.measurable_test_case_ids(alert, &1))
       |> MapSet.new()
 
     Enum.filter(candidates, &MapSet.member?(measurable, &1.test_case_id))

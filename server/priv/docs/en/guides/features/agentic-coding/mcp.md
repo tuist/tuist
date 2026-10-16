@@ -14,6 +14,8 @@ Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/
 Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
 
+Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
+
 ## Model Context Protocol versus skills
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.
@@ -22,7 +24,11 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
+Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. The server's initialization instructions and public server card describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline, without asking agents to fetch or follow external authentication documents. These server-wide instructions keep workflow guidance generic: tool authentication does not authenticate local command-line tools or build-system integrations, and agents should verify requested changes through the relevant Tuist tools. Build-system-specific setup and authentication checks are documented in the integration guides and prompts. Tuist still advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md` separately.
+
+The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
+
+Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
 
 Clients that already support remote browser authentication can continue authenticating in the browser. Clients and agents that support `auth.md` can register anonymously, present a trusted provider identity assertion, or start a service-authenticated email claim. Registration returns a Tuist-signed identity assertion, which the agent exchanges at the standard token endpoint for a one-hour access token. Tuist publishes its public signing key and supports standard token revocation and provider security-event delivery.
 
@@ -32,7 +38,7 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's project are not members of it, so they additionally present an operator grant minted at `ops.tuist.dev` in an `x-tuist-operator-grant` header. The grant is verified on every request, honoured only for the operator it was minted for, and scoped to the single account it names — nothing is stored between requests, so it is sent with each call and cannot outlive its expiry. A header carrying a grant that is not honoured fails the request with `operator_grant_rejected` rather than falling back to unprivileged access.
+Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>
@@ -229,6 +235,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
 | `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
+| `invite_organization_member` | Invite an email address to an organization, whether or not it belongs to an existing Tuist user. Tuist emails an acceptance link that expires after 14 days; when the server cannot send email, `email_sent` is `false` and the link must be copied from the dashboard. Accepts `user` (the default), `admin`, or `viewer`. Requires organization administrator permission. | `organization_handle`, `email` |
+| `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
 
@@ -251,6 +259,24 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
 | `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+| `update_runner_profile_cache_branches` | Set whether GitHub Actions jobs on each repository's default branch save a runner profile's custom cache volume changes, and which additional branch names or `*` patterns save. Requires the same administrator permission. | `account_handle`, `profile_name`, `cache_writer_default_branch`, `cache_writer_branches` |
+
+Runner volume tools expose the same data as the Volumes dashboard. Read tools
+require runner access; clearing requires account administration and user confirmation.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_runner_volumes` | Filter by name and repository, sort and paginate volumes. | `account_handle` |
+| `get_runner_volume` | Repository, platform, capacity, used space and last use. | `account_handle`, `volume_id` |
+| `list_runner_volume_jobs` | Paginated job and workflow references, cache status, hit outcome and mount time. | `account_handle`, `volume_id` |
+| `list_runner_job_volumes` | Volumes mounted by a job. | `account_handle`, `workflow_job_id` |
+| `get_runner_volume_analytics` | Storage series, job runs, hit rate and trends. Optional `volume_id`, `start` and `end` (ISO 8601); defaults to seven days, maximum 90. | `account_handle` |
+| `clear_runner_volume` | Clear saved contents. Running jobs keep their private copies but cannot save them; later jobs start empty. | `account_handle`, `volume_id` |
+
+Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
+`name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
+and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
+`null`. Cache status describes whether volume changes were saved, not job success.
 
 #### Webhooks
 
@@ -314,6 +340,34 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Tasks, actions, modules and files
+
+These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
+
+| Tool | Description | Required parameters |
+| --- | --- | --- |
+| `list_build_entities` | List the tasks, modules, actions or files of one kind seen across a project's builds. | `account_handle`, `project_handle`, `kind` |
+| `get_build_entity` | Get one build entity with its native identity and analytics for the chosen period. | `account_handle`, `project_handle`, `kind`, `id` |
+| `list_build_entity_history` | List the recorded executions, compilations or cache events of one build entity, newest first. | `account_handle`, `project_handle`, `kind`, `id` |
+
+| `kind` | Toolchain | History lists |
+| --- | --- | --- |
+| `gradle_tasks` | Gradle tasks | Task executions |
+| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `once_actions` | Once actions | Executions |
+| `mix_files` | Mix compiled files | Compilations |
+| `mix_modules` | Mix compiled modules | Compilations |
+
+These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+`get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
+
+New observations are indexed after deployment; this feature does not backfill existing run telemetry. Identity metadata outlives individual observations under the <.localized_link href="/guides/server/data-retention">data-retention policy</.localized_link>.
+
 #### Tests
 
 | Tool | Description | Required parameters |
@@ -370,6 +424,21 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_automation_alert` | Get an automation alert. | `alert_id` |
 | `list_automation_alert_revisions` | List the revision history for an automation alert. Action credentials are redacted. | `alert_id` |
 | `list_project_notification_alerts` | List project notification alert rules. Requires the same administrator permission as the dashboard settings page. Webhook addresses are redacted. | `account_handle`, `project_handle` |
+
+### Events
+
+Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas:
+
+| Event | When it is sent | Subscription filter |
+|-------|-----------------|---------------------|
+| `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
+| `build.failed` | A local or continuous integration Xcode, Gradle, or Bazel build finishes with a failure. | `account_handle`, `project_handle` |
+| `test_run.failed` | A local or continuous integration test run finishes with a failure, including a merged sharded run or an abandoned run. | `account_handle`, `project_handle` |
+| `ci_job.failed` | A Tuist runner job completes with a failure. | `account_handle` |
+
+To subscribe, the client calls `events/subscribe` with the event name, the handles listed above in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Project events require account membership and read access to the corresponding test or build data; runner job events require account membership and runner read access. Claimed [`auth.md`](https://workos.com/auth-md) access tokens, claimed account tokens, and browser authorization grants can create subscriptions; delivery stops when the associated credential is no longer active. Each user can keep up to 25 active subscriptions. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's access or credential is removed. The optional `ttlMs` is capped between one hour and 30 days. Tuist retries a timed-out callback and unsubscribes it after at least three consecutive timeouts spanning five minutes; subscribe again after restoring the callback.
+
+When an event occurs, Tuist sends its resource identifier and dashboard URL to the callback. Build and test run failures also include `is_ci` and `git_branch`, so clients can ignore local failures or filter by branch. Build events include `build_system`; runner job events include both `workflow_job_id` and `workflow_run_id`. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. Tuist retries failed deliveries, so clients should use the stable `eventId` to discard duplicates. The payload omits test names, logs, and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
 
 ### Prompts
 

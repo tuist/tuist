@@ -534,6 +534,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert ReleaseWorker.skippable_submodule_failure?(output)
   end
 
+  test "does not skip a submodule based on unrelated not-found output" do
+    for output <- [
+          "remote: Not Found",
+          "fatal: repository 'https://example.com/dep.git/' not found in local cache",
+          "fatal: command not found"
+        ] do
+      refute ReleaseWorker.skippable_submodule_failure?(output)
+    end
+  end
+
   test "treats a submodule host that denies anonymous access as a skippable submodule failure" do
     output = """
     fatal: unable to access 'https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver/': The requested URL returned error: 403
@@ -651,6 +661,67 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   end
 
   describe "update_submodules/1" do
+    test "skips a repository reported as not found and continues with sibling submodules" do
+      clone = Briefly.create!(directory: true)
+      missing_submodule = Path.join(clone, "homebrew-formulae")
+      File.mkdir_p!(missing_submodule)
+      File.write!(Path.join(missing_submodule, "partial-checkout"), "incomplete")
+      File.write!(Path.join(clone, "Package.swift"), @default_manifest_content)
+
+      stub_git(fn args ->
+        cond do
+          "ls-files" in args ->
+            {gitlink_record("homebrew-formulae") <> gitlink_record("Vendor/Required"), 0}
+
+          List.last(args) == "homebrew-formulae" ->
+            {"""
+             remote: Not Found
+             fatal: repository 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae/' not found
+             fatal: clone of 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae' into submodule path '#{missing_submodule}' failed
+             Failed to clone 'homebrew-formulae' a second time, aborting
+             """, 1}
+
+          true ->
+            {"", 0}
+        end
+      end)
+
+      log =
+        capture_log(fn ->
+          assert :ok =
+                   ReleaseWorker.update_submodules(%{
+                     destination: clone,
+                     repository_full_handle: "muter-mutation-testing/muter",
+                     tag: "v0.6.0"
+                   })
+        end)
+
+      refute File.exists?(missing_submodule)
+      assert File.exists?(Path.join(clone, "Package.swift"))
+      assert log =~ "Skipping submodule homebrew-formulae"
+      assert Enum.any?(git_invocations(), &(List.last(&1) == "Vendor/Required"))
+    end
+
+    test "defers a repository reported as not found when the host also asks us to retry" do
+      for hint <- ["remote: Please try again later.", "The requested URL returned error: 503"] do
+        stub_git(fn args ->
+          if "ls-files" in args do
+            {gitlink_record("homebrew-formulae"), 0}
+          else
+            {"fatal: repository 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae/' not found\n#{hint}",
+             1}
+          end
+        end)
+
+        assert {:error, {:git_submodule_update_throttled, "homebrew-formulae", 1, _output}} =
+                 ReleaseWorker.update_submodules(%{
+                   destination: "/nonexistent",
+                   repository_full_handle: "muter-mutation-testing/muter",
+                   tag: "v0.6.0"
+                 })
+      end
+    end
+
     test "removes only the failing nested submodule and keeps the submodule that reached it" do
       root = Briefly.create!(directory: true)
       clone = superproject_clone_with_nested_submodule(root, nil)

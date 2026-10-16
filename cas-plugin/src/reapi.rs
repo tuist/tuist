@@ -820,6 +820,13 @@ impl Remote {
         now_ms() < self.write_pressure_backoff_until_ms.load(Ordering::Relaxed)
     }
 
+    /// Whether this node was just seen declining blob reads under memory
+    /// pressure. A blob missing from a batch read while this holds may still
+    /// be on the node, so its absence says nothing about what the node stores.
+    pub fn declining_reads(&self) -> bool {
+        now_ms() < self.pressure_backoff_until_ms.load(Ordering::Relaxed)
+    }
+
     /// Counts a publication skipped because `shedding_writes` was true.
     pub fn record_shed_write(&self) {
         self.shed_writes.fetch_add(1, Ordering::Relaxed);
@@ -839,6 +846,10 @@ impl Remote {
             directory,
             format!("{}\0{full_handle}", self.config.grpc_url),
         ));
+    }
+
+    pub fn refresh_token(&self, lead: Duration) {
+        self.tokens.refresh_if_expiring(lead);
     }
 
     pub fn downloaded_blob_bytes(&self) -> u64 {

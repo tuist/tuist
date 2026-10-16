@@ -30,6 +30,10 @@ defmodule Atlas.Accounts.Contact do
     field :outreach_enrolled_at, :utc_datetime
     field :last_outreach_at, :utc_datetime
     field :outreach_recommendations_checked_at, :utc_datetime
+    field :bounced_at, :utc_datetime
+    field :opted_out_at, :utc_datetime
+    field :is_decision_maker, :boolean, default: false
+    field :is_primary, :boolean, default: false
     field :metadata, :map, default: %{}
 
     belongs_to :account, Account
@@ -83,7 +87,17 @@ defmodule Atlas.Accounts.Contact do
 
   def edit_changeset(contact, attrs) do
     contact
-    |> cast(attrs, [:full_name, :email, :title, :notes, :linkedin_url])
+    |> cast(attrs, [
+      :full_name,
+      :email,
+      :title,
+      :notes,
+      :linkedin_url,
+      :is_decision_maker,
+      :is_primary,
+      :bounced_at,
+      :opted_out_at
+    ])
     |> validate_required([:full_name])
     |> update_change(:full_name, &String.trim/1)
     |> update_change(:email, &normalize_optional_email/1)

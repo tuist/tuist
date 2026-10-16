@@ -60,12 +60,6 @@ const (
 type Manager struct {
 	Client   client.Client
 	Scaleway *scaleway.Client
-	// SSHKeyRegistrar registers a fleet's public key with Scaleway and returns
-	// its key ID. Defaults to the shared per-env Scaleway client (nil here). The
-	// Dedibox path sets this so the key is registered in the Dedibox (org
-	// default) project where Dedibox servers live — the only project whose SSH
-	// keys a Dedibox install accepts.
-	SSHKeyRegistrar func(ctx context.Context, name, publicKey string) (string, error)
 	// Namespace is where per-fleet Secrets live (typically the
 	// release's namespace).
 	Namespace string
@@ -137,16 +131,6 @@ func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
 //
 // Idempotent across operator restarts: the Secret is the source of
 // truth, the Scaleway-side registration the side-effect we converge.
-// registerSSHKey registers a fleet public key with Scaleway, honoring a
-// provider-specific registrar (the Dedibox path registers into the org default
-// project) and falling back to the shared per-env Scaleway client.
-func (m *Manager) registerSSHKey(ctx context.Context, name, publicKey string) (string, error) {
-	if m.SSHKeyRegistrar != nil {
-		return m.SSHKeyRegistrar(ctx, name, publicKey)
-	}
-	return m.Scaleway.EnsureSSHKey(ctx, name, publicKey)
-}
-
 func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, error) {
 	secretName := fleet + sshKeySecretSuffix
 
@@ -170,7 +154,7 @@ func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, 
 	if secret.Annotations[scalewayKeyAnnotation] == "" {
 		pub, ok := secret.Data["id_ed25519.pub"]
 		if ok {
-			id, err := m.registerSSHKey(ctx, fleet, string(pub))
+			id, err := m.Scaleway.EnsureSSHKey(ctx, fleet, string(pub))
 			if err != nil {
 				return nil, fmt.Errorf("re-register ssh key: %w", err)
 			}
@@ -227,6 +211,24 @@ func (m *Manager) ReadFleetSSHCredentials(ctx context.Context, fleet string) ([]
 	return key, password, nil
 }
 
+// ReadFleetSSHKey returns the fleet's private key from its ESO-synced Secret,
+// erring rather than minting one when the Secret is not there yet.
+func (m *Manager) ReadFleetSSHKey(ctx context.Context, fleet string) ([]byte, error) {
+	secretName := fleet + sshKeySecretSuffix
+	secret := &corev1.Secret{}
+	if err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: secretName}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("fleet secret %s/%s not found yet (ESO sync pending?); will retry", m.Namespace, secretName)
+		}
+		return nil, fmt.Errorf("get fleet secret %s/%s: %w", m.Namespace, secretName, err)
+	}
+	key := secret.Data["id_ed25519"]
+	if len(key) == 0 {
+		return nil, fmt.Errorf("secret %s/%s has no id_ed25519 (ESO mid-sync?); will retry", m.Namespace, secretName)
+	}
+	return key, nil
+}
+
 // FleetSSHKeyID returns the Scaleway-side SSH key ID registered for `fleet`,
 // recorded as an annotation on the per-fleet Secret by EnsureFleetSSHKey. The
 // Elastic Metal machine kind authorizes this key on the server at install time
@@ -251,8 +253,8 @@ func (m *Manager) FleetSSHKeyID(ctx context.Context, fleet string) (string, erro
 // sets the bootstrap user's password to this value, and the self-join uses it
 // once (via `sudo -S`) to drop a NOPASSWD sudoers file before the rest of the
 // bootstrap — so passwordless sudo is established by the self-join itself and
-// survives any reinstall, with no post-install SSH step. Capped to 14 chars to
-// fit the Dedibox install API's alphanumeric password limit.
+// survives any reinstall, with no post-install SSH step. Preserve the existing
+// 14-character format for compatibility with prepared fleet hosts.
 func (m *Manager) FleetSudoPassword(ctx context.Context, fleet string) (string, error) {
 	secretName := fleet + sshKeySecretSuffix
 	secret := &corev1.Secret{}
@@ -276,8 +278,7 @@ func (m *Manager) FleetSudoPassword(ctx context.Context, fleet string) (string, 
 	return pw, nil
 }
 
-// randomAlphanumeric returns an n-char mixed-case alphanumeric string (no symbols
-// — the Dedibox install API rejects them).
+// randomAlphanumeric returns an n-char mixed-case alphanumeric string.
 func randomAlphanumeric(n int) (string, error) {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
 	b := make([]byte, n)
@@ -308,7 +309,7 @@ func (m *Manager) generateSSHKey(ctx context.Context, fleet, secretName string) 
 	}
 	privPEM := pem(pemBlock.Type, pemBlock.Bytes)
 
-	scwID, err := m.registerSSHKey(ctx, fleet, string(pubBytes))
+	scwID, err := m.Scaleway.EnsureSSHKey(ctx, fleet, string(pubBytes))
 	if err != nil {
 		return nil, fmt.Errorf("scaleway register ssh key: %w", err)
 	}

@@ -96,7 +96,10 @@ defmodule Tuist.AtlasWorkloadIdentity do
 
   defp verify_signature(_token, _jwks, _kid), do: {:error, :invalid_signature}
 
-  defp find_key([key | _], nil), do: {:ok, key}
+  # Kubernetes always sets `kid` on ServiceAccount tokens. Without one there is
+  # no telling which key signed it, so it is rejected rather than tried against
+  # whichever key happens to come first.
+  defp find_key(_keys, nil), do: {:error, :invalid_signature}
 
   defp find_key(keys, kid) do
     case Enum.find(keys, &(&1["kid"] == kid)) do

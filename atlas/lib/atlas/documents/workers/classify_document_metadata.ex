@@ -24,8 +24,10 @@ defmodule Atlas.Documents.Workers.ClassifyDocumentMetadata do
   end
 
   @impl true
-  def perform(%Oban.Job{args: %{"document_id" => document_id}}) do
-    case Documents.classify_document_metadata(document_id) do
+  def perform(%Oban.Job{args: %{"document_id" => document_id}, attempt: attempt, max_attempts: max_attempts}) do
+    opts = [repair_missing_invoice?: true, invoice_extraction_final_attempt?: attempt >= max_attempts]
+
+    case Documents.classify_document_metadata(document_id, opts) do
       {:ok, _document} -> :ok
       {:error, :document_not_found} -> {:cancel, :document_not_found}
       {:error, :document_not_ready} -> {:cancel, :document_not_ready}

@@ -349,6 +349,9 @@ struct BinaryCacheStorageTests {
             ], cacheCategory: .binaries)
         }
         #expect(error?.failures.map(\.item.hash).sorted() == ["failed", "invalid"])
+        let reason = try #require(error?.failures.first { $0.item.hash == "failed" }?.reason)
+        #expect(reason.hasPrefix("1 of "))
+        #expect(reason.hasSuffix(" blobs could not be uploaded: Injected rejection"))
         #expect(await remote.actions.count == 1)
         let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
             .fetch([healthy], cacheCategory: .binaries).values.first)
@@ -458,6 +461,55 @@ struct BinaryCacheStorageTests {
         #expect(restored.count == (missingDelayedBlob ? 1 : 2))
     }
 
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func republishRestoresLocalHitsTheRemoteEvicted(sliced: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact: AbsolutePath
+        if sliced {
+            artifact = directory.appending(component: "Shared.xcframework")
+            try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        } else {
+            artifact = directory.appending(component: "Shared.bundle")
+            try await FileSystem().makeDirectory(at: artifact)
+            try await FileSystem().writeText("payload", at: artifact.appending(component: "contents"))
+        }
+        let target = item("evicted", sliced ? fingerprints : [:])
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        #expect(hits.keys.map(\.source) == [.local])
+        await remote.evictAll()
+
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        #expect(try await reader.fetch([target], cacheCategory: .binaries).keys.map(\.source) == [.remote])
+    }
+
+    @Test(.inTemporaryDirectory) func republishLeavesPublishedLocalHitsUntouched() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let target = item("published", fingerprints)
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        let uploads = await remote.uploads
+        let actions = await remote.actions
+
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        #expect(await remote.uploads == uploads)
+        #expect(await remote.actions == actions)
+        for (variant, fingerprint) in fingerprints {
+            let action = try BinaryCacheAction(name: target.name, variant: variant, fingerprint: fingerprint)
+            #expect(await remote.queries[action.digest] == nil)
+            #expect(await remote.presenceQueries[action.digest] == 1)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func blobPublicationRefreshesRecencyAndRepairsCorruption() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -517,6 +569,7 @@ actor MemoryREAPICache: REAPICacheStoring {
     var uploads: [REAPI.Digest: Int] = [:]
     var downloads: [REAPI.Digest: Int] = [:]
     var queries: [REAPI.Digest: Int] = [:]
+    var presenceQueries: [REAPI.Digest: Int] = [:]
     var maximumActiveLookups = 0
     private var activeLookups = 0
     private var delayed = false
@@ -526,6 +579,11 @@ actor MemoryREAPICache: REAPICacheStoring {
     private var fail = false
     func failUploads() { fail = true }
     func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data("corrupt".utf8) }
+    func evictAll() {
+        actions = [:]
+        blobs = [:]
+    }
+
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         queries[digest, default: 0] += 1
         activeLookups += 1
@@ -535,10 +593,18 @@ actor MemoryREAPICache: REAPICacheStoring {
         return actions[digest]
     }
 
-    func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        presenceQueries[digest, default: 0] += 1
+        return actions[digest] != nil
+    }
+
+    func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
         let accepted = incoming.filter { !rejected.contains($0.key) }
         try await uploadBlobs(accepted)
-        return Set(accepted.keys)
+        return REAPIBlobUpload(
+            available: Set(accepted.keys),
+            failures: Dictionary(uniqueKeysWithValues: incoming.keys.filter(rejected.contains).map { ($0, "Injected rejection") })
+        )
     }
 
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws { actions[digest] = result }
@@ -566,6 +632,10 @@ private struct GatedREAPICache: REAPICacheStoring {
 
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         try await remote.actionResult(for: digest)
+    }
+
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        try await remote.containsActionResult(for: digest)
     }
 
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {

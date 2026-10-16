@@ -7,8 +7,10 @@ defmodule Atlas.Guardian do
 
   use Guardian, otp_app: :atlas
 
+  alias Atlas.OAuth.AccessTokens
   alias Atlas.Users
   alias Atlas.Users.User
+  alias Boruta.Oauth.Token
 
   def subject_for_token(%User{id: id}, _claims), do: {:ok, to_string(id)}
   def subject_for_token(_, _), do: {:error, :invalid_subject}
@@ -27,7 +29,8 @@ defmodule Atlas.Guardian do
   end
 
   def on_verify(claims, token, _options) do
-    with {:ok, _} <- Guardian.DB.on_verify(claims, token) do
+    with {:ok, _} <- Guardian.DB.on_verify(claims, token),
+         :ok <- verify_oauth_token(claims, token) do
       {:ok, claims}
     end
   end
@@ -43,4 +46,18 @@ defmodule Atlas.Guardian do
       {:ok, claims}
     end
   end
+
+  # OAuth JWTs were historically not stored by Guardian.DB (only refresh
+  # tokens are). Keep existing JWTs usable during rolling upgrades while
+  # enforcing Boruta revocation/expiry directly against shared database state.
+  defp verify_oauth_token(%{"typ" => "access_token"}, value) do
+    with %Token{} = token <- AccessTokens.get_by(value: value),
+         :ok <- Token.ensure_valid(token) do
+      :ok
+    else
+      _ -> {:error, :token_not_found}
+    end
+  end
+
+  defp verify_oauth_token(_claims, _value), do: :ok
 end

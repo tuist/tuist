@@ -1,4 +1,8 @@
-<div id="gradle-tasks">
+<div
+  id="gradle-tasks"
+  data-state={async_state([@analytics])}
+  aria-busy={if @analytics.loading, do: "true", else: "false"}
+>
   <.button
     :if={@name}
     label={dgettext("dashboard_gradle", "Tasks")}

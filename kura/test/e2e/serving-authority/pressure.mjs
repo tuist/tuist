@@ -1,0 +1,201 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
+import { fixture, handover } from "./fixture.mjs";
+
+const [image, output] = process.argv.slice(2);
+if (!image || !output) throw new Error("usage: pressure.mjs IMAGE OUTPUT_DIR");
+// Reuses the quota-pressure fixture's bounded tmpfs. No host filesystem is filled.
+const f = await fixture(image, "active", output, { limitedTarget: true });
+const { urls, names, docker, report, grant, metric, snapshot } = f;
+const body = Buffer.alloc(8 * 1024 * 1024, 73),
+  retained = [];
+const url = (i, key) =>
+  `${urls[i]}/api/cache/cas/pressure-${key}?tenant_id=default&namespace_id=pressure`;
+let collecting = true,
+  collector,
+  collectorError;
+const samples = [];
+try {
+  docker(
+    "exec",
+    names[1],
+    "dd",
+    "if=/dev/zero",
+    "of=/data/metadata-pressure",
+    "bs=1M",
+    "count=2304",
+    "status=none",
+  );
+  const before = snapshot();
+  collector = (async () => {
+    while (collecting) {
+      samples.push({
+        time: Date.now(),
+        metrics: await Promise.all([0, 1].map(metric)),
+      });
+      await sleep(2000);
+    }
+  })().catch((error) => {
+    collectorError = error;
+  });
+  for (let i = 0; i < 512; i++) {
+    body.writeUInt32BE(i);
+    const r = await fetch(url(0, i), {
+      method: "POST",
+      body,
+      signal: AbortSignal.timeout(30000),
+    });
+    await r.arrayBuffer();
+    assert.equal(r.status, 204);
+    if ((i + 1) % 64 === 0)
+      console.log(
+        JSON.stringify({ writes: i + 1, bytes: (i + 1) * body.length }),
+      );
+  }
+  await sleep(10000);
+  const pressureMetrics = await metric(1),
+    pressureState = snapshot();
+  const reclaimed = Number(
+    pressureMetrics.match(
+      /kura_disk_pressure_reclaimed_bytes_total_total[^\n]* ([0-9]+)/,
+    )?.[1] ?? 0,
+  );
+  assert(reclaimed > 0, "fixture did not exercise disk-pressure reclamation");
+  const incomplete = await handover(f, {
+    id: "capacity-incomplete",
+    deadlineMs: 20000,
+  });
+  assert.equal(
+    incomplete,
+    null,
+    "incomplete retained corpus was incorrectly promoted",
+  );
+  assert.equal((await report(0)).serving_authority.epoch, 1);
+  assert.equal((await report(1)).serving_authority.valid, false);
+  console.log(JSON.stringify({ incompleteHandoverRejected: true, reclaimed }));
+  grant({ epoch: 1, holder: f.identities[0], phase: "Serving", renew: true });
+  await sleep(2000);
+  assert(
+    (await report(0)).serving_authority.valid,
+    "source not restored after abort",
+  );
+  const write = await fetch(url(0, "after-abort"), {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(30000),
+  });
+  await write.arrayBuffer();
+  assert.equal(write.status, 204);
+  // Exercise hot reads after pressure. These can promote and evict records;
+  // only the later frozen-corpus snapshot defines the handover guarantee.
+  for (let i = 0; i < 512; i++) {
+    const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
+    const data = Buffer.from(await r.arrayBuffer());
+    if (r.status === 404) continue;
+    assert.equal(r.status, 200);
+    body.writeUInt32BE(i);
+    assert(data.equals(body));
+  }
+  docker("exec", names[1], "rm", "/data/metadata-pressure");
+  // Recovery must repair the existing caught-up standby, without a restart
+  // that would hide the hole behind a fresh bootstrap pass.
+  const beforeRepair = (await report(1)).serving_authority.identity;
+  const receipt = await handover(f, {
+    id: "capacity-restored",
+    beforePromotion: async (barrier) => {
+      // Both receipts now exist and the source hold prevents these reads from
+      // promoting/evicting an earlier member of the expected corpus.
+      for (let i = 0; i < 512; i++) {
+        const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
+        const data = Buffer.from(await r.arrayBuffer());
+        if (r.status === 404) continue;
+        assert.equal(r.status, 200);
+        body.writeUInt32BE(i);
+        assert(data.equals(body));
+        retained.push(i);
+      }
+      assert.equal(
+        barrier.records,
+        retained.length + 1,
+        "snapshot must cover the full frozen corpus, including after-abort",
+      );
+      fs.writeFileSync(
+        `${output}/frozen-corpus.json`,
+        JSON.stringify({ retained, barrier }),
+      );
+    },
+  });
+  assert(receipt, "complete corpus did not hand over after pressure removal");
+  assert.deepEqual((await report(1)).serving_authority.identity, beforeRepair);
+  const repair = f.logs(names[1])
+    .split("\n")
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    })
+    .find((event) =>
+      event["event.name"] === "kura.handover.reconciled" &&
+      event.id === "capacity-restored",
+    );
+  assert(
+    repair?.applied > 0,
+    "fixture must repair missing retained bodies on the same process",
+  );
+  for (const i of retained) {
+    const r = await fetch(url(1, i), { signal: AbortSignal.timeout(30000) });
+    const data = Buffer.from(await r.arrayBuffer());
+    assert.equal(r.status, 200);
+    body.writeUInt32BE(i);
+    assert(data.equals(body));
+  }
+  const resumedWrite = await fetch(url(1, "after-abort"), {
+    signal: AbortSignal.timeout(30000),
+  });
+  assert.equal(resumedWrite.status, 200);
+  body.writeUInt32BE(511);
+  assert(Buffer.from(await resumedWrite.arrayBuffer()).equals(body));
+  const after = snapshot();
+  await sleep(20000);
+  collecting = false;
+  await collector;
+  assert.equal(
+    collectorError,
+    undefined,
+    "unexpected resource collector failure",
+  );
+  const result = {
+    reclaimed,
+    retainedRecords: retained.length,
+    incompleteHandoverRejected: true,
+    sourceResumedAfterAbort: true,
+    repairedWithoutRestart: true,
+    repairedRecords: repair.applied,
+    repairedBytes: repair.bytes,
+    receipt,
+    before,
+    pressureState,
+    after,
+    samples,
+  };
+  fs.writeFileSync(`${output}/result.json`, JSON.stringify(result, null, 2));
+  console.log(
+    JSON.stringify({
+      reclaimed,
+      retainedRecords: retained.length,
+      incompleteHandoverRejected: true,
+      sourceResumedAfterAbort: true,
+      repairedWithoutRestart: true,
+      repairedRecords: repair.applied,
+      repairedBytes: repair.bytes,
+      completedEpoch: 2,
+    }),
+  );
+} finally {
+  collecting = false;
+  if (collector) await collector.catch(() => {});
+  f.close();
+}

@@ -122,18 +122,40 @@ var (
 // Pull invokes `tart pull <image>`. Idempotent — Tart skips re-download
 // when the image is already cached.
 func (c *Client) Pull(ctx context.Context, image string) error {
+	return c.PullFrom(ctx, image, false)
+}
+
+// PullFrom is Pull with `--insecure` when insecure is set, which makes Tart
+// speak plain HTTP to the registry the reference names. Tart has no other
+// notion of a mirror: a rack's image cache is reached by naming it in the
+// reference.
+func (c *Client) PullFrom(ctx context.Context, image string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "pull", image)
+	_, err := c.run(ctx, c.Binary, withInsecure([]string{"pull"}, insecure, image)...)
 	return err
 }
 
 // Clone invokes `tart clone <source> <name>`.
 func (c *Client) Clone(ctx context.Context, source, name string) error {
+	return c.CloneFrom(ctx, source, name, false)
+}
+
+// CloneFrom is Clone with `--insecure` when insecure is set, for a source
+// pulled over plain HTTP: should the local copy be gone, Tart pulls it again
+// from the registry the reference names.
+func (c *Client) CloneFrom(ctx context.Context, source, name string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, cloneTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "clone", source, name)
+	_, err := c.run(ctx, c.Binary, withInsecure([]string{"clone"}, insecure, source, name)...)
 	return err
+}
+
+func withInsecure(command []string, insecure bool, args ...string) []string {
+	if insecure {
+		command = append(command, "--insecure")
+	}
+	return append(command, args...)
 }
 
 // Set configures cpu/memory for a cloned VM. Pass 0 to leave a

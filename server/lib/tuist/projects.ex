@@ -10,6 +10,7 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.CommandEvents
@@ -23,6 +24,32 @@ defmodule Tuist.Projects do
 
   def get_projects_count do
     Repo.aggregate(Project, :count, :id)
+  end
+
+  def public_projects_count do
+    Repo.aggregate(public_projects_query(), :count, :id)
+  end
+
+  def public_project_handles(page, page_size) when page > 0 and page_size > 0 and page_size <= 1000 do
+    Repo.all(
+      from([p, a] in public_projects_query(),
+        order_by: p.id,
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size),
+        select: %{account: a.name, project: p.name}
+      )
+    )
+  end
+
+  defp public_projects_query do
+    from(p in Project,
+      join: a in assoc(p, :account),
+      left_join: o in assoc(a, :organization),
+      where: p.visibility == :public,
+      where:
+        a.visibility == :public or is_nil(o.id) or not o.sso_enforced or
+          is_nil(o.sso_provider)
+    )
   end
 
   def get_project_count_for_account(%Account{id: account_id}, opts \\ []) do
@@ -76,6 +103,17 @@ defmodule Tuist.Projects do
     else
       {:error, :invalid_full_handle}
     end
+  end
+
+  @doc """
+  Tells the pages waiting for a project's first sign of life that the user
+  reached it from their machine. A report sent with a project token has no
+  user, and tells nobody.
+  """
+  def notify_connected(_project, nil), do: :ok
+
+  def notify_connected(%Project{id: id}, user) do
+    Tuist.PubSub.broadcast(%{user: user}, "projects.#{id}", :show)
   end
 
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
@@ -144,8 +182,10 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Gets projects by their full handles (account_handle/project_handle) in a single query.
-  Returns a map of full_handle => project.
+  Resolves analytics project handles (account_handle/project_handle) in a single query.
+  Current and retained account handles resolve through their permanent reservations,
+  including events queued before a rename. Returns a map keyed by the supplied handles.
+  This lookup does not authorize access to a project.
   """
   def projects_by_full_handles(full_handles) when is_list(full_handles) do
     handle_pairs =
@@ -163,22 +203,22 @@ defmodule Tuist.Projects do
 
     projects =
       from(p in Project,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where: a.name in ^account_handles,
+        join: reservation in "account_handle_reservations",
+        on: p.account_id == reservation.account_id,
+        where: reservation.name in ^account_handles,
         where: p.name in ^project_handles,
-        select: %{project: p, account_name: a.name}
+        select: %{project: p, account_name: reservation.name}
       )
       |> Repo.all()
       |> Map.new(fn %{project: project, account_name: account_name} ->
-        full_handle = "#{account_name}/#{project.name}"
+        full_handle = "#{String.downcase(account_name)}/#{project.name}"
         {full_handle, project}
       end)
 
     handle_pairs
     |> Enum.map(fn {account_handle, project_handle} ->
       full_handle = "#{account_handle}/#{project_handle}"
-      {full_handle, Map.get(projects, full_handle)}
+      {full_handle, Map.get(projects, "#{String.downcase(account_handle)}/#{project_handle}")}
     end)
     |> Enum.reject(fn {_full_handle, project} -> is_nil(project) end)
     |> Map.new()
@@ -431,32 +471,21 @@ defmodule Tuist.Projects do
   end
 
   def get_project_token(full_token) do
-    full_token_components = String.split(full_token, "_")
-
-    if length(full_token_components) == 3 do
-      [_audience, token_id, token_hash] = full_token_components
-
-      token = Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
-
-      cond do
-        is_nil(token) ->
-          {:error, :not_found}
-
-        verify_pass(token, token_hash) ->
-          {:ok, token}
-
-        true ->
-          {:error, :invalid_token}
-      end
+    with [_audience, token_id, token_hash] <- String.split(full_token, "_"),
+         {:ok, _} <- UUIDv7.cast(token_id),
+         token when not is_nil(token) <- Repo.one(from(t in ProjectToken, where: t.id == ^token_id)),
+         true <- verify_pass(token, token_hash) do
+      {:ok, token}
     else
-      {:error, :invalid_token}
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_token}
     end
   end
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   def verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Tuist.Environment.secret_key_password(),
       token.encrypted_token_hash
     )
@@ -622,6 +651,9 @@ defmodule Tuist.Projects do
       %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
         "https://github.com/#{repository_full_handle}"
 
+      %VCSConnection{provider: :origin, repository_full_handle: repository_full_handle} ->
+        "https://cursor.com/codebase/#{repository_full_handle}"
+
       nil ->
         nil
     end
@@ -746,16 +778,21 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository.
+  Get all projects connected to a VCS repository, scoped to a provider
+  (GitHub by default). Never let a same-named repository on another forge
+  authorize CI tokens. The handle is matched case-insensitively.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     Repo.all(
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
-        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        where: pc.provider == ^provider,
+        where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
+        order_by: [asc: p.id],
         preload: ^preload
     )
   end
@@ -765,12 +802,14 @@ defmodule Tuist.Projects do
   """
   def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     project =
       Repo.one(
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
+          where: pc.provider == ^provider,
           where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )

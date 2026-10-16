@@ -483,8 +483,8 @@ defmodule TuistWeb.OverviewLiveTest do
 
       params = %{
         "analytics-date-range" => "custom",
-        "analytics-start-date" => "2000-01-01T00:00:00Z",
-        "analytics-end-date" => "2100-01-01T00:00:00Z"
+        "analytics-start-date" => "2020-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z"
       }
 
       path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)

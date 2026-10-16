@@ -1,9 +1,9 @@
-import Command
 import Foundation
 import Mockable
 import Path
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @Mockable
@@ -72,6 +72,27 @@ public protocol GitControlling {
 
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
+
+    /// What the checkout can tell about `headSHA`'s place in the repository's history: the merge
+    /// base with `baseBranch` and the commits reachable from the head within `limits`. A shallow
+    /// clone is deepened within the budget to find the merge base. Nothing here throws for a
+    /// missing piece: it comes back nil with a reason, and the server may complete it from the
+    /// VCS provider.
+    /// - Parameters:
+    ///   - workingDirectory: The repository's top level.
+    ///   - headSHA: The commit the run is for; HEAD when nil.
+    ///   - baseBranch: The branch the commit will merge into.
+    ///   - limits: How much to collect.
+    func gitHistory(
+        workingDirectory: AbsolutePath,
+        headSHA: String?,
+        baseBranch: String?,
+        limits: GitHistoryLimits
+    ) async throws -> GitHistory
+
+    /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
+    /// which is what the server keys the listing by.
+    func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles
 
     /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
     /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
@@ -225,6 +246,28 @@ public struct GitController: GitControlling {
         "BUILDKITE_PULL_REQUEST",
         // CircleCI
         "CIRCLE_PR_NUMBER",
+        // TeamCity
+        "teamcity.pullRequest.number",
+    ]
+
+    private static let baseBranchEnvironmentVariables = [
+        // GitHub Actions
+        "GITHUB_BASE_REF",
+        // GitLab CI
+        "CI_MERGE_REQUEST_TARGET_BRANCH_NAME",
+        "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME",
+        // Bitrise
+        "BITRISEIO_GIT_BRANCH_DEST",
+        // Buildkite
+        "BUILDKITE_PULL_REQUEST_BASE_BRANCH",
+        // Codemagic
+        "CM_PULL_REQUEST_DEST",
+        // Xcode Cloud
+        "CI_PULL_REQUEST_TARGET_BRANCH",
+        // Azure DevOps (a full ref, refs/heads/main)
+        "SYSTEM_PULLREQUEST_TARGETBRANCH",
+        // TeamCity
+        "teamcity.pullRequest.target.branch",
     ]
 
     private static let branchEnvironmentVariables = [
@@ -245,6 +288,7 @@ public struct GitController: GitControlling {
         // Xcode Cloud
         "CI_BRANCH",
         // TeamCity
+        "teamcity.pullRequest.source.branch",
         "teamcity.build.branch",
         // Azure DevOps
         "BUILD_SOURCEBRANCHNAME",
@@ -269,7 +313,8 @@ public struct GitController: GitControlling {
     }
 
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = environment.variables
+        let environment = await CIBuildParameters.read(environment: environment.variables)
+            .merging(environment.variables) { _, variable in variable }
 
         // Ref
         let gitRef: String?
@@ -292,10 +337,19 @@ public struct GitController: GitControlling {
             gitRef = nil
         }
 
+        // The base branch and pull request number, from the CI provider only: a checkout does not
+        // know what its commit will merge into.
+        let baseBranch = Self.baseBranchEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { !$0.isEmpty }
+            .map(Self.branchName)
+        let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
+
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
+            .map(Self.branchName)
             ?? Self.githubBranch(environment: environment)
 
         let branchName: String?
@@ -325,17 +379,25 @@ public struct GitController: GitControlling {
                 ref: gitRef,
                 branch: branchName,
                 sha: nil,
-                remoteURLOrigin: nil
+                remoteURLOrigin: nil,
+                baseBranch: baseBranch,
+                pullRequestNumber: pullRequestNumber
             )
         }
 
         // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
+        // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
+        // another commit, such as the pull request's head, reports HEAD, since that commit's
+        // second parent, if it has one, is not the pull request.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
-            if isPullRequestMergeRef,
+            let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
+            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
+            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
+                && (mergeCommit == nil || mergeCommit == head)
+            if isPullRequestMergeCheckout,
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
                ).trimmingCharacters(in: .whitespacesAndNewlines),
@@ -343,7 +405,7 @@ public struct GitController: GitControlling {
             {
                 commitSHA = secondParent
             } else {
-                commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
+                commitSHA = head
             }
         } else {
             commitSHA = nil
@@ -360,8 +422,24 @@ public struct GitController: GitControlling {
             ref: gitRef,
             branch: branchName,
             sha: commitSHA,
-            remoteURLOrigin: remoteURLOrigin
+            remoteURLOrigin: remoteURLOrigin,
+            baseBranch: baseBranch,
+            pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// Some providers name a branch by its full ref, `refs/heads/main`.
+    private static func branchName(_ name: String) -> String {
+        name.hasPrefix("refs/heads/") ? String(name.dropFirst("refs/heads/".count)) : name
+    }
+
+    /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are
+    /// folded into), or GitLab's merge request id.
+    static func pullRequestNumber(ref: String?, environment: [String: String]) -> Int? {
+        if let ref, let match = ref.wholeMatch(of: #/refs/(?:pull|merge-requests)/(\d+)/.*/#) {
+            return Int(match.1)
+        }
+        return ["CI_MERGE_REQUEST_IID"].compactMap { environment[$0] }.compactMap(Int.init).first
     }
 
     private func run(command: String...) async throws {
@@ -376,8 +454,12 @@ public struct GitController: GitControlling {
         try await capture(arguments: command)
     }
 
-    private func capture(arguments: [String]) async throws -> String {
+    func capture(arguments: [String]) async throws -> String {
         try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
+    }
+
+    func runInOwnProcessGroup(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        commandRunner.runInOwnProcessGroup(arguments: arguments, environment: hardenedEnvironment(), workingDirectory: nil)
     }
 
     /// Environment overrides that keep every spawned `git` invocation

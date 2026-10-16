@@ -5,7 +5,7 @@ defmodule Tuist.GitHub.Client do
   Functions that target a specific installation accept an `:installation`
   field — any struct or map carrying `:installation_id` and `:client_url`.
   The host of the GitHub instance (github.com or a self-hosted GitHub
-  Enterprise Server) is derived from `:client_url`.
+  Enterprise Server) uses the optional `:api_url` override or is derived from `:client_url`.
   """
 
   alias Tuist.GitHub.App
@@ -32,7 +32,8 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/installation/repositories?per_page=100"
       )
 
-    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+    with {:ok, url} <- VCS.github_api_request_url(url, Map.get(installation, :client_url), api_url),
+         {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
@@ -83,6 +84,16 @@ defmodule Tuist.GitHub.Client do
       [_, next_url] -> next_url
       _ -> nil
     end
+  end
+
+  def get_repository(installation, repository_full_handle) do
+    api_url = installation_api_url(installation)
+
+    github_request(&Req.get/1,
+      url: "#{api_url}/repos/#{repository_full_handle}",
+      installation: installation,
+      api_url: api_url
+    )
   end
 
   def get_user_by_id(%{id: github_id, installation: installation}) do
@@ -562,8 +573,10 @@ defmodule Tuist.GitHub.Client do
     * `:credentials` — App credentials map (defaults to global
       env-configured github.com App). Pass per-installation creds
       from `Tuist.VCS.list_github_apps/0` to query a GHES App's log.
-    * `:api_url` — host root (defaults to api.github.com). Goes
-      with `:credentials` for GHES Apps.
+    * `:api_url` — full REST API base URL (defaults to api.github.com).
+      Goes with `:credentials` for GHES Apps.
+    * `:client_url` — canonical browser URL, used to rebase GHES pagination
+      links onto an API proxy while preserving its path prefix.
     * `:next_url` — opaque cursor from a previous call's `meta.next_url`
       for paginating to the next page.
 
@@ -591,13 +604,14 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/app/hook/deliveries?per_page=100"
       )
 
-    with {:ok, jwt} <- App.get_jwt(opts) do
+    with {:ok, url} <- VCS.github_api_request_url(url, Keyword.get(opts, :client_url), api_url),
+         {:ok, jwt} <- App.get_jwt(opts),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
-          url: url,
-          headers: app_jwt_headers(jwt),
-          finch: Tuist.Finch
-        ] ++ Retry.retry_options()
+          url: request_url,
+          headers: app_jwt_headers(jwt)
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.get(req_opts) do
         {:ok, %{status: 200, body: deliveries, headers: headers}} when is_list(deliveries) ->
@@ -631,13 +645,13 @@ defmodule Tuist.GitHub.Client do
     api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
     url = "#{api_url}/app/hook/deliveries/#{delivery_id}/attempts"
 
-    with {:ok, jwt} <- App.get_jwt(opts) do
+    with {:ok, jwt} <- App.get_jwt(opts),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
-          url: url,
-          headers: app_jwt_headers(jwt),
-          finch: Tuist.Finch
-        ] ++ Retry.retry_options()
+          url: request_url,
+          headers: app_jwt_headers(jwt)
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
         {:ok, %{status: 202}} ->
@@ -686,7 +700,9 @@ defmodule Tuist.GitHub.Client do
 
   defp parse_iso8601(_), do: nil
 
-  defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
+  defp installation_api_url(%{client_url: client_url} = installation) when is_binary(client_url),
+    do: VCS.installation_api_url(installation)
+
   defp installation_api_url(_), do: VCS.api_url(:github, nil)
 
   # Pin GHES URLs to a public IP to defend against DNS rebinding /
@@ -700,7 +716,7 @@ defmodule Tuist.GitHub.Client do
   defp pin_ghes_url(url, _api_url) do
     case SSRFGuard.pin(url) do
       {:ok, pinned_url, hostname} ->
-        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname), redirect: false]}
 
       {:error, reason} ->
         {:error, "GitHub Enterprise Server host failed SSRF check: #{inspect(reason)}"}

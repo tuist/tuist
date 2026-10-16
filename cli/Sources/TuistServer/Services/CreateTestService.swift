@@ -32,7 +32,10 @@ import TuistHTTP
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
-            stressNewTests: Components.Schemas.StressNewTestsResult?
+            stressNewTests: Components.Schemas.StressNewTestsResult?,
+            gitHistory: TestRunGitHistory?,
+            coverage: TestRunCoverage?,
+            coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -56,6 +59,7 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -88,22 +92,15 @@ import TuistHTTP
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
             skipTestIdentifiers: [String],
-            stressNewTests: Components.Schemas.StressNewTestsResult? = nil
+            stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
+            gitHistory: TestRunGitHistory? = nil,
+            coverage: TestRunCoverage? = nil,
+            coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                switch testSummary.status {
-                case .passed:
-                    .success
-                case .failed:
-                    .failure
-                case .skipped:
-                    .skipped
-                case .processing:
-                    .processing
-                }
+            let status = statusPayload(for: testSummary.status)
 
             // The gate's reruns are executions of the test case like any other, so they ride
             // along with the test case they belong to rather than as a payload of their own.
@@ -239,6 +236,7 @@ import TuistHTTP
                 return Operations.createTest.Input.Body.jsonPayload
                     .test_modulesPayloadPayload(
                         duration: module.duration,
+                        execution_mode: module.executionMode.flatMap { .init(rawValue: $0) },
                         name: module.name,
                         status: mapModuleStatus(module.status),
                         test_cases: moduleTestCases,
@@ -265,6 +263,8 @@ import TuistHTTP
                         nil
                     }
 
+            let history = GitHistoryPayloads(gitHistory)
+
             let response = try await client.createTest(
                 .init(
                     path: .init(
@@ -273,30 +273,41 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
-                            build_run_id: buildRunId,
-                            ci_host: ciHost,
-                            ci_project_handle: ciProjectHandle,
-                            ci_provider: ciProviderPayload,
-                            ci_run_id: ciRunId,
-                            duration: testSummary.duration ?? 0,
                             git_branch: gitBranch,
-                            git_commit_sha: gitCommitSHA,
-                            git_ref: gitRef,
-                            git_remote_url_origin: gitRemoteURLOrigin,
-                            id: id,
-                            is_ci: isCI,
-                            macos_version: macOSVersion,
-                            model_identifier: modelIdentifier,
-                            only_test_identifiers: onlyTestIdentifiers,
+                            execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
+                            git_object_format: history.objectFormat,
                             scheme: testSummary.testPlanName,
-                            shard_index: shardIndex,
-                            shard_plan_id: shardPlanId,
-                            skip_test_identifiers: skipTestIdentifiers,
+                            merge_base_sha: gitHistory?.mergeBaseSHA,
+                            ci_host: ciHost,
+                            git_remote_url_origin: gitRemoteURLOrigin,
+                            history_fallback_reason: gitHistory?.fallbackReason,
+                            is_pull_request: gitHistory?.isPullRequest,
                             status: status,
+                            shard_index: shardIndex,
+                            only_test_identifiers: onlyTestIdentifiers,
+                            coverage_evidence: testSummary.coverageEvidencePayload,
+                            git_dirty: gitHistory?.dirty,
+                            history_source: history.source,
+                            coverage: coveragePayload(coverage, toolVersion: xcodeVersion),
+                            build_run_id: buildRunId,
+                            skip_test_identifiers: skipTestIdentifiers,
+                            git_ref: gitRef,
+                            base_branch: gitHistory?.baseBranch,
+                            model_identifier: modelIdentifier,
+                            ci_run_id: ciRunId,
+                            ci_provider: ciProviderPayload,
+                            ci_project_handle: ciProjectHandle,
+                            pull_request_number: gitHistory?.pullRequestNumber,
+                            coverage_enabled: coverageEnabled,
                             stress_new_tests: stressNewTests,
+                            macos_version: macOSVersion,
+                            id: id,
+                            shard_plan_id: shardPlanId,
+                            duration: testSummary.duration ?? 0,
+                            xcode_version: xcodeVersion,
+                            git_commit_sha: gitCommitSHA,
                             test_modules: testModules,
-                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
-                            xcode_version: xcodeVersion
+                            is_ci: isCI
                         )
                     )
                 )
@@ -479,16 +490,18 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
-        report.map { report in
-            Components.Schemas.XcodeCoverage(
-                files: report.files.map { file in
-                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+    /// The build-system-neutral coverage block: the tool that measured the run, the Xcode that
+    /// provides it as the version, and the files inline or the key of their upload.
+    private func coveragePayload(_ coverage: TestRunCoverage?, toolVersion: String?) -> Components.Schemas.Coverage? {
+        coverage.map { coverage in
+            Components.Schemas.Coverage(
+                files: coverage.files?.map { file in
+                    Components.Schemas.Coverage.filesPayloadPayload(
                         covered_lines: file.coveredLines,
                         executable_lines: file.executableLines,
                         execution_counts: file.executionCounts,
                         functions: file.functions.map { function in
-                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                            Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload(
                                 covered_lines: function.coveredLines,
                                 executable_lines: function.executableLines,
                                 execution_count: function.executionCount,
@@ -503,8 +516,33 @@ import TuistHTTP
                         targets: file.targets
                     )
                 },
-                partial: report.partial
+                partial: coverage.partial,
+                storage_key: coverage.storageKey,
+                tool: coverage.tool,
+                tool_version: toolVersion
             )
+        }
+    }
+
+    private func statusPayload(for status: TestStatus) -> Operations.createTest.Input.Body.jsonPayload.statusPayload {
+        switch status {
+        case .passed: .success
+        case .failed: .failure
+        case .skipped: .skipped
+        case .processing: .processing
+        }
+    }
+
+    /// The run's Git history in the shapes of the create-test body.
+    private struct GitHistoryPayloads {
+        typealias Body = Operations.createTest.Input.Body.jsonPayload
+
+        let objectFormat: Body.git_object_formatPayload?
+        let source: Body.history_sourcePayload?
+
+        init(_ gitHistory: TestRunGitHistory?) {
+            objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
+            source = gitHistory.map { $0.source == "client" ? .client : .none }
         }
     }
 #endif
@@ -542,3 +580,29 @@ private func stressFailures(
         )
     }
 }
+
+#if canImport(TuistXCResultService)
+    extension TestSummary {
+        fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
+            coverageEvidence.map { evidence in
+                .init(
+                    overlapped_tests: evidence.overlappedTests.map {
+                        .init(module: $0.module, name: $0.name, suite: $0.suite)
+                    },
+                    paths: evidence.paths,
+                    scopes: evidence.scopes.map {
+                        .init(
+                            files: $0.files,
+                            kind: .init(rawValue: $0.kind.rawValue) ?? .target,
+                            lines: $0.lines,
+                            module: $0.module,
+                            name: $0.name,
+                            suite: $0.suite
+                        )
+                    },
+                    status: evidence.status.flatMap { .init(rawValue: $0.rawValue) }
+                )
+            }
+        }
+    }
+#endif

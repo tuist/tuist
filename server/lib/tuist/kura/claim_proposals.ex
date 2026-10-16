@@ -11,6 +11,7 @@ defmodule Tuist.Kura.ClaimProposals do
 
   alias Ecto.Changeset
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.ClaimProposal
@@ -238,7 +239,7 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   defp active_subscriptions do
-    from(subscription in Subscription, where: subscription.status in ["active", "trialing"])
+    from(subscription in Subscription, where: subscription.status in ^Billing.live_subscription_statuses())
   end
 
   # Region configuration, not runtime availability: a governed region is

@@ -43,9 +43,38 @@
       width: 330px;
     }
 
-    & table {
-      & td:first-child {
-        width: 55%;
+    /* Escape the noora-table default (`min-width: max-content`, which sizes to
+     * the widest cell content) so long binary cache hashes cannot inflate the
+     * Hash column and push Module + Hit into an unnecessary horizontal
+     * scroll. A fixed layout with explicit column proportions keeps the row
+     * inside the container and lets the Hash text truncate with the ellipsis
+     * that noora's text_cell already declares. */
+    & #binary-cache-table table {
+      min-width: 640px;
+      table-layout: fixed;
+    }
+
+    & #binary-cache-table {
+      & th:nth-child(1),
+      & td:nth-child(1) {
+        width: 50%;
+      }
+
+      & th:nth-child(2),
+      & td:nth-child(2) {
+        width: 15%;
+      }
+
+      & th:nth-child(3),
+      & td:nth-child(3) {
+        width: 35%;
+      }
+
+      /* Flex items default to `min-width: auto` (their content's intrinsic
+       * width), which defeats `text-overflow: ellipsis`. Zero it so the Hash
+       * label truncates inside its column instead of spilling out. */
+      & td [data-part="cell"] > [data-part="label"] {
+        min-width: 0;
       }
     }
 

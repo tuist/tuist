@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   import Ecto.Query
 
   alias Boruta.Oauth.Client
+  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Kura.EvictionEvent
@@ -231,6 +232,23 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^eviction["event_id"])) == nil
 
     assert ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"])) == nil
+  end
+
+  test "self-hosted usage retains attribution across a rename", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture().account
+    {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+    tenant = middle.name
+    {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, renamed} end)
+    event_id = "renamed-usage-#{account.id}"
+
+    response =
+      post_events(conn, [build_event(%{"tenant_id" => tenant, "event_id" => event_id})],
+        authorization: authorization_header("self-hosted-client", "self-hosted-secret")
+      )
+
+    assert %{"accepted" => 1} = json_response(response, 202)
+    assert ClickHouseRepo.one(from e in UsageEvent, where: e.event_id == ^event_id, select: e.account_id) == account.id
   end
 
   test "a self-hosted node's usage lands on its credential's account whatever the casing of its tenant", %{conn: conn} do

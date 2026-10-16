@@ -3,6 +3,32 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "parse_runners_site_pools/1" do
+    test "reads each pool's site and platform" do
+      assert Environment.parse_runners_site_pools("tuist-runner-pool-ber1=ber1:macos, pool-x=ams1:linux") == %{
+               "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos},
+               "pool-x" => %{site: "ams1", platform: :linux}
+             }
+    end
+
+    test "leaves out entries it cannot read rather than guessing" do
+      assert Environment.parse_runners_site_pools("") == %{}
+      assert Environment.parse_runners_site_pools("pool=ber1:windows,pool-y=ber1,=ber1:macos,pool-z=:macos") == %{}
+    end
+  end
+
+  describe "atlas_token_issuer/1" do
+    test "has no default, so Atlas tokens do not verify until it is configured" do
+      assert Environment.atlas_token_issuer(%{}) == nil
+    end
+
+    test "reads the configured issuer" do
+      secrets = %{"atlas" => %{"token_issuer" => "https://atlas-cluster.example"}}
+
+      assert Environment.atlas_token_issuer(secrets) == "https://atlas-cluster.example"
+    end
+  end
+
   describe "clickhouse_max_memory_usage_for_user_bytes/2" do
     test "uses the runtime environment value without mutating process-wide state" do
       environment = %{"TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES" => "8589934592"}
@@ -348,6 +374,39 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "coverage_inline_threshold_bytes/1" do
+    test "defaults to 5 MB and reads the environment" do
+      assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
+      assert Environment.coverage_inline_threshold_bytes(%{"TUIST_COVERAGE_INLINE_THRESHOLD_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_max_inflated_bytes/1" do
+    test "defaults to 2 GB and reads the environment" do
+      assert Environment.coverage_max_inflated_bytes(%{}) == 2_000_000_000
+      assert Environment.coverage_max_inflated_bytes(%{"TUIST_COVERAGE_MAX_INFLATED_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_retention_days/1" do
+    test "keeps file detail for 90 days and run totals for a year by default" do
+      assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}
+    end
+
+    test "reads each period from its environment variable" do
+      assert Environment.coverage_retention_days(%{
+               "TUIST_COVERAGE_FILE_RETENTION_DAYS" => "30",
+               "TUIST_COVERAGE_RUN_RETENTION_DAYS" => " 730 "
+             }) == %{files: 30, runs: 730}
+    end
+
+    test "rejects a period that is not a positive number of days" do
+      assert_raise RuntimeError, ~r/TUIST_COVERAGE_FILE_RETENTION_DAYS must be a positive integer/, fn ->
+        Environment.coverage_retention_days(%{"TUIST_COVERAGE_FILE_RETENTION_DAYS" => "0"})
+      end
+    end
+  end
+
   describe "artifact_retention_days/1" do
     test "returns an empty map when artifact retention is not configured" do
       assert Environment.artifact_retention_days(%{}) == %{}
@@ -529,6 +588,16 @@ defmodule Tuist.EnvironmentTest do
 
     test "returns nil when Kura endpoints are not configured" do
       assert Environment.kura_endpoints(%{}) == nil
+    end
+  end
+
+  describe "license_key/1" do
+    # `[:license]` is the key path behind the TUIST_LICENSE env var, so the unified
+    # value reaches the license dispatch through this reader. Moving or dropping this
+    # fallback would send TUIST_LICENSE to a different branch than the one that
+    # tells certificates from online keys.
+    test "reads the unified license value" do
+      assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
     end
   end
 end

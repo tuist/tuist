@@ -1,5 +1,6 @@
 import Ecto.Query
 
+alias Ecto.Adapters.SQL.Sandbox
 alias Tuist.Accounts
 alias Tuist.Accounts.AccountToken
 alias Tuist.Alerts.Alert
@@ -45,6 +46,16 @@ alias Tuist.Tests.TestCaseFailure
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
 alias Tuist.Tests.TestSuiteRun
+alias Tuist.Xcode.XcodeGraph
+alias Tuist.Xcode.XcodeProject
+alias Tuist.Xcode.XcodeTarget
+
+# CI seeds with MIX_ENV=test, where both repos use the SQL sandbox pool. Its
+# implicit checkout drops this script's connection after the default 120s
+# ownership timeout, which a full seed now exceeds.
+for repo <- [Repo, IngestRepo], repo.config()[:pool] == Sandbox do
+  :ok = Sandbox.checkout(repo, sandbox: false, ownership_timeout: :infinity)
+end
 
 # =============================================================================
 # Configuration via Environment Variables
@@ -81,10 +92,6 @@ alias Tuist.Tests.TestSuiteRun
 # as production data grows.
 #
 # =============================================================================
-
-alias Tuist.Xcode.XcodeGraph
-alias Tuist.Xcode.XcodeProject
-alias Tuist.Xcode.XcodeTarget
 
 # Scale presets
 seed_scale = System.get_env("SEED_SCALE", "small")
@@ -2234,7 +2241,7 @@ existing_events_with_xcode =
 events_needing_xcode =
   from(e in Event,
     where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at, project_id: e.project_id},
     order_by: [desc: e.ran_at],
     limit: 200
   )
@@ -3913,6 +3920,18 @@ end
 
 runner_jobs_account_id = organization.account.id
 
+# The jobs below have fixed ids, and a job with a recorded completion refuses
+# to be claimed again, so a re-seed starts from the account's lifecycle rows
+# gone rather than stopping at the first job it already finished.
+for schema <- [
+      Tuist.Runners.JobCompletion,
+      Tuist.Runners.Claim,
+      Tuist.Runners.WorkflowJob,
+      RunnerSession
+    ] do
+  Repo.delete_all(from(row in schema, where: row.account_id == ^runner_jobs_account_id))
+end
+
 runner_jobs_repos = [
   "tuist/tuist",
   "tuist/noora",
@@ -3949,30 +3968,55 @@ runner_job_step_names = [
   "Complete job"
 ]
 
+# Weight each step's share of the wall-clock. The dominant "Run tests"
+# step (weight 55) is what makes the Gantt bar on the Steps card
+# visually meaningful — spreading time evenly would render eight
+# identical bars, which hides where the job is actually spending its
+# time.
+runner_job_step_weights = [1, 12, 2, 8, 15, 25, 55, 2]
+
 build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_at, conclusion ->
   names = runner_job_step_names
+  weights = runner_job_step_weights
   step_count = length(names)
   total_seconds = max(DateTime.diff(completed_at, started_at, :second), step_count)
-  per_step = max(div(total_seconds, step_count), 1)
+  weight_total = Enum.sum(weights)
   outcome_index = if conclusion == "success", do: nil, else: step_count - 2
 
-  names
-  |> Enum.with_index()
-  |> Enum.map(fn {name, index} ->
-    step_started = DateTime.add(started_at, index * per_step, :second)
-    step_completed = DateTime.add(step_started, per_step, :second)
+  {rows, _elapsed} =
+    names
+    |> Enum.zip(weights)
+    |> Enum.with_index()
+    |> Enum.map_reduce(0, fn {{name, weight}, index}, elapsed ->
+      raw = div(total_seconds * weight, weight_total)
 
-    %{
-      workflow_job_id: workflow_job_id,
-      account_id: account_id,
-      number: index + 1,
-      name: name,
-      status: "completed",
-      conclusion: if(index == outcome_index, do: conclusion, else: "success"),
-      started_at: step_started,
-      completed_at: step_completed
-    }
-  end)
+      remaining_steps = step_count - index - 1
+
+      duration =
+        if remaining_steps == 0 do
+          total_seconds - elapsed
+        else
+          min(max(raw, 1), total_seconds - elapsed - remaining_steps)
+        end
+
+      step_started = DateTime.add(started_at, elapsed, :second)
+      step_completed = DateTime.add(step_started, duration, :second)
+
+      row = %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: index + 1,
+        name: name,
+        status: "completed",
+        conclusion: if(index == outcome_index, do: conclusion, else: "success"),
+        started_at: step_started,
+        completed_at: step_completed
+      }
+
+      {row, elapsed + duration}
+    end)
+
+  rows
 end
 
 # Builds a runner's machine-metrics trace across the job's runtime,
@@ -5750,6 +5794,11 @@ kura_events
 end)
 
 IO.puts("  - kura usage events: #{length(kura_events)}")
+
+# Code coverage: the repository's history, runs carrying coverage and per-test
+# evidence, and the per-commit totals every coverage page reads. It lives in
+# its own file so it can be re-seeded alone.
+Code.eval_file(Path.join(__DIR__, "coverage_seeds.exs"))
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

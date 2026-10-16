@@ -2,6 +2,36 @@
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
   </div>
+  <.alert
+    :if={not is_nil(@payment_issue)}
+    id="billing-payment-issue"
+    status="error"
+    type="secondary"
+    size="large"
+    title={dgettext("dashboard_account", "A payment for your subscription failed")}
+    description={
+      if @payment_issue == :past_due do
+        dgettext(
+          "dashboard_account",
+          "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
+        )
+      else
+        dgettext(
+          "dashboard_account",
+          "Your plan is limited to the free tier of the Air plan until the open invoice is paid."
+        )
+      end
+    }
+  >
+    <:action>
+      <.button
+        label={dgettext("dashboard_account", "Pay open invoice")}
+        variant="primary"
+        size="medium"
+        href={~p"/#{@selected_account.name}/billing/pay"}
+      />
+    </:action>
+  </.alert>
   <.card
     data-part="current-plan-card"
     icon="package"

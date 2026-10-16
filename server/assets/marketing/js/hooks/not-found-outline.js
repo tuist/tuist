@@ -9,10 +9,17 @@
  * pressed again or Escape.
  *
  * The spotlight is an overlay: a copy of the three regions, cloned at the
- * positions they occupy on the page, carrying the outline attribute and
- * masked to a soft-edged circle (a radial gradient whose centre and
- * radius are custom properties the stylesheet reads; the hook eases the
- * radius itself, frame by frame, so it behaves the same everywhere). It
+ * positions they occupy on the page inside a wrapper the hook keeps
+ * translated by the scroll, under a fixed, viewport-sized host (so the
+ * mask is only ever rasterized over what can be seen, not the whole
+ * page), carrying the outline attribute and
+ * masked to a circle whose edge is an ordered dither (not-found-portal.js:
+ * stepped discs intersected with Bayer tiles; the stylesheet's soft
+ * gradient where mask compositing is missing) with its centre and radius
+ * as custom properties; the hook eases the radius itself, frame by frame,
+ * so it behaves the same everywhere. Along that edge the page's glyphs
+ * dissolve into dither cells on a canvas over the overlay, more the
+ * faster the circle moves (PortalDither). It
  * takes no pointer events and is inert, so the page under it keeps
  * working and nothing in the copy can be focused or reached; its copies
  * live in a shadow tree so their ids never duplicate the page's. It is
@@ -29,6 +36,8 @@
  * nothing in it opens, focuses or follows a link.
  */
 
+import { PortalDither, applyDitherMask, positionDitherMask, supportsDitherMask } from "./not-found-portal.js";
+
 const ATTRIBUTE = "data-marketing-outline";
 const OVERLAY_ID = "marketing-outline-overlay";
 const NAVBAR = "#marketing-navbar";
@@ -39,8 +48,8 @@ const PRUNE = '[data-part="viewport"], [data-part="mobile-menus"], [data-part="p
 // The hover spotlight: from the eyebrow it reaches the button but stops
 // short of the dithered "404" below it, so its fading edge never blends
 // strokes over the dither.
-const SPOT_RADIUS = 260; // px (its edge feathers over the stylesheet's last 64px)
-const FEATHER = 64; // px, must match --marketing-outline-feather
+const SPOT_RADIUS = 170; // px (its edge dithers away over the last FEATHER px)
+const FEATHER = 96; // px, set on the overlay as --marketing-outline-feather
 // Timing. Every move is the spotlight's circle morphing on screen, so
 // all of them are ease-in-out — a gentle start and a gentle settle — and
 // all run on the circle's AREA rather than its radius: what the eye sees
@@ -48,15 +57,18 @@ const FEATHER = 64; // px, must match --marketing-outline-feather
 // radius squared, so a radius eased the usual way looks finished a third
 // of the way in. This is a marketing page's one flourish, so the moves
 // take their time and read as deliberate: the hover spotlight blooms in
-// about half a second, the page-covering moves in about one. The hover
+// under a second, the page-covering moves in about one. The hover
 // spotlight also waits a beat before opening so a cursor merely passing
-// over the eyebrow does not flash it.
+// over the eyebrow does not flash it, and its open runs on a steeper
+// curve than the other moves: a long, slow lead-in where the first cells
+// of the page barely start to peel, then the bloom, then a soft settle.
 const HOVER_INTENT_MS = 140;
-const SPOT_OPEN_MS = 500;
+const SPOT_OPEN_MS = 900;
 const SPOT_CLOSE_MS = 500;
 const GROW_MS = 1200;
 const SHRINK_MS = 1000;
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const easeInOutQuint = (t) => (t < 0.5 ? 16 * t ** 5 : 1 - (-2 * t + 2) ** 5 / 2);
 
 export const NotFoundOutline = {
   mounted() {
@@ -70,6 +82,9 @@ export const NotFoundOutline = {
     this.intent = null;
     this.radius = 0;
     this.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // The dissolving glyphs: motion for its own sake, so none under
+    // reduced motion (the dithered edge stays: it is a still pattern).
+    this.portal = this.reduced ? null : new PortalDither();
     this.x = 0;
     this.y = 0;
 
@@ -78,6 +93,8 @@ export const NotFoundOutline = {
       this.hovering = true;
       if (this.pinned) return;
       this.place(e);
+      // The intent wait is time to measure the text the specks will need.
+      if (this.portal) this.portal.prepare();
       clearTimeout(this.intent);
       this.intent = setTimeout(() => {
         this.intent = null;
@@ -87,8 +104,10 @@ export const NotFoundOutline = {
     this.onMove = (e) => {
       if (!this.hovering || this.pinned) return;
       this.place(e);
-      // While the spotlight is still growing the transition just retargets.
-      if (this.overlay) this.clip(SPOT_RADIUS);
+      // Only the centre follows the pointer; the radius is the tween's
+      // (re-clipping at the full radius here would snap the spotlight open
+      // on the first move once the overlay exists).
+      if (this.overlay && this.radius > 0) this.clip(this.radius);
     };
     this.onLeave = () => {
       this.hovering = false;
@@ -110,7 +129,10 @@ export const NotFoundOutline = {
       this.unpin();
     };
     this.onScroll = () => {
-      if (this.overlay && this.radius > 0) this.syncNavbar();
+      if (!this.overlay || this.radius === 0) return;
+      this.syncNavbar();
+      this.syncScroll();
+      this.clip(this.radius);
     };
     this.eyebrow.addEventListener("pointerenter", this.onEnter);
     this.eyebrow.addEventListener("pointermove", this.onMove);
@@ -121,6 +143,7 @@ export const NotFoundOutline = {
     // A resize moves everything: the copy is stale, so it goes; the next
     // use builds it again (at once if it is showing).
     this.resizer = new ResizeObserver(() => {
+      if (this.portal) this.portal.invalidate();
       if (!this.overlay) return;
       const radius = this.radius;
       this.dropOverlay();
@@ -143,6 +166,7 @@ export const NotFoundOutline = {
     if (this.resizer) this.resizer.disconnect();
     clearTimeout(this.intent);
     this.dropOverlay();
+    if (this.portal) this.portal.destroy();
     document.documentElement.removeAttribute(ATTRIBUTE);
     this.setNavbarInert(false);
   },
@@ -187,8 +211,8 @@ export const NotFoundOutline = {
     // A drawing of the page, not the page: nothing in it can be focused,
     // clicked or reached by assistive tech.
     overlay.setAttribute("inert", "");
-    overlay.style.width = `${width}px`;
-    overlay.style.height = `${height}px`;
+    overlay.style.setProperty("--marketing-outline-feather", `${FEATHER}px`);
+    if (supportsDitherMask()) applyDitherMask(overlay, FEATHER);
     // The copies live in a shadow tree. Ids are scoped to it, so the copy
     // keeps the ids the stylesheets key layout off (the three regions, the
     // footer's theme switcher) without duplicating the page's, and label
@@ -196,13 +220,21 @@ export const NotFoundOutline = {
     // The page's stylesheets are linked into the tree (they come from
     // cache) so the copy lays out exactly like the original; the outline
     // attribute goes on a wrapper inside it, where those stylesheets can
-    // see it. The mask, the size and the custom properties stay on the
-    // host, which the outline stylesheet styles by id from outside.
+    // see it. The mask and the custom properties stay on the host, which
+    // the outline stylesheet styles by id from outside. The wrapper is
+    // page-sized and translated by the scroll (syncScroll), so the copies
+    // keep page coordinates while the host is only the viewport.
     const shadow = overlay.attachShadow({ mode: "open" });
     for (const link of document.querySelectorAll('link[rel="stylesheet"]')) shadow.append(link.cloneNode());
     const regions = document.createElement("div");
     regions.setAttribute(ATTRIBUTE, "");
+    regions.style.position = "absolute";
+    regions.style.top = "0";
+    regions.style.left = "0";
+    regions.style.width = `${width}px`;
+    regions.style.height = `${height}px`;
     shadow.append(regions);
+    this.regions = regions;
     for (const selector of REGIONS) {
       const el = document.querySelector(selector);
       if (!el) continue;
@@ -223,12 +255,25 @@ export const NotFoundOutline = {
     }
     document.body.append(overlay);
     this.overlay = overlay;
+    this.syncScroll();
     return overlay;
   },
 
   ensureOverlay() {
     if (!this.overlay) this.buildOverlay();
     this.syncNavbar();
+    this.syncScroll();
+  },
+
+  // The host is the viewport; the copies inside are the page. Keep them
+  // lined up with the real page as it scrolls, and keep the dither tiles
+  // on the page's grid rather than the viewport's.
+  syncScroll() {
+    if (!this.overlay) return;
+    const sx = window.scrollX;
+    const sy = window.scrollY;
+    this.regions.style.transform = `translate(${-sx}px, ${-sy}px)`;
+    if (supportsDitherMask()) positionDitherMask(this.overlay, sx, sy);
   },
 
   // The real navbar is sticky, so its place on the page depends on the
@@ -246,6 +291,7 @@ export const NotFoundOutline = {
       this.overlay.remove();
       this.overlay = null;
       this.navbarCopy = null;
+      this.regions = null;
     }
     this.radius = 0;
     if (!this.pinned) this.setNavbarInert(false);
@@ -264,17 +310,25 @@ export const NotFoundOutline = {
     this.radius = radius;
     if (!this.overlay) return;
     this.overlay.style.display = radius > 0 ? "" : "none";
-    this.overlay.style.setProperty("--marketing-outline-x", `${this.x}px`);
-    this.overlay.style.setProperty("--marketing-outline-y", `${this.y}px`);
+    // The centre is kept in page coordinates; the mask wants it in the
+    // viewport's.
+    this.overlay.style.setProperty("--marketing-outline-x", `${this.x - window.scrollX}px`);
+    this.overlay.style.setProperty("--marketing-outline-y", `${this.y - window.scrollY}px`);
     this.overlay.style.setProperty("--marketing-outline-r", `${radius}px`);
+    // Specks only at spotlight size: the moves over and off the page
+    // leave no remnants behind.
+    if (this.portal) this.portal.set(this.x, this.y, radius, FEATHER, radius <= SPOT_RADIUS + 1);
   },
 
-  // Radius that covers the whole page from the spotlight's centre.
+  // Radius that covers the whole viewport from the spotlight's centre
+  // (the overlay is only ever the viewport; once covered, the page itself
+  // carries the outline view).
   coverRadius() {
-    const doc = document.documentElement;
-    const w = Math.max(doc.scrollWidth, doc.clientWidth);
-    const h = Math.max(doc.scrollHeight, doc.clientHeight);
-    return Math.hypot(Math.max(this.x, w - this.x), Math.max(this.y, h - this.y)) + FEATHER + 8;
+    const x = this.x - window.scrollX;
+    const y = this.y - window.scrollY;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    return Math.hypot(Math.max(x, w - x), Math.max(y, h - y)) + FEATHER + 8;
   },
 
   stopTween() {
@@ -283,10 +337,11 @@ export const NotFoundOutline = {
   },
 
   // Ease the circle's area from where it is to `radius`'s over `ms`,
-  // frame by frame, then run `then`. Retargetable: a new call starts from
-  // the current radius, so a change of mind mid-move carries on from
-  // where the circle is. Under reduced motion it just jumps.
-  animateTo(radius, then, ms) {
+  // frame by frame (on `ease`, ease-in-out cubic unless given), then run
+  // `then`. Retargetable: a new call starts from the current radius, so a
+  // change of mind mid-move carries on from where the circle is. Under
+  // reduced motion it just jumps.
+  animateTo(radius, then, ms, ease = easeInOutCubic) {
     const overlay = this.overlay;
     if (!overlay) return;
     this.stopTween();
@@ -300,7 +355,7 @@ export const NotFoundOutline = {
     const frame = (now) => {
       if (this.overlay !== overlay) return;
       const t = Math.min(1, (now - start) / ms);
-      const eased = easeInOutCubic(t);
+      const eased = ease(t);
       this.clip(Math.sqrt(from * from + (radius * radius - from * from) * eased));
       if (t < 1) {
         this.tween = requestAnimationFrame(frame);
@@ -316,7 +371,7 @@ export const NotFoundOutline = {
 
   openSpot() {
     this.ensureOverlay();
-    this.animateTo(SPOT_RADIUS, () => {}, SPOT_OPEN_MS);
+    this.animateTo(SPOT_RADIUS, () => {}, SPOT_OPEN_MS, easeInOutQuint);
   },
 
   closeSpot() {

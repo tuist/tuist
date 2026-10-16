@@ -6,6 +6,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event.Buffer
@@ -71,6 +73,45 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "message" =>
                  "Project authentication using a project-scoped token is not supported from non-CI environments. If you are running this from a CI environment, you can use the environment variable CI=1 to indicate so."
              }
+    end
+
+    test "returns not found when the project was deleted after it was cached", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      Repo.delete!(project)
+
+      stub(Tuist.Projects, :get_project_by_slug, fn _slug, _opts -> {:ok, project} end)
+
+      # When / Then
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+      end
+
+      Buffer.flush()
+
+      assert ClickHouseRepo.aggregate(from(e in CommandEvents.Event, where: e.project_id == ^project.id), :count) == 0
     end
 
     test "returns newly created command event when cacheable analytics are missing", %{
@@ -383,6 +424,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      FunWithFlags.enable(:build_entities, for_actor: project)
 
       conn =
         conn
@@ -468,6 +510,16 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == ["miss", "remote"]
+
+      entity_id = Identity.id(project.id, :xcode, "module", %{"project" => "ProjectA", "target" => "TargetA"})
+
+      assert {[%{id: ^entity_id, name: "TargetA", observations: 1}], _meta} =
+               BuildEntities.list(project.id, :xcode, "module")
+
+      assert {[%{parent_id: parent_id, cache_status: "hit_local", status: "unknown", duration_ms: nil}], _meta} =
+               BuildEntities.history(project.id, :xcode, "module", entity_id)
+
+      assert parent_id == command_event.id
     end
 
     test "returns newly created command event with xcode_graph including subhashes", %{

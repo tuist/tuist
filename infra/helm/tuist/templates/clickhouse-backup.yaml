@@ -193,7 +193,7 @@ spec:
                     clickhouse-client \
                       --host {{ $chName }} \
                       --port 9000 \
-                      --user default \
+                      --user backup \
                       --password "$CLICKHOUSE_PASSWORD" \
                       --receive_timeout {{ $m.backup.timeoutSeconds }} \
                       --query "$1"

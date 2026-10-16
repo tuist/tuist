@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistCargoCommand
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
@@ -31,19 +32,25 @@ private enum DependenciesError: LocalizedError {
 }
 
 private func initEnv() throws {
-    if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
+    let arguments: [String]
+    if let cargoArguments = CargoCommand.delegatedArguments(in: CommandLine.arguments) {
+        arguments = Array(CommandLine.arguments.prefix(CommandLine.arguments.count - cargoArguments.count - 1))
+    } else {
+        arguments = CommandLine.arguments
+    }
+    if arguments.contains("--quiet"), arguments.contains("--verbose") {
         throw DependenciesError.exclusiveOptionError("quiet", "verbose")
     }
 
-    if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--json") {
+    if arguments.contains("--quiet"), arguments.contains("--json") {
         throw DependenciesError.exclusiveOptionError("quiet", "json")
     }
 
-    if CommandLine.arguments.contains("--verbose") {
+    if arguments.contains("--verbose") {
         setenv("TUIST_CONFIG_VERBOSE", "true", 1)
     }
 
-    if CommandLine.arguments.contains("--quiet") {
+    if arguments.contains("--quiet") {
         setenv(Constants.EnvironmentVariables.quiet, "true", 1)
     }
 }

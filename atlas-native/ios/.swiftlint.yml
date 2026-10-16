@@ -1,0 +1,9 @@
+included:
+  - Sources
+  - Tests
+
+disabled_rules:
+  - identifier_name
+
+line_length:
+  warning: 140

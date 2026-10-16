@@ -23,8 +23,8 @@ public protocol APKMetadataServicing {
     func parseMetadata(at apkPath: AbsolutePath) async throws -> APKMetadata
 }
 
-#if canImport(Command)
-    import Command
+#if canImport(TuistProcess)
+    import TuistProcess
 
     public struct APKMetadataService: APKMetadataServicing {
         private let fileSystem: FileSysteming

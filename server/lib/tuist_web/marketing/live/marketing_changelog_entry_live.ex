@@ -8,6 +8,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Localization
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 

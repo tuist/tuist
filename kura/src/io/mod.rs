@@ -178,52 +178,13 @@ impl IoController {
     }
 
     pub async fn open_persistent_read_file(&self, path: &Path) -> Result<PersistentFile, String> {
-        let path = self.validate_path(path)?;
-        let lease = self.acquire("open_persistent_read_file").await?;
-        let started_at = Instant::now();
-        match tokio::task::spawn_blocking({
-            let path = path.clone();
-            move || std::fs::File::open(&path)
-        })
+        self.open_persistent(
+            "open_persistent_read_file",
+            "persistent file",
+            path,
+            |path| std::fs::File::open(path),
+        )
         .await
-        {
-            Ok(Ok(file)) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_read_file",
-                    "ok",
-                    started_at.elapsed(),
-                    0,
-                );
-                Ok(PersistentFile {
-                    file,
-                    _lease: lease,
-                })
-            }
-            Ok(Err(error)) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_read_file",
-                    "error",
-                    started_at.elapsed(),
-                    0,
-                );
-                Err(format!(
-                    "failed to open persistent file {}: {error}",
-                    path.display()
-                ))
-            }
-            Err(error) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_read_file",
-                    "error",
-                    started_at.elapsed(),
-                    0,
-                );
-                Err(format!(
-                    "failed to join persistent file open task for {}: {error}",
-                    path.display()
-                ))
-            }
-        }
     }
 
     /// Opens an append-only segment file without the operating system's append flag.
@@ -233,60 +194,82 @@ impl IoController {
     /// file must be opened for ordinary writes for those reservations to remain
     /// correct.
     pub async fn open_persistent_append_file(&self, path: &Path) -> Result<PersistentFile, String> {
-        let path = self.validate_path(path)?;
-        let lease = self.acquire("open_persistent_append_file").await?;
-        let started_at = Instant::now();
-        match tokio::task::spawn_blocking({
-            let path = path.clone();
-            move || {
-                let file = std::fs::OpenOptions::new()
+        self.open_persistent(
+            "open_persistent_append_file",
+            "persistent append file",
+            path,
+            |path| {
+                std::fs::OpenOptions::new()
                     .create(true)
                     .truncate(false)
                     .write(true)
                     .read(true)
-                    .open(&path)?;
-                Ok::<_, io::Error>(file)
-            }
-        })
+                    .open(path)
+            },
+        )
         .await
-        {
-            Ok(Ok(file)) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_append_file",
-                    "ok",
-                    started_at.elapsed(),
-                    0,
-                );
-                Ok(PersistentFile {
+    }
+
+    /// Creates a staging file that must not already exist and opens it for
+    /// positioned writes. Refusing an existing path guarantees a staging
+    /// writer never truncates or interleaves with another writer's file.
+    pub async fn create_new_persistent_file(&self, path: &Path) -> Result<PersistentFile, String> {
+        self.open_persistent(
+            "create_new_persistent_file",
+            "new persistent file",
+            path,
+            |path| {
+                std::fs::OpenOptions::new()
+                    .create_new(true)
+                    .write(true)
+                    .read(true)
+                    .open(path)
+            },
+        )
+        .await
+    }
+
+    async fn open_persistent(
+        &self,
+        operation: &'static str,
+        description: &'static str,
+        path: &Path,
+        open: fn(&Path) -> io::Result<std::fs::File>,
+    ) -> Result<PersistentFile, String> {
+        let path = self.validate_path(path)?;
+        let lease = self.acquire(operation).await?;
+        let started_at = Instant::now();
+        // The blocking open owns the lease. If this future is cancelled while
+        // the open runs, the descriptor the detached task may still create
+        // stays counted against the pool until that task drops it.
+        let result = tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                open(&path).map(|file| PersistentFile {
                     file,
                     _lease: lease,
                 })
             }
-            Ok(Err(error)) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_append_file",
-                    "error",
-                    started_at.elapsed(),
-                    0,
-                );
-                Err(format!(
-                    "failed to open persistent append file {}: {error}",
-                    path.display()
-                ))
-            }
-            Err(error) => {
-                self.inner.metrics.record_file_operation(
-                    "open_persistent_append_file",
-                    "error",
-                    started_at.elapsed(),
-                    0,
-                );
-                Err(format!(
-                    "failed to join persistent append file open task for {}: {error}",
-                    path.display()
-                ))
-            }
-        }
+        })
+        .await;
+        let outcome = match result {
+            Ok(Ok(file)) => Ok(file),
+            Ok(Err(error)) => Err(format!(
+                "failed to open {description} {}: {error}",
+                path.display()
+            )),
+            Err(error) => Err(format!(
+                "failed to join {description} open task for {}: {error}",
+                path.display()
+            )),
+        };
+        self.inner.metrics.record_file_operation(
+            operation,
+            if outcome.is_ok() { "ok" } else { "error" },
+            started_at.elapsed(),
+            0,
+        );
+        outcome
     }
 
     pub async fn drop_cached_pages(
@@ -618,6 +601,19 @@ impl AsyncSeek for TrackedFile {
     }
 }
 
+/// Runs a synchronous file operation (a positioned write, sync or cache
+/// advice) from async code. On the multithreaded runtime the worker hands its
+/// other tasks to the scheduler first, so a dirty-page-throttled write never
+/// stalls them; the operation keeps borrowing the caller's buffer and handle,
+/// so nothing outlives a cancelled caller. Current-thread runtimes (tests)
+/// run it directly.
+pub(crate) fn run_blocking_file_operation<T>(operation: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::current().runtime_flavor() {
+        tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(operation),
+        _ => operation(),
+    }
+}
+
 impl PersistentFile {
     pub fn as_std(&self) -> &std::fs::File {
         &self.file
@@ -660,7 +656,7 @@ impl PersistentFile {
     }
 
     pub fn sync_data(&self) -> Result<(), io::Error> {
-        self.file.sync_data()
+        sync_segment_data(&self.file)
     }
 
     /// Returns whether the file currently has at least `needed` bytes.
@@ -683,6 +679,42 @@ impl PersistentFile {
             let _ = (offset, length);
             Ok(())
         }
+    }
+}
+
+/// Segment synchronization orders segment bytes before the metadata that
+/// references them. On Linux that is `fdatasync`, the same primitive RocksDB
+/// uses for its WAL. On Apple platforms Rust's `sync_data` issues
+/// `F_FULLFSYNC`, which flushes the whole drive cache, while the bundled
+/// RocksDB build syncs its WAL with plain `fdatasync` (it is compiled without
+/// `HAVE_FULLFSYNC`). An acknowledged manifest there is therefore only as
+/// durable as `fdatasync`, and what the segment sync must add is ordering:
+/// segment bytes must never reach stable storage after the WAL record that
+/// points at them. `F_BARRIERFSYNC` provides exactly that (an fsync plus an
+/// I/O barrier) without a full cache flush per group commit. File systems
+/// that do not support it fall back to the full flush.
+fn sync_segment_data(file: &std::fs::File) -> Result<(), io::Error> {
+    #[cfg(target_vendor = "apple")]
+    {
+        use std::os::fd::AsRawFd;
+        loop {
+            // SAFETY: fcntl with F_BARRIERFSYNC takes no argument beyond the
+            // descriptor, which `file` keeps open for the duration of the call.
+            let result = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_BARRIERFSYNC) };
+            if result != -1 {
+                return Ok(());
+            }
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(libc::EINTR) => continue,
+                Some(libc::EINVAL) | Some(libc::ENOTSUP) => return file.sync_data(),
+                _ => return Err(error),
+            }
+        }
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        file.sync_data()
     }
 }
 
@@ -919,6 +951,115 @@ mod tests {
             !file.has_len(11).expect("truncated length should read"),
             "the pre-stream length guard must observe external truncation"
         );
+    }
+
+    #[tokio::test]
+    async fn create_new_persistent_file_refuses_existing_paths_without_truncating() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create temp dir");
+        let outside_root = tempdir().expect("failed to create outside root");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        let path = directory.path().join("staged");
+
+        let file = controller
+            .create_new_persistent_file(&path)
+            .await
+            .expect("a fresh staging path should be created");
+        file.write_all_at(b"bytes", 7)
+            .expect("second range should write");
+        file.write_all_at(b"staged ", 0)
+            .expect("first range should write");
+        drop(file);
+
+        let error = match controller.create_new_persistent_file(&path).await {
+            Ok(_) => panic!("an existing staging path must be refused"),
+            Err(error) => error,
+        };
+        assert!(
+            error.contains("failed to open new persistent file"),
+            "{error}"
+        );
+        assert_eq!(
+            std::fs::read(&path).expect("staged file should read"),
+            b"staged bytes",
+            "a refused create must not truncate the existing file"
+        );
+
+        let error = match controller
+            .create_new_persistent_file(&outside_root.path().join("escape"))
+            .await
+        {
+            Ok(_) => panic!("path outside the allowed roots should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.contains("outside configured storage roots"));
+    }
+
+    // Opening a FIFO for reading blocks until a writer opens it, which holds
+    // the blocking open in flight without timing assumptions. Cancelling the
+    // caller there must not return the descriptor permit while the detached
+    // open can still produce a descriptor.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_persistent_open_keeps_its_lease_until_the_open_finishes() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let directory = tempdir().expect("failed to create temp dir");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_millis(50),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+        let fifo = directory.path().join("blocked-open");
+        let fifo_path = std::ffi::CString::new(fifo.as_os_str().as_bytes())
+            .expect("fifo path should not contain NUL");
+        // SAFETY: `fifo_path` is a valid NUL-terminated path for the call.
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+
+        let open = tokio::spawn({
+            let controller = controller.clone();
+            let fifo = fifo.clone();
+            async move { controller.open_persistent_read_file(&fifo).await.map(drop) }
+        });
+        // The open takes its lease and spawns the blocking open without an
+        // intervening suspension, so once the permit is gone the open owns it.
+        while controller.inner.pool.status().available != 0 {
+            tokio::task::yield_now().await;
+        }
+        open.abort();
+        assert!(
+            open.await
+                .expect_err("the open should be cancelled")
+                .is_cancelled()
+        );
+
+        let error = match controller.acquire("test").await {
+            Ok(_) => panic!("the cancelled open must still hold the only permit"),
+            Err(error) => error,
+        };
+        assert!(is_fd_pool_exhausted_error(&error), "{error}");
+
+        tokio::task::spawn_blocking(move || {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&fifo)
+                .expect("the fifo writer should release the blocked open")
+        })
+        .await
+        .expect("fifo writer task should complete");
+        let _permit = timeout(Duration::from_secs(10), controller.inner.pool.get())
+            .await
+            .expect("the permit should return once the detached open finishes")
+            .expect("the pool should hand out the returned permit");
     }
 
     #[test]

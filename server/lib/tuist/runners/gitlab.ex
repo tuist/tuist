@@ -40,6 +40,7 @@ defmodule Tuist.Runners.GitLab do
   @max_waiting_jobs 5
   @payload_retention_seconds 12 * 60 * 60
   @waiting_statuses ["queued", "claimed"]
+  @waiting_section "tuist_waiting_for_runner"
 
   def list_connections(account_id),
     do: Repo.all(from(c in Connection, where: c.account_id == ^account_id, order_by: c.id))
@@ -149,16 +150,17 @@ defmodule Tuist.Runners.GitLab do
 
     result = store_assignment(connection, account, payload, target, routing_error, project_path, pipeline_id)
 
-    case result do
-      {:ok, job} ->
-        if routing_error do
-          settle_rejected(job, payload)
-          {:error, :invalid_job_tags}
-        else
-          {:ok, 1}
-        end
+    case {result, target} do
+      {{:ok, job}, {:ok, resolved}} ->
+        # Best effort: the executor writes the same bytes before its own log.
+        Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
+        {:ok, 1}
 
-      {:error, _} ->
+      {{:ok, job}, {:error, _}} ->
+        settle_rejected(job, payload)
+        {:error, :invalid_job_tags}
+
+      {{:error, _}, _} ->
         Client.update_job(connection.url, payload, "failed", "runner_system_failure")
         {:error, :persistence_failed}
     end
@@ -369,14 +371,60 @@ defmodule Tuist.Runners.GitLab do
   end
 
   def mint_acquisition(account_id, workflow_job_id) do
-    with %Job{account_id: ^account_id, payload: encoded} = job when is_binary(encoded) <- get_job(workflow_job_id),
+    with {%Job{account_id: ^account_id, payload: encoded} = job, workflow_job} when is_binary(encoded) <-
+           get_job_with_workflow_job(workflow_job_id),
          payload = JSON.decode!(encoded),
          {:ok, _} <- Client.update_job(job.url, payload, "running", nil) do
-      {:ok, %{url: job.url, payload: payload, report_token: JobReportToken.mint(job, payload)}}
+      {:ok,
+       %{
+         url: job.url,
+         payload: payload,
+         report_token: JobReportToken.mint(job, payload),
+         waiting_trace: waiting_trace(job, payload, workflow_job)
+       }}
     else
       {:error, _} = error -> error
       _ -> {:error, :not_found}
     end
+  end
+
+  defp get_job_with_workflow_job(workflow_job_id) do
+    Repo.one(
+      from(j in Job,
+        join: w in WorkflowJob,
+        on: w.workflow_job_id == j.workflow_job_id,
+        where: j.workflow_job_id == ^workflow_job_id,
+        select: {j, w}
+      )
+    )
+  end
+
+  # GitLab shows an assignment as running from acquisition, so the job log
+  # says what it is waiting for. The executor closes the section when it starts.
+  # GitLab decides from the first line whether a log carries timestamps, so the
+  # line follows the job's FF_TIMESTAMPS the way GitLab Runner resolves it.
+  defp waiting_trace(%Job{inserted_at: inserted_at}, payload, %{
+         requested_dispatch_label: label,
+         vcpus: vcpus,
+         memory_gb: memory_gb
+       }) do
+    header =
+      if timestamped_trace?(payload),
+        do: Calendar.strftime(inserted_at, "%Y-%m-%dT%H:%M:%S") <> ".000000Z 00O ",
+        else: ""
+
+    header <>
+      "section_start:#{DateTime.to_unix(inserted_at)}:#{@waiting_section}\r\e[0K" <>
+      "Waiting for a Tuist runner for #{label} (#{vcpus} vCPU, #{memory_gb} GB)\n"
+  end
+
+  defp timestamped_trace?(payload) do
+    payload
+    |> Map.get("variables", [])
+    |> Enum.filter(&(&1["key"] == "FF_TIMESTAMPS"))
+    |> List.last(%{})
+    |> Map.get("value")
+    |> then(&(&1 not in ~w(0 f F FALSE false False)))
   end
 
   def orphan_status(%{workflow_job_id: id}, evidence) do

@@ -18,8 +18,11 @@ defmodule Tuist.Builds do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  require Tuist.BuildMetrics
 
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
@@ -161,6 +164,20 @@ defmodule Tuist.Builds do
           :xcode_build_created
         )
       end
+
+      if build.status == "failure",
+        do:
+          Publisher.publish(
+            "build.failed",
+            %{
+              "project_id" => build.project_id,
+              "build_system" => "xcode",
+              "build_id" => build.id,
+              "is_ci" => build.is_ci,
+              "git_branch" => build.git_branch || ""
+            },
+            "xcode:#{build.id}"
+          )
 
       {:ok, build}
     else
@@ -336,6 +353,8 @@ defmodule Tuist.Builds do
         %{
           build_run_id: build.id,
           gradle_build_id: nil,
+          mix_build_id: nil,
+          project_id: build.project_id,
           timestamp: metric.timestamp,
           offset_ms: Map.get(metric, :offset_ms),
           cpu_usage_percent: metric.cpu_usage_percent / 1,
@@ -541,6 +560,16 @@ defmodule Tuist.Builds do
       from(b in Build, hints: ["FINAL"])
       |> apply_custom_values_filter(custom_values)
       |> apply_custom_tag_filters(custom_tag_filters)
+
+    base_query =
+      case Keyword.get(opts, :failure_category_project_id) do
+        nil ->
+          base_query
+
+        project_id ->
+          base_query = where(base_query, [b], b.project_id == ^project_id)
+          Tuist.BuildMetrics.with_failure_category(base_query, "xcode", project_id)
+      end
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 

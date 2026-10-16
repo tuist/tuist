@@ -10,7 +10,6 @@
 # is what the operator self-joins with — never clobber it).
 #
 # Usage:
-#   mise run baremetal:mint-fleet-key tuist-tuist-dedibox-fleet
 #   mise run baremetal:mint-fleet-key tuist-tuist-ovh-fleet
 
 set -euo pipefail
@@ -27,8 +26,8 @@ kube=(kubectl)
 [ -n "${PREP_KUBE_CONTEXT:-}" ] && kube=(kubectl --context "$PREP_KUBE_CONTEXT")
 
 # sudo-password: the login password the install sets, which the self-join uses
-# once to establish NOPASSWD sudo. 14-char alphanumeric (the Dedibox install API
-# caps passwords at 15 and rejects symbols). `head -c 256` reads a fixed amount
+# once to establish NOPASSWD sudo. Keep the existing 14-char alphanumeric
+# format for compatibility with prepared fleet hosts. `head -c 256` reads a fixed amount
 # first so nothing downstream closes the pipe early (a SIGPIPE that `set -o
 # pipefail` would otherwise turn into an abort).
 sudopw="$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-14)"

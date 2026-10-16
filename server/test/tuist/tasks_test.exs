@@ -31,10 +31,27 @@ defmodule Tuist.TasksTest do
       Process.flag(:trap_exit, true)
       parent = self()
 
+      gate =
+        spawn_link(fn ->
+          receive do
+            {:sibling, sibling} -> send(parent, {:sibling, sibling})
+          end
+
+          receive do
+            {:await_sibling, failing} -> send(failing, :sibling_started)
+          end
+        end)
+
       queries = [
-        fn -> raise "pool exhausted" end,
         fn ->
-          send(parent, {:sibling, self()})
+          send(gate, {:await_sibling, self()})
+
+          receive do
+            :sibling_started -> raise "pool exhausted"
+          end
+        end,
+        fn ->
+          send(gate, {:sibling, self()})
           Process.sleep(:infinity)
         end
       ]
@@ -42,7 +59,8 @@ defmodule Tuist.TasksTest do
       assert_raise RuntimeError, "pool exhausted", fn -> Tasks.parallel_tasks(queries) end
 
       assert_receive {:sibling, sibling}
-      refute Process.alive?(sibling)
+      ref = Process.monitor(sibling)
+      assert_receive {:DOWN, ^ref, :process, ^sibling, _reason}
     end
 
     test "exits with the reason when a task exits without an exception" do

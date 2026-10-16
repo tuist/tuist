@@ -911,6 +911,9 @@ mod tests {
                 request_timeout_ms: 5_000,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
+                outbox_max_entries: 1_000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
             });
         })
         .await;
@@ -1035,6 +1038,9 @@ mod tests {
                     request_timeout_ms: 5_000,
                     circuit_breaker_failure_threshold: 2,
                     circuit_breaker_open_ms: 5_000,
+                    outbox_max_entries: 1_000,
+                    outbox_max_bytes: 4 * 1024 * 1024,
+                    outbox_max_batch_bytes: 64 * 1024,
                 },
                 cache_endpoint: "local".into(),
                 store: context.state.store.clone(),

@@ -38,6 +38,7 @@ defmodule TuistWeb.XcodeCacheLiveTest do
       render_async(lv, 500)
 
       assert has_element?(lv, ".tuist-chart-type-toggle")
+      assert has_element?(lv, "[data-part='analytics-card'] > [data-chart-frame='cache']")
     end
 
     test "displays analytics widgets when builds exist", %{
@@ -50,15 +51,18 @@ defmodule TuistWeb.XcodeCacheLiveTest do
           project_id: project.id,
           cacheable_tasks_count: 10,
           cacheable_task_local_hits_count: 5,
-          cacheable_task_remote_hits_count: 3
+          cacheable_task_remote_hits_count: 3,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :day)
         )
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/xcode-cache")
+      render_async(lv, 5_000)
 
       assert has_element?(lv, "#widget-cache-transfer")
       assert has_element?(lv, "#widget-cache-latency")
       assert has_element?(lv, "#widget-cache-throughput")
       assert has_element?(lv, "#widget-cache-hit-rate")
+      assert has_element?(lv, "[data-part='analytics-card'] > [data-chart-frame='cache']")
     end
   end
 end

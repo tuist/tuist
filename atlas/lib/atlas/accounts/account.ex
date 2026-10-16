@@ -6,7 +6,6 @@ defmodule Atlas.Accounts.Account do
   alias Atlas.Accounts.Account.Address
   alias Atlas.Accounts.Account.Billing
   alias Atlas.Accounts.Account.Signatory
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Amounts
   alias Atlas.Accounts.Contact
@@ -32,7 +31,6 @@ defmodule Atlas.Accounts.Account do
   @editable_fields [
     :name,
     :description,
-    :attention_context,
     :primary_domain,
     :url,
     :legal_name,
@@ -73,7 +71,6 @@ defmodule Atlas.Accounts.Account do
     field :account_key, :string
     field :name, :string
     field :description, :string
-    field :attention_context, :string
     field :primary_domain, :string
     field :url, :string
     field :legal_name, :string
@@ -94,7 +91,6 @@ defmodule Atlas.Accounts.Account do
     field :overview_summary_generated_at, :utc_datetime
     field :outcome_review_company_slack_posted_at, :utc_datetime
     field :outcome_proposals_checked_at, :utc_datetime
-    field :attention_suggestions_checked_at, :utc_datetime
     field :latest_activity_at, :utc_datetime
     field :not_an_account_at, :utc_datetime
     field :not_an_account_reason, :string
@@ -120,7 +116,6 @@ defmodule Atlas.Accounts.Account do
     has_many :documents, Document
     has_many :outcomes, Outcome
     has_many :outcome_proposals, OutcomeProposal
-    has_many :attention_suggestions, AccountAttentionSuggestion
     has_many :licenses, License
     has_many :letters, Letter
     has_many :support_threads, SupportThread
@@ -136,7 +131,6 @@ defmodule Atlas.Accounts.Account do
       :account_key,
       :name,
       :description,
-      :attention_context,
       :primary_domain,
       :url,
       :legal_name,
@@ -230,14 +224,6 @@ defmodule Atlas.Accounts.Account do
   end
 
   @doc """
-  Records when the account follow-up agent last evaluated an account. This
-  field is not user-editable.
-  """
-  def attention_suggestions_checked_changeset(account, attrs) do
-    cast(account, attrs, [:attention_suggestions_checked_at])
-  end
-
-  @doc """
   Marks a persisted account row as a non-account so its identifiers remain
   available to block future automated account creation.
   """
@@ -257,7 +243,6 @@ defmodule Atlas.Accounts.Account do
     Enum.reduce(
       [
         :description,
-        :attention_context,
         :primary_domain,
         :url,
         :legal_name,

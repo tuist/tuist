@@ -20,6 +20,7 @@ defmodule Atlas.Support do
   alias Atlas.Support.Workers.DeliverChatEmailVerification
   alias Atlas.Support.Workers.DeliverReply
   alias Atlas.Support.Workers.PostNotification
+  alias Atlas.SupportInbox.Workers.ClassifyInbound
   alias Atlas.Users
   alias AtlasWeb.Endpoint
 
@@ -149,7 +150,7 @@ defmodule Atlas.Support do
       {:ok, %{thread: thread, message: message, duplicate?: duplicate?}} ->
         if !duplicate? do
           audit_inbound(thread, message)
-          enqueue_notification(:inbound_received, thread.id, message_id: message.id)
+          ClassifyInbound.enqueue(thread.id, message.id)
         end
 
         {:ok, %{thread: thread, message: message}}
@@ -684,7 +685,7 @@ defmodule Atlas.Support do
       cc_emails: participant_emails(email.cc),
       body: email.text_body || "(No readable email body.)",
       occurred_at: email.occurred_at,
-      metadata: %{"attachments" => attachment_metadata(email.attachments)}
+      metadata: %{"attachments" => attachment_metadata(email.attachments), "subject" => email.subject}
     })
     |> Repo.insert!()
   end

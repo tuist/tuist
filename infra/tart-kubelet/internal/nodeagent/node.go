@@ -83,6 +83,11 @@ type Maintainer struct {
 	// answer that differently, so it belongs with each provider rather than
 	// here.
 	DynamicLabels []LabelAdvertisement
+
+	// PrewarmGate, when non-nil, holds a Node this process creates out of
+	// scheduling until released (see PrewarmGate). nil never taints, and
+	// either way a leftover prewarm taint is removed.
+	PrewarmGate *PrewarmGate
 }
 
 // LabelAdvertisement is one named source of dynamic Node labels. The name is
@@ -137,6 +142,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
+		m.decidePrewarm(true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
@@ -147,6 +153,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	m.decidePrewarm(false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -296,6 +303,8 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		}
 	}
 
+	applyPrewarmTaint(node, m.PrewarmGate.Held())
+
 	// Same NoSchedule taint we used for VK so stray Linux Pods don't
 	// land here. Pods that actually want darwin set both the
 	// nodeSelector and a matching toleration.
@@ -430,4 +439,10 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 		LastHeartbeatTime:  now,
 		LastTransitionTime: now,
 	})
+}
+
+func (m *Maintainer) decidePrewarm(created bool) {
+	if m.PrewarmGate != nil {
+		m.PrewarmGate.decide(created)
+	}
 }

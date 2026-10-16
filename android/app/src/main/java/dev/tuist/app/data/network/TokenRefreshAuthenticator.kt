@@ -1,19 +1,19 @@
 package dev.tuist.app.data.network
 
-import android.net.Uri
 import android.util.Log
 import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.auth.AuthEvent
 import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.TokenStorage
 import okhttp3.Authenticator
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import org.json.JSONObject
+import java.io.IOException
 import javax.inject.Inject
 
 class TokenRefreshAuthenticator @Inject constructor(
@@ -23,84 +23,120 @@ class TokenRefreshAuthenticator @Inject constructor(
     private val authEventBus: AuthEventBus,
 ) : Authenticator {
 
-    @Synchronized
-    override fun authenticate(route: Route?, response: Response): Request? {
+    override fun authenticate(route: Route?, response: Response): Request? = synchronized(LOCK) {
         if (response.request.header(HEADER_RETRY_AUTH) != null) return null
 
         val currentToken = tokenStorage.getAccessToken()
         val requestToken = response.request.header("Authorization")?.removePrefix("Bearer ")
         if (currentToken != null && currentToken != requestToken) {
-            return response.request.newBuilder()
-                .header("Authorization", "Bearer $currentToken")
-                .header(HEADER_RETRY_AUTH, "true")
-                .build()
+            return response.request.withAccessToken(currentToken)
         }
 
         val refreshToken = tokenStorage.getRefreshToken() ?: run {
-            expireSession()
+            if (currentToken != null) expireSession()
             return null
         }
 
-        val json = JSONObject().apply {
-            put("refresh_token", refreshToken)
+        when (val result = refresh(refreshToken)) {
+            is RefreshResult.Success -> {
+                tokenStorage.storeTokens(result.accessToken, result.refreshToken)
+                response.request.withAccessToken(result.accessToken)
+            }
+            RefreshResult.Rejected -> {
+                if (tokenStorage.getRefreshToken() == refreshToken) {
+                    expireSession()
+                    return null
+                }
+                val rotatedToken = tokenStorage.getAccessToken() ?: return null
+                response.request.withAccessToken(rotatedToken)
+            }
+            is RefreshResult.Transient -> {
+                response.close()
+                throw TokenRefreshException(result.message, result.cause)
+            }
         }
-        val body = json.toString()
-            .toRequestBody("application/json".toMediaType())
+    }
 
-        val refreshUrl = Uri.parse(environmentConfig.serverUrl).buildUpon()
-            .appendEncodedPath("api/auth/refresh_token")
+    private fun refresh(refreshToken: String): RefreshResult {
+        val body = FormBody.Builder()
+            .add("grant_type", "refresh_token")
+            .add("refresh_token", refreshToken)
+            .add("client_id", environmentConfig.oauthClientId)
             .build()
-            .toString()
 
-        val refreshRequest = Request.Builder()
-            .url(refreshUrl)
+        val tokenUrl = environmentConfig.serverUrl.toHttpUrl().newBuilder()
+            .addPathSegments("oauth2/token")
+            .build()
+
+        val request = Request.Builder()
+            .url(tokenUrl)
             .post(body)
             .build()
 
-        val refreshResponse = try {
-            plainClient.newCall(refreshRequest).execute()
-        } catch (e: Exception) {
-            Log.e(TAG, "Token refresh network error", e)
-            return null
-        }
-
-        if (!refreshResponse.isSuccessful) {
-            val errorBody = refreshResponse.body?.string()
-            Log.e(TAG, "Token refresh failed with status ${refreshResponse.code}: $errorBody")
-            expireSession()
-            return null
-        }
-
-        val responseBody = refreshResponse.body?.string() ?: run {
-            Log.e(TAG, "Token refresh returned empty response body")
-            expireSession()
-            return null
-        }
-
         return try {
-            val responseJson = JSONObject(responseBody)
-            val newAccessToken = responseJson.getString("access_token")
-            val newRefreshToken = responseJson.getString("refresh_token")
-            tokenStorage.storeTokens(newAccessToken, newRefreshToken)
-
-            response.request.newBuilder()
-                .header("Authorization", "Bearer $newAccessToken")
-                .header(HEADER_RETRY_AUTH, "true")
-                .build()
-        } catch (e: Exception) {
-            Log.e(TAG, "Token refresh parse error", e)
-            expireSession()
-            null
+            plainClient.newCall(request).execute().use { refreshResponse ->
+                val responseBody = refreshResponse.body?.string().orEmpty()
+                when {
+                    refreshResponse.isSuccessful -> parseTokens(responseBody)
+                    refreshResponse.code == 401 ||
+                        (refreshResponse.code == 400 && responseBody.oauthError() == "invalid_grant") -> {
+                        Log.w(TAG, "Refresh token rejected with status ${refreshResponse.code}")
+                        RefreshResult.Rejected
+                    }
+                    else -> RefreshResult.Transient("Token refresh failed with status ${refreshResponse.code}")
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "Token refresh network error", e)
+            RefreshResult.Transient("Token refresh network error", e)
         }
     }
+
+    private fun parseTokens(body: String): RefreshResult = try {
+        val json = JSONObject(body)
+        val accessToken = json.optString("access_token").ifEmpty { null }
+        val refreshToken = json.optString("refresh_token").ifEmpty { null }
+        if (accessToken != null && refreshToken != null) {
+            RefreshResult.Success(accessToken = accessToken, refreshToken = refreshToken)
+        } else {
+            // The authorization server answers 200 without a token pair when it can no longer mint tokens
+            // for the grant's subject, for example once the user has been deleted.
+            Log.w(TAG, "Token refresh returned no tokens")
+            RefreshResult.Rejected
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Token refresh parse error", e)
+        RefreshResult.Transient("Token refresh returned an unexpected response", e)
+    }
+
+    private fun String.oauthError(): String? = try {
+        JSONObject(this).optString("error").ifEmpty { null }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun Request.withAccessToken(accessToken: String): Request =
+        newBuilder()
+            .header("Authorization", "Bearer $accessToken")
+            .header(HEADER_RETRY_AUTH, "true")
+            .build()
 
     private fun expireSession() {
         tokenStorage.clear()
         authEventBus.emit(AuthEvent.SessionExpired)
     }
 
+    private sealed interface RefreshResult {
+        data class Success(val accessToken: String, val refreshToken: String) : RefreshResult
+        data object Rejected : RefreshResult
+        data class Transient(val message: String, val cause: Throwable? = null) : RefreshResult
+    }
+
     companion object {
         private const val TAG = "TokenRefreshAuth"
         private const val HEADER_RETRY_AUTH = "X-Retry-Auth"
+        private val LOCK = Any()
     }
 }
+
+class TokenRefreshException(message: String, cause: Throwable? = null) : IOException(message, cause)

@@ -14,6 +14,7 @@ struct DeleteDerivedDirectoryProjectMapperTests {
         let preservedDirectories = [
             Constants.DerivedDirectory.moduleMaps,
             Constants.DerivedDirectory.frameworkSearchPaths,
+            Constants.DerivedDirectory.tuistCacheDebugging,
             Constants.DerivedDirectory.sources,
             Constants.DerivedDirectory.infoPlists,
             Constants.DerivedDirectory.entitlements,
@@ -34,7 +35,7 @@ struct DeleteDerivedDirectoryProjectMapperTests {
         #expect(sideEffects.contains(.file(.init(path: obsoleteFile, state: .absent))))
     }
 
-    @Test(.inTemporaryDirectory, arguments: ["Sources", "InfoPlists", "Entitlements"], [false, true])
+    @Test(.inTemporaryDirectory, arguments: ["Sources", "InfoPlists", "Entitlements", "TuistCacheDebugging"], [false, true])
     func map_unlinksPreservedDirectorySymlinks(directoryName: String, destinationExists: Bool) async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)

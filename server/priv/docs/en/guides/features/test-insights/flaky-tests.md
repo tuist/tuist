@@ -30,4 +30,14 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
     details="Detect, mute, and skip flaky Bazel test cases through tuist bazel test."
     link="/guides/features/test-insights/flaky-tests/bazel"
 />
+  <.home_card
+    title="Elixir"
+    details="Detect and manage flaky tests in Elixir projects with test retries."
+    link="/guides/features/test-insights/flaky-tests/elixir"
+/>
+  <.home_card
+    title="Rust"
+    details="Detect and track flaky nextest tests using retries and CI history. Dashboard quarantine is not enforced by nextest."
+    link="/guides/features/test-insights/flaky-tests/rust"
+/>
 </.home_cards>

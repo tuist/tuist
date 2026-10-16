@@ -37,7 +37,6 @@ defmodule Atlas.MCP.Serializers.Accounts do
       legal_name: account.legal_name,
       contract_id: account.contract_id,
       description: account.description,
-      attention_context: account.attention_context,
       primary_domain: account.primary_domain,
       address: address(account.address),
       billing: billing(account.billing),
@@ -70,7 +69,6 @@ defmodule Atlas.MCP.Serializers.Accounts do
         "legal_name" => %{"type" => ["string", "null"]},
         "contract_id" => %{"type" => ["string", "null"]},
         "description" => %{"type" => ["string", "null"]},
-        "attention_context" => %{"type" => ["string", "null"]},
         "primary_domain" => %{"type" => ["string", "null"]},
         "address" => Tool.nullable(address_schema()),
         "billing" => Tool.nullable(billing_schema()),
@@ -98,7 +96,6 @@ defmodule Atlas.MCP.Serializers.Accounts do
         "legal_name",
         "contract_id",
         "description",
-        "attention_context",
         "primary_domain",
         "address",
         "billing",
@@ -524,66 +521,6 @@ defmodule Atlas.MCP.Serializers.Accounts do
         "generated_by_agent",
         "rejection_reason",
         "reviewed_at",
-        "inserted_at"
-      ],
-      "additionalProperties" => false
-    }
-  end
-
-  def account_attention_suggestion(suggestion) do
-    %{
-      id: suggestion.id,
-      account_id: suggestion.account_id,
-      status: suggestion.status,
-      kind: suggestion.kind,
-      title: suggestion.title,
-      rationale: suggestion.rationale,
-      suggested_action: suggestion.suggested_action,
-      evidence: suggestion.evidence,
-      confidence: decimal_string(suggestion.confidence),
-      snoozed_until: Tool.iso8601(suggestion.snoozed_until),
-      resolved_at: Tool.iso8601(suggestion.resolved_at),
-      resolution_note: suggestion.resolution_note,
-      posted_at: Tool.iso8601(suggestion.posted_at),
-      inserted_at: Tool.iso8601(suggestion.inserted_at)
-    }
-  end
-
-  def account_attention_suggestion_schema do
-    nullable_string = %{"type" => ["string", "null"]}
-
-    %{
-      "type" => "object",
-      "properties" => %{
-        "id" => %{"type" => "string"},
-        "account_id" => %{"type" => "string"},
-        "status" => %{"type" => "string"},
-        "kind" => %{"type" => "string"},
-        "title" => %{"type" => "string"},
-        "rationale" => %{"type" => "string"},
-        "suggested_action" => %{"type" => "string"},
-        "evidence" => %{"type" => "object"},
-        "confidence" => %{"type" => "string"},
-        "snoozed_until" => nullable_string,
-        "resolved_at" => nullable_string,
-        "resolution_note" => nullable_string,
-        "posted_at" => nullable_string,
-        "inserted_at" => nullable_string
-      },
-      "required" => [
-        "id",
-        "account_id",
-        "status",
-        "kind",
-        "title",
-        "rationale",
-        "suggested_action",
-        "evidence",
-        "confidence",
-        "snoozed_until",
-        "resolved_at",
-        "resolution_note",
-        "posted_at",
         "inserted_at"
       ],
       "additionalProperties" => false

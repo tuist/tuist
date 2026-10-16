@@ -132,11 +132,75 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.reserved_gib(@region) == 50
     end
 
+    test "counts a retained volume on one of the region's nodes" do
+      stub_region_pods([reserved_pod(50)])
+      stub_region_node_names(["box-1"])
+      stub_volumes([local_volume("pvc-quarantined", "box-1", "64Gi", "Released")])
+
+      assert Capacity.reserved_gib(@region) == 114
+    end
+
     test "is unknown when the cluster cannot be read" do
       stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
       assert Capacity.reserved_gib(@region) == nil
+    end
+  end
+
+  describe "reserved_gib_by_instance/1" do
+    test "sums each instance's pods under the instance they belong to" do
+      stub_region_pods([
+        instance_pod("kura-a-us-east-1", 8),
+        instance_pod("kura-a-us-east-1", 8),
+        instance_pod("kura-b-us-east-1", 16),
+        Map.put(instance_pod("kura-b-us-east-1", 16), "status", %{"phase" => "Succeeded"})
+      ])
+
+      assert Capacity.reserved_gib_by_instance(@region) == %{"kura-a-us-east-1" => 16, "kura-b-us-east-1" => 16}
+    end
+
+    test "is unknown when the cluster cannot be read" do
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      assert Capacity.reserved_gib_by_instance(@region) == nil
+    end
+
+    test "counts a volume no claim is bound to, on a node of the region, under the volume" do
+      stub_region_pods([instance_pod("kura-a-us-east-1", 8)])
+      stub_region_node_names(["box-1"])
+
+      stub_volumes([
+        local_volume("pvc-quarantined", "box-1", "64Gi", "Released"),
+        local_volume("pvc-serving", "box-1", "8Gi", "Bound"),
+        local_volume("pvc-elsewhere", "box-in-another-pool", "50Gi", "Released"),
+        %{"metadata" => %{"name" => "pvc-network"}, "spec" => %{"capacity" => %{"storage" => "100Gi"}}}
+      ])
+
+      assert Capacity.reserved_gib_by_instance(@region) == %{
+               "kura-a-us-east-1" => 8,
+               "persistentvolume/pvc-quarantined" => 64
+             }
+    end
+
+    test "is unknown when the volumes cannot be read" do
+      stub_region_pods([instance_pod("kura-a-us-east-1", 8)])
+      stub(Client, :list_persistent_volumes, fn _opts -> {:error, :forbidden} end)
+
+      assert Capacity.reserved_gib_by_instance(@region) == nil
+    end
+
+    test "is unknown when the region's nodes cannot be read to place a retained volume" do
+      stub_region_pods([instance_pod("kura-a-us-east-1", 8)])
+      stub_volumes([local_volume("pvc-quarantined", "box-1", "64Gi", "Released")])
+      stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
+
+      assert Capacity.reserved_gib_by_instance(@region) == nil
+    end
+
+    defp instance_pod(instance, gib) do
+      Map.put(reserved_pod(gib), "metadata", %{"labels" => %{"app.kubernetes.io/instance" => instance}})
     end
   end
 
@@ -258,8 +322,37 @@ defmodule Tuist.Kura.CapacityTest do
   # `reserved_gib/1` reads the pods' own ephemeral-storage requests, so
   # reserving disk in a test means answering the pod list.
   defp stub_region_pods(pods) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
+  end
+
+  defp stub_region_node_names(names) do
+    stub(Client, :list_nodes, fn selector, _opts ->
+      assert selector == Regions.node_label_selector(region())
+      {:ok, %{"items" => Enum.map(names, &%{"metadata" => %{"name" => &1}})}}
+    end)
+  end
+
+  defp stub_volumes(volumes), do: stub(Client, :list_persistent_volumes, fn _opts -> {:ok, volumes} end)
+
+  # A volume as the local-path provisioner creates it: a directory on one node,
+  # pinned there by a required hostname affinity.
+  defp local_volume(name, node, size, phase) do
+    %{
+      "metadata" => %{"name" => name},
+      "spec" => %{
+        "capacity" => %{"storage" => size},
+        "nodeAffinity" => %{
+          "required" => %{
+            "nodeSelectorTerms" => [
+              %{"matchExpressions" => [%{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]}]}
+            ]
+          }
+        }
+      },
+      "status" => %{"phase" => phase}
+    }
   end
 
   defp reserved_pod(gib) do
@@ -541,6 +634,11 @@ defmodule Tuist.Kura.CapacityTest do
       end)
 
       stub(Client, :list_pods_on_node, fn "box-1", opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, []}
+      end)
+
+      stub(Client, :list_persistent_volumes, fn opts ->
         assert opts[:timeout] == to_timeout(second: 5)
         {:ok, []}
       end)
@@ -922,6 +1020,7 @@ defmodule Tuist.Kura.CapacityTest do
   # and admission reads the same region's Ready nodes and pods as a whole, so
   # shaping a region here means answering all four lists.
   defp stub_pool(boxes) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
     stub(Client, :list_nodes, fn _selector -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
@@ -931,6 +1030,33 @@ defmodule Tuist.Kura.CapacityTest do
       case Enum.find(boxes, &(&1.name == name)) do
         %{pods: pods} -> {:ok, pods}
         nil -> {:error, :not_found}
+      end
+    end)
+
+    stub_data_volumes_as_requested(boxes)
+  end
+
+  # Each replica's data volume at the size its pod requests, which is what a
+  # replica that has only ever grown holds.
+  defp stub_data_volumes_as_requested(boxes) do
+    boxes
+    |> Enum.flat_map(& &1.pods)
+    |> Enum.flat_map(fn
+      %{"spec" => %{"volumes" => [%{"persistentVolumeClaim" => %{"claimName" => claim}}]}} = pod ->
+        [{claim, get_in(pod, ["spec", "containers", Access.at(0), "resources", "requests", "ephemeral-storage"])}]
+
+      _pod ->
+        []
+    end)
+    |> Map.new()
+    |> stub_data_volumes()
+  end
+
+  defp stub_data_volumes(sizes) do
+    stub(Client, :get_persistent_volume_claim, fn "kura", name, _opts ->
+      case Map.fetch(sizes, name) do
+        {:ok, size} -> {:ok, %{"spec" => %{"resources" => %{"requests" => %{"storage" => size}}}}}
+        :error -> {:error, :not_found}
       end
     end)
   end
@@ -1025,18 +1151,114 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
-    test "refuses a raise the instance's own box cannot take, however empty its siblings are" do
-      # The 2026-09-11 refusal: the region had hundreds of gibibytes free on
-      # another box, and both replicas were pinned by their local volumes to
-      # the one that could not hold them at the new size.
+    test "rebuilds a replica onto another box when its own cannot hold both at the new size" do
+      # The resize replaces each volume with a fresh, unbound one, so the
+      # rebuilt replica schedules wherever there is room. Here the first one
+      # cannot stay (137 + 64 < 256), lands on the new box, and the second
+      # follows it there.
       account = placement_account()
 
       stub_pool([
-        disk_box("roomy", 800, []),
-        disk_box("pinned", 100, [kura_pod(account, 30), kura_pod(account, 30)])
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("new", 745, [])
       ])
 
-      assert Capacity.placeable?(region(), claim(account, "60Gi")) == false
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == true
+    end
+
+    test "refuses a raise no box can take a rebuilt replica for" do
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("small", 300, [neighbour_pod(100)])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == false
+    end
+
+    test "charges each rebuilt replica where it landed before placing the next" do
+      # 565 GiB are free across both boxes once the old replicas are handed
+      # back, which covers two 266Gi replicas in aggregate. The first can only
+      # land on the other box, and neither what it leaves there nor the 265 GiB
+      # the second hands back on its own box takes the second.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("other", 400, [neighbour_pod(100)])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "265Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "266Gi")) == false
+    end
+
+    test "grows a replica in place when its volume is already large enough to keep" do
+      # Shrunk from 40Gi to 20Gi, the volumes stayed at 40Gi: the controller
+      # only replaces a volume smaller than the claim. Growing to 30Gi keeps
+      # both, so both replicas restart on the box their volumes are bound to,
+      # however much room the other box has.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 100, [
+          neighbour_pod(50),
+          kura_pod(account, 20, ordinal: 0),
+          kura_pod(account, 20, ordinal: 1)
+        ]),
+        disk_box("empty", 100, [])
+      ])
+
+      stub_data_volumes(%{data_claim(account, 0) => "40Gi", data_claim(account, 1) => "40Gi"})
+
+      assert Capacity.placeable?(region(), claim(account, "25Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == false
+    end
+
+    test "moves a replica whose retained volume is still smaller than the new claim" do
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 100, [
+          neighbour_pod(50),
+          kura_pod(account, 20, ordinal: 0),
+          kura_pod(account, 20, ordinal: 1)
+        ]),
+        disk_box("empty", 100, [])
+      ])
+
+      stub_data_volumes(%{data_claim(account, 0) => "40Gi", data_claim(account, 1) => "40Gi"})
+
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+    end
+
+    test "is unknown when a replica's data volume cannot be read" do
+      account = placement_account()
+      stub_pool([disk_box("current", 100, [kura_pod(account, 20), kura_pod(account, 20)])])
+      stub(Client, :get_persistent_volume_claim, fn _namespace, _name, _opts -> {:error, :forbidden} end)
+
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == nil
+    end
+
+    test "lands a rebuilt replica only on a box with room for everything it requests" do
+      # Disk to spare on the other box, but none of the egress the replica
+      # reserves: the scheduler would leave it Pending there.
+      account = placement_account()
+      egress = %{"tuist.dev/egress-mbps" => "500"}
+
+      stub_pool([
+        disk_box("current", 745, [
+          neighbour_pod(480),
+          kura_pod(account, 64, requests: egress),
+          kura_pod(account, 64, requests: egress)
+        ]),
+        pool_box("full-egress",
+          allocatable: %{"ephemeral-storage" => "745Gi"},
+          pods: [pool_pod(%{"tuist.dev/egress-mbps" => "1200"})]
+        )
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == false
     end
 
     test "counts every workload on the node against it, in any namespace" do
@@ -1088,7 +1310,8 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "does not charge a box for a replica its sibling box holds" do
       # The affinity only prefers co-location, so an account can straddle two
-      # boxes. Each rebuilds its own replica, and box-1 has room for one 30Gi.
+      # boxes. box-1 has room for one 30Gi, and box-2 for two 50Gi once its
+      # own replica is handed back.
       account = placement_account()
 
       stub_pool([
@@ -1096,8 +1319,8 @@ defmodule Tuist.Kura.CapacityTest do
         disk_box("box-2", 100, [kura_pod(account, 20)])
       ])
 
-      assert Capacity.placeable?(region(), claim(account, "30Gi")) == true
-      assert Capacity.placeable?(region(), claim(account, "31Gi")) == false
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
     test "weighs the account's replicas against the same reading their node was measured in" do
@@ -1185,6 +1408,24 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(account, "40Gi")) == nil
     end
 
+    test "charges a retained volume to the box whose disk it holds" do
+      account = placement_account()
+      stub_pool([disk_box("box-1", 100, [])])
+
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == true
+
+      stub_volumes([local_volume("pvc-quarantined", "box-1", "64Gi", "Released")])
+
+      assert Capacity.placeable?(region(), claim(account, "40Gi")) == false
+    end
+
+    test "leaves placement unknown when the volumes cannot be read" do
+      stub_pool([disk_box("box-1", 100, [])])
+      stub(Client, :list_persistent_volumes, fn _opts -> {:error, :forbidden} end)
+
+      assert Capacity.placeable?(region(), claim(placement_account(), "40Gi")) == nil
+    end
+
     test "is unknown for a row whose account cannot be named" do
       stub_pool([disk_box("box-1", 100, [])])
 
@@ -1204,6 +1445,11 @@ defmodule Tuist.Kura.CapacityTest do
         {:ok, []}
       end)
 
+      stub(Client, :list_persistent_volumes, fn opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, []}
+      end)
+
       assert Capacity.placeable?(region(), claim(placement_account(), "40Gi")) == true
     end
   end
@@ -1219,20 +1465,31 @@ defmodule Tuist.Kura.CapacityTest do
   # The node list and each node's pods, without the region-wide readings
   # `stub_pool/1` also answers, so a test can drive the cache itself.
   defp stub_pool_nodes(boxes) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(Client, :list_nodes, fn _selector, _opts -> {:ok, %{"items" => Enum.map(boxes, &pool_node/1)}} end)
 
     stub(Client, :list_pods_on_node, fn name, _opts ->
       {:ok, boxes |> Enum.find(%{pods: []}, &(&1.name == name)) |> Map.fetch!(:pods)}
     end)
+
+    stub_data_volumes_as_requested(boxes)
   end
 
   defp neighbour_pod(gib, opts \\ []), do: pool_pod(%{"ephemeral-storage" => "#{gib}Gi"}, opts)
 
   # A replica as the controller labels it, on whichever box the test lists it.
-  defp kura_pod(%Account{name: name}, gib, opts \\ []) do
-    %{"ephemeral-storage" => "#{gib}Gi"}
+  defp kura_pod(%Account{name: name} = account, gib, opts \\ []) do
+    ordinal = Keyword.get_lazy(opts, :ordinal, fn -> System.unique_integer([:positive, :monotonic]) end)
+
+    opts
+    |> Keyword.get(:requests, %{})
+    |> Map.put("ephemeral-storage", "#{gib}Gi")
     |> pool_pod(opts)
+    |> put_in(["spec", "volumes"], [
+      %{"name" => "data", "persistentVolumeClaim" => %{"claimName" => data_claim(account, ordinal)}}
+    ])
     |> Map.put("metadata", %{
+      "name" => "kura-#{String.downcase(name)}-#{ordinal}",
       "namespace" => "kura",
       "labels" => %{
         "app.kubernetes.io/managed-by" => "kura-controller",
@@ -1241,4 +1498,6 @@ defmodule Tuist.Kura.CapacityTest do
       }
     })
   end
+
+  defp data_claim(%Account{name: name}, ordinal), do: "data-kura-#{String.downcase(name)}-#{ordinal}"
 end

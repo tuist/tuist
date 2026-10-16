@@ -22,6 +22,13 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // side. Runner availability is gated server-side by the `:runners`
 // feature flag.
 type RunnerPoolSpec struct {
+	// Linux cache volumes require a dedicated host filesystem and a node-local agent.
+	// Empty disables the feature. Never expose CacheVolumeRoot without SubPathExpr.
+	// +optional
+	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
+	// +optional
+	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
 	// `DispatchLabel` at JIT-mint time).
@@ -218,6 +225,16 @@ type RunnerPoolAutoscaling struct {
 	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
 	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+
+	// HoldRecentPeak keeps the pool sized to the server's 95th percentile
+	// of concurrent runners over the last hour after load falls. False
+	// sizes it to current load plus minWarmPoolFloor, for pools whose jobs
+	// arrive in one-off bursts the last hour does not predict.
+	//
+	// Pointer so a deliberate false survives serialization; nil means
+	// unset and defaults to true. Read via HoldRecentPeakOrDefault.
+	// +optional
+	HoldRecentPeak *bool `json:"holdRecentPeak,omitempty"`
 }
 
 const (
@@ -286,6 +303,15 @@ func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
 		return defaultScaleDownCooldownSeconds
 	}
 	return *a.ScaleDownCooldownSeconds
+}
+
+// HoldRecentPeakOrDefault returns the configured value, or the CRD
+// default (true) when unset.
+func (a *RunnerPoolAutoscaling) HoldRecentPeakOrDefault() bool {
+	if a == nil || a.HoldRecentPeak == nil {
+		return true
+	}
+	return *a.HoldRecentPeak
 }
 
 // RunnerPoolRollout carries the Pod-template rollout throttle knob.

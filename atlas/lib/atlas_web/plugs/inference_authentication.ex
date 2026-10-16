@@ -12,7 +12,7 @@ defmodule AtlasWeb.Plugs.InferenceAuthentication do
   def call(conn, _opts) do
     with {:ok, token_value} <- bearer_token(conn),
          {:ok, token} <- Inference.authenticate_token(token_value) do
-      Audit.put_context(%{interface: "inference"})
+      Audit.put_context(%{interface: "api"})
 
       conn
       |> assign(:inference_token, token)

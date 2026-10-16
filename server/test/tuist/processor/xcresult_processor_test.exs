@@ -151,6 +151,25 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert manifest_seen.(true)
     end
 
+    test "moves the coverage the parser streamed out of the bundle's directory" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn xcresult_path, root_dir ->
+        path = Path.join(root_dir, "tuist_coverage.ndjson")
+        File.write!(path, ~s({"path":"Sources/A.swift"}\n))
+        assert String.starts_with?(path, Path.dirname(xcresult_path))
+        {:ok, %{"test_modules" => [], "coverage_path" => path, "coverage_partial" => true, "coverage_file_count" => 1}}
+      end)
+
+      assert {:ok, %{"coverage_path" => relocated, "coverage_partial" => true}} =
+               XCResultProcessor.process_local(fixture_zip, read_coverage: true)
+
+      on_exit(fn -> File.rm(relocated) end)
+      assert File.read!(relocated) == ~s({"path":"Sources/A.swift"}\n)
+      refute String.contains?(relocated, Path.basename(fixture_dir))
+    end
+
     test "logs why the coverage could not be read and keeps the parsed tests" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

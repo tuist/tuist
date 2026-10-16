@@ -11,6 +11,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.Builds
+  alias TuistWeb.Components.BuildHealth
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -95,11 +96,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
 
-    order_by =
-      case build_runs_sort_by do
-        "duration" -> [:duration]
-        _ -> [:inserted_at]
-      end
+    order_by = sort_fields(build_runs_sort_by)
 
     order_directions =
       case build_runs_sort_order do
@@ -109,11 +106,16 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
     options =
       build_runs_options_with_paging(
-        %{filters: flop_filters, order_by: order_by, order_directions: order_directions},
+        %{
+          filters: flop_filters,
+          order_by: order_by,
+          order_directions: List.duplicate(hd(order_directions), length(order_by))
+        },
         params
       )
 
-    {build_runs, build_runs_meta} = Builds.list_build_runs(options, preload: :ran_by_account)
+    {build_runs, build_runs_meta} =
+      Builds.list_build_runs(options, preload: :ran_by_account, failure_category_project_id: project.id)
 
     socket
     |> assign(:active_filters, filters)
@@ -185,8 +187,13 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     flop_filters ++ ran_by_flop_filters
   end
 
+  defp sort_fields("failure-category"), do: [:failure_category, :inserted_at, :id]
+  defp sort_fields("duration"), do: [:duration]
+  defp sort_fields(_), do: [:inserted_at]
+
   defp define_filters(project, schemes, configurations, tags) do
     base = [
+      BuildHealth.category_filter(),
       %Filter.Filter{
         id: "scheme",
         field: :scheme,

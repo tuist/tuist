@@ -73,11 +73,12 @@ defmodule TuistWeb.GitHubAppManifestController do
   end
 
   def callback(conn, %{"code" => code, "state" => state_token}) when is_binary(code) and is_binary(state_token) do
-    with {:ok, %{account_id: account_id, client_url: client_url}} <- VCS.verify_github_state_token(state_token),
+    with :ok <- validate_manifest_code(code),
+         {:ok, %{account_id: account_id, client_url: client_url} = state} <- VCS.verify_github_state_token(state_token),
          :ok <- ensure_entitled(account_id),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, app} <- exchange_manifest_code(account_id, client_url, code),
-         {:ok, installation} <- upsert_installation(account, client_url, app) do
+         {:ok, app} <- exchange_manifest_code(account_id, client_url, Map.get(state, :api_url), code),
+         {:ok, installation} <- upsert_installation(account, client_url, Map.get(state, :api_url), app) do
       install_state = VCS.generate_github_state_token(account.id, client_url)
       install_url = "#{client_url}/apps/#{installation.app_slug}/installations/new?state=#{install_state}"
       redirect(conn, external: install_url)
@@ -238,10 +239,14 @@ defmodule TuistWeb.GitHubAppManifestController do
     "#{client_url}/organizations/#{encoded_owner}/settings/apps/new"
   end
 
-  defp exchange_manifest_code(account_id, client_url, code) do
-    api_url = VCS.api_url(:github, client_url)
+  defp validate_manifest_code(code) do
+    if Regex.match?(~r/^[A-Za-z0-9_-]+$/, code), do: :ok, else: {:error, :invalid}
+  end
+
+  defp exchange_manifest_code(account_id, client_url, api_override, code) do
+    api_url = VCS.installation_api_url(%{client_url: client_url, api_url: api_override})
     url = "#{api_url}/app-manifests/#{code}/conversions"
-    base_ctx = %{account_id: account_id, client_url: client_url}
+    base_ctx = %{account_id: account_id, client_url: client_url, api_url: api_url}
 
     case SSRFGuard.pin(url) do
       {:ok, pinned_url, hostname} ->
@@ -265,6 +270,7 @@ defmodule TuistWeb.GitHubAppManifestController do
     case Req.post(
            url: pinned_url,
            body: "",
+           redirect: false,
            headers: [
              {"Accept", "application/vnd.github+json"},
              {"Content-Type", "application/json"},
@@ -284,10 +290,17 @@ defmodule TuistWeb.GitHubAppManifestController do
     end
   end
 
-  defp handle_exchange_failure(%{stage: :ssrf, client_url: client_url, account_id: account_id, reason: reason}) do
+  defp handle_exchange_failure(%{
+         stage: :ssrf,
+         client_url: client_url,
+         api_url: api_url,
+         account_id: account_id,
+         reason: reason
+       }) do
     Logger.error("GitHub App manifest exchange blocked by SSRF guard",
       stage: :ssrf,
       client_url: client_url,
+      url: api_url,
       account_id: account_id,
       reason: inspect(reason)
     )
@@ -298,14 +311,14 @@ defmodule TuistWeb.GitHubAppManifestController do
           dgettext(
             "dashboard",
             "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network.",
-            url: client_url
+            url: api_url
           )
 
         :dns_failure ->
           dgettext(
             "dashboard",
-            "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable.",
-            url: client_url
+            "Tuist could not resolve %{url}. Double-check the GitHub Enterprise API URL is correct and publicly resolvable.",
+            url: api_url
           )
 
         _ ->
@@ -315,10 +328,17 @@ defmodule TuistWeb.GitHubAppManifestController do
     raise BadRequestError, message
   end
 
-  defp handle_exchange_failure(%{stage: :transport, client_url: client_url, account_id: account_id, reason: reason}) do
+  defp handle_exchange_failure(%{
+         stage: :transport,
+         client_url: client_url,
+         api_url: api_url,
+         account_id: account_id,
+         reason: reason
+       }) do
     Logger.error("GitHub App manifest exchange request failed",
       stage: :transport,
       client_url: client_url,
+      url: api_url,
       account_id: account_id,
       reason: reason
     )
@@ -326,8 +346,8 @@ defmodule TuistWeb.GitHubAppManifestController do
     raise BadRequestError,
           dgettext(
             "dashboard",
-            "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only.",
-            url: client_url
+            "Tuist could not reach %{url}. Confirm the GitHub Enterprise API URL is reachable from Tuist, or self-host Tuist if it's internal-only.",
+            url: api_url
           )
   end
 
@@ -372,10 +392,11 @@ defmodule TuistWeb.GitHubAppManifestController do
     raise BadRequestError, message
   end
 
-  defp upsert_installation(account, client_url, app) do
+  defp upsert_installation(account, client_url, api_url, app) do
     attrs = %{
       account_id: account.id,
       client_url: client_url,
+      api_url: api_url,
       app_id: to_string(app["id"]),
       app_slug: app["slug"],
       client_id: app["client_id"],

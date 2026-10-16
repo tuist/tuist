@@ -50,6 +50,10 @@ spec:
               type: object
               required: [image, fleetSelector, dispatchLabel, runnerLabels]
               properties:
+                cacheVolumeRoot:
+                  type: string
+                cacheVolumeURL:
+                  type: string
                 labels:
                   type: array
                   items:
@@ -213,6 +217,15 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                    holdRecentPeak:
+                      type: boolean
+                      default: true
+                      description: |
+                        Keep the pool sized to the server's 95th percentile
+                        of concurrent runners over the last hour after load
+                        falls. False sizes it to current load plus
+                        minWarmPoolFloor, for pools whose jobs arrive in
+                        one-off bursts the last hour does not predict.
                 rollout:
                   type: object
                   description: |

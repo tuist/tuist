@@ -10,14 +10,14 @@ defmodule AtlasWeb.OverviewLive do
   alias Phoenix.LiveView.AsyncResult
   alias Phoenix.LiveView.JS
 
-  @widgets ~w(users organizations projects jobs cache_operations)
+  @widgets ~w(users active_users organizations projects jobs cache_operations)
   @default_widget "users"
 
   # Each metric's Postgres/ClickHouse query is measured on its own so the
   # landing page can stream widgets in as they come back rather than waiting
   # for the slowest one. Recent organizations gets its own async slot so the
   # bottom table appears independently too.
-  @async_metrics [:users, :organizations, :projects, :jobs, :cache_operations]
+  @async_metrics [:users, :active_users, :organizations, :projects, :jobs, :cache_operations]
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :page_title, gettext("Overview"))}
@@ -80,6 +80,7 @@ defmodule AtlasWeb.OverviewLive do
   def handle_async(key, {:ok, result}, socket)
       when key in [
              :measurement_users,
+             :measurement_active_users,
              :measurement_organizations,
              :measurement_projects,
              :measurement_jobs,
@@ -93,6 +94,7 @@ defmodule AtlasWeb.OverviewLive do
   def handle_async(key, {:exit, reason}, socket)
       when key in [
              :measurement_users,
+             :measurement_active_users,
              :measurement_organizations,
              :measurement_projects,
              :measurement_jobs,
@@ -175,6 +177,19 @@ defmodule AtlasWeb.OverviewLive do
               legend_color="primary"
               selected={@selected_widget == "users"}
               tooltip_description={gettext("Total number of Tuist user accounts.")}
+            />
+            <.metric_widget
+              id="overview-widget-active-users"
+              widget="active_users"
+              title={gettext("Active users")}
+              measurement={@measurement_active_users}
+              legend_color="quaternary"
+              selected={@selected_widget == "active_users"}
+              tooltip_description={
+                gettext(
+                  "Users who ran a Tuist command or Xcode build on an average day of the selected range. CI runs carry no user, so they are not counted."
+                )
+              }
             />
             <.metric_widget
               id="overview-widget-organizations"
@@ -394,14 +409,14 @@ defmodule AtlasWeb.OverviewLive do
     measurement = Map.fetch!(assigns, measurement_assign(String.to_existing_atom(assigns.selected_widget)))
 
     case measurement do
-      %AsyncResult{ok?: true, result: {:ok, %{series: [_ | _] = series}}} ->
+      %AsyncResult{ok?: true, result: {:ok, %{series: [_ | _] = series} = measurement}} ->
+        chart_series = chart_series(assigns.selected_widget, series, Map.get(measurement, :trend, []))
+
         assigns =
           assigns
           |> assign(:series_dates, Enum.map(series, fn {date, _value} -> Date.to_iso8601(date) end))
-          |> assign(:series_data, Enum.map(series, fn {date, value} -> [Date.to_iso8601(date), value] end))
+          |> assign(:chart_series, chart_series)
           |> assign(:chart_type, chart_type(assigns.selected_widget))
-          |> assign(:chart_color, chart_color(assigns.selected_widget))
-          |> assign(:chart_title, widget_title(assigns.selected_widget))
 
         assigns = assign(assigns, :chart_dom_id, chart_dom_id(assigns))
 
@@ -410,18 +425,9 @@ defmodule AtlasWeb.OverviewLive do
           <.chart
             id={"overview-chart-#{@chart_dom_id}"}
             type={@chart_type}
-            extra_options={chart_options(@series_dates)}
-            series={[
-              %{
-                name: @chart_title,
-                type: @chart_type,
-                color: @chart_color,
-                data: @series_data,
-                smooth: 0.25,
-                symbol: "none",
-                areaStyle: %{opacity: 0.15}
-              }
-            ]}
+            extra_options={chart_options(@series_dates, length(@chart_series) > 1)}
+            series={@chart_series}
+            show_legend={length(@chart_series) > 1}
             y_axis_min={0}
           />
         </div>
@@ -450,7 +456,44 @@ defmodule AtlasWeb.OverviewLive do
     end
   end
 
+  # A metric that ships a trend series renders it as a second, flatter line on
+  # top of the raw one. The raw series keeps its fill so it still reads as the
+  # subject of the chart and the trend as an annotation over it.
+  defp chart_series(widget, series, trend) do
+    type = chart_type(widget)
+
+    raw = %{
+      name: widget_title(widget),
+      type: type,
+      color: chart_color(widget),
+      data: Enum.map(series, fn {date, value} -> [Date.to_iso8601(date), value] end),
+      smooth: 0.25,
+      symbol: "none",
+      areaStyle: %{opacity: 0.15}
+    }
+
+    case trend do
+      [_ | _] ->
+        [
+          raw,
+          %{
+            name: gettext("7-day average"),
+            type: "line",
+            color: "var:noora-surface-label-primary",
+            data: Enum.map(trend, fn {date, value} -> [Date.to_iso8601(date), value] end),
+            smooth: 0.25,
+            symbol: "none",
+            lineStyle: %{width: 2}
+          }
+        ]
+
+      _none ->
+        [raw]
+    end
+  end
+
   defp measurement_assign(:users), do: :measurement_users
+  defp measurement_assign(:active_users), do: :measurement_active_users
   defp measurement_assign(:organizations), do: :measurement_organizations
   defp measurement_assign(:projects), do: :measurement_projects
   defp measurement_assign(:jobs), do: :measurement_jobs
@@ -461,12 +504,14 @@ defmodule AtlasWeb.OverviewLive do
   defp chart_type(_widget), do: "line"
 
   defp chart_color("users"), do: "var:noora-chart-primary"
+  defp chart_color("active_users"), do: "var:noora-chart-quaternary"
   defp chart_color("organizations"), do: "var:noora-chart-secondary"
   defp chart_color("projects"), do: "var:noora-chart-tertiary"
   defp chart_color("jobs"), do: "var:noora-chart-tertiary"
   defp chart_color("cache_operations"), do: "var:noora-chart-primary"
 
   defp widget_title("users"), do: "Users"
+  defp widget_title("active_users"), do: "Active users"
   defp widget_title("organizations"), do: "Organizations"
   defp widget_title("projects"), do: "Projects"
   defp widget_title("jobs"), do: "CI jobs"
@@ -480,12 +525,12 @@ defmodule AtlasWeb.OverviewLive do
     "#{assigns.selected_widget}-#{Date.to_iso8601(assigns.start_date)}-#{Date.to_iso8601(assigns.end_date)}"
   end
 
-  defp chart_options([]), do: %{}
+  defp chart_options([], _legend?), do: %{}
 
-  defp chart_options(dates) do
+  defp chart_options(dates, legend?) do
     %{
-      grid: %{width: "95%", left: "0.4%", right: "3%", height: "78%", top: "8%"},
-      legend: %{show: false},
+      grid: %{width: "95%", left: "0.4%", right: "3%", height: grid_height(legend?), top: grid_top(legend?)},
+      legend: %{textStyle: %{color: "var:noora-surface-label-secondary"}},
       xAxis: %{
         boundaryGap: true,
         type: "category",
@@ -503,6 +548,12 @@ defmodule AtlasWeb.OverviewLive do
       tooltip: %{}
     }
   end
+
+  defp grid_top(true), do: "18%"
+  defp grid_top(false), do: "8%"
+
+  defp grid_height(true), do: "68%"
+  defp grid_height(false), do: "78%"
 
   defp date_picker_presets do
     Enum.map(TuistOverview.presets(), fn preset ->

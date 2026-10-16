@@ -6,12 +6,26 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle string `json:"accountHandle"`
-	TenantID      string `json:"tenantID"`
-	Region        string `json:"region"`
-	Image         string `json:"image"`
-	Replicas      *int32 `json:"replicas,omitempty"`
-	PublicHost    string `json:"publicHost,omitempty"`
+	PlannedHandover *PlannedHandoverRequest `json:"plannedHandover,omitempty"`
+
+	ServingMode      string                   `json:"servingMode,omitempty"`
+	PrimaryPromotion *PrimaryPromotionRequest `json:"primaryPromotion,omitempty"`
+	// ReplicaRecovery authorizes exactly one permanently lost, positively fenced replica.
+	ReplicaRecovery *ReplicaRecoveryRequest `json:"replicaRecovery,omitempty"`
+
+	// StableHost is rendered independently from its regional DNS advertisement.
+	StableHost      string `json:"stableHost,omitempty"`
+	StableAdvertise bool   `json:"stableAdvertise,omitempty"`
+	StableAWSRegion string `json:"stableAWSRegion,omitempty"`
+	AccountHandle   string `json:"accountHandle"`
+	TenantID        string `json:"tenantID"`
+	Region          string `json:"region"`
+	Image           string `json:"image"`
+	Replicas        *int32 `json:"replicas,omitempty"`
+	PublicHost      string `json:"publicHost,omitempty"`
+	// ClientHostAliases retain renamed client endpoints on the same backend.
+	// They affect DNS, ingress and public TLS only, never workload or peer identity.
+	ClientHostAliases []string `json:"clientHostAliases,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.
@@ -197,6 +211,22 @@ type KuraInstanceSpec struct {
 	// host-network peer DNSEndpoint targets (the CAPI provider keeps it routed to
 	// a healthy box of the region's pool). Only used when MeshPeerHostNetwork.
 	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
+
+	// NodeLocalNetwork marks an instance whose pods run on nodes with a pod
+	// network the rest of the cluster cannot route to, such as rack nodes
+	// with a bridge-only CNI. Their pods cannot reach cluster DNS, so they
+	// resolve through Nameservers instead, and the controller reads their
+	// /status/rollout through the API server's pod port-forward rather than
+	// the pod IP.
+	NodeLocalNetwork *NodeLocalNetwork `json:"nodeLocalNetwork,omitempty"`
+}
+
+// NodeLocalNetwork configures an instance whose pod network is local to its
+// node.
+type NodeLocalNetwork struct {
+	// Nameservers the pods resolve through instead of cluster DNS.
+	// +kubebuilder:validation:MinItems=1
+	Nameservers []string `json:"nameservers"`
 }
 
 // KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports
@@ -261,6 +291,9 @@ type KuraInstancePeerRole struct {
 }
 
 type KuraInstanceStatus struct {
+	ReplicaRecovery *ReplicaRecoveryStatus `json:"replicaRecovery,omitempty"`
+
+	StableEndpoint *StableEndpointStatus `json:"stableEndpoint,omitempty"`
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
 	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
@@ -304,7 +337,21 @@ type KuraInstanceStatus struct {
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
 }
 
-// KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a
+// StableEndpointStatus retains the routing identity until DNS withdrawal and
+// the drain have completed, including when intent is removed or the CR deleted.
+type StableEndpointStatus struct {
+	Host               string `json:"host"`
+	SetIdentifier      string `json:"setIdentifier"`
+	AWSRegion          string `json:"awsRegion"`
+	Target             string `json:"target,omitempty"`
+	HealthCheckID      string `json:"healthCheckID,omitempty"`
+	Ready              bool   `json:"ready"`
+	ObservedGeneration int64  `json:"observedGeneration"`
+	LastCheckedAt      string `json:"lastCheckedAt,omitempty"`
+	WithdrawnAt        string `json:"withdrawnAt,omitempty"`
+}
+
+// KuraInstanceCPUAutosize retains the highest ten-minute mean CPU in each of a
 // ring of fixed-length windows, oldest first, with BucketStartedAt the start
 // of the last. A window that closed with no reading holds -1, which is not
 // the same as a reading of zero. The peak is taken across the instance's pods
@@ -315,6 +362,12 @@ type KuraInstanceStatus struct {
 // shown it will admit, and expires so a box that has since freed up is
 // retried.
 type KuraInstanceCPUAutosize struct {
+	// SamplesMilli contains up to ten consecutive minute observations of the
+	// busiest replica. Missing minutes restart this short window. SampledAt
+	// also distinguishes sustained history from legacy instantaneous peaks.
+	// +kubebuilder:validation:MaxItems=10
+	SamplesMilli     []int32      `json:"samplesMilli,omitempty"`
+	SampledAt        *metav1.Time `json:"sampledAt,omitempty"`
 	RequestMilli     int32        `json:"requestMilli,omitempty"`
 	PeakMilli        int32        `json:"peakMilli,omitempty"`
 	BucketStartedAt  *metav1.Time `json:"bucketStartedAt,omitempty"`
@@ -347,4 +400,52 @@ type KuraInstanceList struct {
 
 func init() {
 	SchemeBuilder.Register(&KuraInstance{}, &KuraInstanceList{})
+}
+
+// ReplicaRecoveryRequest is an operator declaration, never inferred from NodeReady
+// or a missing Node. FenceEvidence must identify a verified power/storage fence.
+// The old host must remain fenced until its obsolete pod is removed locally.
+type ReplicaRecoveryRequest struct {
+	ID            string `json:"id"`
+	PodName       string `json:"podName"`
+	PodUID        string `json:"podUID"`
+	PVCUID        string `json:"pvcUID"`
+	PVUID         string `json:"pvUID"`
+	HostName      string `json:"hostName"`
+	FenceEvidence string `json:"fenceEvidence"`
+}
+
+type ReplicaRecoveryStatus struct {
+	// TargetPodUID records the exact original or unscheduled replacement pod to delete.
+	TargetPodUID      string                 `json:"targetPodUID,omitempty"`
+	SourceIncarnation string                 `json:"sourceIncarnation"`
+	Request           ReplicaRecoveryRequest `json:"request"`
+	Phase             string                 `json:"phase"`
+	SourcePod         string                 `json:"sourcePod"`
+	SourceUID         string                 `json:"sourceUID"`
+	PVCName           string                 `json:"pvcName"`
+	PVName            string                 `json:"pvName"`
+	StartedAt         string                 `json:"startedAt"`
+	VerifiedAt        string                 `json:"verifiedAt,omitempty"`
+	Message           string                 `json:"message,omitempty"`
+}
+
+// PrimaryPromotionRequest records positive external fencing of an exact old
+// holder. A timeout, Node deletion or a Service change is not fencing evidence.
+type PrimaryPromotionRequest struct {
+	PreviousEpoch       uint64 `json:"previousEpoch"`
+	PreviousPodUID      string `json:"previousPodUID"`
+	PreviousIncarnation string `json:"previousIncarnation"`
+	PreviousHost        string `json:"previousHost"`
+	FenceEvidence       string `json:"fenceEvidence"`
+	PodName             string `json:"podName"`
+	PodUID              string `json:"podUID"`
+	Incarnation         string `json:"incarnation"`
+}
+
+type PlannedHandoverRequest struct {
+	ID          string `json:"id"`
+	PodName     string `json:"podName"`
+	PodUID      string `json:"podUID"`
+	Incarnation string `json:"incarnation"`
 }

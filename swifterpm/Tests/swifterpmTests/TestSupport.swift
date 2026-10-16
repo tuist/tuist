@@ -23,17 +23,17 @@ func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> 
     }
 }
 
-func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throws {
+func writeCachedManifest(
+    _ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil, disableSandbox: Bool = false
+) async throws {
     try await fileSystem.makeDirectory(
         at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
-    let cachePath = ManifestLoader.cacheFilePath(packageDir: packageDir)
-    try await fileSystem.atomicWrite(JSONFormatter.prettyData(manifest), to: cachePath)
-    // A seeded cache is only reusable once it carries a matching environment sidecar;
-    // otherwise the freshness check treats it as a miss (see readCachedManifest).
-    if let cacheAbsolutePath = try? cachePath.absolutePath {
-        try await ManifestEnvironmentFingerprint.write(forCacheFile: cacheAbsolutePath)
-    }
+    let cachePath = cacheFile ?? ManifestLoader.cacheFilePath(packageDir: packageDir)
+    try await ManifestCache.write(
+        JSONFormatter.prettyData(manifest), at: cachePath,
+        inputs: ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+    )
 }
 
 func writeMinimalPackageManifest(at packageDir: URL, name: String) async throws {
@@ -145,4 +145,14 @@ private struct SwiftToolchainVersion: Comparable, Sendable {
         if lhs.minor != rhs.minor { return lhs.minor < rhs.minor }
         return lhs.patch < rhs.patch
     }
+}
+
+/// Writes a `mirrors.json` in the format `swift package config set-mirror` produces.
+func writeMirrorsConfiguration(_ mirrors: [String: String], to path: URL) async throws {
+    let object = mirrors.map { ["original": $0.key, "mirror": $0.value] }
+    let data = try JSONSerialization.data(withJSONObject: ["object": object, "version": 1])
+    try await fileSystem.makeDirectory(
+        at: path.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
+    )
+    try await fileSystem.atomicWrite(data, to: path)
 }

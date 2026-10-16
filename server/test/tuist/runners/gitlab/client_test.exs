@@ -28,6 +28,37 @@ defmodule Tuist.Runners.GitLab.ClientTest do
 
   setup :verify_on_exit!
 
+  test "verifies the current job with its job token without sending a request body" do
+    expect(SSRFGuard, :pin, fn "https://gitlab.com/api/v4/job" ->
+      {:ok, "https://1.1.1.1/api/v4/job", "gitlab.com"}
+    end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :get
+      assert {"job-token", "job-secret"} in opts[:headers]
+      refute Keyword.has_key?(opts, :json)
+      assert opts[:redirect] == false
+      {:ok, %{status: 200, body: JSON.encode!(%{id: 42, source: "push"})}}
+    end)
+
+    assert {:ok, %{"id" => 42}} = Client.get_running_job("https://gitlab.com", "job-secret")
+    assert {:error, :unauthorized} = Client.get_running_job("https://gitlab.com", nil)
+  end
+
+  test "branch lookup escapes the exact ref and decodes a list" do
+    expect(SSRFGuard, :pin, fn url -> {:ok, url, "gitlab.com"} end)
+
+    expect(Req, :request, fn opts ->
+      uri = URI.parse(opts[:url])
+      assert uri.path == "/api/v4/projects/123/repository/branches"
+      assert URI.decode_query(uri.query)["regex"] == "^release/v1\\.2$"
+      assert {"job-token", "job-secret"} in opts[:headers]
+      {:ok, %{status: 200, body: JSON.encode!([%{name: "release/v1.2", default: true}])}}
+    end)
+
+    assert {:ok, [%{"default" => true}]} = Client.cache_branches("https://gitlab.com", "job-secret", 123, "release/v1.2")
+  end
+
   test "writes a routing error to the job trace before failing the job" do
     payload = %{"id" => 42, "token" => "job-secret"}
     expect(SSRFGuard, :pin, 2, fn url -> {:ok, url, "gitlab.com"} end)

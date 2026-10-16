@@ -35,7 +35,42 @@
  *   data-emit-speed:   their rise in CSS px per second
  *   data-emit-life:    their lifetime in seconds
  *   data-emit-opacity: 0-100 — their peak opacity
+ *   data-emit-direction: "up" (default) drifts specks upward like smoke;
+ *                   "radial" sends each outward along the sphere's normal
+ *                   where it lifted off, so they leave in every direction
  *   data-offset-x / data-offset-y: center offset in px
+ *   --marketing-cache-globe-origin (CSS, on an ancestor): the colour of
+ *                   origin dots and arc heads; white when unset
+ *   data-markers:   JSON list of {lon, lat, active} region markers; when
+ *                   absent the globe shows the default serving regions.
+ *                   Inactive markers draw a dim core and no pulse.
+ *   data-origins:   initial origins, using the same shape as the event below.
+ *   data-arc-life:  seconds an arc takes from origin to region (default 1.6)
+ *   data-arc-rate:  most arcs launched per second across all origins; the
+ *                   origins' request rates are scaled down to fit, and each
+ *                   arc then stands for that many requests (default 12)
+ *   data-arc-max:   most arcs in flight at once (default 60)
+ *   data-arc-busy:  arcs a region can have in flight before an origin's
+ *                   next arc goes to the nearest region that is not busy
+ *                   (0 = always the origin's own region; default 0). Needs
+ *                   markers with ids.
+ *   data-paused:    "true" holds the frame until a motion event resumes it
+ *
+ * Runtime events on the canvas (dispatched by a page controller such as
+ * the cache globe page's CacheGlobe hook):
+ *   dither-globe:markers  detail.markers replaces the marker list; a
+ *                   marker may carry an id (its region) for arc routing
+ *   dither-globe:origins  detail.origins replaces the request origins: a
+ *                   list of {lon, lat, to: {lon, lat}, region, rate}, each a
+ *                   route. Optional illustrative: true marks decorative arcs
+ *                   which never dispatch arrivals or represent request volume.
+ *                   Reported routes carry an origin, its serving region and
+ *                   its requests per second. Only reported origins draw small
+ *                   white dots on the surface; both kinds launch arcs to their
+ *                   region at their rate; when a reported arc lands the canvas
+ *                   dispatches dither-globe:arrival with detail {region,
+ *                   weight} (the requests the arc stood for).
+ *   dither-globe:motion   detail.paused holds or resumes the spin
  */
 
 import { onThemeChange } from "../lib/theme.js";
@@ -112,23 +147,25 @@ const L = (() => {
    up to half the spacing along the surface so the lattice never reads as
    rows or moiré, classified land/ocean against a rasterized
    equirectangular mask. Rebuilt when a globe asks for another count. */
-let STIP_N = 0;
+let STIP_N = 0; // spiral points plus the island dots
+let stipCount = 0; // the spiral's requested point count
 let stip = null; // x, y, z, rand
 let stipShade = null; // a second, independent random per dot for the shade pick
 let landFlag = null;
 let maskData = null;
 
 function ensureGeometry(count) {
-  if (stip && STIP_N === count) return;
-  STIP_N = count;
+  if (stip && stipCount === count) return;
+  stipCount = count;
+  STIP_N = count + SMALL_ISLANDS.length * ISLAND_DOTS;
   stip = new Float32Array(STIP_N * 4);
   stipShade = new Float32Array(STIP_N);
   const ga = Math.PI * (3 - Math.sqrt(5));
-  const spacing = Math.sqrt((4 * Math.PI) / STIP_N);
+  const spacing = Math.sqrt((4 * Math.PI) / count);
   let seed = 1234567;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-  for (let i = 0; i < STIP_N; i++) {
-    const y = 1 - ((i + 0.5) * 2) / STIP_N;
+  for (let i = 0; i < count; i++) {
+    const y = 1 - ((i + 0.5) * 2) / count;
     const r = Math.sqrt(1 - y * y);
     const th = ga * i;
     const x = Math.cos(th) * r;
@@ -154,30 +191,25 @@ function ensureGeometry(count) {
     stip[i * 4 + 3] = rnd();
     stipShade[i] = rnd();
   }
+  // A small cluster of dots on each island (within its stamped disc, so the
+  // mask classifies them as land below).
+  let i = count;
+  for (const [lat, lon] of SMALL_ISLANDS) {
+    for (let k = 0; k < ISLAND_DOTS; k++) {
+      const [x, y, z] = ll2xyz(lon + (rnd() - 0.5) * 0.5, lat + (rnd() - 0.5) * 0.5);
+      stip[i * 4] = x;
+      stip[i * 4 + 1] = y;
+      stip[i * 4 + 2] = z;
+      stip[i * 4 + 3] = rnd();
+      stipShade[i] = rnd();
+      i++;
+    }
+  }
 
   // Land classification via the mask: one native even-odd fill plus cheap
   // texel lookups, instead of point-in-polygon tests over the LAND rings
-  // (which took hundreds of milliseconds). The raster is kept for later
-  // rebuilds at another point count.
-  const MW = 1440;
-  const MH = 720;
-  if (!maskData) {
-    const mask = document.createElement("canvas");
-    mask.width = MW;
-    mask.height = MH;
-    const mctx = mask.getContext("2d", { willReadFrequently: true });
-    const path = new Path2D();
-    for (const r of getLand()) {
-      path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
-      for (let i = 2; i < r.length; i += 2) {
-        path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
-      }
-      path.closePath();
-    }
-    mctx.fillStyle = "#fff";
-    mctx.fill(path, "evenodd");
-    maskData = mctx.getImageData(0, 0, MW, MH).data;
-  }
+  // (which took hundreds of milliseconds).
+  ensureLandMask();
   landFlag = new Uint8Array(STIP_N);
   for (let i = 0; i < STIP_N; i++) {
     const x = stip[i * 4];
@@ -187,8 +219,167 @@ function ensureGeometry(count) {
     const lon = Math.atan2(x, z);
     const mx = Math.min(MW - 1, ((lon / Math.PI + 1) / 2) * MW) | 0;
     const my = Math.min(MH - 1, (0.5 - lat / Math.PI) * MH) | 0;
-    landFlag[i] = maskData[(my * MW + mx) * 4 + 3] > 127 ? 1 : 0;
+    landFlag[i] = isLand(mx, my) ? 1 : 0;
   }
+}
+
+/* ---------- small islands the 110m map omits -----------------------
+   Natural Earth 110m drops most small islands, so a country anchor such as
+   Guam, Mauritius or the Maldives sat in open ocean, more than the 3° snap
+   from any drawn land, and its arcs launched from empty sea. These are the
+   anchors (Tuist.Marketing.CacheGlobeLocations, plus Oahu for the
+   illustrative Honolulu origin) at least 1° from drawn land: each is
+   stamped into the land mask as a small disc, so origins there count as
+   land and stay put, and gets a few land dots of its own, since the
+   stipple's ~0.9° spacing would otherwise skip something this small.
+   Keep it in sync when anchors change. */
+const SMALL_ISLANDS = [
+  [17.06, -61.8], // AG
+  [18.22, -63.07], // AI
+  [-14.27, -170.13], // AS
+  [13.19, -59.54], // BB
+  [32.32, -64.76], // BM
+  [-54.42, 3.41], // BV
+  [-12.16, 96.87], // CC
+  [-21.24, -159.78], // CK
+  [16, -24.01], // CV
+  [-10.45, 105.69], // CX
+  [15.41, -61.37], // DM
+  [7.43, 150.55], // FM
+  [61.89, -6.91], // FO
+  [12.26, -61.6], // GD
+  [17, -62.07], // GP
+  [-54.43, -36.59], // GS
+  [13.44, 144.79], // GU
+  [-53.08, 73.5], // HM
+  [-6.34, 71.88], // IO
+  [-3.37, -168.73], // KI
+  [-11.88, 43.87], // KM
+  [17.36, -62.78], // KN
+  [19.51, -80.57], // KY
+  [13.91, -60.98], // LC
+  [7.13, 171.18], // MH
+  [17.33, 145.38], // MP
+  [14.64, -61.02], // MQ
+  [16.74, -62.19], // MS
+  [-20.35, 57.55], // MU
+  [3.2, 73.22], // MV
+  [-29.04, 167.95], // NF
+  [-0.52, 166.93], // NR
+  [-19.05, -169.87], // NU
+  [-17.68, -149.41], // PF
+  [-24.7, -127.44], // PN
+  [-21.12, 55.54], // RE
+  [-4.68, 55.49], // SC
+  [-24.14, -10.03], // SH
+  [0.19, 6.61], // ST
+  [21.69, -71.8], // TC
+  [-8.97, -171.86], // TK
+  [-21.18, -175.2], // TO
+  [-7.11, 177.65], // TV
+  [12.98, -61.29], // VC
+  [18.42, -64.64], // VG
+  [18.34, -64.9], // VI
+  [-13.77, -177.16], // WF
+  [-13.76, -172.1], // WS
+  [-12.83, 45.17], // YT
+  [21.31, -157.86], // Oahu
+];
+const ISLAND_RADIUS_TEXELS = 2;
+const ISLAND_DOTS = 3;
+
+function stampIslands(data) {
+  const r = ISLAND_RADIUS_TEXELS;
+  for (const [lat, lon] of SMALL_ISLANDS) {
+    const cx = Math.floor(((lon + 180) / 360) * MW);
+    const cy = Math.floor(((90 - lat) / 180) * MH);
+    for (let dy = -r; dy <= r; dy++) {
+      const y = cy + dy;
+      if (y < 0 || y >= MH) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        data[(y * MW + ((cx + dx + MW) % MW)) * 4 + 3] = 255;
+      }
+    }
+  }
+}
+
+/* ---------- equirectangular land mask ------------------------------
+   Rasterized once per page (a quarter-degree texel) and kept for stipple
+   rebuilds at another point count and for placing origins. Built lazily
+   because origins are parsed before the geometry on mount. */
+const MW = 1440;
+const MH = 720;
+
+function ensureLandMask() {
+  if (maskData || typeof document === "undefined") return maskData;
+  const mask = document.createElement("canvas");
+  mask.width = MW;
+  mask.height = MH;
+  const mctx = mask.getContext("2d", { willReadFrequently: true });
+  const path = new Path2D();
+  for (const r of getLand()) {
+    path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
+    for (let i = 2; i < r.length; i += 2) {
+      path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
+    }
+    path.closePath();
+  }
+  mctx.fillStyle = "#fff";
+  mctx.fill(path, "evenodd");
+  maskData = mctx.getImageData(0, 0, MW, MH).data;
+  stampIslands(maskData);
+  return maskData;
+}
+
+function isLand(mx, my) {
+  return maskData[(my * MW + mx) * 4 + 3] > 127;
+}
+
+/* An origin coordinate can fall in the sea on the drawn map: a country
+   anchor between islands (New Zealand's sits in Cook Strait), a coastal
+   city just outside the simplified 110m coastline (New York, Mumbai), or
+   an island the map omits (Oahu). Requests then appear to come from the
+   ocean, so an origin on an ocean texel moves to the nearest drawn land
+   within SNAP_TEXELS texels (3°). Farther points keep their place — an
+   island the map lacks is still where it is. This is a rendering nudge of
+   coordinates that already stand for areas, not a location claim. */
+const SNAP_TEXELS = 12;
+const snapped = new Map();
+
+function landPoint(lon, lat) {
+  const key = `${lat}:${lon}`;
+  const cached = snapped.get(key);
+  if (cached) return cached;
+  let point = ll2xyz(lon, lat);
+  if (!ensureLandMask()) return point;
+  const mx = Math.min(MW - 1, Math.floor(((lon + 180) / 360) * MW));
+  const my = Math.min(MH - 1, Math.floor(((90 - lat) / 180) * MH));
+  if (!isLand(mx, my)) {
+    let best = Infinity;
+    let bx = -1;
+    let by = -1;
+    // Square rings outward; a ring can't beat a hit closer than its radius.
+    for (let ring = 1; ring <= SNAP_TEXELS && best > ring * ring; ring++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        const y = my + dy;
+        if (y < 0 || y >= MH) continue;
+        const step = Math.abs(dy) === ring ? 1 : ring * 2;
+        for (let dx = -ring; dx <= ring; dx += step) {
+          const d = dx * dx + dy * dy;
+          const x = (mx + dx + MW) % MW;
+          if (d < best && isLand(x, y)) {
+            best = d;
+            bx = x;
+            by = y;
+          }
+        }
+      }
+    }
+    if (bx >= 0) point = ll2xyz(((bx + 0.5) / MW) * 360 - 180, 90 - ((by + 0.5) / MH) * 180);
+  }
+  snapped.set(key, point);
+  return point;
 }
 
 /* ---------- world map (Natural Earth 110m land, quantized x10) ----
@@ -275,7 +466,7 @@ function gridDots(M, P, step) {
 /* Region markers: pulsing purple points glued to real locations on the
    sphere — they rotate with the globe and hide behind the horizon. No
    labels, just the pulse. */
-const MARKERS = [
+const DEFAULT_MARKERS = [
   [-0.1, 51.5], // EU West — London
   [8.7, 50.1], // EU Central — Frankfurt
   [-77.5, 38.9], // US East — N. Virginia
@@ -287,7 +478,77 @@ const MARKERS = [
   [103.8, 1.35], // Asia — Singapore
   [139.7, 35.7], // Japan — Tokyo
   [151.2, -33.9], // Australia — Sydney
-].map(([lon, lat]) => ll2xyz(lon, lat));
+].map(([lon, lat]) => ({ point: ll2xyz(lon, lat), active: true }));
+
+function markersFrom(list) {
+  if (!Array.isArray(list)) return DEFAULT_MARKERS;
+  const markers = [];
+  for (const marker of list) {
+    const lon = Number(marker?.lon);
+    const lat = Number(marker?.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    markers.push({ point: ll2xyz(lon, lat), active: marker.active !== false, id: marker.id });
+  }
+  return markers;
+}
+
+function originsFrom(list, previous = []) {
+  if (!Array.isArray(list)) return [];
+  const phases = new Map(previous.map((origin) => [origin.key, origin.acc]));
+  const origins = new Map();
+  for (const origin of list) {
+    const lon = Number(origin?.lon);
+    const lat = Number(origin?.lat);
+    const toLon = Number(origin?.to?.lon);
+    const toLat = Number(origin?.to?.lat);
+    const rate = Number(origin?.rate);
+    if (![lon, lat, toLon, toLat].every(Number.isFinite) || !(rate > 0)) continue;
+    const illustrative = origin.illustrative === true;
+    const key = `${illustrative ? "illustrative" : "reported"}:${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
+    if (origins.has(key)) {
+      origins.get(key).rate += rate;
+      continue;
+    }
+    origins.set(key, {
+      key,
+      point: landPoint(lon, lat),
+      to: ll2xyz(toLon, toLat),
+      region: origin.region,
+      illustrative,
+      rate,
+      acc: phases.get(key) ?? Math.random(),
+    });
+  }
+  return Array.from(origins.values());
+}
+
+function parseOrigins(raw) {
+  try {
+    return originsFrom(JSON.parse(raw || "[]"));
+  } catch {
+    return [];
+  }
+}
+
+// Shortest great-circle interpolation between two unit vectors.
+function slerp(a, b, t) {
+  const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return [a[0], a[1], a[2]];
+  const so = Math.sin(omega);
+  const wa = Math.sin((1 - t) * omega) / so;
+  const wb = Math.sin(t * omega) / so;
+  return [wa * a[0] + wb * b[0], wa * a[1] + wb * b[1], wa * a[2] + wb * b[2]];
+}
+
+function parseMarkers(raw) {
+  if (!raw) return DEFAULT_MARKERS;
+  try {
+    return markersFrom(JSON.parse(raw));
+  } catch {
+    return DEFAULT_MARKERS;
+  }
+}
 
 const PULSE_S = 2.4; // one ring per marker every PULSE_S seconds, staggered
 
@@ -310,6 +571,11 @@ const OPTIONS = [
   { key: "emitSpeed", attr: "emit-speed", def: 50 },
   { key: "emitLife", attr: "emit-life", def: 4.5 },
   { key: "emitOpacity", attr: "emit-opacity", def: 40 },
+  { key: "emitDirection", attr: "emit-direction", def: "up" },
+  { key: "arcLife", attr: "arc-life", def: 1.6 },
+  { key: "arcRate", attr: "arc-rate", def: 12 },
+  { key: "arcMax", attr: "arc-max", def: 60 },
+  { key: "arcBusy", attr: "arc-busy", def: 0 },
   { key: "offsetX", attr: "offset-x", def: 0 },
   { key: "offsetY", attr: "offset-y", def: 0 },
 ];
@@ -333,11 +599,37 @@ export const DitherGlobe = {
     this.drag = IDENTITY;
     this.specks = [];
     this.emitAcc = 0;
+    this.origins = parseOrigins(this.el.dataset.origins);
+    this.arcs = [];
     this.dt = 0;
+
+    this.markers = parseMarkers(this.el.dataset.markers);
+    this.held = this.el.dataset.paused === "true";
+    this.onOrigins = (event) => {
+      this.origins = originsFrom(event.detail && event.detail.origins, this.origins);
+      if (this.raf === null) this.render();
+    };
+    this.onMarkers = (event) => {
+      this.markers = markersFrom(event.detail && event.detail.markers);
+      if (this.raf === null) this.render();
+    };
+    this.onMotion = (event) => {
+      this.held = Boolean(event.detail && event.detail.paused);
+      if (this.held) this.stop();
+      else if (this.visible && !this.reduced) this.start();
+      if (this.held) this.render();
+    };
+    this.canvas.addEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.addEventListener("dither-globe:origins", this.onOrigins);
+    this.canvas.addEventListener("dither-globe:motion", this.onMotion);
 
     this.opts = {};
     for (const o of OPTIONS) {
       const raw = this.el.dataset[o.attr.replace(/-(\w)/g, (_, c) => c.toUpperCase())];
+      if (typeof o.def === "string") {
+        this.opts[o.key] = raw === undefined || raw === "" ? o.def : raw;
+        continue;
+      }
       const n = raw === undefined ? NaN : Number(raw);
       this.opts[o.key] = Number.isFinite(n) ? n : o.def;
     }
@@ -350,6 +642,8 @@ export const DitherGlobe = {
         resolveTokenColor(this.host, "--marketing-cache-globe-dither-deep"),
       ];
       this.markerShade = resolveTokenColor(this.host, "--marketing-cache-globe-marker");
+      // Origin dots and arc heads: the page's token, white when unset.
+      this.originShade = resolveTokenColor(this.host, "--marketing-cache-globe-origin, #ffffff");
     };
     this.resolveColors();
     this.offThemeChange = onThemeChange(() => {
@@ -379,7 +673,7 @@ export const DitherGlobe = {
     this.viewObserver = new IntersectionObserver(
       ([entry]) => {
         this.visible = entry.isIntersecting;
-        if (this.visible && !this.reduced) this.start();
+        if (this.visible && !this.reduced && !this.held) this.start();
         else this.stop();
       },
       { threshold: 0.05 },
@@ -429,6 +723,9 @@ export const DitherGlobe = {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.removeEventListener("dither-globe:origins", this.onOrigins);
+    this.canvas.removeEventListener("dither-globe:motion", this.onMotion);
   },
 
   start() {
@@ -584,8 +881,231 @@ export const DitherGlobe = {
       ctx.fill(path);
     }
     ctx.globalAlpha = 1;
+    // Specks consume the frame's dt; the arcs need it too.
+    const dt = this.dt;
     this.renderSpecks(rad, cx, cy);
+    this.renderOrigins(rad, cx, cy);
+    this.renderArcs(rad, cx, cy, dt);
     this.renderMarkers(rad, cx, cy);
+  },
+
+  /* Reported request origins: small white dots on the surface, drawn in the
+     tangent plane so they hug the sphere and fade at the limb. Decorative
+     routes have no persistent origin dots. */
+  renderOrigins(rad, cx, cy) {
+    const origins = this.origins;
+    if (!origins.length) return;
+    const { ctx } = this;
+    const R = this.rotation();
+    const r = Math.max(1.5, rad * 0.012) / rad;
+    const [or, og, ob] = this.originShade || [255, 255, 255];
+    ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
+    for (let i = 0; i < origins.length; i++) {
+      if (origins[i].illustrative) continue;
+      const surface = this.surface(R, origins[i].point, rad, cx, cy);
+      if (!surface) continue;
+      ctx.save();
+      ctx.transform(surface.a, 0, surface.b, surface.d, surface.px, surface.py);
+      ctx.globalAlpha = 0.85 * surface.limb;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  /* Arcs: each origin launches arcs toward its serving region at its
+     request rate (scaled so the whole globe never launches more than
+     arcRate a second; an arc then stands for the requests it replaced).
+     An arc is a great-circle path lifted off the sphere by a bow that
+     grows with the distance. It draws itself from the origin to the region
+     over arcLife seconds, its head easing along the path while the line
+     behind it stays, then holds complete for a moment and fades away.
+     Parts of the path behind the sphere are hidden. Reported landings dispatch
+     an arrival event so the page can count them. Decorative bows fit the canvas
+     and never dispatch arrivals. Nothing launches under reduced motion. */
+  renderArcs(rad, cx, cy, dt) {
+    const arcs = this.arcs;
+    const origins = this.origins;
+    if (dt > 0 && !this.reduced && origins.length) {
+      let total = 0;
+      for (let i = 0; i < origins.length; i++) total += origins[i].rate;
+      const scale = total > this.opts.arcRate ? this.opts.arcRate / total : 1;
+      const weight = 1 / scale;
+      // Overflow routing: with a busy threshold, count each region's arcs
+      // in flight, and send an origin's next arc to the nearest region
+      // under the threshold — its own if it can take it.
+      const busy = this.opts.arcBusy;
+      const inFlight = {};
+      if (busy > 0) {
+        for (let i = 0; i < arcs.length; i++) {
+          if (!arcs[i].landed) inFlight[arcs[i].region] = (inFlight[arcs[i].region] || 0) + 1;
+        }
+      }
+      for (let i = 0; i < origins.length && arcs.length < this.opts.arcMax; i++) {
+        const origin = origins[i];
+        origin.acc += origin.rate * scale * dt;
+        while (origin.acc >= 1 && arcs.length < this.opts.arcMax) {
+          origin.acc -= 1;
+          const a = origin.point;
+          let b = origin.to;
+          let region = origin.region;
+          if (busy > 0 && (inFlight[region] || 0) >= busy) {
+            const routed = this.nearestFree(a, inFlight, busy);
+            if (routed) {
+              b = routed.point;
+              region = routed.id;
+            }
+          }
+          if (busy > 0) inFlight[region] = (inFlight[region] || 0) + 1;
+          const span = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+          arcs.push({
+            from: a,
+            to: b,
+            region,
+            illustrative: origin.illustrative,
+            weight: origin.illustrative ? 0 : weight,
+            age: 0,
+            life: Math.max(0.4, this.opts.arcLife) * (0.85 + Math.random() * 0.3),
+            fade: 1.1,
+            landed: false,
+            // Even a short hop lifts clearly off the sphere.
+            bow: 0.24 + 0.36 * (span / Math.PI),
+          });
+        }
+      }
+    }
+    if (!arcs.length) return;
+
+    const { ctx } = this;
+    const R = this.rotation();
+    const [mr, mg, mb] = this.markerShade;
+    const project = (p) => {
+      const wx = R[0] * p[0] + R[1] * p[1] + R[2] * p[2];
+      const wy = R[3] * p[0] + R[4] * p[1] + R[5] * p[2];
+      const wz = R[6] * p[0] + R[7] * p[1] + R[8] * p[2];
+      // A lifted point is behind the globe when it sits inside the disc
+      // on the far side.
+      const hidden = wz < 0 && wx * wx + wy * wy < 1;
+      return [cx + wx * rad, cy - wy * rad, hidden];
+    };
+    const headRadius = Math.max(1.2, rad * 0.008);
+    // Global decorative routes can span nearly half the planet. Fit their bow
+    // inside the nearest canvas edge, including the head and antialias margin,
+    // on every repaint so an in-flight arc also fits after a resize.
+    const edge = Math.min(cx, this.w - cx, cy, this.h - cy);
+    const maxIllustrativeBow = Math.max(0, (edge - headRadius - 1) / rad - 1);
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(1, rad * 0.007);
+    const steps = 28;
+    for (let i = arcs.length - 1; i >= 0; i--) {
+      const arc = arcs[i];
+      if (dt > 0) arc.age += dt;
+      if (!arc.landed && arc.age >= arc.life) {
+        arc.landed = true;
+        if (!arc.illustrative) {
+          this.canvas.dispatchEvent(
+            new CustomEvent("dither-globe:arrival", {
+              bubbles: true,
+              detail: { region: arc.region, weight: arc.weight },
+            }),
+          );
+        }
+      }
+      if (arc.age >= arc.life + arc.fade) {
+        arcs[i] = arcs[arcs.length - 1];
+        arcs.pop();
+        continue;
+      }
+      // Grow to the region, hold, then fade the whole line out.
+      const u = Math.min(1, arc.age / arc.life);
+      const head = u * u * (3 - 2 * u);
+      const settle = arc.landed ? Math.max(0, 1 - Math.max(0, arc.age - arc.life - 0.3) / (arc.fade - 0.3)) : 1;
+      // Project the path, then stroke each visible run as one path with a
+      // gradient from a dim tail to a bright head: one stroke per run, so
+      // no joints stack up and show through the alpha.
+      const points = [];
+      const bow = arc.illustrative ? Math.min(arc.bow, maxIllustrativeBow) : arc.bow;
+      for (let k = 0; k <= steps; k++) {
+        const t = (head * k) / steps;
+        const s = slerp(arc.from, arc.to, t);
+        const lift = 1 + bow * Math.sin(Math.PI * t);
+        points.push(project([s[0] * lift, s[1] * lift, s[2] * lift]));
+      }
+      ctx.lineJoin = "round";
+      let run = 0;
+      while (run < points.length) {
+        while (run < points.length && points[run][2]) run++;
+        let end = run;
+        while (end < points.length && !points[end][2]) end++;
+        if (end - run >= 2) {
+          const first = points[run];
+          const lastPoint = points[end - 1];
+          const gradient = ctx.createLinearGradient(first[0], first[1], lastPoint[0], lastPoint[1]);
+          const tailAlpha = arc.landed ? 0.9 : 0.35 + 0.55 * (run / steps);
+          const headAlpha = arc.landed ? 0.9 : 0.35 + 0.55 * ((end - 1) / steps);
+          gradient.addColorStop(0, `rgba(${mr}, ${mg}, ${mb}, ${tailAlpha * settle})`);
+          gradient.addColorStop(1, `rgba(${mr}, ${mg}, ${mb}, ${headAlpha * settle})`);
+          ctx.strokeStyle = gradient;
+          ctx.beginPath();
+          ctx.moveTo(first[0], first[1]);
+          for (let k = run + 1; k < end; k++) ctx.lineTo(points[k][0], points[k][1]);
+          ctx.stroke();
+        }
+        run = end;
+      }
+      const last = points[points.length - 1];
+      if (last && !last[2] && !arc.landed) {
+        const [or, og, ob] = this.originShade || [255, 255, 255];
+        ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(last[0], last[1], headRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  },
+
+  // The nearest region marker (by great-circle distance from a point) with
+  // fewer arcs in flight than the busy threshold, or null if every region
+  // is busy.
+  nearestFree(point, inFlight, busy) {
+    let best = null;
+    let bestDot = -2;
+    for (const marker of this.markers) {
+      if (marker.id == null || (inFlight[marker.id] || 0) >= busy) continue;
+      const dot = point[0] * marker.point[0] + point[1] * marker.point[1] + point[2] * marker.point[2];
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = marker;
+      }
+    }
+    return best;
+  },
+
+  // Screen placement of a point on the sphere: its limb fade and the
+  // canvas transform whose unit circle is the tangent-plane ellipse there,
+  // or null when it faces away.
+  surface(R, point, rad, cx, cy) {
+    const [x, y, z] = point;
+    const wz = R[6] * x + R[7] * y + R[8] * z;
+    if (wz <= 0.12) return null;
+    const wx = R[0] * x + R[1] * y + R[2] * z;
+    const wy = R[3] * x + R[4] * y + R[5] * z;
+    let t1x = wz;
+    let t1z = -wx;
+    const t1l = Math.hypot(t1x, t1z) || 1;
+    t1x /= t1l;
+    t1z /= t1l;
+    const t2x = wy * t1z;
+    const t2y = wz * t1x - wx * t1z;
+    const a = t1x * rad;
+    const b = t2x * rad;
+    const d = -t2y * rad;
+    if (Math.abs(a * d) < 1e-6) return null;
+    return { limb: Math.min(1, (wz - 0.12) / 0.3), a, b, d, px: cx + wx * rad, py: cy - wy * rad };
   },
 
   /* Specks: a slow trickle of faint squares that lift off the lit side of
@@ -609,8 +1129,8 @@ export const DitherGlobe = {
           specks.pop();
           continue;
         }
-        sp.y -= sp.vy * dt;
-        sp.x += Math.sin(sp.age * sp.sway + sp.phase) * sp.drift * dt;
+        sp.x += sp.vx * dt + Math.sin(sp.age * sp.sway + sp.phase) * sp.drift * dt;
+        sp.y += sp.vy * dt;
       }
       this.emitAcc += rate * dt;
       const R = this.rotation();
@@ -628,10 +1148,23 @@ export const DitherGlobe = {
           if (wz < 0.3) continue;
           const wx = R[0] * x + R[1] * y + R[2] * z;
           const wy = R[3] * x + R[4] * y + R[5] * z;
+          const speed = this.opts.emitSpeed * (0.7 + Math.random() * 0.6);
+          let vx = 0;
+          let vy = -speed;
+          if (this.opts.emitDirection === "radial") {
+            // Outward along the surface normal as seen on screen, which is
+            // the radial direction from the globe's centre, with a little
+            // scatter so specks near the centre still move.
+            const len = Math.hypot(wx, wy) || 1;
+            const scatter = Math.random() * Math.PI * 2;
+            vx = ((wx / len) * 0.75 + Math.cos(scatter) * 0.35) * speed;
+            vy = ((-wy / len) * 0.75 + Math.sin(scatter) * 0.35) * speed;
+          }
           specks.push({
             x: cx + wx * rad,
             y: cy - wy * rad,
-            vy: this.opts.emitSpeed * (0.7 + Math.random() * 0.6),
+            vx,
+            vy,
             drift: 2 + Math.random() * 4,
             sway: 0.6 + Math.random() * 0.8,
             phase: Math.random() * Math.PI * 2,
@@ -667,7 +1200,8 @@ export const DitherGlobe = {
      ellipses hugging the surface — tilting with the globe and squashing
      toward the limb — instead of flat screen circles. Markers fade out
      near the horizon and under prefers-reduced-motion only the static
-     cores show. */
+     cores show. Inactive markers (a region without recent activity) keep
+     a smaller, dimmer core and never pulse. */
   renderMarkers(rad, cx, cy) {
     const { ctx } = this;
     const R = this.rotation();
@@ -675,8 +1209,10 @@ export const DitherGlobe = {
     const color = `rgb(${mr}, ${mg}, ${mb})`;
     const coreR = Math.max(3, rad * 0.028) / rad;
     const maxRing = coreR + 0.11;
-    for (let i = 0; i < MARKERS.length; i++) {
-      const [x, y, z] = MARKERS[i];
+    const markers = this.markers;
+    for (let i = 0; i < markers.length; i++) {
+      const { point, active } = markers[i];
+      const [x, y, z] = point;
       const wz = R[6] * x + R[7] * y + R[8] * z;
       if (wz <= 0.12) continue;
       const limb = Math.min(1, (wz - 0.12) / 0.3);
@@ -702,11 +1238,11 @@ export const DitherGlobe = {
       ctx.save();
       ctx.transform(a, 0, b, d, px, py);
       ctx.fillStyle = color;
-      ctx.globalAlpha = limb;
+      ctx.globalAlpha = active ? limb : limb * 0.45;
       ctx.beginPath();
-      ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+      ctx.arc(0, 0, active ? coreR : coreR * 0.75, 0, Math.PI * 2);
       ctx.fill();
-      if (!this.reduced) {
+      if (active && !this.reduced) {
         // Stagger the phases so the pulses ripple around the globe
         // instead of firing in unison.
         const t = (this.pulseT / PULSE_S + i * 0.37) % 1;

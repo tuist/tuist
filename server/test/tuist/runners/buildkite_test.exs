@@ -769,6 +769,7 @@ defmodule Tuist.Runners.BuildkiteTest do
 
   describe "mint_acquisition/2" do
     setup %{installation: installation, account: account, queue_key: queue_key} do
+      stub(Client, :get_job, fn _, _, _ -> {:error, :not_found} end)
       job = scheduled_job(%{queue_key: queue_key})
 
       stub(Client, :list_scheduled_jobs, fn _installation, _stack, _queue, _limit ->

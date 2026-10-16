@@ -45,7 +45,6 @@ const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
-const KURA_REAPI_BLOB_CHUNKING_ENABLED: &str = "KURA_REAPI_BLOB_CHUNKING_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -99,6 +98,19 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_ANALYTICS_OUTBOX_MAX_ENTRIES: &str = "KURA_ANALYTICS_OUTBOX_MAX_ENTRIES";
+const KURA_ANALYTICS_OUTBOX_MAX_BYTES: &str = "KURA_ANALYTICS_OUTBOX_MAX_BYTES";
+const KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES: &str = "KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES";
+
+/// Dual-cap defaults for the durable analytics outbox. Entries is the
+/// secondary bound (protects RocksDB metadata cost); bytes is the
+/// primary bound (protects the data volume). The per-batch ceiling
+/// bounds the encoded size of any single append, keeping one
+/// unusually large batch from consuming the whole budget or looping
+/// against HTTP 413.
+const DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES: usize = 200_000;
+const DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES: u64 = 256 * 1024 * 1024;
+const DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES: usize = 512 * 1024;
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
 const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
@@ -155,6 +167,7 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub serving_authority: Option<crate::serving_authority::AuthorityConfig>,
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
     /// is set the same surface is also served over TLS on `https_port`.
@@ -170,6 +183,7 @@ pub struct Config {
     pub cas_capacity_bytes: Option<u64>,
     pub node_url: String,
     pub peer_gateway_url: Option<String>,
+    pub peer_topology: Option<crate::peer_topology::PeerTopology>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
     pub global_discovery_dns_name: Option<String>,
@@ -188,10 +202,6 @@ pub struct Config {
     /// being complete (an incomplete reverse map must not drive deletes). The
     /// serve-side presence gates stay on regardless as the backstop.
     pub action_cache_eviction_cascade_enabled: bool,
-    /// Advertises and accepts new content-defined chunk recipes. Existing
-    /// recipes remain readable when disabled so a rollback flag change cannot
-    /// strand data that is already stored.
-    pub reapi_blob_chunking_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -326,6 +336,24 @@ pub struct AnalyticsConfig {
     pub request_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
+    /// Depth cap on the durable outbox column family, in entries.
+    /// Once the in-memory counter reaches this value the producer
+    /// drops new batches with a `outbox_full_entries` shed counter
+    /// rather than blocking the cache hot path. Secondary bound: the
+    /// primary bound is [`Self::outbox_max_bytes`]. Both caps are
+    /// dropped from Sentry / OpenTelemetry / Vector's dual-cap
+    /// telemetry-outbox pattern.
+    pub outbox_max_entries: usize,
+    /// Byte cap on the durable outbox column family, read from
+    /// RocksDB's `estimate-live-data-size` property. Primary bound
+    /// on disk usage. The producer drops new batches with a
+    /// `outbox_full_bytes` shed counter above this ceiling.
+    pub outbox_max_bytes: u64,
+    /// Per-batch encoded-size ceiling. Refuses batches that would
+    /// exceed the server's accepted body limit before they land on
+    /// disk, so one unusually large batch cannot consume the whole
+    /// outbox budget or retry forever against HTTP 413.
+    pub outbox_max_batch_bytes: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -728,6 +756,13 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let peer_topology =
+            optional_parsed_value(&mut lookup, "KURA_PEER_TOPOLOGY", &mut invalid, |value| {
+                let topology: crate::peer_topology::PeerTopology =
+                    serde_json::from_str(value).map_err(|e| format!("KURA_PEER_TOPOLOGY: {e}"))?;
+                topology.validate()?;
+                Ok(topology)
+            });
         let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
@@ -814,17 +849,6 @@ impl Config {
                 value.parse::<bool>().map_err(|_| {
                     format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
                 })
-            },
-        )
-        .unwrap_or(true);
-        let reapi_blob_chunking_enabled = optional_parsed_value(
-            &mut lookup,
-            KURA_REAPI_BLOB_CHUNKING_ENABLED,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<bool>()
-                    .map_err(|_| format!("{KURA_REAPI_BLOB_CHUNKING_ENABLED} must be a valid bool"))
             },
         )
         .unwrap_or(true);
@@ -1505,6 +1529,66 @@ impl Config {
                 "{KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS} must be greater than 0"
             ));
         }
+        let analytics_outbox_max_entries = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_ENTRIES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ANALYTICS_OUTBOX_MAX_ENTRIES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES);
+        if analytics_outbox_max_entries == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_ENTRIES} must be greater than 0"
+            ));
+        }
+        let analytics_outbox_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_ANALYTICS_OUTBOX_MAX_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES);
+        if analytics_outbox_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BYTES} must be greater than 0"
+            ));
+        }
+        let analytics_outbox_max_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES);
+        if analytics_outbox_max_batch_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} must be greater than 0"
+            ));
+        }
+        // A per-batch ceiling larger than the total byte cap would let
+        // a single append overshoot the disk budget: the byte-cap check
+        // runs before the append and can pass on an empty outbox, then
+        // land a batch that alone exceeds the cap. Codex flagged the
+        // scenario `MAX_BYTES=100_000` + `MAX_BATCH_BYTES=1_048_576`
+        // producing a ~10× overshoot. Fail fast at config time rather
+        // than silently accept, per `feedback_fail_fast_on_invalid_config`.
+        if (analytics_outbox_max_batch_bytes as u64) > analytics_outbox_max_bytes {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} ({analytics_outbox_max_batch_bytes}) must be less than or equal to {KURA_ANALYTICS_OUTBOX_MAX_BYTES} ({analytics_outbox_max_bytes})"
+            ));
+        }
         let analytics = match (analytics_server_url, analytics_signing_key) {
             (None, None) => None,
             (Some(server_url), Some(signing_key)) => match reqwest::Url::parse(&server_url) {
@@ -1517,6 +1601,15 @@ impl Config {
                     request_timeout_ms: analytics_request_timeout_ms,
                     circuit_breaker_failure_threshold: analytics_circuit_breaker_failure_threshold,
                     circuit_breaker_open_ms: analytics_circuit_breaker_open_ms,
+                    // Dual-cap admission bounds. Bytes is the primary
+                    // bound (protects the data volume), entries is the
+                    // secondary bound (protects RocksDB metadata cost),
+                    // and the per-batch ceiling keeps one unusually
+                    // large batch from consuming the whole budget or
+                    // looping against HTTP 413.
+                    outbox_max_entries: analytics_outbox_max_entries,
+                    outbox_max_bytes: analytics_outbox_max_bytes,
+                    outbox_max_batch_bytes: analytics_outbox_max_batch_bytes,
                 }),
                 Err(error) => {
                     invalid.push(format!(
@@ -1823,6 +1916,10 @@ impl Config {
             }
         }
 
+        if peer_topology.is_some() && peer_tls.is_none() {
+            invalid.push("KURA_PEER_TOPOLOGY requires peer mTLS".into());
+        }
+
         // Fit the anon caches to the floor before the config is sealed. This runs
         // last because it has to see the final values, operator overrides
         // included: the orchestrator pins all four on managed instances, and
@@ -1882,6 +1979,7 @@ impl Config {
         }
 
         Ok(Self {
+            serving_authority: crate::serving_authority::AuthorityConfig::from_env()?,
             port: port.expect("port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
@@ -1893,6 +1991,7 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
+            peer_topology,
             peers,
             discovery_dns_name,
             global_discovery_dns_name,
@@ -1903,7 +2002,6 @@ impl Config {
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
-            reapi_blob_chunking_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -2753,7 +2851,6 @@ mod tests {
 
         assert_eq!(config.internal_port, 7443);
         assert!(config.peers.is_empty());
-        assert!(config.reapi_blob_chunking_enabled);
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
@@ -2963,7 +3060,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
-            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "false"),
             (
                 KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
                 "10485760",
@@ -2998,7 +3094,6 @@ mod tests {
             ]
         );
         assert_eq!(config.discovery_dns_name, None);
-        assert!(!config.reapi_blob_chunking_enabled);
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
@@ -3215,7 +3310,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
-            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
@@ -3249,7 +3343,6 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
-        assert!(error.contains(KURA_REAPI_BLOB_CHUNKING_ENABLED));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
     }
@@ -3321,6 +3414,42 @@ mod tests {
     }
 
     #[test]
+    fn peer_topology_is_opt_in_and_requires_mtls() {
+        assert!(config_from(&[]).unwrap().peer_topology.is_none());
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", r#"{"provider":"ovh"}"#)])
+                .unwrap_err()
+                .contains("requires both private_network and private_url")
+        );
+        let topology = r#"{"provider":"ovh","private_network":"vrack-1","private_url":"https://node.private:7443"}"#;
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", topology)])
+                .unwrap_err()
+                .contains("requires peer mTLS")
+        );
+        let config = config_from(&[
+            ("KURA_PEER_TOPOLOGY", topology),
+            (KURA_NODE_URL, "https://node.private:7443"),
+            (KURA_PEERS, "https://other.private:7443"),
+            (KURA_INTERNAL_TLS_CA_CERT_PATH, "/ca.pem"),
+            (KURA_INTERNAL_TLS_CERT_PATH, "/cert.pem"),
+            (KURA_INTERNAL_TLS_KEY_PATH, "/key.pem"),
+        ])
+        .unwrap();
+        assert_eq!(
+            config.peer_topology.unwrap().private_network.as_deref(),
+            Some("vrack-1")
+        );
+        assert!(
+            config_from(&[(
+                "KURA_PEER_TOPOLOGY",
+                r#"{"provider":"ovh","private_url":"http://public"}"#
+            )])
+            .is_err()
+        );
+    }
+
+    #[test]
     fn from_lookup_parses_optional_analytics_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
@@ -3351,6 +3480,9 @@ mod tests {
             (KURA_ANALYTICS_REQUEST_TIMEOUT_MS, "3000"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, "3"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS, "45000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_ENTRIES, "50000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BYTES, "134217728"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES, "262144"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -3371,12 +3503,33 @@ mod tests {
                 request_timeout_ms: 3_000,
                 circuit_breaker_failure_threshold: 3,
                 circuit_breaker_open_ms: 45_000,
+                outbox_max_entries: 50_000,
+                outbox_max_bytes: 128 * 1024 * 1024,
+                outbox_max_batch_bytes: 256 * 1024,
             })
         );
         assert_eq!(config.rocksdb_block_cache_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 48 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 6);
+    }
+
+    #[test]
+    fn from_lookup_rejects_outbox_batch_ceiling_above_the_byte_cap() {
+        // Codex adversarial review: an operator who shrinks the byte cap
+        // without touching the per-batch ceiling could otherwise land a
+        // single batch that alone overshoots the disk budget by an order
+        // of magnitude (the byte-cap check runs before the append and
+        // can pass on an empty outbox). Fail fast at config parse time.
+        let error = config_from(&[
+            (KURA_ANALYTICS_SERVER_URL, "https://tuist.dev/"),
+            (KURA_ANALYTICS_SIGNING_KEY, "secret-key"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BYTES, "100000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES, "1048576"),
+        ])
+        .expect_err("per-batch ceiling above byte cap must fail configuration");
+        assert!(error.contains(KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES));
+        assert!(error.contains(KURA_ANALYTICS_OUTBOX_MAX_BYTES));
     }
 
     #[test]

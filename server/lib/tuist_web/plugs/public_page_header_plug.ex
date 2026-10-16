@@ -28,6 +28,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Utilities.SEO
 
   @header "x-tuist-public"
 
@@ -38,8 +39,14 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
         _opts
       ) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
-      _ -> conn
+      %{visibility: :public} ->
+        conn
+        |> put_private(:tuist_public_project, true)
+        |> put_public_header()
+        |> enable_robot_indexing()
+
+      _ ->
+        conn
     end
   end
 
@@ -47,7 +54,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
 
   def mark_public_account_page(%{path_params: %{"account_handle" => account_handle}} = conn, _opts) do
     case Accounts.get_account_by_handle(account_handle) do
-      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
+      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing(false)
       _ -> conn
     end
   end
@@ -59,9 +66,11 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
       {:ok, preview} ->
         preview_visibility = preview.visibility || preview.project.default_previews_visibility
 
-        if preview_visibility == :public or preview.project.visibility == :public,
-          do: put_public_header(conn),
-          else: conn
+        cond do
+          preview.project.visibility == :public -> conn |> put_public_header() |> enable_robot_indexing()
+          preview_visibility == :public -> put_public_header(conn)
+          true -> conn
+        end
 
       _ ->
         conn
@@ -72,9 +81,16 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
 
   defp put_public_header(conn), do: put_resp_header(conn, @header, "1")
 
-  defp enable_robot_indexing(conn) do
-    if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      put_resp_header(conn, "x-robots-tag", "index, follow")
+  defp enable_robot_indexing(conn, project_route_only? \\ true) do
+    if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() and
+         (not project_route_only? or SEO.public_project_route?(conn.request_path)) do
+      conn
+      |> put_resp_header("x-robots-tag", "index, follow")
+      |> register_before_send(fn conn ->
+        if conn.status == 200,
+          do: conn,
+          else: put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
+      end)
     else
       conn
     end

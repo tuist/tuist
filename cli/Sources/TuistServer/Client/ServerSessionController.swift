@@ -114,10 +114,16 @@ public struct ServerSessionController: ServerSessionControlling {
 
         await onAuthWaitBegin()
 
-        let tokens = try await getAuthTokens(
-            serverURL: serverURL,
-            deviceCode: deviceCode
-        )
+        #if canImport(TuistSupport)
+            let tokens = try await ProgramStatusReporter.current.withBlockedStatus(
+                kind: .auth,
+                message: "Complete sign-in in your browser"
+            ) {
+                try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
+            }
+        #else
+            let tokens = try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
+        #endif
         let credentials = ServerCredentials(
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken

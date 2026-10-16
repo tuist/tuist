@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -37,8 +40,12 @@ func main() {
 	var grpcClusterIssuer string
 	var publicTLSSecretName string
 	var publicTLSDNSNames string
+	var stableZone, stableOwner string
+	var stableDrain time.Duration
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var privateReplication bool
+	var servingAuthority bool
 	var connectivityDiagnosticsInstances string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
@@ -50,7 +57,13 @@ func main() {
 	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
+	flag.BoolVar(&servingAuthority, "serving-authority", false, "Enable opt-in positively fenced serving grants; never enables timeout promotion")
+	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
+
+	flag.StringVar(&stableZone, "stable-dns-zone-id", "", "Delegated cache.tuist.dev Route53 hosted zone; empty disables stable DNS")
+	flag.StringVar(&stableOwner, "stable-dns-owner", "", "Unique cluster identity for shared box health checks")
+	flag.DurationVar(&stableDrain, "stable-dns-drain", 3720*time.Second, "Minimum rendering retention after provider-observed DNS withdrawal")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -71,11 +84,18 @@ func main() {
 	}
 
 	managerOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "kura-controller.kura.tuist.dev",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "kura-controller.kura.tuist.dev",
+		LeaderElectionReleaseOnCancel: true,
+	}
+	if servingAuthority {
+		leaseDuration, renewDeadline, retryPeriod := 5*time.Second, 3*time.Second, time.Second
+		managerOptions.LeaseDuration = &leaseDuration
+		managerOptions.RenewDeadline = &renewDeadline
+		managerOptions.RetryPeriod = &retryPeriod
 	}
 	if watchNamespace != "" {
 		managerOptions.Cache = cache.Options{
@@ -102,7 +122,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controllers.KuraInstanceReconciler{
+	nodeLocalStatusClient, err := controllers.NewPortForwardRuntimeStatusClient(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "build port-forward runtime status client")
+		os.Exit(1)
+	}
+
+	reconciler := &controllers.KuraInstanceReconciler{
 		Client:                           mgr.GetClient(),
 		APIReader:                        mgr.GetAPIReader(),
 		Scheme:                           mgr.GetScheme(),
@@ -110,9 +136,41 @@ func main() {
 		PublicTLSSecretName:              publicTLSSecretName,
 		OTLPTracesEndpoint:               otlpTracesEndpoint,
 		Environment:                      deploymentEnvironment,
+		PrivateReplication:               privateReplication,
 		MetricsClient:                    metricsClient,
+		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if stableZone != "" {
+		if watchNamespace == "" {
+			setupLog.Error(errors.New("stable DNS requires watch-namespace"), "invalid configuration")
+			os.Exit(1)
+		}
+		if stableDrain < 120*time.Second {
+			setupLog.Error(errors.New("stable DNS drain must cover propagation and record TTL"), "invalid drain")
+			os.Exit(1)
+		}
+		provider, err := controllers.NewRoute53StableDNS(context.Background(), stableZone, stableOwner)
+		if err != nil {
+			setupLog.Error(err, "create stable DNS provider")
+			os.Exit(1)
+		}
+		reconciler.StableDNS, reconciler.StableDrain = provider, stableDrain
+		if err := mgr.Add(&controllers.StableHealthCollector{Reconciler: reconciler, Provider: provider, Namespace: watchNamespace}); err != nil {
+			setupLog.Error(err, "add health collector")
+			os.Exit(1)
+		}
+	}
+	authorityClient, err := client.New(restConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "create authority API client")
+		os.Exit(1)
+	}
+	if err := (&controllers.ServingAuthorityReconciler{Client: authorityClient, Enabled: servingAuthority}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup serving authority")
+		os.Exit(1)
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}

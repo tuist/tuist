@@ -119,20 +119,27 @@
       ],
       & &1.failed
     ) %>
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @hit_rate_analytics,
+      @hit_rate_p50,
+      @hit_rate_p90,
+      @hit_rate_p99,
+      @hits_analytics,
+      @misses_analytics
+    ]}
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
     <div :if={!analytics_failed} data-part="widgets">
       <.percentile_dropdown_widget
-        loading={
-          !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-              @hit_rate_p50.ok?)
-        }
+        loading={!ready?}
         id="widget-cache-hit-rate"
         title={
-          case {@selected_hit_rate_type, @runs.ok? && Enum.empty?(@runs.result)} do
+          case {@selected_hit_rate_type, ready? && @runs.ok? && Enum.empty?(@runs.result)} do
             {"avg", false} -> dgettext("dashboard_cache", "Avg. hit rate")
             {"p99", false} -> dgettext("dashboard_cache", "p99 hit rate")
             {"p90", false} -> dgettext("dashboard_cache", "p90 hit rate")
@@ -155,8 +162,7 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             dgettext("dashboard_cache", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -171,8 +177,7 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             %{
               avg:
                 dgettext("dashboard_cache", "%{hit_rate}%",
@@ -211,8 +216,7 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -222,10 +226,10 @@
           end
         }
         trend_label={@analytics_trend_label}
-        empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
+        empty={ready? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
       <.widget
-        loading={!@hits_analytics.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_cache", "Hits")}
         legend_color="secondary"
         description={
@@ -234,18 +238,18 @@
             "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
           )
         }
-        value={if @hits_analytics.ok?, do: format_number(@hits_analytics.result.total_count)}
+        value={if ready?, do: format_number(@hits_analytics.result.total_count)}
         id="widget-cache-hits"
-        trend_value={if @hits_analytics.ok?, do: @hits_analytics.result.trend}
+        trend_value={if ready?, do: @hits_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_hits"
         selected={@analytics_selected_widget == "cache_hits"}
-        empty={@hits_analytics.ok? && @hits_analytics.result.total_count == 0}
+        empty={ready? && @hits_analytics.result.total_count == 0}
       />
       <.widget
-        loading={!@misses_analytics.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_cache", "Misses")}
         legend_color="destructive"
         description={
@@ -254,35 +258,40 @@
             "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
           )
         }
-        value={if @misses_analytics.ok?, do: format_number(@misses_analytics.result.total_count)}
+        value={if ready?, do: format_number(@misses_analytics.result.total_count)}
         id="widget-cache-misses"
-        trend_value={if @misses_analytics.ok?, do: @misses_analytics.result.trend}
+        trend_value={if ready?, do: @misses_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_misses"
         selected={@analytics_selected_widget == "cache_misses"}
-        empty={@misses_analytics.ok? && @misses_analytics.result.total_count == 0}
+        empty={ready? && @misses_analytics.result.total_count == 0}
       />
     </div>
-    <.card_section :if={
-      !analytics_failed and
-        ((@analytics_selected_widget == "cache_hit_rate" and
-            (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-               !@hit_rate_p50.ok?)) or
-           (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?))
-    }>
+    <.card_section
+      :if={
+        !analytics_failed and
+          ((@analytics_selected_widget == "cache_hit_rate" and
+              !ready?) or
+             (@analytics_selected_widget != "cache_hit_rate" and !ready?))
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.error_card_section :if={analytics_failed} data-part="analytics-error" />
-    <.card_section :if={
-      @analytics_selected_widget != "cache_hit_rate" and
-        @analytics_chart_data.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or @hits_analytics.result.total_count != 0 or
-           @misses_analytics.result.total_count != 0)
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget != "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or @hits_analytics.result.total_count != 0 or
+             @misses_analytics.result.total_count != 0)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.chart
           id="module-cache-analytics-chart"
@@ -349,16 +358,16 @@
         />
       </div>
     </.card_section>
-    <.card_section :if={
-      @analytics_selected_widget == "cache_hit_rate" and
-        @hit_rate_analytics.ok? and
-        @hit_rate_p99.ok? and
-        @hit_rate_p90.ok? and
-        @hit_rate_p50.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           (@hits_analytics.ok? and @hits_analytics.result.total_count != 0) or
-           (@misses_analytics.ok? and @misses_analytics.result.total_count != 0))
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget == "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or
+             @hits_analytics.result.total_count != 0 or
+             @misses_analytics.result.total_count != 0)
+      }
+      data-chart-frame="standard"
+    >
       <.chart_type_toggle
         id="cache-hit-rate"
         chart_type={@cache_hit_rate_chart_type}
@@ -367,17 +376,14 @@
         uri={@uri}
       />
       <div
-        :if={
-          (@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?) and
-            !@cache_hit_rate_chart.failed
-        }
+        :if={!@cache_hit_rate_chart.ok? && !@cache_hit_rate_chart.failed}
         data-part="analytics-chart"
       >
         <.skeleton_chart />
       </div>
       <.chart
         :if={
-          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.failed and
             @cache_hit_rate_chart.result == :line
         }
         id="module-cache-hit-rate-chart"
@@ -514,10 +520,11 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+        (ready? && @hit_rate_analytics.result.avg_hit_rate == 0) and
           @hits_analytics.result.total_count == 0 and @misses_analytics.result.total_count == 0
       }
       title={dgettext("dashboard_cache", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -534,7 +541,7 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
   <.card
     title={dgettext("dashboard_cache", "Modules")}
     icon="apps"

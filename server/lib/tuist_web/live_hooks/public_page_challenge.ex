@@ -19,9 +19,11 @@ defmodule TuistWeb.LiveHooks.PublicPageChallenge do
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
+  alias TuistWeb.Authorization
   alias TuistWeb.Plugs.PublicPageChallengePlug
+  alias TuistWeb.PublicOverviewCache
 
-  def on_mount(:default, _params, session, socket) do
+  def on_mount(:default, params, session, socket) do
     cond do
       not FeatureFlags.public_page_challenge_enabled?() ->
         {:cont, socket}
@@ -41,13 +43,22 @@ defmodule TuistWeb.LiveHooks.PublicPageChallenge do
         # session mid-connection.
         {:cont, maybe_attach_expiry_hook(socket, session)}
 
+      socket.view == TuistWeb.OverviewLive and not is_nil(socket.router) and
+        socket.assigns[:live_action] != :analytics and
+          PublicOverviewCache.default_params?(Map.drop(params, ["account_handle", "project_handle"])) ->
+        # Validate parameters before LayoutLive can load a selected run.
+        # Current visibility and every patch are checked in handle_params.
+        {:cont, maybe_attach_expiry_hook(socket, session)}
+
       true ->
         {:halt, redirect_to_challenge(socket, nil)}
     end
   end
 
   defp check_expiry(session, uri, socket) do
-    if PublicPageChallengePlug.verified_within_freshness?(session) do
+    socket = refresh_project(socket)
+
+    if public_project_root?(socket, uri) or PublicPageChallengePlug.verified_within_freshness?(session) do
       {:cont, socket}
     else
       {:halt, redirect_to_challenge(socket, uri)}
@@ -99,6 +110,28 @@ defmodule TuistWeb.LiveHooks.PublicPageChallenge do
           qs -> path <> "?" <> qs
         end
     end
+  end
+
+  defp refresh_project(%{view: TuistWeb.OverviewLive, assigns: %{selected_project: project}} = socket) do
+    if LiveView.connected?(socket) do
+      project =
+        Authorization.require_user_can_read_project(%{
+          user: socket.assigns[:current_user],
+          account_handle: project.account.name,
+          project_handle: project.name
+        })
+
+      Phoenix.Component.assign(socket, :selected_project, project)
+    else
+      socket
+    end
+  end
+
+  defp refresh_project(socket), do: socket
+
+  defp public_project_root?(socket, uri) do
+    socket.view == TuistWeb.OverviewLive and
+      PublicOverviewCache.public_root?(socket.assigns[:selected_project], uri)
   end
 
   defp signed_in?(session) do

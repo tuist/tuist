@@ -513,7 +513,10 @@ async fn classify_route(
     state: &SharedState,
     header_buffer: &mut [u8],
 ) -> Option<(ParsedRequest, ArtifactRequest)> {
-    if !cfg!(target_os = "linux") || state.runtime.is_draining() {
+    if !cfg!(target_os = "linux")
+        || state.runtime.is_draining()
+        || state.runtime.authority.enabled()
+    {
         return None;
     }
     let parsed = match peek_request(stream, header_buffer).await {
@@ -524,7 +527,12 @@ async fn classify_route(
             return None;
         }
     };
-    if parsed.version != 1 || parsed.method != "GET" {
+    if parsed.version != 1
+        || parsed.method != "GET"
+        || parsed
+            .headers
+            .contains_key("x-tuist-accept-endpoint-redirect")
+    {
         return None;
     }
     let artifact = artifact_request(&parsed.target, &state.config.tenant_id)?;
@@ -594,7 +602,8 @@ async fn open_and_authorize(
         }
     };
     if let Some(auth) = state.auth.as_ref() {
-        let access_context = request_context(state, &parsed, &artifact);
+        let mut access_context = request_context(state, &parsed, &artifact);
+        state.canonicalize_auth_context(&mut access_context);
         let access_span = if trace_export_active() {
             tracing::info_span!(
                 "kura.auth.access",

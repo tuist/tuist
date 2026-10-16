@@ -6,12 +6,14 @@ defmodule TuistWeb.ShardsLive do
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
   alias Tuist.Shards.Analytics
   alias Tuist.Tests
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -20,6 +22,12 @@ defmodule TuistWeb.ShardsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Shards")} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Shards"),
+          subtitle: dgettext("dashboard_tests", "Tests")
+        )
+      )
       |> assign(:available_filters, [
         %Filter.Filter{
           id: "status",

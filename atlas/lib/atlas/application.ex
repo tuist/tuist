@@ -7,6 +7,7 @@ defmodule Atlas.Application do
 
   alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Demo
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
   alias Atlas.Engineering.Errors.IssueAccountCoalescer
@@ -15,47 +16,58 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
-  alias Atlas.Licenses.RateLimiter
-  alias EMCP.SessionStore.ETS
   alias Guardian.DB.Sweeper
 
   @impl true
   def start(_type, _args) do
     attach_sentry_logger()
     TelemetryHandler.attach()
-    ETS.init()
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
-    _ = Task.start(fn -> SelfMonitor.install() end)
+    if !Demo.enabled?(), do: Task.start(fn -> SelfMonitor.install() end)
 
-    children =
+    opts = [strategy: :one_for_one, name: Atlas.Supervisor]
+    Supervisor.start_link(children(), opts)
+  end
+
+  def children do
+    if Demo.enabled?() do
+      # Deliberately omit Finch: accidental Req calls must fail closed as well
+      # as being blocked by the deployment's egress policy.
       [
         AtlasWeb.Telemetry,
         Atlas.Vault,
-        Atlas.Repo,
-        HTTP.finch_child_spec(),
-        {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
+        {Atlas.Repo, Demo.repo_options()},
         {Phoenix.PubSub, name: Atlas.PubSub},
-        HandleRegistry,
-        RateLimiter,
-        GitHubAppBootstrap,
-        {Oban, Application.fetch_env!(:atlas, Oban)},
-        {Task.Supervisor, name: Atlas.TaskSupervisor},
-        {Atlas.RateLimit, clean_period: :timer.minutes(10)},
-        Sweeper
-      ] ++
-        clickhouse_children() ++
-        BrowseChrome.children() ++
-        [
-          # Start to serve requests, typically the last entry
-          AtlasWeb.Endpoint
-        ]
+        Demo.DatasetCheck,
+        AtlasWeb.Endpoint
+      ]
+    else
+      standard_children()
+    end
+  end
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Atlas.Supervisor]
-    Supervisor.start_link(children, opts)
+  defp standard_children do
+    [
+      AtlasWeb.Telemetry,
+      Atlas.Vault,
+      Atlas.Repo,
+      HTTP.finch_child_spec(),
+      {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
+      {Phoenix.PubSub, name: Atlas.PubSub},
+      HandleRegistry,
+      GitHubAppBootstrap,
+      {Oban, Application.fetch_env!(:atlas, Oban)},
+      {Task.Supervisor, name: Atlas.TaskSupervisor},
+      Sweeper
+    ] ++
+      clickhouse_children() ++
+      BrowseChrome.children() ++
+      [
+        # Start to serve requests, typically the last entry
+        AtlasWeb.Endpoint
+      ]
   end
 
   # ClickHouse-backed Engineering.Errors pipeline. Gated on

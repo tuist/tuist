@@ -7,7 +7,7 @@ adoption).
 
 Adoption is by TAG rather than by a name prefix, which is the one structural
 difference from the OVH fleets. Vultr's list endpoint filters labels by exact
-match, so a fleet prefix returns nothing; the tag is the Dedibox shape and is
+match, so a fleet prefix returns nothing; the tag is an exact pool membership marker and is
 what keeps a staging fleet off a prod box.
 */ -}}
 {{- if .Values.capi.enabled }}

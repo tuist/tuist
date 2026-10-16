@@ -1,10 +1,10 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 
 public enum LaunchAgentServiceError: Equatable, LocalizedError {
     case failedToLoadLaunchAgent(String)
@@ -72,17 +72,23 @@ public struct LaunchAgentService: LaunchAgentServicing {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
     private let bootoutTimeout: Duration
+    private let bootoutElapsed: @Sendable () -> Duration
+    private let bootoutSleep: @Sendable (Duration) async throws -> Void
     private let processLaunchDate: @Sendable (Int32) -> Date?
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
         launchctlController: LaunchctlControlling = LaunchctlController(),
         bootoutTimeout: Duration = .seconds(3),
-        processLaunchDate: @escaping @Sendable (Int32) -> Date? = { LaunchAgentService.launchDate(ofProcess: $0) }
+        processLaunchDate: @escaping @Sendable (Int32) -> Date? = { LaunchAgentService.launchDate(ofProcess: $0) },
+        clock: some Clock<Duration> = ContinuousClock()
     ) {
         self.fileSystem = fileSystem
         self.launchctlController = launchctlController
         self.bootoutTimeout = bootoutTimeout
+        let start = clock.now
+        bootoutElapsed = { start.duration(to: clock.now) }
+        bootoutSleep = { try await clock.sleep(for: $0) }
         self.processLaunchDate = processLaunchDate
     }
 
@@ -117,7 +123,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
                 // as an unreadable `CommandError` dump.
                 throw LaunchAgentServiceError.failedToBootOutLaunchAgent(String(describing: error))
             }
-            await waitUntilBootedOut(label: label)
+            await waitUntilBootedOut(label: label, outgoingJob: outgoingJob)
         }
 
         if try await fileSystem.exists(plistPath) {
@@ -257,16 +263,20 @@ public struct LaunchAgentService: LaunchAgentServicing {
     /// passing against the previous daemon, which would report success for a
     /// configuration that never took effect.
     ///
+    /// Waits at least as long as launchd may take to kill a process that does not
+    /// exit on SIGTERM: until its exit timeout has passed, plus a margin for the
+    /// label to leave the domain after it.
+    ///
     /// Gives up rather than throwing: a label that outlives the wait is not itself
     /// a failure, and the bootstrap after it settles the question anyway by
     /// requiring a process other than the one being booted out.
-    private func waitUntilBootedOut(label: String) async {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: bootoutTimeout)
+    private func waitUntilBootedOut(label: String, outgoingJob: LaunchAgentJob?) async {
+        let timeout = outgoingJob?.exitTimeout.map { max(bootoutTimeout, $0 + .seconds(1)) } ?? bootoutTimeout
+        let deadline = bootoutElapsed() + timeout
 
-        while clock.now < deadline, !Task.isCancelled {
+        while bootoutElapsed() < deadline, !Task.isCancelled {
             if await jobIgnoringFailures(label: label) == nil { return }
-            try? await Task.sleep(for: .milliseconds(100))
+            try? await bootoutSleep(.milliseconds(100))
         }
 
         Logger.current.debug("\(label) is still loaded after booting it out. Continuing.")
@@ -290,9 +300,10 @@ public struct LaunchAgentService: LaunchAgentServicing {
             components: "Library", "LaunchAgents", plistFileName
         )
 
-        if try await launchctlController.job(label: label) != nil {
+        if let outgoingJob = try await launchctlController.job(label: label) {
             try await launchctlController.bootout(label: label)
             Logger.current.debug("Booted out LaunchAgent")
+            await waitUntilBootedOut(label: label, outgoingJob: outgoingJob)
         }
 
         if try await fileSystem.exists(plistPath) {

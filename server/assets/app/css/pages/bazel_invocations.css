@@ -40,6 +40,29 @@
   }
 
   & > [data-part="bazel-invocations-card"] {
+    /* Same rules the Xcode Recent Builds card uses (see builds.css), so the
+       bar chart above the table reads identically on both build systems. */
+    & > [data-part="recent-builds-card-section"] {
+      gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-9);
+
+      & .noora-chart {
+        height: 148px;
+      }
+
+      & > [data-part="builds-chart"] {
+        & > [data-part="legends"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-5);
+
+          & > * {
+            flex-grow: 1;
+          }
+        }
+      }
+    }
+
     & > [data-part="bazel-invocations-table-section"] {
       gap: var(--noora-spacing-8);
 

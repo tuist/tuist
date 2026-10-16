@@ -47,7 +47,7 @@ defmodule AtlasWeb.SubscriptionRateLimit do
   end
 
   # The address is only ever used as a counter key, so it is hashed rather
-  # than kept in an in-memory table in the clear.
+  # than retained in the shared bucket table in the clear.
   defp address_key(email) when is_binary(email) do
     :sha256 |> :crypto.hash(String.downcase(String.trim(email))) |> Base.encode16(case: :lower)
   end

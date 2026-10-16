@@ -40,12 +40,30 @@ defmodule Tuist.Tests.Test do
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"
     field :git_ref, Ch, type: "String"
+    # Where the run sits in the repository's history (see Tuist.GitHistory):
+    # the branch it will merge into, the merge base it was diffed against,
+    # and how much of that the client could tell.
+    field :base_branch, Ch, type: "String", default: ""
+    field :merge_base_sha, Ch, type: "String", default: ""
+    field :is_pull_request, :boolean, default: false
+    field :pull_request_number, Ch, type: "UInt32", default: 0
+    field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
+    field :history_source, Ch, type: "LowCardinality(String)", default: ""
+    field :history_fallback_reason, Ch, type: "String", default: ""
+    # The repository the remote identified (`Tuist.GitHistory.Repository`), and
+    # whether the checkout had uncommitted changes: a dirty run measured code
+    # that is not the commit's, so it never joins the commit's coverage.
+    field :git_repository_id, Ch, type: "Int64", default: 0
+    field :git_dirty, :boolean, default: false
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
+    field :coverage_evidence_status, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :bazel_invocation_id, Ch, type: "String", default: ""
+    field :once_run_id, Ch, type: "String", default: ""
     field :ci_run_id, Ch, type: "String", default: ""
     field :ci_project_handle, Ch, type: "String", default: ""
     field :ci_host, Ch, type: "String", default: ""
@@ -54,6 +72,7 @@ defmodule Tuist.Tests.Test do
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :coverage_enabled, Ch, type: "Nullable(Bool)"
     field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
     field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
     field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
@@ -89,11 +108,23 @@ defmodule Tuist.Tests.Test do
       :git_branch,
       :git_commit_sha,
       :git_ref,
+      :base_branch,
+      :merge_base_sha,
+      :is_pull_request,
+      :pull_request_number,
+      :git_object_format,
+      :history_source,
+      :history_fallback_reason,
+      :git_repository_id,
+      :git_dirty,
+      :execution_mode,
+      :coverage_evidence_status,
       :ran_at,
       :inserted_at,
       :build_run_id,
       :gradle_build_id,
       :bazel_invocation_id,
+      :once_run_id,
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
@@ -102,6 +133,7 @@ defmodule Tuist.Tests.Test do
       :shard_plan_id,
       :only_test_identifiers,
       :skip_test_identifiers,
+      :coverage_enabled,
       :stress_mode,
       :stress_outcome,
       :stress_skip_reason,
@@ -121,7 +153,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix", "cargo"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

@@ -52,9 +52,26 @@ defmodule Tuist.Application.RuntimeChildren do
   Child spec for the marketing stats poller, gated on pod mode.
 
   Returns the poller for `:web`; empty for every other mode. It polls
-  ClickHouse every 5 seconds and broadcasts over PubSub purely to feed
-  the marketing LiveViews, which only the Phoenix endpoint serves.
+  ClickHouse every 5 seconds for the lightweight marketing counters and
+  reads the shared cache-globe snapshot (written by a single Oban worker)
+  to feed marketing LiveViews, which only the Phoenix endpoint serves.
   """
   def marketing_stats(:web), do: [Tuist.Marketing.Stats]
   def marketing_stats(_), do: []
+
+  @doc """
+  Child spec for the readiness listener, gated on pod mode.
+
+  Returns a listener serving `Tuist.Readiness.Plug` on
+  `Tuist.Readiness.port/0` for `:xcresult_processor`, whose Pod is probed by
+  tart-kubelet; empty for every other mode. Cowboy rather than Bandit so the
+  probe does not emit a trace span every period.
+  """
+  def readiness_server(:xcresult_processor) do
+    [
+      {Plug.Cowboy, scheme: :http, plug: Tuist.Readiness.Plug, options: [port: Tuist.Readiness.port(), ip: {0, 0, 0, 0}]}
+    ]
+  end
+
+  def readiness_server(_), do: []
 end

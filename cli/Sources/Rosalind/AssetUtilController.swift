@@ -1,8 +1,8 @@
 #if os(macOS)
-    import Command
     import Foundation
     import Mockable
     import Path
+    import TuistProcess
 
     enum AssetUtilControllerError: LocalizedError {
         case parsingFailed(AbsolutePath)

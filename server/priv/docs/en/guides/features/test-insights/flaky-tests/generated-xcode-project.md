@@ -86,7 +86,7 @@ tuist test --skip-quarantine
 
 The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
 
-A test case counts as new when it hasn't run in CI on the project's default branch in the last 90 days.
+A test case counts as new when it hasn't run in CI in the last 90 days on the project's default branch, or on a commit that has since landed on it. With a merge queue, a test case the queue ran is known once the queue's commit lands, and stays new if the queue drops it. Commits are matched through the <.localized_link href="/guides/features/test-insights/xcode#git-history">Git history</.localized_link> Tuist collects on CI.
 
 ### Enabling it
 
@@ -94,6 +94,8 @@ The gate is off by default. Set a mode:
 
 - **`report`**: warns about each flaky test case. The run still exits on its own result.
 - **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
+
+In both modes, <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link> doesn't skip a test target with a flaky new test case on the next run. The target runs again, and the gate stresses the test case again, until it passes all its reruns.
 
 Start with `report` for a couple of weeks to see what `enforce` would have blocked.
 

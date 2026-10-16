@@ -22,7 +22,12 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-cases"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Cases"),
+          fallback: "test-cases"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -452,8 +457,7 @@ defmodule TuistWeb.TestCasesLive do
       fn ->
         {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options, list_opts)
         {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
-      end,
-      reset: true
+      end
     )
   end
 

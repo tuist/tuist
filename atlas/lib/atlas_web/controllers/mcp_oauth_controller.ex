@@ -42,66 +42,6 @@ defmodule AtlasWeb.MCPOAuthController do
     end
   end
 
-  @doc """
-  Receives an operator grant handed back by ops.tuist.dev.
-
-  Ops appends the token to `return_to` and redirects; it never renders it, so
-  there is nothing for a person to copy and nothing to paste. Taking the
-  redirect keeps the bearer out of clipboards and conversations — it is stored
-  and the URL is immediately replaced, so it does not linger in history, a
-  `Referer`, or anything that logs a query string.
-  """
-  def operator_grant(conn, %{"server_name" => server_name, "operator_grant" => token, "state" => state}) do
-    user = conn.assigns.current_user
-
-    with {:ok, request} <- MCP.consume_operator_grant_request(user, server_name, state),
-         {:ok, grant} <-
-           MCP.put_operator_grant(user, server_name, token,
-             interface: "dashboard",
-             expected_account_handle: request.account_handle
-           ) do
-      conn
-      |> put_flash(:info, "Operator grant stored for #{grant.account_handle}.")
-      |> redirect(to: ~p"/admin/mcps")
-    else
-      {:error, :unknown_request} ->
-        conn
-        |> put_flash(:error, "That grant did not come from a request you started.")
-        |> redirect(to: ~p"/admin/mcps")
-
-      {:error, :expired_request} ->
-        conn
-        |> put_flash(:error, "That access request expired. Start it again.")
-        |> redirect(to: ~p"/admin/mcps")
-
-      {:error, :unreadable_grant} ->
-        conn
-        |> put_flash(:error, "That grant could not be read.")
-        |> redirect(to: ~p"/admin/mcps")
-
-      {:error, {:unsupported_grant_tier, tier}} ->
-        conn
-        |> put_flash(:error, "Atlas proxies read grants only; that grant is #{tier}.")
-        |> redirect(to: ~p"/admin/mcps")
-
-      {:error, {:account_mismatch, requested}} ->
-        conn
-        |> put_flash(:error, "That grant is not for #{requested}.")
-        |> redirect(to: ~p"/admin/mcps")
-
-      {:error, _reason} ->
-        conn
-        |> put_flash(:error, "Could not store the operator grant.")
-        |> redirect(to: ~p"/admin/mcps")
-    end
-  end
-
-  def operator_grant(conn, _params) do
-    conn
-    |> put_flash(:error, "No operator grant in the response from ops.")
-    |> redirect(to: ~p"/admin/mcps")
-  end
-
   defp redirect_uri(conn, %Server{} = server), do: redirect_uri(conn, server.name)
 
   defp redirect_uri(conn, server_name) do

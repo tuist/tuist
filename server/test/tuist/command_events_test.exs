@@ -4,6 +4,7 @@ defmodule Tuist.CommandEventsTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -79,7 +80,7 @@ defmodule Tuist.CommandEventsTest do
         :telemetry_test.attach_event_handlers(self(), [Tuist.Telemetry.event_name_cache()])
 
       # When
-      command_event =
+      {:ok, command_event} =
         CommandEvents.create_command_event(%{
           name: "generate",
           subcommand: "",
@@ -122,6 +123,42 @@ defmodule Tuist.CommandEventsTest do
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 2}, %{event_type: :remote_hit}}
 
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
+    end
+
+    test "returns not found without storing the event when the project no longer exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      Repo.delete!(project)
+
+      # When
+      got =
+        with_flushed_ingestion_buffers(fn ->
+          CommandEvents.create_command_event(%{
+            name: "generate",
+            subcommand: "",
+            command_arguments: [],
+            duration: 100,
+            tuist_version: "4.1.0",
+            swift_version: "5.2",
+            macos_version: "10.15",
+            project_id: project.id,
+            cacheable_targets: [],
+            local_cache_target_hits: [],
+            remote_cache_target_hits: [],
+            test_targets: [],
+            local_test_target_hits: [],
+            remote_test_target_hits: [],
+            is_ci: false,
+            client_id: "client-id",
+            status: :success,
+            ran_at: ~U[2024-03-04 01:00:00Z]
+          })
+        end)
+
+      # Then
+      assert got == {:error, :not_found}
+
+      assert ClickHouseRepo.aggregate(from(e in Event, where: e.project_id == ^project.id), :count) == 0
     end
   end
 

@@ -6,6 +6,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias Tuist.Billing.Subscription
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Authorization.BillingPlug
 
@@ -285,6 +286,54 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
              "message" => ~s"""
              The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.dev to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
              """
+           }
+  end
+
+  @tag current_month_remote_cache_hits_count: 1000
+  test "returns the same connection while the pro subscription's renewal payment is being retried",
+       %{conn: conn, project: project} do
+    # Given
+    BillingFixtures.subscription_fixture(account_id: project.account.id, plan: :pro, status: "past_due")
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
+  @tag current_month_remote_cache_hits_count: 1000
+  test "says a payment failed when an unpaid subscription left the account over the free tier",
+       %{conn: conn, project: project} do
+    # Given
+    account = project.account
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert json_response(got, :payment_required) == %{
+             "message" =>
+               "A payment for the subscription of the account '#{account.name}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at #{url(~p"/#{account.name}/billing")} to restore access."
            }
   end
 end

@@ -1,11 +1,10 @@
-import struct Command.CommandRunner
-import protocol Command.CommandRunning
 import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistSupport
 import TuistThreadSafe
 

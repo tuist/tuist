@@ -110,9 +110,7 @@ defmodule Atlas.Letters.Pingen do
           "auto_send" => true,
           "delivery_product" => Config.delivery_product(),
           "print_mode" => Config.print_mode(),
-          "print_spectrum" => Config.print_spectrum(),
-          "sender_address" => sender_address(letter),
-          "meta_data" => %{"atlas_letter_id" => letter.id, "kind" => letter.kind}
+          "print_spectrum" => Config.print_spectrum()
         }
       }
     }
@@ -189,17 +187,6 @@ defmodule Atlas.Letters.Pingen do
     end
   end
 
-  defp sender_address(letter) do
-    [
-      letter.sender_name,
-      letter.sender_street,
-      "#{letter.sender_postal_code} #{letter.sender_city}",
-      letter.sender_country
-    ]
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" | ")
-  end
-
   defp file_name(letter), do: "atlas-#{letter.kind}-#{letter.id}.pdf"
 
   defp url(base_url, path) do
@@ -216,6 +203,29 @@ defmodule Atlas.Letters.Pingen do
         _ -> nil
       end
 
-    Logger.warning("Pingen #{operation} failed: status=#{status} request_id=#{inspect(request_id)}")
+    Logger.warning(
+      "Pingen #{operation} failed: status=#{status} request_id=#{inspect(request_id)} body=#{summarize_body(body)}"
+    )
+  end
+
+  # Pingen 4xx responses carry the actual rejection reason in the body
+  # (validation errors, address parse failures, etc.). We inspect any non-nil
+  # body so binaries are escaped (no CRLF injection into the log line) and cap
+  # both the number of container elements AND per-string length so a large
+  # payload cannot balloon a single log line.
+  @provider_body_log_limit 1000
+  @provider_body_inspect_limit 50
+  @provider_body_string_limit 500
+
+  defp summarize_body(nil), do: "nil"
+
+  defp summarize_body(body) when is_binary(body) do
+    body |> String.slice(0, @provider_body_string_limit) |> inspect()
+  end
+
+  defp summarize_body(body) do
+    body
+    |> inspect(limit: @provider_body_inspect_limit, printable_limit: @provider_body_string_limit)
+    |> String.slice(0, @provider_body_log_limit)
   end
 end

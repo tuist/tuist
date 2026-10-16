@@ -1,11 +1,21 @@
 defmodule Atlas.Accounts.ExchangeRates do
   @moduledoc false
 
+  alias Atlas.Demo
+
   def latest_rates(currencies, opts \\ [])
 
   def latest_rates([], _opts), do: {:ok, %{published_on: nil, rates: %{}}}
 
   def latest_rates(currencies, opts) when is_list(currencies) do
+    if Demo.enabled?() do
+      {:error, :unavailable_in_demo}
+    else
+      fetch_rates(currencies, opts)
+    end
+  end
+
+  defp fetch_rates(currencies, opts) do
     currencies =
       currencies
       |> Enum.map(&String.upcase/1)

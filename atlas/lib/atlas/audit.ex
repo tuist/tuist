@@ -8,6 +8,7 @@ defmodule Atlas.Audit do
   alias Atlas.Audit.Activity
   alias Atlas.Repo
   alias Atlas.Users.User
+  alias Atlas.UUIDv7
 
   @context_key {__MODULE__, :context}
   @default_page_size 25
@@ -269,20 +270,14 @@ defmodule Atlas.Audit do
   def resource_path("gtm_audience", target_id, _metadata) when is_binary(target_id) and target_id != "",
     do: "/outbound/email/audiences/#{target_id}"
 
-  def resource_path("gtm_broadcast", _target_id, %{"audience_id" => audience_id}) when is_binary(audience_id),
-    do: "/outbound/email/audiences/#{audience_id}"
+  def resource_path("gtm_broadcast", _target_id, metadata),
+    do: uuid_path(metadata, :audience_id, "/outbound/email/audiences/")
 
-  def resource_path("gtm_broadcast", _target_id, %{audience_id: audience_id}) when is_binary(audience_id),
-    do: "/outbound/email/audiences/#{audience_id}"
+  def resource_path("gtm_delivery", _target_id, metadata),
+    do: uuid_path(metadata, :audience_id, "/outbound/email/audiences/")
 
-  def resource_path("gtm_delivery", _target_id, %{"audience_id" => audience_id}) when is_binary(audience_id),
-    do: "/outbound/email/audiences/#{audience_id}"
-
-  def resource_path("gtm_delivery", _target_id, %{audience_id: audience_id}) when is_binary(audience_id),
-    do: "/outbound/email/audiences/#{audience_id}"
-
-  def resource_path("cross_domain_claim", _target_id, %{"account_id" => account_id}) when is_binary(account_id),
-    do: "/commercial/sales/accounts/#{account_id}"
+  def resource_path("cross_domain_claim", _target_id, metadata),
+    do: uuid_path(metadata, :account_id, "/commercial/sales/accounts/")
 
   def resource_path("spec", _target_id, %{"number" => number}) when is_binary(number) and number != "",
     do: "/engineering/specs/#{number}"
@@ -302,17 +297,14 @@ defmodule Atlas.Audit do
   def resource_path("error_issue", target_id, _metadata) when is_binary(target_id) and target_id != "",
     do: "/engineering/errors/#{target_id}"
 
-  def resource_path("error_project", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
-    do: "/engineering/projects/#{project_id}"
+  def resource_path("error_project", _target_id, metadata),
+    do: uuid_path(metadata, :project_id, "/engineering/projects/")
 
-  def resource_path("project_key", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
-    do: "/engineering/projects/#{project_id}"
+  def resource_path("project_key", _target_id, metadata), do: uuid_path(metadata, :project_id, "/engineering/projects/")
 
-  def resource_path("domain_key", _target_id, %{"domain_id" => domain_id}) when is_binary(domain_id),
-    do: "/engineering/domains/#{domain_id}"
+  def resource_path("domain_key", _target_id, metadata), do: uuid_path(metadata, :domain_id, "/engineering/domains/")
 
-  def resource_path("alert_rule", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
-    do: "/engineering/projects/#{project_id}"
+  def resource_path("alert_rule", _target_id, metadata), do: uuid_path(metadata, :project_id, "/engineering/projects/")
 
   def resource_path("insurance_policy", target_id, _metadata) when is_binary(target_id) and target_id != "",
     do: "/operations/hardware/insurance/#{target_id}"
@@ -460,6 +452,28 @@ defmodule Atlas.Audit do
   defp metadata_map(metadata) when is_map(metadata), do: metadata
   defp metadata_map(_metadata), do: %{}
 
+  defp uuid_path(metadata, key, prefix) when is_map(metadata) do
+    case metadata_uuid(metadata, key) do
+      nil -> nil
+      id -> prefix <> id
+    end
+  end
+
+  defp uuid_path(_metadata, _key, _prefix), do: nil
+
+  defp metadata_uuid(metadata, key) do
+    case Map.get(metadata, Atom.to_string(key), Map.get(metadata, key)) do
+      value when is_binary(value) ->
+        case UUIDv7.cast(value) do
+          {:ok, uuid} -> uuid
+          :error -> nil
+        end
+
+      _value ->
+        nil
+    end
+  end
+
   defp normalize_actor_context(%{actor: %User{} = user} = attrs), do: normalize_actor_attrs(attrs, user)
   defp normalize_actor_context(attrs), do: attrs
 
@@ -606,8 +620,8 @@ defmodule Atlas.Audit do
 
   defp encode_value(%Date{} = date), do: Date.to_iso8601(date)
   defp encode_value(%Decimal{} = decimal), do: Decimal.to_string(decimal)
-  defp encode_value(value) when is_atom(value), do: Atom.to_string(value)
   defp encode_value(value) when is_binary(value) or is_number(value) or is_boolean(value) or is_nil(value), do: value
+  defp encode_value(value) when is_atom(value), do: Atom.to_string(value)
   defp encode_value(value) when is_list(value), do: Enum.map(value, &encode_value/1)
 
   defp encode_value(value) when is_map(value) do

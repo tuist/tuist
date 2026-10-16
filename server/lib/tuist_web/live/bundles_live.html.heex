@@ -125,7 +125,9 @@
         </:actions>
       </.date_picker>
     </div>
-    <.card
+    <.async_card
+      :let={ready?}
+      results={[@bundle_size_analytics]}
       title={dgettext("dashboard_cache", "Bundle Size")}
       icon="device_desktop_analytics"
       data-part="bundle-size-card"
@@ -133,6 +135,7 @@
       <div data-part="analytics-content">
         <div data-part="widgets">
           <.widget
+            loading={!ready?}
             title={dgettext("dashboard_cache", "Install size (MB)")}
             description={
               dgettext(
@@ -157,9 +160,10 @@
             }
             trend_type={:inverse}
             trend_label={bundle_size_trend_label(@bundle_size_preset)}
-            empty={is_nil(@bundle_size_last_bundle)}
+            empty={ready? && is_nil(@bundle_size_last_bundle)}
           />
           <.widget
+            loading={!ready?}
             title={dgettext("dashboard_cache", "Download size (MB)")}
             description={
               dgettext(
@@ -181,12 +185,13 @@
             }
             trend_type={:inverse}
             trend_label={bundle_size_trend_label(@bundle_size_preset)}
-            empty={is_nil(@bundle_size_last_bundle)}
+            empty={ready? && is_nil(@bundle_size_last_bundle)}
           />
         </div>
         <.card_section
-          :if={!@bundle_size_analytics.ok?}
+          :if={!ready?}
           data-part="bundle-size-chart-card-section"
+          data-chart-frame="standard"
         >
           <span data-part="legend" class="tuist-loading-skeleton">
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
@@ -195,10 +200,11 @@
         </.card_section>
         <.card_section
           :if={
-            @bundle_size_analytics.ok? &&
+            ready? &&
               Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
           }
           data-part="bundle-size-chart-card-section"
+          data-chart-frame="standard"
         >
           <span data-part="legend">
             {case @bundle_size_selected_widget do
@@ -269,10 +275,11 @@
         </.card_section>
         <.empty_card_section
           :if={
-            @bundle_size_analytics.ok? &&
+            ready? &&
               Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
           }
           title={dgettext("dashboard_cache", "No bundles yet")}
+          data-chart-frame="standard"
         >
           <:image>
             <img
@@ -290,7 +297,7 @@
           </:image>
         </.empty_card_section>
       </div>
-    </.card>
+    </.async_card>
     <.card
       title={dgettext("dashboard_cache", "Bundles")}
       icon="chart_cohort"

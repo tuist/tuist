@@ -117,6 +117,9 @@
         "examples": {
           "text": "Examples"
         },
+        "libraries": {
+          "text": "Libraries"
+        },
         "migrations": {
           "text": "Migrations",
           "items": {
@@ -254,6 +257,9 @@
             },
             "gradle-project": {
               "text": "Gradle project"
+            },
+            "elixir-project": {
+              "text": "Elixir project"
             },
             "bazel-project": {
               "text": "Bazel project"

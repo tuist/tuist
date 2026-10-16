@@ -145,6 +145,7 @@ config :logger, :console,
     :route,
     :request_path,
     :status,
+    :cache_outcome,
     :duration_ms,
     :auth_account_handle,
     # Source of the request. A failed authentication carries no account, so
@@ -158,6 +159,13 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # LiveView an operator opened under a grant (socket navigations have no
+    # request line of their own)
+    :live_view,
+    # Operator reads through Atlas without a grant: who, and which customer
+    # account a read used it for.
+    :atlas_operator_email,
+    :atlas_operator_read_account_id,
     # Dormant operator account sweep — this line is the evidence record for
     # the inactivity control, so the ids have to survive into the log output
     :disabled_user_ids,
@@ -315,7 +323,13 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
-config :phoenix, :filter_parameters, ["password", "secret", "token", "credential"]
+config :phoenix, :filter_parameters, [
+  "password",
+  "secret",
+  "token",
+  "credential",
+  "installation_receipt"
+]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -329,7 +343,8 @@ config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 # Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
 # Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
 config :stripity_stripe,
-  hackney_opts: [protocols: [:http1]]
+  hackney_opts: [protocols: [:http1]],
+  http_module: Tuist.Billing.StripeHTTPClient
 
 config :tower, reporters: [TowerOpentelemetry]
 

@@ -7,7 +7,7 @@ set -euo pipefail
 
 log() { echo "prep-vultr: $*"; }
 
-# The Vultr image ships ufw enabled and default-deny; the OVH and Dedibox images
+# The Vultr image ships ufw enabled and default-deny; the OVH images
 # ship no host firewall at all. It admits only SSH, so the box joins and reports
 # Ready -- the kubelet's outbound path to the apiserver is untouched -- while
 # every pod on it is cut off: Cilium's VXLAN (8472/udp) and health probes

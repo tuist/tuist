@@ -1,0 +1,44 @@
+name: Atlas Deployment Validation
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ATLAS_TEST_VERSION: ${{ inputs.version }}
+      ATLAS_SCREENSHOT_DIR: ${{ github.workspace }}/atlas-deployment-screenshots
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm yq jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Validate agent execution boundary
+        run: |
+          bash infra/helm/atlas/test-agent-boundary.sh
+          bash atlas/deploy/test-sandbox-retention.sh
+      - uses: helm/kind-action@v1.14.0
+        with:
+          install_only: true
+      - name: Build standalone release image
+        run: docker build --file atlas/Dockerfile --build-arg ATLAS_VERSION="$ATLAS_TEST_VERSION" --tag "ghcr.io/tuist/atlas:$ATLAS_TEST_VERSION" .
+      - name: Validate Compose and Helm deployments
+        run: atlas/deploy/validate.sh
+      - name: Upload documentation verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-deployment-screenshots
+          path: atlas-deployment-screenshots/*.png
+          if-no-files-found: ignore

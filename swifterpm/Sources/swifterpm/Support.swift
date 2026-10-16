@@ -57,12 +57,13 @@ enum GitFetchFailure {
 }
 
 enum SystemProcess {
-    /// swifterpm invokes git non-interactively: output is captured and fetches run
-    /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
-    /// would block invisibly in any environment, not just CI. Force git to fail fast
-    /// on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
-    /// are unaffected, so configured authentication still works.
-    static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
+    /// Match SwiftPM's Git environment defaults without replacing user configuration.
+    static var nonInteractiveGitEnvironment: [String: String] {
+        [
+            "GIT_TERMINAL_PROMPT": Environment.current["GIT_TERMINAL_PROMPT"] ?? "0",
+            "GIT_SSH_COMMAND": Environment.current["GIT_SSH_COMMAND"] ?? "ssh -oBatchMode=yes",
+        ]
+    }
 
     struct Result {
         let stdout: Data
@@ -84,21 +85,42 @@ enum SystemProcess {
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
         customEnvironment: [String: String]? = nil,
+        input: String = "",
+        gracefulShutdown: Bool = false,
+        failureMessage: String? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
+        var platformOptions = PlatformOptions()
+        if gracefulShutdown {
+            platformOptions.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: .seconds(5))]
+        }
         if forwardOutput {
-            let result = try await Subprocess.run(
+            // Standard error is teed rather than inherited so a failure can report what the
+            // child printed, not only its exit status.
+            let outcome = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
+                platformOptions: platformOptions,
+                input: .string(input),
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    captured.append(chunk.prefix(max(0, outputLimit - captured.count)))
+                }
+                return captured
+            }
 
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+            guard outcome.terminationStatus.isSuccess else {
+                let stderrText = String(decoding: outcome.value, as: UTF8.self)
+                throw ToolError.message(
+                    failureMessage ?? (stderrText.isEmpty ? outcome.terminationStatus.description : stderrText)
+                )
             }
 
             return Result(stdout: Data(), stderr: Data())
@@ -109,6 +131,8 @@ enum SystemProcess {
             arguments: Arguments(arguments),
             environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
+            platformOptions: platformOptions,
+            input: .string(input),
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
         )
@@ -118,7 +142,7 @@ enum SystemProcess {
             let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
             let message = stderrText.isEmpty ? stdoutText : stderrText
             throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message
+                failureMessage ?? (message.isEmpty ? result.terminationStatus.description : message)
             )
         }
 
@@ -130,6 +154,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> String {
         try await run(
@@ -137,6 +162,7 @@ enum SystemProcess {
             arguments,
             workingDirectory: workingDirectory,
             environment: environment,
+            customEnvironment: customEnvironment,
             outputLimit: outputLimit
         ).stdoutString
     }
@@ -194,9 +220,9 @@ enum HTTPClient {
         return URLSession(configuration: configuration)
     }()
 
-    static func defaultHeaders(for url: URL) async -> [String: String] {
+    static func defaultHeaders(for url: URL) async throws -> [String: String] {
         var headers = ["User-Agent": "swifterpm/0.1"]
-        if let authorization = await HTTPAuthorization.header(for: url) {
+        if let authorization = try await HTTPAuthorization.header(for: url) {
             headers["Authorization"] = authorization
         }
         return headers
@@ -204,8 +230,8 @@ enum HTTPClient {
 
     /// Headers for downloading a binary artifact archive. GitHub's release-asset
     /// endpoint returns asset metadata unless the request accepts the raw bytes.
-    static func binaryArtifactHeaders(for url: URL) async -> [String: String] {
-        var headers = await defaultHeaders(for: url)
+    static func binaryArtifactHeaders(for url: URL) async throws -> [String: String] {
+        var headers = try await defaultHeaders(for: url)
         headers["Accept"] = "application/octet-stream"
         return headers
     }
@@ -378,67 +404,40 @@ enum HTTPClient {
 }
 
 enum HTTPAuthorization {
-    static func header(for url: URL) async -> String? {
+    static func header(for url: URL) async throws -> String? {
         let environment = Environment.current
 
-        // Explicit, host-scoped credentials win over an ambient GitHub token. A
-        // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
-        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
-        // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. SwiftPM's makeAuthorizationProvider actually
-        // ranks its environment token above netrc, but we keep netrc first here
-        // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
-        // host a netrc entry deliberately targets.
         let netrc = Environment.netrc
-        if let header = await prioritizedHeader(
-            isGitHub: isGitHub(url),
+        return try await prioritizedHeader(
+            sourceControlToken: environment["SWIFTPM_SOURCE_CONTROL_TOKEN"],
             netrcCredential: netrc.credential(for: url),
             keychain: {
-                netrc.keychainDisabled ? nil : await KeychainAuthorization.credential(for: url)
-            },
-            gitHubEnvToken: GitHubAuth.envToken(from: environment)
-        ) {
-            return header
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
-        }
-
-        return nil
+                netrc.keychainDisabled ? nil : try await KeychainAuthorization.httpCredential(for: url)
+            }
+        )
     }
 
     static func prioritizedHeader(
-        isGitHub: Bool,
+        sourceControlToken: String?,
         netrcCredential: RegistryCredential?,
-        keychain: () async -> RegistryCredential?,
-        gitHubEnvToken: String?
-    ) async -> String? {
+        keychain: () async throws -> RegistryCredential?
+    ) async throws -> String? {
+        // SwiftPM's source-control environment provider is deliberately not host-scoped.
+        if let token = sourceControlToken, !token.isEmpty {
+            return basicHeader(RegistryCredential(user: "token", password: token))
+        }
         if let credential = netrcCredential {
             return basicHeader(credential)
         }
-        if let credential = await keychain() {
+        if let credential = try await keychain() {
             return basicHeader(credential)
         }
-        if isGitHub, let token = gitHubEnvToken {
-            return bearerHeader(token)
-        }
         return nil
-    }
-
-    private static func isGitHub(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return host == "github.com" || host == "api.github.com"
     }
 
     private static func basicHeader(_ credential: RegistryCredential) -> String {
         let token = Data("\(credential.user):\(credential.password)".utf8).base64EncodedString()
         return "Basic \(token)"
-    }
-
-    private static func bearerHeader(_ token: String) -> String {
-        "Bearer \(token)"
     }
 }
 
@@ -462,7 +461,6 @@ enum Hashing {
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
-
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

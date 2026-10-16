@@ -4,11 +4,13 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouse.Backfill
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.SchemaClone
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Tests.Coverage
 
   require Logger
 
@@ -21,8 +23,19 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
+  @processor_read_tables ~w(
+    accounts
+    projects
+    automation_alerts
+    webhook_endpoints
+    feature_flags
+    coverage_commits
+    git_repositories
+    git_refs
+    git_commits
+  )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+  @repair_settle_minutes 15
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
   # Column-level rather than table-level because every table below sits next to a
@@ -191,13 +204,59 @@ defmodule Tuist.Release do
   def backfill_clickhouse do
     load_app()
 
-    case Tuist.ClickHouse.Backfill.run() do
+    case Backfill.run() do
       {:ok, report} ->
-        Logger.info("ClickHouse backfill finished: #{inspect(report)}")
+        Logger.info("ClickHouse backfill finished: #{inspect(report, limit: :infinity)}")
         :ok
 
       {:error, reason} ->
         raise "ClickHouse backfill could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Copies onto the in-cluster server the rows it lacks between two UTC
+  instants, for every table with a time column. For a span the mirror is
+  known to have lost writes in; see `Tuist.ClickHouse.Backfill.run/1`.
+
+  Raises when a chunk fails, unlike `backfill_clickhouse/0`: a repair is run
+  for one known gap, and a Job that succeeds with part of it unfilled would
+  read as fixed. Running it again retries only the failed chunks.
+
+  The span has to end `#{@repair_settle_minutes}` minutes in the past. A
+  mirrored write can still be retrying for minutes after Cloud took it, and
+  one that lands after the repair copied the same row stores it twice.
+  """
+  def repair_clickhouse(from, to) do
+    window = clickhouse_repair_window(from, to)
+    load_app()
+
+    case Backfill.run(windows: [window]) do
+      {:ok, report} ->
+        Logger.info("ClickHouse repair finished: #{inspect(report, limit: :infinity)}")
+
+        case for({table, %{failed: failed}} when failed > 0 <- report, do: table) do
+          [] -> :ok
+          tables -> raise "ClickHouse repair left failed chunks in: #{Enum.join(Enum.sort(tables), ", ")}"
+        end
+
+      {:error, reason} ->
+        raise "ClickHouse repair could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc false
+  def clickhouse_repair_window(from, to, now \\ DateTime.utc_now()) do
+    with {:ok, from, _offset} <- DateTime.from_iso8601(from),
+         {:ok, to, _offset} <- DateTime.from_iso8601(to),
+         {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)},
+         :lt <- DateTime.compare(from, to),
+         true <- DateTime.compare(to, DateTime.add(now, -@repair_settle_minutes, :minute)) != :gt do
+      {from, to}
+    else
+      _ ->
+        raise ArgumentError,
+              "a ClickHouse repair needs two ISO 8601 instants, the first before the second and the second at least #{@repair_settle_minutes} minutes ago"
     end
   end
 
@@ -215,7 +274,7 @@ defmodule Tuist.Release do
       {:ok,
        %{
          differing: [],
-         schema: %{missing_on_destination: [], differing_columns: []},
+         schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
          migrations: %{missing_on_destination: [], only_on_destination: []}
        } = report} ->
         Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas and migration ledgers included")
@@ -223,15 +282,18 @@ defmodule Tuist.Release do
 
       # Once the in-cluster server is primary, `migrate/0` runs every version
       # missing from its ledger again, data migrations included.
-      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+      {:ok,
+       %{differing: [], schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []}} = report} ->
         raise "ClickHouse schema_migrations drift: #{inspect(report.migrations)}"
 
       # Gated separately from the row comparison, and deliberately fatal. Until
       # the in-cluster server is primary a missing column costs a dropped
       # mirror write; from that moment it breaks the ingest path, so this is
-      # the condition to clear before a cutover rather than after one.
+      # the condition to clear before a cutover rather than after one. A table
+      # only the destination holds is one the source dropped: the reconcile
+      # never drops anything, so it stays until somebody does.
       {:ok, %{differing: []} = report} ->
-        raise "ClickHouse schema drift: #{inspect(Map.take(report.schema, [:missing_on_destination, :differing_columns]))}"
+        raise "ClickHouse schema drift: #{inspect(report.schema)}"
 
       {:ok, report} ->
         raise "ClickHouse parity failed: #{inspect(report.differing)}"
@@ -351,6 +413,74 @@ defmodule Tuist.Release do
       versions = Enum.map_join(pending, ", ", fn {_status, version, _name} -> version end)
 
       raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
+    end
+  end
+
+  @doc """
+  Sets the coverage tables' time-to-live to the retention now configured
+  (`TUIST_COVERAGE_FILE_RETENTION_DAYS`, `TUIST_COVERAGE_RUN_RETENTION_DAYS`).
+  The tables take it when they are created, so a change made afterwards only
+  applies once this runs:
+
+      bin/tuist eval "Tuist.Release.apply_coverage_retention()"
+  """
+  def apply_coverage_retention do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
+        for {table, days} <- Coverage.apply_retention() do
+          Logger.info("#{table}: rows expire after #{days} days")
+        end
+      end)
+
+    :ok
+  end
+
+  @doc """
+  Writes the coverage file deltas of every complete commit whose runs' rows
+  are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
+  or every project, each ref's oldest commit first. The migration that
+  ships the tables queues it on its own
+  (`Tuist.Tests.Coverage.Workers.DeltaBackfillWorker`); this runs it again
+  by hand. It reads through the application's repositories and caches, so
+  it runs on a live node, and repeating it rewrites nothing that is current:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas(<project id>)"
+  """
+  def backfill_coverage_deltas(project_id \\ nil) do
+    counts =
+      case project_id && Tuist.Projects.get_project_by_id(project_id) do
+        nil when is_nil(project_id) -> Coverage.Deltas.backfill_all()
+        nil -> %{}
+        project -> %{project.id => Coverage.Deltas.backfill(project)}
+      end
+
+    for {id, %{written: written, unavailable: unavailable}} <- counts do
+      Logger.info("Coverage deltas of project #{id}: #{written} commits written, #{unavailable} without their runs' rows")
+    end
+
+    counts
+  end
+
+  @doc """
+  Records the test versions and target sources carried coverage reads
+  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
+  the file retention, for one project or every project. The migration that
+  ships the index queues it on its own
+  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
+  again by hand, on a live node:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
+  """
+  def backfill_coverage_sources(project_id \\ nil) do
+    if project_id do
+      Coverage.TestSources.backfill(project_id)
+      Logger.info("Coverage sources of project #{project_id} recorded")
+    else
+      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
     end
   end
 
@@ -667,12 +797,18 @@ defmodule Tuist.Release do
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
       # Table-level REVOKE does not remove column-level privileges.
       "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
+      "REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
       "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
-      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}"
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}",
+      # Event publishing only checks whether an agent is subscribed and records
+      # fan-out dedup keys. Columns, not the table, so callback URLs and signing
+      # secrets stay out of reach.
+      "GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions TO #{role}",
+      "GRANT SELECT, INSERT ON TABLE #{quoted_schema}.mcp_event_job_keys TO #{role}"
     ]
   end
 

@@ -74,6 +74,14 @@ defmodule Tuist.Runners.AllowanceTest do
   end
 
   describe "exhausted?/1" do
+    # Usage is back-dated a couple of hours and counted per calendar month,
+    # so against the real clock it falls in the previous month during the
+    # first hours of the 1st.
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-17 12:00:00.000000Z] end)
+      :ok
+    end
+
     test "a free account with room left may still dispatch", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
       stub(Billing, :current_billing_period, fn _account -> nil end)
@@ -137,7 +145,9 @@ defmodule Tuist.Runners.AllowanceTest do
 
   describe "minutes_used/1" do
     test "truncates to whole minutes, matching how the Price rounds", %{account: account} do
-      # 90 seconds is one billable minute, not one and a half.
+      # 90 seconds is one billable minute, not one and a half. The clock is
+      # frozen so the run doesn't fall in the previous month on the 1st.
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-17 12:00:00.000000Z] end)
       started = DateTime.add(DateTime.utc_now(), -2, :hour)
 
       Repo.insert!(%RunnerSession{
@@ -320,7 +330,9 @@ defmodule Tuist.Runners.AllowanceTest do
       # Linux minutes past the allowance were being priced at the macOS
       # rate and reported as money billed, against a macOS row reading
       # zero. No invoice can carry them: Linux has no Price.
-      # Started early enough that the whole run falls inside the window.
+      # Started early enough that the whole run falls inside the window,
+      # with the clock frozen so that window isn't the first hours of a month.
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-17 12:00:00.000000Z] end)
       started = DateTime.add(DateTime.utc_now(), -4, :hour)
 
       Repo.insert!(%RunnerSession{

@@ -1,139 +1,86 @@
 defmodule Atlas.MCP.Transport.StreamableHTTPTest do
-  use ExUnit.Case, async: true
+  use Atlas.DataCase, async: true
+  use Mimic
 
   import Plug.Conn
   import Plug.Test
 
   alias Atlas.MCP.Server
   alias Atlas.MCP.Transport.StreamableHTTP
-  alias EMCP.SessionStore.ETS
 
-  test "initializes an MCP session" do
-    {session_id, body} = initialize_session()
-
-    assert byte_size(session_id) == 32
+  test "initializes without issuing a replica-local session" do
+    conn = json_post(%{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize"})
+    assert conn.status == 200
+    assert get_resp_header(conn, "mcp-session-id") == []
+    assert is_nil(Server.server().session_store)
 
     assert %{
              "jsonrpc" => "2.0",
              "id" => 1,
-             "result" => %{
-               "protocolVersion" => _protocol_version,
-               "serverInfo" => %{"name" => "atlas"}
-             }
-           } = body
+             "result" => %{"protocolVersion" => _, "serverInfo" => %{"name" => "atlas"}}
+           } = JSON.decode!(conn.resp_body)
   end
 
-  test "dispatches requests for an existing session" do
-    {session_id, _body} = initialize_session()
+  test "dispatches requests without initialization or a session header" do
+    conn = json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "ping"})
+    assert conn.status == 200
+    assert JSON.decode!(conn.resp_body) == %{"jsonrpc" => "2.0", "id" => 2, "result" => %{}}
+  end
 
+  test "ignores legacy session headers after routing to a new replica" do
     conn =
-      json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "ping"}, [
-        {"mcp-session-id", session_id}
-      ])
+      json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "tools/list"}, [{"mcp-session-id", "old-pod-session"}])
 
     assert conn.status == 200
-
-    assert JSON.decode!(conn.resp_body) == %{
-             "jsonrpc" => "2.0",
-             "id" => 2,
-             "result" => %{}
-           }
+    assert is_list(JSON.decode!(conn.resp_body)["result"]["tools"])
   end
 
-  test "returns request responses inline when the session has a stale event stream registration" do
-    {session_id, _body} = initialize_session()
+  test "marks requests as coming from the MCP interface" do
+    expect(Server, :handle_message, fn conn, request ->
+      assert conn.assigns.audit_interface == "mcp"
+      call_original(Server, :handle_message, [conn, request])
+    end)
 
-    stale_pid = spawn(fn -> :ok end)
-    ref = Process.monitor(stale_pid)
-
-    assert_receive {:DOWN, ^ref, :process, ^stale_pid, _reason}
-
-    ETS.register(session_id, stale_pid)
-
-    conn =
-      json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "tools/list"}, [
-        {"mcp-session-id", session_id}
-      ])
-
-    response = JSON.decode!(conn.resp_body)
-
-    assert conn.status == 200
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 2
-    assert is_list(response["result"]["tools"])
+    assert json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "ping"}).status == 200
   end
 
-  test "accepts notifications for an existing session without a response body" do
-    {session_id, _body} = initialize_session()
-
-    conn =
-      json_post(%{"jsonrpc" => "2.0", "method" => "notifications/initialized"}, [
-        {"mcp-session-id", session_id}
-      ])
-
+  test "accepts notifications without a response body or session" do
+    conn = json_post(%{"jsonrpc" => "2.0", "method" => "notifications/initialized"})
     assert conn.status == 202
     assert conn.resp_body == ""
   end
 
-  test "deletes sessions" do
-    {session_id, _body} = initialize_session()
+  test "does not offer session-bound SSE connections or session deletion" do
+    for method <- [:get, :delete] do
+      conn =
+        method |> conn("/mcp") |> put_req_header("accept", "text/event-stream") |> StreamableHTTP.call(server: Server)
 
-    conn =
-      :delete
-      |> conn("/mcp")
-      |> put_req_header("mcp-session-id", session_id)
-      |> StreamableHTTP.call(server: Server)
-
-    assert conn.status == 200
-    assert JSON.decode!(conn.resp_body) == %{"success" => true}
-
-    conn =
-      json_post(
-        %{"jsonrpc" => "2.0", "id" => 2, "method" => "ping"},
-        [{"mcp-session-id", session_id}],
-        recreate_missing_session: false
-      )
-
-    assert conn.status == 404
-    assert JSON.decode!(conn.resp_body) == %{"error" => "Session not found"}
+      assert conn.status == 405
+      assert get_resp_header(conn, "allow") == ["POST"]
+    end
   end
 
-  test "rejects requests that require a session when the session header is missing" do
-    conn = json_post(%{"jsonrpc" => "2.0", "id" => 1, "method" => "ping"})
+  test "rejects invalid JSON bodies and non-object JSON" do
+    for body <- ["not-json", "[]", "null", "1"] do
+      conn =
+        :post
+        |> conn("/mcp", body)
+        |> put_req_header("content-type", "application/json")
+        |> StreamableHTTP.call(server: Server)
 
-    assert conn.status == 400
-    assert JSON.decode!(conn.resp_body) == %{"error" => "Missing session ID"}
-  end
-
-  test "rejects invalid JSON bodies" do
-    conn =
-      :post
-      |> conn("/mcp", "not-json")
-      |> put_req_header("content-type", "application/json")
-      |> StreamableHTTP.call(server: Server)
-
-    assert conn.status == 400
-    assert JSON.decode!(conn.resp_body) == %{"error" => "Invalid JSON"}
+      assert conn.status == 400
+    end
   end
 
   test "rejects forbidden origins when origin validation is enabled" do
     conn =
-      :post
-      |> conn("/mcp", JSON.encode!(%{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize"}))
-      |> put_req_header("content-type", "application/json")
-      |> put_req_header("origin", "https://evil.example")
-      |> StreamableHTTP.call(
-        server: Server,
+      json_post(%{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize"}, [{"origin", "https://evil.example"}],
         validate_origin: true,
         allowed_origins: ["https://atlas.example"]
       )
 
     assert conn.status == 403
-
-    assert JSON.decode!(conn.resp_body) == %{
-             "jsonrpc" => "2.0",
-             "error" => %{"code" => -32_600, "message" => "Forbidden origin"}
-           }
+    assert %{"error" => %{"code" => -32_600, "message" => "Forbidden origin"}} = JSON.decode!(conn.resp_body)
   end
 
   test "rejects a protocol version the server does not speak" do
@@ -164,15 +111,6 @@ defmodule Atlas.MCP.Transport.StreamableHTTPTest do
     refute StreamableHTTP.origin_allowed?("https://evil.example", ["https://atlas.example"])
   end
 
-  defp initialize_session do
-    conn = json_post(%{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize"})
-
-    assert conn.status == 200
-    assert [session_id] = get_resp_header(conn, "mcp-session-id")
-
-    {session_id, JSON.decode!(conn.resp_body)}
-  end
-
   defp json_post(message, headers \\ [], opts \\ []) do
     :post
     |> conn("/mcp", JSON.encode!(message))
@@ -182,8 +120,6 @@ defmodule Atlas.MCP.Transport.StreamableHTTPTest do
   end
 
   defp put_headers(conn, headers) do
-    Enum.reduce(headers, conn, fn {key, value}, conn ->
-      put_req_header(conn, key, value)
-    end)
+    Enum.reduce(headers, conn, fn {key, value}, conn -> put_req_header(conn, key, value) end)
   end
 end

@@ -1097,3 +1097,30 @@ Decisions:
   same release, so the region link treats a page without it as
   `unsupported`, in both the backward pass and the forward loop.
 
+
+## 6. Region-link lag (2026-09-28)
+
+**D-37 — The region link reports replication lag in origin version
+time.** An in-place restart of a region's replicas looked like a multi-hour
+stall because nothing reported cross-region lag: `kura_region_watermark_age_seconds`
+grows through every idle stretch of the remote region, and
+`kura_region_sync_bytes_fetched_total` is per pod while the gateway role moves
+between pods. Pulls had in fact tracked the remote region's writes throughout.
+Unlike the replica link, whose feed carries a `head` to count against, the
+ascending listing had nothing to measure against, so the source now reports
+one: the store keeps the newest effective version among committed records a
+read filtered to its own region lists (its own origin, no origin, namespace
+tombstones) in an atomic, raised by `fetch_max` in the post-commit hooks of
+both apply paths and after a namespace delete commits — never on staging, so
+a failed batch is never reported. After a restart the first listing request
+seeds it from the newest index rows. Every ascending page for the node's own
+region carries it as the additive `newest_version_ms`, deliberately not capped
+at the serving bound: a write the source still holds back (a sibling link with
+no frontier yet, D-24) is lag the reader should see, not a caught-up page. The
+link sets `kura_region_sync_lag_seconds{region}` to that minus the newest
+version it has applied (the watermark, or the source's clock at the start of a
+completed backward pass, whose watermark sits a buffer below what it
+applied), on every answer. While the link cannot reach the remote gateway it
+has no fresh sample, so the coordinator adds the silence beyond one long-poll
+to the last one instead of letting it stand. An older source sends no field
+and yields only caught-up samples of zero; an older puller ignores it.

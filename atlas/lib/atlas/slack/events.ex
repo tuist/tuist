@@ -13,7 +13,6 @@ defmodule Atlas.Slack.Events do
   has no business unfurling internal Atlas links.
   """
 
-  alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Amounts
   alias Atlas.Accounts.DealStage
@@ -427,8 +426,6 @@ defmodule Atlas.Slack.Events do
             "channel_name" => get_in(event.metadata || %{}, ["channel_name"])
           }
         })
-
-        Accounts.enqueue_account_attention_suggestion_generation(event.account_id, "slack_event")
 
       _result ->
         :ok

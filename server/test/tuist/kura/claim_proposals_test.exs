@@ -170,6 +170,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   defp refuse_growth_in(region_id) do
     stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
     stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn _region_id -> %{} end)
 
     stub(Capacity, :pressure_line_gib, fn
       ^region_id -> 0
@@ -219,10 +220,10 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.region == "scw-fr-par-runners"
       assert proposal.current_claim_size == "50Gi"
       assert proposal.direction == :grow
-      assert proposal.recommended_claim_size == "64Gi"
+      assert proposal.recommended_claim_size == "125Gi"
 
       assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
-      assert Repo.get!(Server, server.id).storage_claim_size == "64Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "125Gi"
     end
 
     test "shrinks a runner claim only after the measured low-occupancy window", %{account: account, server: server} do
@@ -473,6 +474,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
       stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+      stub(Capacity, :reserved_gib_by_instance, fn _region_id -> %{} end)
 
       stub(Capacity, :pressure_line_gib, fn
         "eu-west" -> 0
@@ -551,6 +553,30 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       assert Repo.get!(Server, us_east.id).storage_claim_size == "50Gi"
       assert Repo.get!(Server, eu_west.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == nil
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
+    test "a full rack cache holds back the account's growth in every region", %{account: account, server: server} do
+      us_east = pin!(server, "16Gi")
+      rack = account |> insert_server!("ber1-runners") |> pin!("16Gi")
+
+      proposal =
+        Repo.insert!(%ClaimProposal{
+          account_id: account.id,
+          region: "us-east",
+          direction: :grow,
+          current_claim_size: "16Gi",
+          recommended_claim_size: "32Gi",
+          evidence: %{"region" => "us-east"}
+        })
+
+      refuse_growth_in("ber1-runners")
+
+      assert {:error, {"ber1-runners", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, rack.id).storage_claim_size == "16Gi"
       assert PlacerClaims.claim_for(account) == nil
       assert Repo.get!(ClaimProposal, proposal.id).status == :open
     end

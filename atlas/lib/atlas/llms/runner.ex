@@ -3,8 +3,8 @@ defmodule Atlas.LLMs.Runner do
   Shared plumbing for AI feature agents.
 
   Resolves the global `Atlas.LLMs.config/0` map into the keyword list
-  consumed by `Helmsman.start_link/1` / `Condukt.start_link/1`, and
-  builds the ReqLLM model spec from a `provider:model_id` string.
+  consumed by `Condukt.start_link/1`, and builds the ReqLLM model spec
+  from a `provider:model_id` string.
 
   Domain agents live in their own context (`Atlas.Accounts.Agents.*`);
   this module is the only piece of LLM infrastructure they share.
@@ -35,7 +35,10 @@ defmodule Atlas.LLMs.Runner do
   looks up the profile marked as the default for the atlas role
   (`atlas_inference` for chat, `atlas_embedding` for embeddings) and
   rewrites the model identifier to that profile's name before
-  delegating to the controller.
+  delegating to the controller. The `llm_request_options` key is
+  honored by Condukt 1.13+ (earlier versions silently dropped it,
+  which escaped every chat completion to the sentinel host and
+  returned `:nxdomain`).
   """
   def client_opts(%{mode: :local} = llm) do
     [
@@ -46,9 +49,6 @@ defmodule Atlas.LLMs.Runner do
       model: ReqLLM.model!(%{id: "atlas-default", provider: :openai}),
       api_key: "local",
       base_url: "http://atlas-local",
-      # Condukt only forwards `req_http_options` when it lives inside
-      # `llm_request_options`; a top-level key is silently dropped, so the
-      # plug never reaches ReqLLM and requests escape to the sentinel host.
       llm_request_options: [req_http_options: [plug: {LocalTransport, []}]]
     ]
     |> maybe_put(:timeout, operation_timeout(llm))

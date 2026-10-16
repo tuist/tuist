@@ -31,7 +31,7 @@ That is the substantive change. The old fleet had its own operating system, its 
 
 | Region | Provider | Location |
 | --- | --- | --- |
-| `eu-west` | Scaleway Dedibox | Paris |
+| `eu-west` | OVHcloud | Gravelines, France |
 | `us-east` | OVHcloud | Vint Hill, Virginia |
 | `us-west` | OVHcloud | Hillsboro, Oregon |
 | `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
@@ -40,7 +40,7 @@ The first three serve customers. `scw-fr-par-runners` is private: it serves the 
 
 Customers do not choose among them. An account is placed in the region its cache traffic comes from, and the placement follows that traffic when it durably moves; what an account states is where its data may live (the storage region setting), which is a compliance boundary rather than a placement. Each account also has a cache hostname without a region in it, so a client that writes the endpoint down keeps working when its cache moves.
 
-Each region is one box today. A region's capacity grows by adding boxes, not by splitting an account across them, because an account's cache pods are kept together on a single box.
+EU-West runs on three OVH boxes. A region's capacity grows by adding boxes; each account's cache pods are kept together on a single box.
 
 ## How an instance is sized
 
@@ -67,13 +67,12 @@ The values themselves live in `server/lib/tuist/kura/regions.ex`, which is where
 
 The controllers never order hardware. A box is ordered by hand, prepared, and then adopted.
 
-1. **Order the box** in the provider console. OVHcloud for the US regions, Dedibox for `eu-west`.
+1. **Order the box** in the provider console. OVHcloud for EU-West and the US regions.
 
-2. **Prepare it.** One task installs Ubuntu, the fleet's secure shell key, and the sudo password, then sets the adoption marker as its final step:
+2. **Prepare it.** One task starts the Ubuntu installation with the fleet's secure shell key, then sets the adoption marker as its final step:
 
    ```bash
    PREP_NAMESPACE=tuist-production mise run baremetal:prep-ovh <service-name> <fleet-name>
-   PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>
    ```
 
    The install runs asynchronously and takes roughly twenty to forty minutes. `PREP_NAMESPACE` selects the environment, which selects both the 1Password vault and the values file the marker is read from. Pass `PREP_SKIP_MARK=1` to stage capacity without releasing it into the pool yet.
@@ -94,7 +93,7 @@ Kura is a mesh, and it is deployed with rolling updates, so nodes running differ
 
 **Observability.** Metrics, logs, and traces reach Grafana Cloud through the in-cluster agent. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
 
-**Release.** Releasing a box wipes and reinstalls Scaleway Elastic Metal machines. Dedibox and OVHcloud machines are left installed and can be re-adopted.
+**Release.** Releasing an OVHcloud or Scaleway Elastic Metal box wipes and reinstalls it before it can be re-adopted. This does not cancel its provider subscription. The Dedibox fleet has been retired and its provisioning support removed.
 
 ## The fleet being retired
 

@@ -9,7 +9,7 @@
 # it is how remote hands will recover a switch in the colo.
 #
 # This names the switch, gives it the fixed management address from
-# infra/rack-switch-prep/switches.json, enables SSH, saves to startup config and
+# infra/rack-switch-fleet/sites/<site>.json, enables SSH, saves to startup config and
 # reads the device back to verify. It handles a factory-fresh unit and an
 # already-configured one, so re-running it converges.
 #
@@ -21,7 +21,7 @@
 #        mise run rack:prep-switch ber1-mgmt --create-credentials
 #        mise run rack:prep-switch ber1-tor-a --import-key ~/.ssh/ber1-switch-rsa.pub
 #
-# The admin login comes from the 1Password item named in switches.json (account
+# The admin login comes from the 1Password item named in the site definition (account
 # override: OP_ACCOUNT); --create-credentials generates it on a switch's first
 # run. --import-key installs the fleet SSH key so the switch can be driven
 # without a password afterwards: the switch fetches it over TFTP from this
@@ -59,25 +59,48 @@ while (( $# )); do
 done
 
 root="$(git rev-parse --show-toplevel)"
-inventory="$root/infra/rack-switch-prep/switches.json"
+site="${RACK_SITE:-ber1}"
+inventory="$root/infra/rack-switch-fleet/sites/$site.json"
 
-if [ -z "$switch" ] || ! jq -e --arg s "$switch" '.switches[$s]' "$inventory" >/dev/null; then
-  echo "usage: mise run rack:prep-switch <switch> [flags]" >&2
-  echo "known switches: $(jq -r '.switches | keys | join(", ")' "$inventory")" >&2
+if [ ! -f "$inventory" ]; then
+  echo "error: no site definition at $inventory" >&2
   exit 2
 fi
 
-entry="$(jq -r --arg s "$switch" '.switches[$s]' "$inventory")"
+if [ -z "$switch" ] || ! jq -e --arg s "$switch" '.devices[] | select(.name == $s)' "$inventory" >/dev/null; then
+  echo "usage: mise run rack:prep-switch <switch> [flags]" >&2
+  echo "known switches in $site: $(jq -r '[.devices[].name] | join(", ")' "$inventory")" >&2
+  exit 2
+fi
+
+entry="$(jq -r --arg s "$switch" '.devices[] | select(.name == $s)' "$inventory")"
 model="$(jq -r '.model' <<<"$entry")"
-mgmt_ip="$(jq -r '.mgmt_ip' <<<"$entry")"
-mgmt_mask="$(jq -r '.mgmt_mask' <<<"$entry")"
+mgmt_ip="$(jq -r '.mgmt_address' <<<"$entry")"
+mgmt_mask="$(jq -r '.management.netmask' "$inventory")"
+mgmt_vlan="$(jq -r '.management.vlan' "$inventory")"
 credential_item="$(jq -r '.credential_item' <<<"$entry")"
-vault="$(jq -r '.vault' "$inventory")"
+vault="$(jq -r '.credentials.vault' "$inventory")"
+
+# Checked here rather than where the key is used, which is after the console has
+# been found, 1Password read and the serial session opened. At a new site that
+# ordering means a rejected key surfaces with remote hands already holding the
+# cable. Doing it now also makes `--dry-run --import-key` a real preflight.
+if [ -n "$key_path" ]; then
+  key_path="${key_path/#\~/$HOME}"
+  if [ ! -f "$key_path" ]; then
+    echo "error: no such key file: $key_path" >&2
+    exit 1
+  fi
+  if grep -q "ssh-ed25519" "$key_path"; then
+    echo "error: this firmware accepts RSA/DSA keys only; ed25519 is rejected" >&2
+    exit 1
+  fi
+fi
 
 commands=(
   "configure"
   "hostname $switch"
-  "interface vlan 1"
+  "interface vlan $mgmt_vlan"
   "ip address $mgmt_ip $mgmt_mask"
   "exit"
   "ip ssh server"
@@ -88,13 +111,18 @@ commands=(
 if (( dry_run )); then
   echo "would apply to $switch ($model):"
   printf '  %s\n' "${commands[@]}"
+  [ -n "$key_path" ] && echo "would import the key at $key_path"
   exit 0
 fi
 
 if [ -z "$device" ]; then
-  mapfile -t candidates < <(ls /dev/cu.usbmodem* 2>/dev/null || true)
+  # The SX3832's USB-C console is a modem-class device (usbmodem). The SG3452 has
+  # a micro-USB console behind a USB-serial bridge, which macOS names usbserial,
+  # or wchusbserial for a CH34x.
+  mapfile -t candidates < <(ls /dev/cu.usbmodem* /dev/cu.usbserial* /dev/cu.wchusbserial* 2>/dev/null || true)
   if (( ${#candidates[@]} == 0 )); then
-    echo "error: no USB console found. Connect a USB-C cable to the switch's console port." >&2
+    echo "error: no USB console found. The SX3832's console is USB-C; the SG3452's is" >&2
+    echo "       micro-USB, and a charge-only micro-USB cable shows up as nothing at all." >&2
     exit 1
   fi
   if (( ${#candidates[@]} > 1 )); then
@@ -267,16 +295,6 @@ for command in "${commands[@]}"; do
 done
 
 if [ -n "$key_path" ]; then
-  key_path="${key_path/#\~/$HOME}"
-  if [ ! -f "$key_path" ]; then
-    echo "error: no such key file: $key_path" >&2
-    exit 1
-  fi
-  if grep -q "ssh-ed25519" "$key_path"; then
-    echo "error: this firmware accepts RSA/DSA keys only; ed25519 is rejected" >&2
-    exit 1
-  fi
-
   served_file="/private/tftpboot/fleet.pub"
   echo "sudo is needed to serve the key over TFTP on port 69:"
   sudo -v

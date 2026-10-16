@@ -111,6 +111,9 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
                 <span :if={!provider.base_url}>{gettext("Not configured")}</span>
               </div>
             </:col>
+            <:col :let={provider} label={gettext("Decision endpoint")}>
+              <.text_cell label={provider.decision_path || gettext("Not configured")} />
+            </:col>
             <:col :let={provider} label={gettext("Credential")}>
               <.text_cell label={credential_label(provider)} />
             </:col>
@@ -181,6 +184,17 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
           input_type="url"
           placeholder="https://api.together.ai/v1"
         />
+        <.text_input
+          id="new-inference-provider-decision-path"
+          field={@provider_form[:decision_path]}
+          label={gettext("Decision endpoint path (optional)")}
+          placeholder="systemone"
+        />
+        <p data-part="card-intro">
+          {gettext(
+            "For Jev, use https://api.typesafe.ai/v1 as the endpoint and systemone as the decision path. Leave the path empty for chat-only providers."
+          )}
+        </p>
         <.text_input
           id="new-inference-provider-credential"
           field={@provider_form[:api_key]}

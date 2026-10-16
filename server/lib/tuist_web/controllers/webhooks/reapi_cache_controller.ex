@@ -15,26 +15,26 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
     else
       cache_endpoint = conn.assigns.cache_endpoint
 
-      bazel_events = Enum.filter(events, &bazel_event?/1)
+      reapi_events = Enum.filter(events, &reapi_event?/1)
 
       projects_map =
-        bazel_events
+        reapi_events
         |> Enum.map(&"#{&1["account_handle"]}/#{&1["project_handle"]}")
         |> Enum.uniq()
         |> Projects.projects_by_full_handles()
 
       cache_events =
-        Enum.flat_map(bazel_events, fn event ->
+        Enum.flat_map(reapi_events, fn event ->
           case cache_event(event, projects_map, cache_endpoint) do
             {:ok, cache_event} ->
               [cache_event]
 
             {:error, :project_not_found, full_handle} ->
-              Logger.warning("Project not found for Bazel remote cache event: #{full_handle}")
+              Logger.warning("Project not found for REAPI remote cache event: #{full_handle}")
               []
 
             {:error, :invalid, full_handle} ->
-              Logger.warning("Invalid Bazel remote cache event for project: #{full_handle}")
+              Logger.warning("Invalid REAPI remote cache event for project: #{full_handle}")
               []
           end
         end)
@@ -43,7 +43,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
 
       conn
       |> put_status(:accepted)
-      |> json(%{accepted: length(cache_events), rejected: length(bazel_events) - length(cache_events)})
+      |> json(%{accepted: length(cache_events), rejected: length(reapi_events) - length(cache_events)})
       |> halt()
     end
   end
@@ -55,8 +55,8 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
     |> halt()
   end
 
-  defp bazel_event?(%{"client_kind" => "bazel"}), do: true
-  defp bazel_event?(_), do: false
+  defp reapi_event?(%{"client_kind" => kind}) when kind in ["bazel", "mix"], do: true
+  defp reapi_event?(_), do: false
 
   defp cache_event(event, projects_map, cache_endpoint) do
     with %{
@@ -71,7 +71,8 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
          duration_us when is_integer(duration_us) <- duration_us(event) do
       full_handle = "#{account_handle}/#{project_handle}"
 
-      with %{id: project_id, build_system: :bazel} <- Map.get(projects_map, full_handle),
+      with %{id: project_id, build_system: system} <- Map.get(projects_map, full_handle),
+           true <- {event["client_kind"], system} in [{"bazel", :bazel}, {"mix", :mix}],
            true <- valid_event?(operation, outcome, action_digest, size, duration_us, Map.get(event, "observed_at_ms")) do
         {:ok,
          %{
@@ -79,7 +80,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            # dedupes at INSERT time via Tuist.Ingestion.DedupToken; nil for
            # a pre-event_id Kura, in which case dedup is skipped.
            event_id: optional_present_string(event, "event_id"),
-           client_kind: "bazel",
+           client_kind: event["client_kind"],
            operation: operation,
            outcome: outcome,
            action_digest: action_digest,
@@ -89,6 +90,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            observed_at: observed_at(event),
            invocation_id: optional_string(event, "invocation_id"),
            action_mnemonic: optional_string(event, "action_mnemonic"),
+           output_path: optional_output_path(event),
            target_label: optional_string(event, "target_label"),
            configuration_id: optional_string(event, "configuration_id"),
            project_id: project_id,
@@ -150,6 +152,13 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
 
   defp with_microsecond_precision(%DateTime{microsecond: {value, _precision}} = datetime) do
     %{datetime | microsecond: {value, 6}}
+  end
+
+  defp optional_output_path(event) do
+    case Map.get(event, "output_path") do
+      path when is_binary(path) and byte_size(path) <= 1024 -> path
+      _ -> ""
+    end
   end
 
   defp optional_string(event, key) do

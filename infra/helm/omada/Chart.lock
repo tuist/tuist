@@ -1,0 +1,6 @@
+dependencies:
+- name: omada-controller-helm
+  repository: oci://registry-1.docker.io/mbentley
+  version: 1.5.3
+digest: sha256:151a6d3f2da030ee2f7f275396e005b287d544d43a7b12b8afcf03da8f0fd228
+generated: "2026-09-22T14:13:57.568381+02:00"

@@ -21,47 +21,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .willReturn(localCacheStorage)
     }
 
-    @Test func uses_the_local_cache_and_warns_while_the_remote_cache_is_being_prepared() async throws {
-        // Given
-        let alertController = AlertController()
-        given(cacheStorageFactory)
-            .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.endpointBeingPrepared)
-
-        // When
-        _ = try await AlertController.$current.withValue(alertController) {
-            try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
-        }
-
-        // Then
-        verify(cacheStorageFactory)
-            .cacheLocalStorage()
-            .called(1)
-        #expect(
-            alertController.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is still being prepared.",
-            ]
-        )
-    }
-
-    @Test func warns_once_when_the_remote_cache_is_asked_for_more_than_once() async throws {
-        // Given
-        let alertController = AlertController()
-        given(cacheStorageFactory)
-            .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.endpointBeingPrepared)
-
-        // When
-        try await AlertController.$current.withValue(alertController) {
-            _ = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
-            _ = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
-        }
-
-        // Then
-        #expect(alertController.warnings().count == 1)
-    }
-
-    @Test func uses_the_local_cache_when_no_remote_cache_endpoint_is_available() async throws {
+    @Test func uses_the_local_cache_when_no_endpoint_is_discovered() async throws {
         // Given
         let alertController = AlertController()
         given(cacheStorageFactory)
@@ -84,8 +44,26 @@ struct CacheStorageFactoryingLocalFallbackTests {
         )
     }
 
+    @Test func warns_once_when_the_remote_cache_is_asked_for_more_than_once() async throws {
+        // Given
+        let alertController = AlertController()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(CacheURLStoreError.noEndpointsAvailable)
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            _ = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
+            _ = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
+        }
+
+        // Then
+        #expect(alertController.warnings().count == 1)
+    }
+
     @Test(arguments: [
         CacheURLStoreError.invalidURL("not a url") as Error,
+        CacheURLStoreError.invalidAccountHandle(nil),
         RefreshAuthTokenServiceError.unauthorized("Invalid token"),
     ])
     func rethrows_errors_that_waiting_does_not_fix(error: Error) async throws {

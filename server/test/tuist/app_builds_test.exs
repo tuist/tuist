@@ -124,6 +124,46 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "find_or_create_preview/1" do
+    test "mixed clients share one preview and the first nonblank notes are retained" do
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        release_notes: "Fix sign-in"
+      }
+
+      assert {:ok, first, :created} = AppBuilds.find_or_create_preview(Map.delete(attrs, :release_notes))
+      assert first.release_notes == nil
+      assert {:ok, annotated, :reused} = AppBuilds.find_or_create_preview(attrs)
+      assert first.id == annotated.id
+      assert annotated.release_notes == "Fix sign-in"
+
+      for legacy_attrs <- [
+            Map.delete(attrs, :release_notes),
+            %{attrs | release_notes: nil},
+            %{attrs | release_notes: ""},
+            %{attrs | release_notes: "  \n"},
+            %{attrs | release_notes: "Fix checkout"}
+          ] do
+        assert {:ok, reused, :reused} = AppBuilds.find_or_create_preview(legacy_attrs)
+        assert reused.id == first.id
+        assert reused.release_notes == "Fix sign-in"
+      end
+
+      assert length(Repo.all(Preview)) == 1
+    end
+
+    test "rejects release notes longer than 10000 characters" do
+      changeset = Preview.create_changeset(%Preview{}, %{project_id: 1, release_notes: String.duplicate("a", 10_001)})
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :release_notes)
+    end
+
     test "creates a new preview when none exists" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -748,6 +788,73 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "list_previews/1" do
+    test "searches release notes before choosing distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      matching =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          release_notes: "Build 204\nFix checkout",
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        release_notes: "Build 205",
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      AppBuildsFixtures.preview_fixture(release_notes: "Fix checkout")
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          search: "CHECKOUT",
+          distinct: [:bundle_identifier]
+        )
+
+      assert Enum.map(previews, & &1.id) == [matching.id]
+    end
+
+    test "selects the latest compatible platform before distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      compatible =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        supported_platforms: [:ios],
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          distinct: [:bundle_identifier],
+          supported_platforms: [:ios_simulator],
+          preload: [:app_builds]
+        )
+
+      assert Enum.map(previews, & &1.id) == [compatible.id]
+    end
+
     test "returns previews" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1200,6 +1307,50 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert result.id == preview_main.id
       assert result.git_branch == "main"
+    end
+
+    test "returns the latest branchless preview when the app build's preview has no git branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440005"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_main = AppBuildsFixtures.app_build_fixture(preview: preview_main)
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_two.id
     end
 
     test "returns not_found when binary_id does not exist" do

@@ -16,6 +16,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -73,7 +74,9 @@ defmodule TuistWeb.GradleBuildLive do
     cacheable = build.cacheable_tasks_count || 0
 
     socket
+    |> assign(:cache_work_avoided, Tuist.BuildMetrics.cache_work_avoided(build))
     |> assign(:build, build)
+    |> assign(:failure_category, Tuist.BuildMetrics.failure_category(build.project_id, "gradle", build.id))
     |> assign(:test_run, test_run)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)
@@ -87,6 +90,18 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
+    |> assign_open_graph(build, title)
+  end
+
+  defp assign_open_graph(socket, build, title) do
+    assign(
+      socket,
+      OpenGraph.project_image_assigns(socket.assigns.selected_project,
+        title: title,
+        subtitle: Enum.join(Enum.reject([build.git_branch, build.gradle_version], &(&1 in [nil, ""])), " · "),
+        badge: build.status |> to_string() |> String.capitalize()
+      )
+    )
   end
 
   @doc """

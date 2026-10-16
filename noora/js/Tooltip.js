@@ -48,6 +48,10 @@ export default {
       closeDelay: closeDelay,
       positioning: {
         placement: this.el.dataset.positioningPlacement,
+        // A table scrolls inside its own container, which would clip a
+        // tooltip positioned within it, so there it is positioned against
+        // the viewport, as the dropdown is.
+        strategy: this.el.closest(".noora-table") ? "fixed" : "absolute",
       },
       interactive: getBooleanOption(this.el, "interactive"),
       closeOnEscape: getBooleanOption(this.el, "closeOnEscape"),

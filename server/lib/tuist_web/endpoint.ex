@@ -72,7 +72,7 @@ defmodule TuistWeb.Endpoint do
   plug TuistCommon.RequestLoggerPlug
   plug TuistWeb.Plugs.RequestKindPlug
   plug TuistWeb.Plugs.SCIMErrorFormatPlug
-  plug Sentry.PlugContext
+  plug Sentry.PlugContext, header_scrubber: {__MODULE__, :scrub_sentry_headers}
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,
@@ -144,6 +144,8 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature",
     body_length: 512_000
 
+  plug TuistWeb.Plugs.OriginWebhookPlug
+
   plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
 
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
@@ -160,4 +162,11 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
   plug TuistWeb.Router
+
+  # Sentry only scrubs authorization, authentication and cookie by default.
+  def scrub_sentry_headers(conn) do
+    conn
+    |> Sentry.PlugContext.default_header_scrubber()
+    |> Map.drop(["x-tuist-actor-id" | TuistWeb.OperatorGrant.credential_headers()])
+  end
 end

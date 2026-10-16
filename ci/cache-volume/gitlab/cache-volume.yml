@@ -1,0 +1,8 @@
+# Include this file at an immutable commit, then reference the snippet before
+# dependency installation. CI variables are arguments, never interpolated code.
+.tuist-cache-volume:
+  before_script:
+    - |
+      : "${TUIST_VOLUME_KEY:?Set TUIST_VOLUME_KEY}"
+      : "${TUIST_VOLUME_PATH:?Set TUIST_VOLUME_PATH}"
+      tuist-cache-volume --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH"

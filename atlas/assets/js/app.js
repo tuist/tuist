@@ -2,6 +2,8 @@ import "../css/fonts.css"
 import "noora/noora.css"
 import "../css/routes/auth.css"
 import "../css/layouts/dashboard.css"
+import "../css/layouts/account.css"
+import "../css/routes/demo.css"
 import "../css/components/account_dropdown.css"
 import "../css/components/pagination.css"
 import "../css/components/widget.css"
@@ -34,11 +36,16 @@ import "../css/routes/financings.css"
 import "../css/routes/data_centers.css"
 import "../css/routes/insurance.css"
 import "../css/routes/notes.css"
+import "../css/routes/tasks.css"
+import "../css/routes/llm_providers.css"
+import "../css/routes/time_off.css"
 import "../css/routes/projects.css"
 import "../css/routes/domains.css"
 import "../css/routes/errors.css"
 import "../css/routes/postmortems.css"
 import "../css/routes/postmortem_public.css"
+import "../css/routes/poc_public.css"
+import "../css/routes/pocs.css"
 import "../css/routes/specs.css"
 
 import "phoenix_html"
@@ -52,11 +59,13 @@ import OriginalEmailPreview from "./hooks/original_email_preview"
 import ScreenshotPaste from "./hooks/screenshot_paste"
 import SearchPalette from "./hooks/search_palette"
 import Clipboard from "./hooks/clipboard"
+import MermaidDiagram from "./hooks/mermaid_diagram"
+import dateOnlyDatePicker from "./hooks/date_only_date_picker"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard},
+  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page

@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildController do
   alias Tuist.Bazel
   alias Tuist.Builds
   alias Tuist.Gradle
+  alias Tuist.Mix
   alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.Authentication
@@ -35,10 +36,14 @@ defmodule TuistWeb.BuildController do
   defp timeline_build(%{build_system: :xcode} = project, %{"build_run_id" => id}),
     do: Builds.get_build(id, project_id: project.id)
 
+  defp timeline_build(%{build_system: :mix} = project, %{"build_run_id" => id}), do: Mix.get_build(id, project.id)
+
   defp timeline_build(_project, _params), do: {:error, :not_found}
 
   defp timeline_metadata(%Builds.Build{} = build), do: Builds.build_timeline(build.id, duration: build.duration)
   defp timeline_metadata(%Gradle.Build{} = build), do: Gradle.Timeline.load(build, include_metrics: false)
+  defp timeline_metadata(%Mix.Build{} = build), do: Mix.Timeline.load(build, include_metrics: false)
+
   defp timeline_metadata(%Bazel.Invocation{} = build), do: build |> Bazel.Timeline.load() |> Map.delete(:machine_metrics)
 
   def download(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "build_run_id" => build_id}) do

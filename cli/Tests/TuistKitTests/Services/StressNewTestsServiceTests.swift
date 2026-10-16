@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistAlert
 import TuistCore
+import TuistGit
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -17,6 +18,8 @@ import XCResultParser
 struct StressNewTestsServiceTests {
     private let planService = MockCreateStressPlanServicing()
     private let xcResultService = MockXCResultServicing()
+    private let gitController = MockGitControlling()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let subject: StressNewTestsService
     private let serverURL = URL(string: "https://tuist.dev")!
 
@@ -24,8 +27,11 @@ struct StressNewTestsServiceTests {
         subject = StressNewTestsService(
             createStressPlanService: planService,
             xcResultService: xcResultService,
-            fileSystem: FileSystem()
+            fileSystem: FileSystem(),
+            gitController: gitController,
+            gitHistoryService: gitHistoryService
         )
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
     }
 
     private func summary(_ testCases: [TestCase]) -> TestSummary {
@@ -114,6 +120,52 @@ struct StressNewTestsServiceTests {
         #expect(result?.skipReason == .firstPassFailed)
         #expect(result?.blocks == false)
         verify(planService).createPlan(fullHandle: .any, serverURL: .any, testCases: .any).called(0)
+    }
+
+    @Test(.withMockedDependencies())
+    func publishesTheRunsGitHistoryBeforeAskingForThePlan() async throws {
+        // The plan reads which commits the default branch reached, and this run may be the first
+        // to have seen its newest one.
+        let events = EventLog()
+        let root = try AbsolutePath(validating: "/repo")
+        let gitInfo = GitInfo(ref: nil, branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
+        let gitController = MockGitControlling()
+        let gitHistoryService = MockGitHistoryServicing()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(root)
+        given(gitController).gitInfo(workingDirectory: .value(root)).willReturn(gitInfo)
+        given(gitHistoryService)
+            .publish(gitInfo: .value(gitInfo), workingDirectory: .value(root), fullHandle: .value("tuist/app"), serverURL: .any)
+            .willProduce { _, _, _, _ in
+                events.append("publish")
+                return nil
+            }
+        let stressPlan = plan(candidates: [])
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willProduce { _, _, _ in
+                events.append("plan")
+                return stressPlan
+            }
+        let subject = StressNewTestsService(
+            createStressPlanService: planService,
+            xcResultService: xcResultService,
+            fileSystem: FileSystem(),
+            gitController: gitController,
+            gitHistoryService: gitHistoryService
+        )
+
+        _ = await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(events.all == ["publish", "plan"])
     }
 
     @Test(.withMockedDependencies())
@@ -377,4 +429,15 @@ struct StressPassArgumentsTests {
 
         #expect(arguments == ["-parallel-testing-enabled", "YES", "-derivedDataPath", "/tmp/dd"])
     }
+}
+
+private final class EventLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func append(_ event: String) {
+        lock.withLock { events.append(event) }
+    }
+
+    var all: [String] { lock.withLock { events } }
 }

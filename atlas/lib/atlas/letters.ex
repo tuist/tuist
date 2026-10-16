@@ -23,6 +23,8 @@ defmodule Atlas.Letters do
   alias Atlas.Users
   alias Atlas.Users.User
 
+  require Logger
+
   def configured?, do: Config.configured?()
 
   def verify_webhook_signature(raw_body, signature) do
@@ -76,6 +78,27 @@ defmodule Atlas.Letters do
     {letters, %{total_count: meta.total_count || length(letters), has_next_page?: meta.has_next_page?}}
   end
 
+  def list_delivery_check_candidate_ids(opts \\ []) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    checked_before = DateTime.add(now, -300, :second)
+    sent_after = DateTime.add(now, -30 * 24 * 60 * 60, :second)
+    limit = opts |> Keyword.get(:limit, 100) |> min(100)
+
+    Letter
+    |> where([letter], not is_nil(letter.pingen_letter_id))
+    |> where(
+      [letter],
+      letter.status == "sending" or
+        (letter.status == "failed" and letter.pingen_status == "action_required") or
+        (letter.status == "sent" and letter.sent_at > ^sent_after)
+    )
+    |> where([letter], is_nil(letter.last_checked_at) or letter.last_checked_at < ^checked_before)
+    |> order_by([letter], asc_nulls_first: letter.last_checked_at, asc: letter.id)
+    |> limit(^limit)
+    |> select([letter], letter.id)
+    |> Repo.all()
+  end
+
   def list_letter_accounts do
     Letter
     |> join(:inner, [letter], account in assoc(letter, :account))
@@ -97,7 +120,8 @@ defmodule Atlas.Letters do
          {:ok, letter} <- build_tax_certificate_request(account, attrs, actor),
          {:ok, document} <- store_prepared_letter_document(letter, actor),
          {:ok, letter} <- insert_letter(letter, document),
-         :ok <- audit("letter.tax_certificate_prepared", letter, actor, %{"document_id" => document.id}) do
+         :ok <- audit("letter.tax_certificate_prepared", letter, actor, %{"document_id" => document.id}),
+         {:ok, letter} <- maybe_auto_sign_tax_certificate(letter, document, actor) do
       {:ok, preload_letter(letter)}
     else
       {:error, _reason} = error -> error
@@ -359,14 +383,10 @@ defmodule Atlas.Letters do
 
   def check_delivery(%Letter{} = letter, %User{} = actor) do
     with :ok <- authorize(actor),
-         pingen_letter_id when is_binary(pingen_letter_id) <- letter.pingen_letter_id,
-         {:ok, delivery} <- Pingen.get_letter(pingen_letter_id),
-         {:ok, updated} <- apply_provider_delivery(letter, delivery, "poll") do
+         {:ok, updated} <- refresh_delivery(letter) do
       audit("letter.delivery_checked", updated, actor, %{"pingen_status" => updated.pingen_status})
       {:ok, preload_letter(updated)}
     else
-      :disabled -> {:error, :postal_delivery_not_configured}
-      nil -> {:error, :letter_not_submitted}
       {:error, _reason} = error -> error
     end
   end
@@ -378,12 +398,52 @@ defmodule Atlas.Letters do
     end
   end
 
+  def sync_delivery(letter_id) when is_binary(letter_id) do
+    Audit.with_context(%{interface: "worker"}, fn ->
+      with %Letter{} = letter <- get_letter(letter_id),
+           {:ok, updated} <- refresh_delivery(letter) do
+        audit("letter.delivery_checked", updated, letter.created_by, %{"pingen_status" => updated.pingen_status},
+          interface: "worker"
+        )
+
+        {:ok, updated}
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+    end)
+  end
+
+  defp refresh_delivery(letter) do
+    with pingen_letter_id when is_binary(pingen_letter_id) <- letter.pingen_letter_id,
+         {:ok, delivery} <- Pingen.get_letter(pingen_letter_id) do
+      apply_provider_delivery(letter, delivery, "poll")
+    else
+      :disabled -> {:error, :postal_delivery_not_configured}
+      nil -> {:error, :letter_not_submitted}
+      {:error, _reason} = error -> error
+    end
+  end
+
   def deliver(letter_id) when is_binary(letter_id) do
     case get_letter(letter_id) do
-      nil -> {:error, :not_found}
-      %Letter{status: status} when status in ["sent", "delivered", "undeliverable"] -> :ok
-      %Letter{status: "queued"} = letter -> do_deliver(letter)
-      _letter -> {:error, :letter_not_ready_to_send}
+      nil ->
+        {:error, :not_found}
+
+      %Letter{status: status} when status in ["sent", "delivered", "undeliverable"] ->
+        :ok
+
+      # "sending" is retryable because a prior attempt may have crashed anywhere
+      # between the "sending" status update and persisting Pingen's response
+      # (letter id, tracking number). do_deliver/1 branches on
+      # pingen_letter_id: if the id is already stored we reconcile against
+      # Pingen instead of re-submitting, so replaying a "sending" letter
+      # cannot post the same physical letter twice.
+      %Letter{status: status} = letter when status in ["queued", "sending"] ->
+        do_deliver(letter)
+
+      _letter ->
+        {:error, :letter_not_ready_to_send}
     end
   end
 
@@ -410,6 +470,34 @@ defmodule Atlas.Letters do
   end
 
   def record_webhook(_payload), do: {:error, :invalid_payload}
+
+  # When a signatory JPEG is configured (ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64),
+  # the prepared PDF is already signed and dated, so we skip the manual "attach
+  # signed document" step and advance the letter to collecting_delivery_details,
+  # enqueuing delivery preparation the same way attach_letter_document does. The
+  # human still confirms via confirm_delivery/3 before Pingen mails anything.
+  defp maybe_auto_sign_tax_certificate(letter, document, actor) do
+    if TaxCertificateRequestPDF.signature_configured?() do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      with {:ok, updated} <-
+             update_letter(letter, %{
+               signed_document_id: document.id,
+               signed_uploaded_by_id: actor.id,
+               signed_uploaded_at: now,
+               status: "collecting_delivery_details"
+             }),
+           {:ok, _job} <- enqueue_delivery_preparation(updated),
+           :ok <-
+             audit("letter.tax_certificate_auto_signed", updated, actor, %{
+               "signed_document_id" => document.id
+             }) do
+        {:ok, updated}
+      end
+    else
+      {:ok, letter}
+    end
+  end
 
   defp build_tax_certificate_request(account, attrs, actor) do
     letter = new_tax_certificate_request(account, actor)
@@ -689,27 +777,46 @@ defmodule Atlas.Letters do
     |> Oban.insert()
   end
 
-  defp do_deliver(letter) do
-    with {:ok, sending} <- update_letter(letter, %{status: "sending", last_error: nil}),
-         {:ok, pdf} <- load_letter_pdf(sending),
-         {:ok, delivery} <- Pingen.send_letter(sending, pdf),
-         {:ok, delivered} <- apply_provider_delivery(sending, delivery, "submission") do
-      audit(
-        "letter.submitted",
-        delivered,
-        delivered.created_by,
-        %{
-          "pingen_letter_id" => delivered.pingen_letter_id,
-          "pingen_status" => delivered.pingen_status
-        },
-        interface: "worker"
-      )
-
+  defp do_deliver(%Letter{pingen_letter_id: pingen_letter_id} = letter) when is_binary(pingen_letter_id) do
+    # A prior attempt already handed this letter to Pingen but crashed before
+    # persisting the response. Reconcile against Pingen instead of running the
+    # upload+create flow again — Pingen's idempotency-key would return the same
+    # letter, but we would still burn a second file upload slot and confuse the
+    # provider-side audit trail.
+    with {:ok, delivery} <- Pingen.get_letter(pingen_letter_id),
+         {:ok, delivered} <- apply_provider_delivery(letter, delivery, "submission") do
+      audit_letter_submitted(delivered)
       {:ok, delivered}
     else
       :disabled -> fail_delivery(letter, :postal_delivery_not_configured)
       {:error, reason} -> fail_delivery(letter, reason)
     end
+  end
+
+  defp do_deliver(letter) do
+    with {:ok, sending} <- update_letter(letter, %{status: "sending", last_error: nil}),
+         {:ok, pdf} <- load_letter_pdf(sending),
+         {:ok, delivery} <- Pingen.send_letter(sending, pdf),
+         {:ok, delivered} <- apply_provider_delivery(sending, delivery, "submission") do
+      audit_letter_submitted(delivered)
+      {:ok, delivered}
+    else
+      :disabled -> fail_delivery(letter, :postal_delivery_not_configured)
+      {:error, reason} -> fail_delivery(letter, reason)
+    end
+  end
+
+  defp audit_letter_submitted(letter) do
+    audit(
+      "letter.submitted",
+      letter,
+      letter.created_by,
+      %{
+        "pingen_letter_id" => letter.pingen_letter_id,
+        "pingen_status" => letter.pingen_status
+      },
+      interface: "worker"
+    )
   end
 
   defp load_letter_pdf(%Letter{kind: "uploaded_letter", document_id: document_id}) when is_binary(document_id),
@@ -731,6 +838,10 @@ defmodule Atlas.Letters do
   end
 
   defp apply_provider_delivery(letter, delivery, source) do
+    with_locked_letter(letter.id, &update_provider_delivery(&1, delivery, source))
+  end
+
+  defp update_provider_delivery(letter, delivery, source) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     next_status = provider_status(delivery.status, letter.status)
 
@@ -742,7 +853,7 @@ defmodule Atlas.Letters do
         pingen_events: append_event(letter.pingen_events, provider_event(delivery, source, now)),
         last_checked_at: now,
         status: next_status,
-        last_error: nil
+        last_error: provider_last_error(next_status, delivery.status)
       }
       |> Map.merge(provider_status_timestamp_attrs(next_status, delivery, letter, now))
 
@@ -750,6 +861,23 @@ defmodule Atlas.Letters do
   end
 
   defp apply_webhook(letter, payload) do
+    with_locked_letter(letter.id, &update_webhook(&1, payload))
+  end
+
+  defp with_locked_letter(id, update) do
+    Repo.transact(fn ->
+      Letter
+      |> where([letter], letter.id == ^id)
+      |> lock("FOR UPDATE")
+      |> Repo.one()
+      |> case do
+        nil -> {:error, :not_found}
+        letter -> letter |> preload_letter() |> update.()
+      end
+    end)
+  end
+
+  defp update_webhook(letter, payload) do
     data = payload["data"] || %{}
     attributes = data["attributes"] || %{}
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -775,18 +903,32 @@ defmodule Atlas.Letters do
   end
 
   defp fail_delivery(letter, reason) do
-    case update_letter(letter, %{status: "failed", last_error: inspect(reason), last_checked_at: DateTime.utc_now()}) do
+    # last_checked_at is :utc_datetime, which rejects microseconds; without
+    # truncation the whole update raises and the letter stays wedged mid-flight
+    # with no failure audit and no last_error recorded.
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    case update_letter(letter, %{status: "failed", last_error: inspect(reason), last_checked_at: now}) do
       {:ok, failed} ->
         audit("letter.delivery_failed", failed, failed.created_by, %{"reason" => inspect(reason)}, interface: "worker")
         {:error, reason}
 
-      {:error, changeset} ->
-        {:error, changeset}
+      {:error, %Ecto.Changeset{} = changeset} ->
+        # Persisting the failure itself failed (constraint / type mismatch).
+        # Log the changeset errors and return the ORIGINAL provider reason so
+        # the SendLetter worker's Oban.PerformError carries the provider
+        # failure, not an opaque changeset that would obscure the root cause
+        # in the job's error history.
+        Logger.error(
+          "Letter #{letter.id}: failed to persist delivery failure after #{inspect(reason)}: #{inspect(changeset.errors)}"
+        )
+
+        {:error, reason}
     end
   end
 
   defp webhook_letter_id(%{"data" => %{"relationships" => relationships}}) when is_map(relationships) do
-    case get_in(relationships, ["letter", "data", "id"]) do
+    case get_in(relationships, ["deliverable", "data", "id"]) || get_in(relationships, ["letter", "data", "id"]) do
       id when is_binary(id) and id != "" -> {:ok, id}
       _ -> {:error, :missing_letter_id}
     end
@@ -802,13 +944,18 @@ defmodule Atlas.Letters do
       provider_status in ["webhook_delivered", "delivered"] -> "delivered"
       provider_status in ["webhook_undeliverable", "undeliverable"] -> "undeliverable"
       provider_status in ["webhook_sent", "sent", "submitted", "dispatched"] -> "sent"
-      provider_status in ["webhook_issues", "failed", "error", "cancelled"] -> "failed"
+      provider_status in ["webhook_issues", "action_required", "failed", "error", "cancelled"] -> "failed"
+      current_status == "sent" -> "sent"
       true -> "sending"
     end
   end
 
+  defp provider_last_error("failed", "action_required"), do: "Pingen requires action before sending this letter."
+  defp provider_last_error("failed", status), do: "Pingen reported #{status}."
+  defp provider_last_error(_status, _provider_status), do: nil
+
   defp provider_status_timestamp_attrs("sent", delivery, letter, now),
-    do: %{sent_at: delivery.submitted_at || letter.sent_at || now}
+    do: %{sent_at: letter.sent_at || delivery.submitted_at || now}
 
   defp provider_status_timestamp_attrs("delivered", delivery, letter, now),
     do: %{delivered_at: delivery.delivered_at || letter.delivered_at || now}

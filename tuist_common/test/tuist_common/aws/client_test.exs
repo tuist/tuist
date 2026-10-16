@@ -158,5 +158,39 @@ defmodule TuistCommon.AWS.ClientTest do
       Application.delete_env(:tuist_common, :finch_name)
       Application.delete_env(:ex_aws, :req_opts)
     end
+
+    test "returns error tuple when the Finch pool has no connection available" do
+      # The listener never responds, so the pool's only connection stays checked out.
+      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, active: false])
+      {:ok, port} = :inet.port(listen_socket)
+      url = "http://127.0.0.1:#{port}"
+
+      start_supervised!({Finch, name: PoolTimeoutFinch, pools: %{url => [size: 1, count: 1]}})
+      Application.put_env(:tuist_common, :finch_name, PoolTimeoutFinch)
+      Application.put_env(:ex_aws, :req_opts, retry: false)
+
+      spawn_link(fn ->
+        Req.request(url: url, finch: PoolTimeoutFinch, retry: false, receive_timeout: 5_000)
+      end)
+
+      Process.sleep(100)
+
+      assert {:error, %{reason: :pool_timeout}} = Client.request(:get, url, "", [], pool_timeout: 50)
+    after
+      Application.delete_env(:tuist_common, :finch_name)
+      Application.delete_env(:ex_aws, :req_opts)
+    end
+
+    test "reraises other runtime errors" do
+      Application.put_env(:tuist_common, :finch_name, TestFinch)
+      Application.put_env(:ex_aws, :req_opts, [])
+
+      expect(Req, :request, fn _opts -> raise "boom" end)
+
+      assert_raise RuntimeError, "boom", fn -> Client.request(:get, "https://example.com") end
+    after
+      Application.delete_env(:tuist_common, :finch_name)
+      Application.delete_env(:ex_aws, :req_opts)
+    end
   end
 end

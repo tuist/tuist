@@ -243,6 +243,50 @@ struct UploadBuildRunServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func includesTheXcodeCacheLogInTheArchive() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")
+        try await fileSystem.writeText("fake", at: activityLogPath)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let casLogPath = temporaryDirectory.appending(component: "cas.log")
+        try await fileSystem.writeText("proxy resolve failed: unavailable\n", at: casLogPath)
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_CAS_LOG"] = casLogPath.pathString
+
+        let uploadedArchive = temporaryDirectory.appending(component: "uploaded.zip")
+        uploadBuildService.reset()
+        given(uploadBuildService)
+            .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
+            .willProduce { _, _, _, filePath in
+                try? FileManager.default.copyItem(at: filePath.url, to: uploadedArchive.url)
+            }
+
+        try await subject.uploadBuildRun(
+            activityLogPath: activityLogPath,
+            projectPath: projectPath,
+            config: Tuist.test(fullHandle: "tuist/tuist")
+        )
+
+        let unzipped = try await FileArchivingFactory().makeFileUnarchiver(for: uploadedArchive).unzip()
+        #expect(
+            try await fileSystem.readTextFile(at: unzipped.appending(component: "cas.log"))
+                == "proxy resolve failed: unavailable\n"
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func copiesTheXcodeCacheLogTailFromALineBoundary() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let source = temporaryDirectory.appending(component: "cas.log")
+        let destination = temporaryDirectory.appending(component: "tail.log")
+        try await fileSystem.writeText("first line\nsecond line\nthird line\n", at: source)
+
+        try UploadBuildRunService.copyTail(of: source, maxBytes: 16, to: destination)
+
+        #expect(try await fileSystem.readTextFile(at: destination) == "third line\n")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func throwsWhenNoFullHandle() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")

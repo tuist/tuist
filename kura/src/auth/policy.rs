@@ -66,6 +66,27 @@ pub fn payment_required(request: &ResolvedRequest<'_>) -> DenyDecision {
     }
 }
 
+/// The 402 an account answers with when it lost its paid plan to a failed
+/// subscription payment. Upgrading does not fix that, settling the payment does.
+pub fn payment_failed(request: &ResolvedRequest<'_>) -> DenyDecision {
+    DenyDecision {
+        status: 402,
+        message: format!(
+            "A payment for the subscription of the account '{}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice on the account's billing page to restore access.",
+            request.target.account
+        ),
+    }
+}
+
+/// The 402 for whichever billing refusal `access` is.
+pub fn payment_refusal(access: Access, request: &ResolvedRequest<'_>) -> DenyDecision {
+    if access == Access::PaymentFailed {
+        payment_failed(request)
+    } else {
+        payment_required(request)
+    }
+}
+
 /// The 401 an invalid credential answers with.
 pub fn invalid_credential() -> DenyDecision {
     DenyDecision {
@@ -254,7 +275,7 @@ fn from_verified_claims(
     // rejects a credential the grants do not cover. Falling through would send
     // the caller to introspection, and a cache token is not an API credential
     // there, so the answer would come back 401 and the reason would be lost.
-    if level == Access::PaymentRequired {
+    if level.is_payment_refusal() {
         return Some(level);
     }
 
@@ -301,7 +322,7 @@ async fn via_introspection(
         // Terminal here for the same reason it is terminal on locally verified
         // claims: it sits below `Read`, so it would otherwise read as a level
         // that simply did not reach far enough and send the caller on again.
-        if level == Access::PaymentRequired {
+        if level.is_payment_refusal() {
             return Authentication::Access(level);
         }
 
@@ -341,10 +362,10 @@ async fn via_cache_access(
             // it authorized on its own.
             let level = if covered {
                 Access::ReadWrite
-            } else if CacheGrants::from_body(&response.body).payment_required_for(target) {
-                Access::PaymentRequired
             } else {
-                floor
+                CacheGrants::from_body(&response.body)
+                    .payment_refusal_for(target)
+                    .unwrap_or(floor)
             };
             Authentication::Access(level)
         }

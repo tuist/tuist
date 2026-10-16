@@ -48,7 +48,7 @@ const (
 // without touching a box.
 //
 // A default that already mounts /data is left in place and only forced to XFS,
-// the same minimal override the Dedibox path makes, since the shape is already
+// a minimal override, since the shape is already
 // right and only the filesystem stops it carrying quotas.
 func PlanSchema(def *baremetal.Schema) (*baremetal.Schema, error) {
 	if def == nil || len(def.Disks) == 0 || len(def.Filesystems) == 0 {

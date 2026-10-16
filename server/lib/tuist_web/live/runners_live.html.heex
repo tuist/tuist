@@ -106,7 +106,9 @@
     </.date_picker>
   </div>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@jobs_count, @jobs_duration, @workflows_duration]}
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
@@ -122,15 +124,15 @@
             "Workflow jobs received from GitHub in the selected window."
           )
         }
-        value={if @jobs_count.ok?, do: format_number(@jobs_count.result.count)}
-        loading={!@jobs_count.ok?}
+        value={if ready?, do: format_number(@jobs_count.result.count)}
+        loading={!ready?}
         selected={@analytics_selected_widget == "total_jobs"}
         phx_click="select_widget"
         phx_value_widget="total_jobs"
-        trend_value={if @jobs_count.ok?, do: @jobs_count.result.trend}
+        trend_value={if ready?, do: @jobs_count.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@jobs_count.ok? && @jobs_count.result.count == 0}
+        empty={ready? && @jobs_count.result.count == 0}
       />
       <.percentile_dropdown_widget
         id="widget-job-duration"
@@ -146,7 +148,7 @@
           dgettext("dashboard_runners", "Time each job takes from start to completion.")
         }
         value={
-          if @jobs_duration.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @jobs_duration.result,
@@ -156,25 +158,25 @@
           end
         }
         metrics={
-          if @jobs_duration.ok?,
+          if ready?,
             do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
         }
         selected_type={@job_duration_percentile}
         event_name="select_job_duration_percentile"
-        loading={!@jobs_duration.ok?}
+        loading={!ready?}
         legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
         selected={@analytics_selected_widget == "job_duration"}
         phx_click="select_widget"
         phx_value_widget="job_duration"
         trend_value={
-          if @jobs_duration.ok? do
+          if ready? do
             TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
           end
         }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={
-          @jobs_duration.ok? &&
+          ready? &&
             TuistWeb.RunnersLive.percentile_value(@jobs_duration.result, @job_duration_percentile) in [
               nil,
               0
@@ -198,7 +200,7 @@
           )
         }
         value={
-          if @workflows_duration.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @workflows_duration.result,
@@ -208,12 +210,12 @@
           end
         }
         metrics={
-          if @workflows_duration.ok?,
+          if ready?,
             do: TuistWeb.RunnersLive.percentile_metrics_for(@workflows_duration.result)
         }
         selected_type={@workflow_duration_percentile}
         event_name="select_workflow_duration_percentile"
-        loading={!@workflows_duration.ok?}
+        loading={!ready?}
         legend_color={
           TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)
         }
@@ -221,7 +223,7 @@
         phx_click="select_widget"
         phx_value_widget="workflow_duration"
         trend_value={
-          if @workflows_duration.ok? do
+          if ready? do
             TuistWeb.RunnersLive.percentile_trend(
               @workflows_duration.result,
               @workflow_duration_percentile
@@ -231,7 +233,7 @@
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={
-          @workflows_duration.ok? &&
+          ready? &&
             TuistWeb.RunnersLive.percentile_value(
               @workflows_duration.result,
               @workflow_duration_percentile
@@ -239,9 +241,9 @@
         }
       />
     </div>
-    <.card_section data-part="analytics-card-chart-section">
+    <.card_section data-part="analytics-card-chart-section" data-chart-frame="standard">
       <%= cond do %>
-        <% @analytics_selected_widget == "total_jobs" and !@jobs_count.ok? -> %>
+        <% @analytics_selected_widget == "total_jobs" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "total_jobs" -> %>
           <.chart
@@ -268,7 +270,7 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
+        <% @analytics_selected_widget == "job_duration" and !ready? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "job_duration" -> %>
           <.chart
@@ -283,7 +285,7 @@
             series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
+        <% @analytics_selected_widget == "workflow_duration" and !ready? -> %>
           <.skeleton_chart />
         <% true -> %>
           <.chart
@@ -300,9 +302,11 @@
           />
       <% end %>
     </.card_section>
-  </.card>
+  </.async_card>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@concurrency_usage]}
     title={dgettext("dashboard_runners", "Concurrency")}
     icon="server"
     data-part="concurrency-card"
@@ -324,12 +328,12 @@
         </.dropdown_item>
       </.dropdown>
     </:actions>
-    <div :if={!@concurrency_usage.ok?} data-part="concurrency-platforms">
-      <.card_section :for={_ <- 1..2} data-part="concurrency-chart">
+    <div :if={!ready?} data-part="concurrency-platforms">
+      <.card_section :for={_ <- 1..2} data-part="concurrency-chart" data-chart-frame="standard">
         <.skeleton_chart />
       </.card_section>
     </div>
-    <div :if={@concurrency_usage.ok?} data-part="concurrency-platforms">
+    <div :if={ready?} data-part="concurrency-platforms">
       <.card_section
         :for={
           chart <-
@@ -340,6 +344,7 @@
             )
         }
         data-part="concurrency-chart"
+        data-chart-frame="standard"
       >
         <div data-part="concurrency-chart-header">
           <div>
@@ -365,7 +370,7 @@
         />
       </.card_section>
     </div>
-  </.card>
+  </.async_card>
 
   <.card
     title={dgettext("dashboard_runners", "Recent workflows")}
@@ -384,6 +389,7 @@
     <.card_section
       :if={not Enum.empty?(@recent_workflow_runs)}
       data-part="recent-workflows-section"
+      data-chart-frame="standard"
     >
       <div data-part="recent-workflows-chart">
         <div data-part="legends">
@@ -543,6 +549,7 @@
     <.card_section
       :if={not Enum.empty?(@recent_jobs)}
       data-part="recent-jobs-section"
+      data-chart-frame="standard"
     >
       <div data-part="recent-jobs-chart">
         <div data-part="legends">

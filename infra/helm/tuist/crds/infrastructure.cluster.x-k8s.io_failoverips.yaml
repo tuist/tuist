@@ -86,7 +86,6 @@ spec:
                   description: Vendor is the provider whose API moves the IP.
                   enum:
                     - ovh
-                    - dedibox
                   type: string
               required:
                 - ip
@@ -106,9 +105,7 @@ spec:
                   description: Message surfaces the last reconcile outcome (e.g. "no eligible box").
                   type: string
                 target:
-                  description: |-
-                    Target is the vendor-opaque destination (OVH service name, or Dedibox
-                    "zone/server-id") the IP routes to.
+                  description: Target is the OVH service name the IP routes to.
                   type: string
               type: object
           type: object

@@ -76,7 +76,7 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 	if len(exprs) != 1 {
 		t.Fatalf("match expressions = %d, want 1", len(exprs))
 	}
-	if got, want := exprs[0].Key, goldenNodeAffinityKey(p.Spec.Image); got != want {
+	if got, want := exprs[0].Key, GoldenNodeAffinityKey(p.Spec.Image); got != want {
 		t.Fatalf("affinity key = %q, want %q", got, want)
 	}
 	if exprs[0].Operator != corev1.NodeSelectorOpExists {
@@ -102,8 +102,8 @@ func TestBuild_LinuxHasNoGoldenAffinity(t *testing.T) {
 func TestGoldenNodeAffinityKey_MatchesTartKubelet(t *testing.T) {
 	img := "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64)
 	const wantKey = "tuist.dev/golden-9c8af651fdf30b10"
-	if got := goldenNodeAffinityKey(img); got != wantKey {
-		t.Fatalf("goldenNodeAffinityKey = %q, want %q", got, wantKey)
+	if got := GoldenNodeAffinityKey(img); got != wantKey {
+		t.Fatalf("GoldenNodeAffinityKey = %q, want %q", got, wantKey)
 	}
 }
 
@@ -900,5 +900,98 @@ func TestReservationValueFallsBackToADigestForUnusableNames(t *testing.T) {
 	}
 	if ReservationValue(long) != got {
 		t.Fatalf("ReservationValue must be deterministic")
+	}
+}
+
+func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pod := build(t, pool)
+	dind := initContainer(t, pod, "dind")
+	if !strings.Contains(strings.Join(dind.Args, " "), "tuist-cache-volume mount-server "+workPath+"/.tuist-cache-mount.sock "+workPath+"/_tuist_cache") {
+		t.Fatal("missing pod-scoped mount broker")
+	}
+	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {
+		t.Fatal("runner can start before mount broker")
+	}
+	if pod.Spec.ShareProcessNamespace != nil && *pod.Spec.ShareProcessNamespace {
+		t.Fatal("volume mounting exposes other sidecars' process namespaces")
+	}
+	found := false
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == "cache-volumes" {
+			found = true
+			if v.HostPath == nil || v.HostPath.Path != "/var/lib/cache/pods" {
+				t.Fatalf("wrong source: %+v", v)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("missing volume")
+	}
+	check := func(c corev1.Container, want bool) {
+		t.Helper()
+		found := false
+		for _, m := range c.VolumeMounts {
+			if m.Name == "cache-volumes" {
+				found = true
+				if m.SubPathExpr != "$(TUIST_CACHE_VOLUME_UID)" || m.MountPath != workPath+"/_tuist_cache" {
+					t.Fatalf("unscoped cache mount in %s: %+v", c.Name, m)
+				}
+			}
+		}
+		if found != want {
+			t.Fatalf("cache visibility in %s = %t", c.Name, found)
+		}
+	}
+	for _, c := range pod.Spec.Containers {
+		check(c, c.Name == "runner")
+	}
+	for _, c := range pod.Spec.InitContainers {
+		check(c, c.Name == "dind")
+	}
+	for _, c := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
+		if c.Name == "runner" || c.Name == "dind" {
+			found := false
+			for _, e := range c.Env {
+				if e.Name == "TUIST_CACHE_VOLUME_UID" && e.ValueFrom.FieldRef.FieldPath == "metadata.uid" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("missing UID subpath source")
+			}
+		}
+	}
+	pool.Spec.RuntimeClass = "runc"
+	if _, err := Build(pool, "p", "sa", "url", "", "", "", "", ""); err == nil {
+		t.Fatal("accepted cache mounts outside Kata")
+	}
+}
+
+func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pod := build(t, pool)
+	if _, exists := pod.Spec.NodeSelector["tuist.dev/linux-cache-volumes"]; exists {
+		t.Fatal("cache readiness blocks ordinary jobs")
+	}
+	if pod.Spec.NodeSelector["node.cluster.x-k8s.io/pool"] != pool.Spec.FleetSelector {
+		t.Fatal("lost fleet isolation")
+	}
+	affinity := pod.Spec.Affinity.NodeAffinity
+	if affinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		t.Fatal("cache readiness is required")
+	}
+	preferences := affinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(preferences) != 1 || preferences[0].Preference.MatchExpressions[0].Key != "tuist.dev/linux-cache-volumes" {
+		t.Fatal("missing readiness preference", preferences)
+	}
+	pool.Spec.CacheVolumeRoot = ""
+	pool.Spec.CacheVolumeURL = ""
+	if build(t, pool).Spec.Affinity != nil {
+		t.Fatal("changed scheduling for disabled cache fleet")
 	}
 }

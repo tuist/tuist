@@ -61,6 +61,21 @@ func (in *KuraInstanceList) DeepCopyObject() runtime.Object {
 
 func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 	*out = *in
+	if in.PlannedHandover != nil {
+		out.PlannedHandover = new(PlannedHandoverRequest)
+		*out.PlannedHandover = *in.PlannedHandover
+	}
+	if in.PrimaryPromotion != nil {
+		out.PrimaryPromotion = new(PrimaryPromotionRequest)
+		*out.PrimaryPromotion = *in.PrimaryPromotion
+	}
+	if in.ReplicaRecovery != nil {
+		out.ReplicaRecovery = new(ReplicaRecoveryRequest)
+		*out.ReplicaRecovery = *in.ReplicaRecovery
+	}
+	if in.ClientHostAliases != nil {
+		out.ClientHostAliases = append([]string{}, in.ClientHostAliases...)
+	}
 	if in.Replicas != nil {
 		out.Replicas = new(int32)
 		*out.Replicas = *in.Replicas
@@ -103,6 +118,9 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			out.MeshPublicPeerLoadBalancerAnnotations[key] = value
 		}
 	}
+	if in.NodeLocalNetwork != nil {
+		out.NodeLocalNetwork = in.NodeLocalNetwork.DeepCopy()
+	}
 }
 
 func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
@@ -116,6 +134,14 @@ func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
 
 func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	*out = *in
+	if in.ReplicaRecovery != nil {
+		out.ReplicaRecovery = new(ReplicaRecoveryStatus)
+		*out.ReplicaRecovery = *in.ReplicaRecovery
+	}
+	if in.StableEndpoint != nil {
+		out.StableEndpoint = new(StableEndpointStatus)
+		*out.StableEndpoint = *in.StableEndpoint
+	}
 	if in.EndpointLastCheckedAt != nil {
 		out.EndpointLastCheckedAt = in.EndpointLastCheckedAt.DeepCopy()
 	}
@@ -146,6 +172,13 @@ func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
 
 func (in *KuraInstanceCPUAutosize) DeepCopyInto(out *KuraInstanceCPUAutosize) {
 	*out = *in
+	if in.SamplesMilli != nil {
+		out.SamplesMilli = make([]int32, len(in.SamplesMilli))
+		copy(out.SamplesMilli, in.SamplesMilli)
+	}
+	if in.SampledAt != nil {
+		out.SampledAt = in.SampledAt.DeepCopy()
+	}
 	if in.BucketStartedAt != nil {
 		out.BucketStartedAt = in.BucketStartedAt.DeepCopy()
 	}
@@ -192,6 +225,23 @@ func (in *KuraInstancePeerRole) DeepCopy() *KuraInstancePeerRole {
 		return nil
 	}
 	out := new(KuraInstancePeerRole)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *NodeLocalNetwork) DeepCopyInto(out *NodeLocalNetwork) {
+	*out = *in
+	if in.Nameservers != nil {
+		out.Nameservers = make([]string, len(in.Nameservers))
+		copy(out.Nameservers, in.Nameservers)
+	}
+}
+
+func (in *NodeLocalNetwork) DeepCopy() *NodeLocalNetwork {
+	if in == nil {
+		return nil
+	}
+	out := new(NodeLocalNetwork)
 	in.DeepCopyInto(out)
 	return out
 }

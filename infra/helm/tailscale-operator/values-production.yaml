@@ -14,11 +14,33 @@ connector:
   tags:
     - "tag:tuist-k8s-production"
 
+tailnetIngress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-production"
+
 macminiEgress:
   enabled: true
   proxyGroup:
     tags:
       - "tag:tuist-k8s-production"
+    # For the BER1 rack, which belongs to this cluster. Its Mac minis have no
+    # tailnet identity until bootstrap installs one, so the operator's first
+    # dial goes to each one's address on the rack's machines segment, and the
+    # RackPDU and RackATS controllers dial the power cards on its management
+    # LAN, all through the rack's edges as subnet routers. These proxies have
+    # to install those routes to forward to them: measured in staging on
+    # 2026-09-09, with this off the proxy saw the advertised /32 but answered
+    # `no matching peer`, and the egress Service resolved while every
+    # connection to it hung.
+    #
+    # They also install every other route the tailnet carries, staging's
+    # Connector's 10.128.0.0/12 included, which is this cluster's Service CIDR
+    # too. Cilium resolves a Service at connect() (kubeProxyReplacement), so a
+    # proxy's own Service traffic never reaches the routing table; check with
+    # `ip route show table 52` in a proxy after this rolls out.
+    acceptRoutes: true
   # Per-machine Services are created dynamically by the CAPI
   # provider — see macosFleet.tailscaleEgress in the main tuist
   # chart's values-managed-common.yaml.

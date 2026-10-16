@@ -1,0 +1,211 @@
+<div id="coverage-file-page">
+  <.button
+    label={@back.label}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={@back.href}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="kind" data-kind="file">
+          <div data-part="icon"><.file /></div>
+        </div>
+        <h1 data-part="label">{Path.basename(@path)}</h1>
+      </div>
+      <.link_button
+        :if={@commit}
+        navigate={
+          "/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/files/#{encode_path(@path)}"
+        }
+        label={dgettext("dashboard_tests", "File: %{name}", name: Path.basename(@path))}
+        size="large"
+        underline
+        data-part="file-link"
+      >
+        <:icon_left><.file /></:icon_left>
+      </.link_button>
+      <div :if={parent_dir(@path) || @commit} data-part="badges">
+        <.badge
+          :if={parent_dir(@path)}
+          label={parent_dir(@path)}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@commit}
+          label={short_sha(@commit)}
+          color="information"
+          style="light-fill"
+          size="large"
+          data-part="commit"
+        />
+      </div>
+    </div>
+    <div :if={is_nil(@commit)} data-part="filters">
+      <.coverage_period_picker
+        id="coverage-date-range-picker"
+        selected_preset={@coverage_preset}
+        period={@coverage_period}
+      />
+    </div>
+  </div>
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="120px" />
+    <.skeleton_box width="100%" height="320px" />
+  </div>
+
+  <.card
+    :if={not @loading and is_nil(@file)}
+    title={dgettext("dashboard_tests", "Analytics")}
+    icon="chart_arcs"
+    data-part="file-empty"
+  >
+    <.coverage_empty
+      title={
+        if @commit,
+          do:
+            dgettext("dashboard_tests", "Commit %{sha} has no coverage for this file",
+              sha: short_sha(@commit)
+            ),
+          else:
+            dgettext(
+              "dashboard_tests",
+              "The latest complete commit on %{branch} in this period has no coverage for this file",
+              branch: @branch
+            )
+      }
+      image="table"
+    />
+  </.card>
+
+  <.coverage_file_view :if={not @loading and @file} file={@file} branch={@branch} trend={@trend} />
+
+  <.card
+    :if={(not @loading and @file) && @file.functions != []}
+    title={dgettext("dashboard_tests", "Functions")}
+    icon="list_tree"
+    data-part="file-functions-card"
+  >
+    <.card_section data-part="file-functions-section">
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="coverage-functions-search-form"
+          phx-change="search-functions"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-coverage-functions"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@functions_search}
+          />
+        </.form>
+        <.dropdown
+          id="coverage-functions-sort-by"
+          data-positioning-strategy="fixed"
+          label={
+            Enum.find_value(function_sorts(), fn {value, label} ->
+              if value == @functions_sort_by, do: label
+            end)
+          }
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={{value, label} <- function_sorts()}
+            value={value}
+            label={label}
+            patch={
+              "?#{@uri.query |> Query.put("functions-sort-by", value) |> Query.drop("functions-sort-order") |> Query.drop("page")}"
+            }
+            data-selected={@functions_sort_by == value}
+          >
+            <:right_icon :if={@functions_sort_by == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <div data-part="functions-table">
+        <.table id="coverage-functions-table" rows={@function_rows}>
+          <:col
+            :let={function}
+            label={dgettext("dashboard_tests", "Function")}
+            patch={@functions_sort_by == "name" && functions_sort_patch(assigns, "name")}
+            sort_order={@functions_sort_by == "name" && @functions_sort_order}
+          >
+            <.text_cell label={function.name} />
+          </:col>
+          <:col
+            :let={function}
+            label={dgettext("dashboard_tests", "Line")}
+            patch={@functions_sort_by == "line" && functions_sort_patch(assigns, "line")}
+            sort_order={@functions_sort_by == "line" && @functions_sort_order}
+          >
+            <.text_cell label={Integer.to_string(function.line_number)} />
+          </:col>
+          <:col
+            :let={function}
+            label={dgettext("dashboard_tests", "Covered lines")}
+            patch={
+              @functions_sort_by == "covered_lines" &&
+                functions_sort_patch(assigns, "covered_lines")
+            }
+            sort_order={@functions_sort_by == "covered_lines" && @functions_sort_order}
+          >
+            <.text_cell label={
+              "#{if function.covered_lines, do: format_number(function.covered_lines), else: "—"} / #{format_number(function.executable_lines)}"
+            } />
+          </:col>
+          <:col
+            :let={function}
+            label={dgettext("dashboard_tests", "Executions")}
+            patch={
+              @functions_sort_by == "executions" && functions_sort_patch(assigns, "executions")
+            }
+            sort_order={@functions_sort_by == "executions" && @functions_sort_order}
+          >
+            <.text_cell label={format_number(function.execution_count)} />
+          </:col>
+          <:col
+            :let={function}
+            label={dgettext("dashboard_tests", "Coverage")}
+            patch={@functions_sort_by == "coverage" && functions_sort_patch(assigns, "coverage")}
+            sort_order={@functions_sort_by == "coverage" && @functions_sort_order}
+          >
+            <.text_cell
+              :if={is_nil(function.covered_lines)}
+              label={dgettext("dashboard_tests", "Unavailable")}
+            />
+            <.coverage_cell
+              :if={function.covered_lines}
+              covered={function.covered_lines}
+              executable={function.executable_lines}
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="list_tree"
+              title={dgettext("dashboard_tests", "No function matches this search")}
+              subtitle={dgettext("dashboard_tests", "Try updating your search")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@functions_meta.total_pages > 1}
+          current_page={@functions_meta.current_page}
+          number_of_pages={@functions_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </div>
+    </.card_section>
+  </.card>
+</div>

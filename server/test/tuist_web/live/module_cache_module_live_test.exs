@@ -68,7 +68,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
     {:ok, lv, _html} = live(conn, path)
     render_async(lv, 2000)
-    assert has_element?(lv, "[data-part=analytics-error]")
+    assert has_element?(lv, "[data-part=analytics][data-state=failed] [data-error]")
     assert has_element?(lv, "[data-part=error]")
 
     expect(Analytics, :module_build_history, fn _opts -> empty_history() end)
@@ -76,7 +76,8 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     expect(Analytics, :cache_branches, fn _opts -> [] end)
     render_patch(lv, path <> "?miss-reason=cold")
     render_async(lv, 2000)
-    refute has_element?(lv, "[data-part=analytics-error]")
+    refute has_element?(lv, "[data-part=analytics] [data-error]")
+    assert has_element?(lv, "[data-part=analytics][data-state=ready]")
     refute has_element?(lv, "[data-part=error]")
     assert has_element?(lv, "#module-cache-activity-chart")
   end
@@ -389,7 +390,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
     render_async(lv, 2000)
 
-    assert has_element?(lv, ~s([data-part="analytics"] [data-part="analytics-error"]))
+    assert has_element?(lv, "[data-part=analytics][data-state=failed] [data-error]")
     refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
     refute has_element?(lv, "[data-part=\"analytics-chart-section\"]")
 

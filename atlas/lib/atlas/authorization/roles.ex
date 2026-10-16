@@ -14,7 +14,7 @@ defmodule Atlas.Authorization.Roles do
 
   @executive_slug "executive"
   @member_slug "member"
-  @member_excluded_areas ~w(finance documents admin)
+  @member_excluded_areas ~w(finance documents admin time_off_approvals)
 
   def executive_slug, do: @executive_slug
   def member_slug, do: @member_slug
@@ -100,8 +100,8 @@ defmodule Atlas.Authorization.Roles do
   end
 
   @doc """
-  Ensure the seeded `executive` role exists and carries every scope. Used both
-  by the roles migration and as a safety net at boot.
+  Ensure the `executive` role exists and carries every scope. Used by demo
+  seeds and the operator's first-administrator initialization.
   """
   def ensure_executive_role! do
     scopes = Authorization.executive_scopes()
@@ -127,8 +127,8 @@ defmodule Atlas.Authorization.Roles do
 
   @doc """
   Ensure the seeded `member` role exists. It carries every scope except those
-  in `@member_excluded_areas` (currently `finance` and `documents`, which hold
-  payroll and other sensitive material).
+  in `@member_excluded_areas`: finance, documents, administration, and holiday
+  approvals. Approval permission belongs to executives by default.
   """
   def ensure_member_role! do
     scopes =

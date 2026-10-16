@@ -1,10 +1,10 @@
-import Command
 import FileSystem
 import Foundation
 import Path
 import Rosalind
 import SnapshotTesting
 import Testing
+import TuistProcess
 import TuistTestSupport
 
 struct RosalindAcceptanceTests {

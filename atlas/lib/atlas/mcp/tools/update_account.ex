@@ -14,10 +14,6 @@ defmodule Atlas.MCP.Tools.UpdateAccount do
         Map.merge(Atlas.MCP.AccountLookup.identifier_schema_properties(), %{
           "name" => %{"type" => "string"},
           "description" => %{"type" => "string"},
-          "attention_context" => %{
-            "type" => "string",
-            "description" => "Strategic guidance the account follow-up agent should use when deciding what matters."
-          },
           "primary_domain" => %{"type" => "string"},
           "url" => %{"type" => "string"},
           "legal_name" => %{"type" => "string"},
@@ -59,8 +55,7 @@ defmodule Atlas.MCP.Tools.UpdateAccount do
             "parent_account_id" => %{"type" => ["string", "null"]},
             "currency" => %{"type" => ["string", "null"]},
             "current_value" => %{"type" => ["string", "null"]},
-            "next_renewal_date" => %{"type" => ["string", "null"]},
-            "attention_context" => %{"type" => ["string", "null"]}
+            "next_renewal_date" => %{"type" => ["string", "null"]}
           },
           "required" => [
             "id",
@@ -73,8 +68,7 @@ defmodule Atlas.MCP.Tools.UpdateAccount do
             "parent_account_id",
             "currency",
             "current_value",
-            "next_renewal_date",
-            "attention_context"
+            "next_renewal_date"
           ],
           "additionalProperties" => false
         }
@@ -89,7 +83,6 @@ defmodule Atlas.MCP.Tools.UpdateAccount do
 
   @editable_keys ~w(
     name description primary_domain url legal_name contract_id
-    attention_context
     status churned_date churn_reason hosting segment deal_stage parent_account_id
     currency current_value next_renewal_date stripe_customer_id
   )
@@ -116,8 +109,7 @@ defmodule Atlas.MCP.Tools.UpdateAccount do
                parent_account_id: updated.parent_account_id,
                currency: updated.currency,
                current_value: updated.current_value && Decimal.to_string(updated.current_value),
-               next_renewal_date: Tool.iso8601(updated.next_renewal_date),
-               attention_context: updated.attention_context
+               next_renewal_date: Tool.iso8601(updated.next_renewal_date)
              }
            }}
 

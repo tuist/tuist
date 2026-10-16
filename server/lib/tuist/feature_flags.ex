@@ -2,6 +2,21 @@ defmodule Tuist.FeatureFlags do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.Projects.Project
+
+  @doc "Default-off account opt-in to managed positive-fence serving authority."
+  def kura_positive_fence_enabled?(account) do
+    FunWithFlags.enabled?(:kura_positive_fence, for: account)
+  end
+
+  @doc """
+  Whether legacy endpoint discovery may hand out the stable hostname. Canary
+  enables this automatically; other environments use the account/global flag.
+  DNS publication is independent because new CLIs derive that hostname locally.
+  """
+  def kura_stable_hostname_enabled?(account) do
+    Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+  end
 
   @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
@@ -25,8 +40,31 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether Xcode code coverage is ingested, processed and shown for the given
-  account. Canary and production require an explicit `:xcode_coverage`
+  Whether the account gets a node in the runner-cache region of each site its
+  runners are racked at (`Tuist.Kura.Regions.site/1`). A site's region serves
+  only that site's pools, so it holds nodes for the accounts the
+  `:runner_site_cache` flag enables, in every environment.
+  """
+  def runner_site_cache_enabled?(account) do
+    FunWithFlags.enabled?(:runner_site_cache, for: account)
+  end
+
+  @doc """
+  Whether the account's macOS profile jobs run at a site: dispatch routes a
+  profile to the same Xcode and shape racked at a site
+  (`Tuist.Runners.Catalog.site_pool_name/1`) when one is and the site can
+  serve it (`Tuist.Runners.Sites`), and to the rented fleet otherwise; a site
+  job queued while the site is down moves to the rented fleet
+  (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
+  node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  """
+  def runner_site_enabled?(account) do
+    FunWithFlags.enabled?(:runner_site, for: account)
+  end
+
+  @doc """
+  Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
+  for the given account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so
   its data model and API can still change. Development, test, and staging
   default to enabled.
@@ -125,6 +163,18 @@ defmodule Tuist.FeatureFlags do
   def public_page_challenge_enabled? do
     Environment.public_page_challenge_required?() and
       not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+  end
+
+  @doc """
+  Persistent build inventories are opt-in per project. The kill switch stops
+  derivation and hides the new surfaces without changing native ingestion.
+  """
+  def build_entities_enabled?(project_id) when is_integer(project_id),
+    do: build_entities_enabled?(%Project{id: project_id})
+
+  def build_entities_enabled?(%Project{} = project) do
+    not FunWithFlags.enabled?(:build_entities_kill_switch) and
+      FunWithFlags.enabled?(:build_entities, for: project)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

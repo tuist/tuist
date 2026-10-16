@@ -4,7 +4,7 @@ Each step runs as a one-off Kubernetes Job, launched from your machine:
 
 ```bash
 cd infra
-mise run clickhouse:migration <env> <step> [--cutoff <instant>] [--dry-run]
+mise run clickhouse:migration <env> <step> [--cutoff <instant>] [--from <instant> --to <instant>] [--dry-run]
 ```
 
 The launcher copies the server's migrate Job, so a step runs with the deployed image, service account, secrets and ClickHouse settings. It then follows the Job's log until the step finishes and exits non-zero if it failed. The Job is not part of the Helm release: a failed step fails its Job and nothing else.
@@ -19,6 +19,7 @@ The launcher uses the `tuist-k8s-<env>` kubectl contexts from the [cluster onboa
 |---|---|---|
 | `clone` | `Tuist.Release.clone_clickhouse_schema` | Missing tables, views and columns on the in-cluster server |
 | `backfill --cutoff <instant>` | `Tuist.Release.backfill_clickhouse` | Rows written before the cutoff, onto the in-cluster server |
+| `repair --from <instant> --to <instant>` | `Tuist.Release.repair_clickhouse` | Rows written in the span that the in-cluster server lacks |
 | `parity` | `Tuist.Release.check_clickhouse_parity` | Nothing |
 | `check-reads` | `Tuist.Release.check_clickhouse_reads` | Nothing |
 | `enable-reads` | `Tuist.Release.enable_clickhouse_bare_metal_reads` | The flag that moves the application's reads |
@@ -46,6 +47,22 @@ Going back to `external` after step 7 does not copy anything back: rows written 
 The launcher prints the Job's log. If you stop following, the Job keeps running, and the launcher prints the command to follow it again. Logs are also in Loki under `{namespace="<namespace>", container="clickhouse-migration"}`. Finished Jobs are deleted after a week.
 
 `backfill` records each chunk in Postgres. Running it again skips finished chunks and retries failed ones, and a later cutoff turns the latest month into a new chunk. Only one backfill runs at a time: a second one fails without copying anything.
+
+A chunk is recorded as finished only when the destination then holds exactly the rows the source does, not counting rows within a day of their TTL. Anything else is recorded as failed with both counts, so the next run fills it.
+
+## Repairing known gaps
+
+When the shadow writes are known to have lost rows after the cutoff, for example across a deploy or while the destination was overloaded, repair those spans rather than moving the cutoff. A later cutoff re-checks every table's whole latest month, and for a month the destination already holds almost all of, the gap-fill does not fit on the source.
+
+Run `repair` once per span:
+
+```bash
+mise run clickhouse:migration production repair --from 2026-09-25T08:00:00Z --to 2026-09-25T14:00:00Z
+```
+
+It copies only what the destination lacks in the span, for every table with a time column, and records the span in the ledger like any other chunk, so running the same span again retries only what failed. Unlike `backfill`, it fails the Job when any chunk fails. Tables with no time column cannot be bounded by a span and are left to `parity`.
+
+Give the span a margin of a few minutes on each side. It has to end at least 15 minutes in the past, and the step refuses a span that does not: a row the mirror is still retrying when the repair copies it reaches the destination twice.
 
 ## The deploy hook
 
