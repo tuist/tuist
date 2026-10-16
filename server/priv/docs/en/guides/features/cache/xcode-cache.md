@@ -150,9 +150,9 @@ The coverage-prefix settings participate in binary-cache and selective-testing h
 
 ### Packages added through `Project.packages` {#project-packages}
 
-Xcode builds the packages added through `Project.packages` from their own manifests, so they don't read the build settings of generated projects. Without prefix mapping, their compilations, and those of the targets that import them, only hit the cache from the same checkout.
+Xcode builds the packages added through `Project.packages` from their own manifests, so they don't read the build settings of generated projects. Without those settings, their compilations use only the local cache, never the remote cache, and they and the targets that import them only hit it from the same checkout.
 
-On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the prefix mapping settings for these packages to an xcconfig file inside the generated workspace. Build with `tuist xcodebuild`, `tuist build`, or `tuist test`, which apply it automatically:
+On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the Xcode cache settings for these packages, including prefix mapping and the remote cache, to an xcconfig file inside the generated workspace. Build with `tuist xcodebuild`, `tuist build`, or `tuist test`, which apply it automatically:
 
 ```bash
 tuist xcodebuild build -workspace App.xcworkspace -scheme App

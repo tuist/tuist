@@ -162,6 +162,16 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         return (project, [])
     }
 
+    /// The settings that route a project's compilations through the CAS plugin, written when
+    /// the project has a full handle and the plugin dylib exists.
+    static let casPluginSettings = [
+        "COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS",
+        "COMPILATION_CACHE_ENABLE_PLUGIN",
+        "COMPILATION_CACHE_PLUGIN_PATH",
+        "COMPILATION_CACHE_REMOTE_SERVICE_PATH",
+        "COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES",
+    ]
+
     private static let prefixMappingForCoverageSetting = "TUIST_PREFIX_MAPPING_FOR_COVERAGE"
     static let prefixMappingUnlessCoverageExpression = "$(\(prefixMappingForCoverageSetting)_$(CLANG_COVERAGE_MAPPING))"
     private static let prefixMappingUnlessCoverage: SettingValue = .string(prefixMappingUnlessCoverageExpression)
@@ -214,7 +224,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
 
     /// The plugin's per-project `-cas-plugin-option` flags (`tuist-instance`, and
     /// `tuist-upload=false` when uploads are disabled).
-    private static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
+    static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
         var flags = ["-cas-plugin-option", "tuist-instance=\(fullHandle)"]
         if !upload {
             // `xcodeCache(upload:)` is per-project, but the proxy is machine-wide;
