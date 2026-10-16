@@ -830,7 +830,7 @@ defmodule TuistWeb.Coverage.Components do
         <.coverage_empty
           :if={is_nil(@latest)}
           title={
-            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+            dgettext("dashboard_tests", "No complete commit on %{branch} in this period",
               branch: @branch
             )
           }

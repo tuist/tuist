@@ -2465,11 +2465,6 @@ msgstr ""
 msgid "No function matches this search"
 msgstr ""
 
-#: lib/tuist_web/live/coverage/components.ex:833
-#, elixir-autogen, elixir-format
-msgid "No measured commit on %{branch} in this period"
-msgstr ""
-
 #: lib/tuist_web/live/coverage_detail_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
@@ -2657,4 +2652,9 @@ msgstr ""
 #: lib/tuist_web/live/coverage/components.ex:381
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
+msgstr ""
+
+#: lib/tuist_web/live/coverage/components.ex:833
+#, elixir-autogen, elixir-format
+msgid "No complete commit on %{branch} in this period"
 msgstr ""
