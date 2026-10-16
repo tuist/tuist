@@ -1890,6 +1890,45 @@ defmodule Tuist.BundlesTest do
       assert Bundles.list_bundle_size_approvers(project) == [approver]
     end
 
+    test "accepts an Enterprise Managed User username, which ends in an underscore and the enterprise shortcode" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      expect(VCS, :get_user_by_username, fn %{username: username} ->
+        assert username == "jane-doe-ext_acme"
+        {:ok, %VCS.User{id: "9123456", username: "jane-doe-ext_acme"}}
+      end)
+
+      # When
+      {:ok, approver} = Bundles.add_bundle_size_approver(project, "Jane-Doe-ext_acme")
+
+      # Then
+      assert approver.github_handle == "jane-doe-ext_acme"
+      assert approver.github_id == "9123456"
+    end
+
+    test "rejects underscores outside an Enterprise Managed User suffix without asking GitHub" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane_doe_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane-_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane_")
+    end
+
+    test "counts the Enterprise Managed User suffix toward GitHub's 39 character limit" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+      handle = String.duplicate("a", 35) <> "_acme"
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, handle)
+    end
+
     test "rejects a username GitHub does not know" do
       # Given
       project = ProjectsFixtures.project_fixture()
