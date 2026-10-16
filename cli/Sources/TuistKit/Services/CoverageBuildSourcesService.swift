@@ -68,19 +68,14 @@ struct CoverageBuildSourcesService {
     private func sources(targets: [CoverageBuildTarget]) async throws -> CoverageBuildSources? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        let root: AbsolutePath
-        let files: [String: String]
-        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            root = try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
-            files = try await gitController.sourceFileBlobIds(
+        guard let root = try await root(from: workingDirectory) else { return nil }
+        let files: [String: String] = if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            try await gitController.sourceFileBlobIds(
                 workingDirectory: root,
                 pathExtensions: UploadResultBundleService.coverageSourceExtensions
             )
-        } else if let located = try await rootDirectoryLocator.locate(from: workingDirectory) {
-            root = located
-            files = [:]
         } else {
-            return nil
+            [:]
         }
         let rootDirectories = UploadResultBundleService.rootSpellings(of: root, coveredFilePaths: [])
         return CoverageBuildSources(
@@ -96,5 +91,14 @@ struct CoverageBuildSourcesService {
                 )
             }
         )
+    }
+
+    /// The checkout the coverage's files are relative to: the Git repository's top level, else the
+    /// directory the project's manifests root at. Nil outside any project.
+    func root(from directory: AbsolutePath) async throws -> AbsolutePath? {
+        if await gitController.isInGitRepository(workingDirectory: directory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: directory)
+        }
+        return try await rootDirectoryLocator.locate(from: directory)
     }
 }

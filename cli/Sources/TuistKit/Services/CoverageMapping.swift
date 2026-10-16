@@ -97,7 +97,9 @@ struct CoverageMapping {
     /// header per member, a `#1/<length>` name carried in the member's data, an even-byte pad
     /// after each member), leaving out members that are not Mach-O, such as the symbol table.
     static func mappings(archivePath path: String) -> [CoverageMapping] {
-        guard let archive = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else { return [] }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
+              let archive = archive(in: data)
+        else { return [] }
         return archiveMembers(archive).compactMap { member in
             let sections = sections(of: member, named: ["__llvm_covmap", "__llvm_covfun"])
             guard let covmap = sections["__llvm_covmap"], let covfun = sections["__llvm_covfun"] else { return nil }
@@ -111,10 +113,45 @@ struct CoverageMapping {
     static func carriesMapping(path: String) -> Bool {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), data.count >= 32
         else { return false }
-        if data.prefix(8).elementsEqual("!<arch>\n".utf8) {
-            return archiveMembers(data).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
+        if let archive = archive(in: data) {
+            return archiveMembers(archive).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
         }
         return !sections(of: data, named: ["__llvm_covmap"]).isEmpty
+    }
+
+    private static let archiveMagic = Array("!<arch>\n".utf8)
+
+    /// The BSD `ar` archive in `data`: the data itself, or the arm64 slice (else the first) of a
+    /// universal file whose slices are archives, which is how Xcode packs a static framework built for
+    /// several architectures. Nil for anything else.
+    static func archive(in data: Data) -> Data? {
+        if data.prefix(8).elementsEqual(archiveMagic) { return data }
+        guard let slice = universalSlice(of: data), slice.prefix(8).elementsEqual(archiveMagic) else { return nil }
+        return slice
+    }
+
+    /// The arm64 slice (else the first) of a universal file, as its own data; nil when `data` is not one.
+    private static func universalSlice(of data: Data) -> Data? {
+        guard data.count >= 8 else { return nil }
+        let magic: UInt32 = data.load(at: 0)
+        guard magic == 0xBEBA_FECA || magic == 0xBFBA_FECA else { return nil }
+        let wide = magic == 0xBFBA_FECA
+        let count = Int(UInt32(bigEndian: data.load(at: 4)))
+        var chosen: (offset: Int, size: Int)?
+        for index in 0 ..< count {
+            let entry = 8 + index * (wide ? 32 : 20)
+            let cpu = UInt32(bigEndian: data.load(at: entry))
+            let offset = wide
+                ? Int(UInt64(bigEndian: data.load(at: entry + 8)))
+                : Int(UInt32(bigEndian: data.load(at: entry + 8)))
+            let size = wide
+                ? Int(UInt64(bigEndian: data.load(at: entry + 16)))
+                : Int(UInt32(bigEndian: data.load(at: entry + 12)))
+            if cpu == 0x0100_000C { chosen = (offset, size) }
+            if chosen == nil, index == 0 { chosen = (offset, size) }
+        }
+        guard let chosen, chosen.offset >= 0, chosen.size >= 0, chosen.offset + chosen.size <= data.count else { return nil }
+        return data.subdata(in: data.startIndex + chosen.offset ..< data.startIndex + chosen.offset + chosen.size)
     }
 
     /// The 64-bit Mach-O members of a BSD `ar` archive.
