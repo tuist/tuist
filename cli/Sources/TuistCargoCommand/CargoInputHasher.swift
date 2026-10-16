@@ -2,8 +2,10 @@ import Foundation
 import TuistREAPI
 #if canImport(Darwin)
     import Darwin
-#else
+#elseif canImport(Glibc)
     import Glibc
+#elseif canImport(Musl)
+    import Musl
 #endif
 
 /// Shares verified file digests across the before/after checks of one compiler invocation, never across sessions.
