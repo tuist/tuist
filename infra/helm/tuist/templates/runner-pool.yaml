@@ -142,8 +142,9 @@ fleet is what keeps the autoscaling arithmetic right: the runners-controller
 apportions a capacity domain across the pools sharing an OS and
 `fleetSelector`, so the rack's pools split the rack's guest slots and the
 rented fleet's split the rented fleet's, and neither counts the other's
-memory. The image, runner labels and pod sizing are the Xcode's and the
-shape's, the same on every placement; replicas, autoscaling and rollout are
+memory. The image and runner labels are the Xcode's, the same on every
+placement; pod sizing is the shape's unless the rack gives that shape a bigger
+guest (`rackFleet.runners.guestShapes`); replicas, autoscaling and rollout are
 the placement's own (`runnersFleet.xcodeOverrides` for the rented fleet,
 `rackFleet.runners` for the rack). The server routes an account's profile to
 a site's pool only when the account is enabled on the `runner_site` flag and
@@ -210,7 +211,7 @@ The rendered set is the default shape plus every non-default shape.
     {{- $extraShapes = append $extraShapes . }}
   {{- end }}
 {{- end }}
-{{- $placements := list (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes) }}
+{{- $placements := list (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
 {{- $rackRunners := .Values.rackFleet.runners }}
@@ -228,7 +229,14 @@ name gets no rack pool, and the server sends its profiles to the rented fleet.
     {{- $rackShapes = append $rackShapes (merge (dict "autoscaling" $rackShape.autoscaling "rollout" $rackShape.rollout) (omit $shape "autoscaling" "rollout")) }}
   {{- end }}
 {{- end }}
-{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes) }}
+{{- /*
+`rackFleet.runners.guestShapes` gives a catalog shape a bigger guest on the
+rack: the pool keeps the shape's name, so profiles route to it and jobs are
+recorded, billed and counted against concurrency limits at the shape the
+profile names, while its Pods are sized to the guest. A guest smaller than its
+shape fails the render, since a job would get less than its profile names.
+*/}}
+{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict)) }}
 {{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
@@ -246,6 +254,16 @@ name gets no rack pool, and the server sends its profiles to the rented fleet.
 {{- $autoscaling := $override.autoscaling | default $placement.autoscaling }}
 {{- $rollout := $override.rollout | default $placement.rollout }}
 {{- $poolName := printf "%s-%s%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag }}
+{{- $defaultShapeKey := printf "%dvcpu-%dgb" (div (int $defaultCPU) 1000) (div (int $defaultMem) 1024) }}
+{{- $guestCPU := int $podCPU }}
+{{- $guestMem := int $podMem }}
+{{- with get $placement.guestShapes $defaultShapeKey }}
+{{- $guestCPU = mul (int (required (printf "rackFleet.runners.guestShapes.%s.vcpus required" $defaultShapeKey) .vcpus)) 1000 }}
+{{- $guestMem = mul (int (required (printf "rackFleet.runners.guestShapes.%s.memoryGb required" $defaultShapeKey) .memoryGb)) 1024 }}
+{{- if or (lt (int $guestCPU) (int $podCPU)) (lt (int $guestMem) (int $podMem)) }}
+{{- fail (printf "rackFleet.runners.guestShapes.%s is smaller than the pool's %d milli / %d MB; a guest must be at least the shape it serves" $defaultShapeKey (int $podCPU) (int $podMem)) }}
+{{- end }}
+{{- end }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -262,6 +280,9 @@ metadata:
     tuist.dev/shape-vcpus: {{ div $defaultCPU 1000 | quote }}
     tuist.dev/shape-memory-gb: {{ div $defaultMem 1024 | quote }}
     tuist.dev/shape-default: "true"
+    {{- if or (ne (int $guestCPU) (int $podCPU)) (ne (int $guestMem) (int $podMem)) }}
+    tuist.dev/guest-shape: {{ printf "%dvcpu-%dgb" (div (int $guestCPU) 1000) (div (int $guestMem) 1024) | quote }}
+    {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
     {{- end }}
@@ -279,8 +300,8 @@ spec:
     {{- range $runnerLabels }}
     - {{ . | quote }}
     {{- end }}
-  podCPUMilli: {{ $podCPU }}
-  podMemoryMB: {{ $podMem }}
+  podCPUMilli: {{ $guestCPU }}
+  podMemoryMB: {{ $guestMem }}
   {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $override }}
   {{- if gt (int $idleTimeout) 0 }}
   idleTimeoutSeconds: {{ $idleTimeout }}
@@ -317,6 +338,15 @@ static at replicas 0, which is the safe cold default.
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
 {{- $shapeAutoscaling := $shape.autoscaling }}
 {{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
+{{- $shapeGuestVcpus := $vcpus }}
+{{- $shapeGuestMemoryGb := $memoryGb }}
+{{- with get $placement.guestShapes $shapeKey }}
+{{- $shapeGuestVcpus = int (required (printf "rackFleet.runners.guestShapes.%s.vcpus required" $shapeKey) .vcpus) }}
+{{- $shapeGuestMemoryGb = int (required (printf "rackFleet.runners.guestShapes.%s.memoryGb required" $shapeKey) .memoryGb) }}
+{{- if or (lt $shapeGuestVcpus $vcpus) (lt $shapeGuestMemoryGb $memoryGb) }}
+{{- fail (printf "rackFleet.runners.guestShapes.%s is smaller than the shape it serves; a guest must be at least %d vCPU / %d GB" $shapeKey $vcpus $memoryGb) }}
+{{- end }}
+{{- end }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -332,6 +362,9 @@ metadata:
     tuist.dev/shape: {{ $shapeKey | quote }}
     tuist.dev/shape-vcpus: {{ $vcpus | quote }}
     tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
+    {{- if or (ne $shapeGuestVcpus $vcpus) (ne $shapeGuestMemoryGb $memoryGb) }}
+    tuist.dev/guest-shape: {{ printf "%dvcpu-%dgb" $shapeGuestVcpus $shapeGuestMemoryGb | quote }}
+    {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
     {{- end }}
@@ -349,8 +382,8 @@ spec:
     {{- range $runnerLabels }}
     - {{ . | quote }}
     {{- end }}
-  podCPUMilli: {{ mul $vcpus 1000 }}
-  podMemoryMB: {{ mul $memoryGb 1024 }}
+  podCPUMilli: {{ mul $shapeGuestVcpus 1000 }}
+  podMemoryMB: {{ mul $shapeGuestMemoryGb 1024 }}
   {{- $shapeIdleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $shape }}
   {{- if gt (int $shapeIdleTimeout) 0 }}
   idleTimeoutSeconds: {{ $shapeIdleTimeout }}

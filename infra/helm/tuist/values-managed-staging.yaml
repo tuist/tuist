@@ -1081,6 +1081,10 @@ rackFleet:
   joiningNodes: []
   runners:
     enabled: true
+    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
+    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
     # One host, two guest slots.
     autoscaling:
       enabled: true

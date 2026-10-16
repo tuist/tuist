@@ -95,9 +95,13 @@ an incompatible or undersized destination can still fail the final barrier.
 Named repair bypasses the recency cutoff at listing and dispatch: an older
 missing record still belongs to the source's retained corpus. Ordinary catch-up
 keeps its recency policy. Repair does not increase ring capacity or bypass disk
-admission; normal rotation can still evict other required records, in which case
-the final full-corpus check refuses promotion. Equal-sized fragmented replicas
-are not guaranteed to hold the same corpus.
+admission. If rotation evicts records during a repair pass, the destination walks
+the retained index again before taking its hold; this also repairs action-cache
+entries cascaded away by blob eviction after an earlier presence check. A pass
+without eviction acquires the hold atomically with its eviction-generation check.
+All passes share the original preparation deadline. Equal-sized fragmented
+replicas are not guaranteed to converge; the final full-corpus check still
+refuses promotion when required data remains missing.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification

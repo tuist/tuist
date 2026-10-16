@@ -12,7 +12,7 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
-      tuist: [project: "tuist/server"],
+      tuist: [project: "tuist/server", cache: true],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
@@ -239,7 +239,11 @@ defmodule Tuist.MixProject do
         "run priv/repo/timezone.exs",
         "ecto.migrate"
       ],
-      compile: "tuist.compile",
+      compile: [
+        "deps.compile tuist_ex --include-children",
+        "deps.loadpaths --no-compile --no-deps-check",
+        "tuist.compile"
+      ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "tuist.test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",

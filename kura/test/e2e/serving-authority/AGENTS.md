@@ -51,6 +51,12 @@ replication leaves it absent on the full standby before requesting handover,
 then require matching full-corpus receipts and byte-exact reads of the repaired
 record after promotion. This isolates recency selection from storage admission;
 it must not change either replica's configured capacity to make repair pass.
+Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
+of old destination-only data. Assert it stays absent on the source, then require
+an eviction-triggered repair revisit and matching full-corpus receipts before
+promotion. Both peers retain the same 3 GiB ring budgets. This complements the
+Rust regression that removes an already-checked blob and its action-cache entry
+through the real eviction path while a later missing body is being fetched.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
 publication, recovery when a replacement grant arrives after expiry, retained
