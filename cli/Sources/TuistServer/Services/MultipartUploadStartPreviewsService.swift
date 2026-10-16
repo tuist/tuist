@@ -17,7 +17,8 @@ public protocol MultipartUploadStartPreviewsServicing {
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String?
     ) async throws -> AppBuildUpload
 }
 
@@ -66,7 +67,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String? = nil
     ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -95,6 +97,7 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
                         git_branch: gitBranch,
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
+                        release_notes: releaseNotes,
                         supported_platforms: supportedPlatforms,
                         track: track,
                         _type: type,

@@ -310,7 +310,7 @@ defmodule TuistEx.DependencyCache do
         {context, dependency.app, dependency_options(dependency), sources,
          Keyword.take(config, @compiler_config), upstream, paths}
 
-      if safe_term?(inputs), do: {:ok, Key.build(inputs)}, else: {:bypass, "unmodeled_input"}
+      {:ok, inputs |> model_term() |> Key.build()}
     end
   end
 
@@ -443,18 +443,22 @@ defmodule TuistEx.DependencyCache do
     end)
   end
 
-  defp safe_term?(term)
-       when is_pid(term) or is_reference(term) or is_function(term) or is_port(term), do: false
+  defp model_term(%Regex{} = regex),
+    do: %{__struct__: Regex, source: Regex.source(regex), opts: Regex.opts(regex)}
 
-  defp safe_term?(term) when is_list(term), do: Enum.all?(term, &safe_term?/1)
+  defp model_term(term)
+       when is_pid(term) or is_reference(term) or is_function(term) or is_port(term),
+       do: throw(:unmodeled_input)
 
-  defp safe_term?(term) when is_tuple(term),
-    do: term |> Tuple.to_list() |> Enum.all?(&safe_term?/1)
+  defp model_term(term) when is_list(term), do: Enum.map(term, &model_term/1)
 
-  defp safe_term?(term) when is_map(term),
-    do: Enum.all?(term, fn {key, value} -> safe_term?(key) and safe_term?(value) end)
+  defp model_term(term) when is_tuple(term),
+    do: term |> Tuple.to_list() |> Enum.map(&model_term/1) |> List.to_tuple()
 
-  defp safe_term?(_term), do: true
+  defp model_term(term) when is_map(term),
+    do: Map.new(:maps.to_list(term), fn {key, value} -> {model_term(key), model_term(value)} end)
+
+  defp model_term(term), do: term
 
   defp observation(dependency, outcome, reason, key, duration, saved) do
     %{

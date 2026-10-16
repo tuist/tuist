@@ -144,7 +144,7 @@ public protocol APIProtocol: Sendable {
     func getCacheEndpoint(_ input: Operations.getCacheEndpoint.Input) async throws -> Operations.getCacheEndpoint.Output
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI in the trailing ninety days on the project's default branch, or on a commit the default branch has since reached, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
@@ -731,7 +731,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -914,6 +914,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)`.
     func listGenerations(_ input: Operations.listGenerations.Input) async throws -> Operations.listGenerations.Output
+    /// List the available preview tracks for a project.
+    ///
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
+    func listPreviewTracks(_ input: Operations.listPreviewTracks.Input) async throws -> Operations.listPreviewTracks.Output
     /// List recorded Gradle build steps without logs.
     ///
     /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Gradle reports without a start timestamp use the first recorded timestamp as origin.
@@ -1414,7 +1421,7 @@ extension APIProtocol {
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI in the trailing ninety days on the project's default branch, or on a commit the default branch has since reached, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
@@ -2907,7 +2914,7 @@ extension APIProtocol {
     }
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -3369,6 +3376,21 @@ extension APIProtocol {
         try await listGenerations(Operations.listGenerations.Input(
             path: path,
             query: query,
+            headers: headers
+        ))
+    }
+    /// List the available preview tracks for a project.
+    ///
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
+    public func listPreviewTracks(
+        path: Operations.listPreviewTracks.Input.Path,
+        headers: Operations.listPreviewTracks.Input.Headers = .init()
+    ) async throws -> Operations.listPreviewTracks.Output {
+        try await listPreviewTracks(Operations.listPreviewTracks.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -8406,6 +8428,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
             public var qr_code_url: Swift.String
+            /// Optional plain-text release notes describing this preview build
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/release_notes`.
+            public var release_notes: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
             public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
             /// The track for the preview (e.g., 'beta', 'nightly')
@@ -8435,6 +8461,7 @@ public enum Components {
             ///   - id: Unique identifier of the preview.
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - release_notes: Optional plain-text release notes describing this preview build
             ///   - supported_platforms:
             ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
@@ -8452,6 +8479,7 @@ public enum Components {
                 id: Swift.String,
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
+                release_notes: Swift.String? = nil,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 track: Swift.String? = nil,
                 url: Swift.String,
@@ -8469,6 +8497,7 @@ public enum Components {
                 self.id = id
                 self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
+                self.release_notes = release_notes
                 self.supported_platforms = supported_platforms
                 self.track = track
                 self.url = url
@@ -8487,6 +8516,7 @@ public enum Components {
                 case id
                 case inserted_at
                 case qr_code_url
+                case release_notes
                 case supported_platforms
                 case track
                 case url
@@ -9002,6 +9032,54 @@ public enum Components {
                 case shard_plan_id
                 case skip
                 case suites
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PreviewTracks`.
+        public struct PreviewTracks: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/total_count`.
+            public var total_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload`.
+            public struct tracksPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload/name`.
+                public var name: Swift.String
+                /// Creates a new `tracksPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - count:
+                ///   - name:
+                public init(
+                    count: Swift.Int,
+                    name: Swift.String
+                ) {
+                    self.count = count
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case count
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracks`.
+            public typealias tracksPayload = [Components.Schemas.PreviewTracks.tracksPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracks`.
+            public var tracks: Components.Schemas.PreviewTracks.tracksPayload
+            /// Creates a new `PreviewTracks`.
+            ///
+            /// - Parameters:
+            ///   - total_count:
+            ///   - tracks:
+            public init(
+                total_count: Swift.Int,
+                tracks: Components.Schemas.PreviewTracks.tracksPayload
+            ) {
+                self.total_count = total_count
+                self.tracks = tracks
+            }
+            public enum CodingKeys: String, CodingKey {
+                case total_count
+                case tracks
             }
         }
         /// - Remark: Generated from `#/components/schemas/MixCompiledFile`.
@@ -11156,6 +11234,29 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case test_run_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PreviewTrack`.
+        public struct PreviewTrack: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewTrack/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PreviewTrack/name`.
+            public var name: Swift.String
+            /// Creates a new `PreviewTrack`.
+            ///
+            /// - Parameters:
+            ///   - count:
+            ///   - name:
+            public init(
+                count: Swift.Int,
+                name: Swift.String
+            ) {
+                self.count = count
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case count
+                case name
             }
         }
         /// The list of organizations the authenticated subject is part of.
@@ -17769,10 +17870,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
-            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
             public var cache_writer_branches: [Swift.String]
+            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_default_branch`.
+            public var cache_writer_default_branch: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/id`.
             public var id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/inserted_at`.
@@ -17799,7 +17904,8 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
-            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
             ///   - id:
             ///   - inserted_at:
             ///   - memory_gb:
@@ -17811,6 +17917,7 @@ public enum Components {
             ///   - xcode_version:
             public init(
                 cache_writer_branches: [Swift.String],
+                cache_writer_default_branch: Swift.Bool,
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
                 memory_gb: Swift.Int,
@@ -17822,6 +17929,7 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.cache_writer_branches = cache_writer_branches
+                self.cache_writer_default_branch = cache_writer_default_branch
                 self.id = id
                 self.inserted_at = inserted_at
                 self.memory_gb = memory_gb
@@ -17834,6 +17942,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case cache_writer_branches
+                case cache_writer_default_branch
                 case id
                 case inserted_at
                 case memory_gb
@@ -27613,10 +27722,14 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
-                            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
                             public var cache_writer_branches: [Swift.String]
+                            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_default_branch`.
+                            public var cache_writer_default_branch: Swift.Bool
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/id`.
                             public var id: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/inserted_at`.
@@ -27643,7 +27756,8 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - memory_gb:
@@ -27655,6 +27769,7 @@ public enum Operations {
                             ///   - xcode_version:
                             public init(
                                 cache_writer_branches: [Swift.String],
+                                cache_writer_default_branch: Swift.Bool,
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
                                 memory_gb: Swift.Int,
@@ -27666,6 +27781,7 @@ public enum Operations {
                                 xcode_version: Swift.String? = nil
                             ) {
                                 self.cache_writer_branches = cache_writer_branches
+                                self.cache_writer_default_branch = cache_writer_default_branch
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.memory_gb = memory_gb
@@ -27678,6 +27794,7 @@ public enum Operations {
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case cache_writer_branches
+                                case cache_writer_default_branch
                                 case id
                                 case inserted_at
                                 case memory_gb
@@ -30545,7 +30662,7 @@ public enum Operations {
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI in the trailing ninety days on the project's default branch, or on a commit the default branch has since reached, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
@@ -33582,6 +33699,14 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
                 public var display_name: Swift.String?
+                /// Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/search`.
+                public var search: Swift.String?
+                /// Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/track`.
+                public var track: Swift.String?
                 /// The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/specifier`.
@@ -33610,6 +33735,8 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
+                ///   - search: Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
+                ///   - track: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///   - supported_platforms:
                 ///   - page_size:
@@ -33617,6 +33744,8 @@ public enum Operations {
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 public init(
                     display_name: Swift.String? = nil,
+                    search: Swift.String? = nil,
+                    track: Swift.String? = nil,
                     specifier: Swift.String? = nil,
                     supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                     page_size: Swift.Int? = nil,
@@ -33624,6 +33753,8 @@ public enum Operations {
                     distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
+                    self.search = search
+                    self.track = track
                     self.specifier = specifier
                     self.supported_platforms = supported_platforms
                     self.page_size = page_size
@@ -63214,6 +63345,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_ref`.
                     public var git_ref: Swift.String?
+                    /// Optional plain-text release notes describing this preview build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/release_notes`.
+                    public var release_notes: Swift.String?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -63248,6 +63383,7 @@ public enum Operations {
                     ///   - git_branch: The git branch associated with the preview.
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
+                    ///   - release_notes: Optional plain-text release notes describing this preview build.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
@@ -63260,6 +63396,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
+                        release_notes: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
@@ -63272,6 +63409,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
+                        self.release_notes = release_notes
                         self.supported_platforms = supported_platforms
                         self.track = track
                         self._type = _type
@@ -63285,6 +63423,7 @@ public enum Operations {
                         case git_branch
                         case git_commit_sha
                         case git_ref
+                        case release_notes
                         case supported_platforms
                         case track
                         case _type = "type"
@@ -79429,7 +79568,7 @@ public enum Operations {
     }
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -79476,19 +79615,29 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// Branch names or * patterns. An empty list follows each repository's default branch.
+                    /// Additional branch names or * patterns that save. An empty list removes them.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_branches`.
-                    public var cache_writer_branches: [Swift.String]
+                    public var cache_writer_branches: [Swift.String]?
+                    /// Whether jobs on each repository's default branch save.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_default_branch`.
+                    public var cache_writer_default_branch: Swift.Bool?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - cache_writer_branches: Branch names or * patterns. An empty list follows each repository's default branch.
-                    public init(cache_writer_branches: [Swift.String]) {
+                    ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
+                    ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save.
+                    public init(
+                        cache_writer_branches: [Swift.String]? = nil,
+                        cache_writer_default_branch: Swift.Bool? = nil
+                    ) {
                         self.cache_writer_branches = cache_writer_branches
+                        self.cache_writer_default_branch = cache_writer_default_branch
                     }
                     public enum CodingKeys: String, CodingKey {
                         case cache_writer_branches
+                        case cache_writer_default_branch
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/content/application\/json`.
@@ -79517,10 +79666,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
+                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_default_branch`.
+                        public var cache_writer_default_branch: Swift.Bool
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/id`.
                         public var id: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/inserted_at`.
@@ -79547,7 +79700,8 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -79559,6 +79713,7 @@ public enum Operations {
                         ///   - xcode_version:
                         public init(
                             cache_writer_branches: [Swift.String],
+                            cache_writer_default_branch: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
                             memory_gb: Swift.Int,
@@ -79570,6 +79725,7 @@ public enum Operations {
                             xcode_version: Swift.String? = nil
                         ) {
                             self.cache_writer_branches = cache_writer_branches
+                            self.cache_writer_default_branch = cache_writer_default_branch
                             self.id = id
                             self.inserted_at = inserted_at
                             self.memory_gb = memory_gb
@@ -79582,6 +79738,7 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cache_writer_branches
+                            case cache_writer_default_branch
                             case id
                             case inserted_at
                             case memory_gb
@@ -93989,6 +94146,378 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listGenerations.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the available preview tracks for a project.
+    ///
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
+    public enum listPreviewTracks {
+        public static let id: Swift.String = "listPreviewTracks"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listPreviewTracks.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviewTracks.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviewTracks.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listPreviewTracks.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.listPreviewTracks.Input.Path,
+                headers: Operations.listPreviewTracks.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/total_count`.
+                        public var total_count: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload`.
+                        public struct tracksPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `tracksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - count:
+                            ///   - name:
+                            public init(
+                                count: Swift.Int,
+                                name: Swift.String
+                            ) {
+                                self.count = count
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case count
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracks`.
+                        public typealias tracksPayload = [Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracks`.
+                        public var tracks: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - total_count:
+                        ///   - tracks:
+                        public init(
+                            total_count: Swift.Int,
+                            tracks: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayload
+                        ) {
+                            self.total_count = total_count
+                            self.tracks = tracks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case total_count
+                            case tracks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/application\/json`.
+                    case json(Operations.listPreviewTracks.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPreviewTracks.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPreviewTracks.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Available preview tracks.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listPreviewTracks.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listPreviewTracks.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPreviewTracks.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPreviewTracks.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Authentication is required.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listPreviewTracks.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listPreviewTracks.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPreviewTracks.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listPreviewTracks.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject cannot read this project's previews.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listPreviewTracks.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listPreviewTracks.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listPreviewTracks.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listPreviewTracks.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listPreviewTracks.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listPreviewTracks.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listPreviewTracks.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listPreviewTracks.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):

@@ -1539,6 +1539,28 @@ from. It overstates headroom only while rows are waiting for pods.
 32 GiB is one enterprise instance at its starting claim. Change it with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
 
+The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
+the gauge too. Before they did, the plugin polled it over the same public-only
+region list as the lifecycle gauges, so a full runner-cache box had neither
+operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
+had about 3 GiB left under its line while it refused claim growths for days and
+a new instance every minute. The occupancy gauges, and with them the second
+operand, still cover public regions only, so a private region whose server does
+not emit the headroom gauge has no row.
+
+The same `< 32` holds for them. A private region's candidate is claim x its own
+replica count, so 32 GiB is one enterprise instance at its starting claim in
+`scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
+Both are a single box, so the remedy is freeing reservations or giving the
+site another storage node rather than adding a node to a pool. Runner-cache
+claims grow well past their starting claim (16 to 100 GiB on the rack in
+October 2026), so a single-box private region is effectively out of room for
+growth long before it reaches 32; the rule is the floor below which the region
+cannot take another account at all. A full private region also refuses the
+claim growth of every account it hosts in all of that account's regions, as
+any governed region does, which shows on
+`tuist_kura_lifecycle_claim_apply_refused_count`.
+
 **Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
 2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,
 us-central 2, us-west 6. Three independent gaps:
@@ -3347,6 +3369,10 @@ reported `Available=True MinimumReplicasAvailable` and
 `Progressing=True NewReplicaSetAvailable`, because both conditions are
 satisfied by `maxUnavailable` rather than by `readyReplicas ==
 spec.replicas`. Kubernetes considers that healthy; it is not.
+
+With `xcresultProcessor.readinessProbe.enabled`, the probe tart-kubelet
+evaluates also makes a replica that runs but cannot reach Postgres,
+ClickHouse or its Oban queue count as unavailable here.
 
 Same 45-minute rationale as the per-host rule: a Tart VM replacement
 makes one replica unavailable for a long, legitimate window. Deliberately
@@ -6079,14 +6105,12 @@ max by (fleet) (
 
 - Pending period: 15 minutes
 - Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
-  receiver `Slack #notifications 2`.
-- **Paused.** Until the release that ships the one-off
-  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker` backfill, the gauge
-  also counted long-running jobs in the minute between their completion and the
-  outbox flush, so it read 10 to 35 every day without any lasting divergence.
-  Unpause once that release is deployed and
-  `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
-  reads 0.
+  receiver `Slack #notifications 2`. An edit on 2026-09-10 dropped the receiver,
+  leaving the rule on the default notification policy, and it was restored on
+  2026-10-16. A Grafana rule update replaces the whole rule, so carry
+  `notification_settings` over when editing it.
+- Unpaused on 2026-10-16, once the one-off backfill had repaired every
+  diverged row and the gauge read 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
   `queued`/`claimed`/`running` while the authoritative Postgres
   `runner_workflow_jobs` row is terminal. Both stores must have settled for
@@ -6098,9 +6122,11 @@ max by (fleet) (
   clock after its row write, so of two writes to one job the later commit
   carries the later version. A reading here means something bypassed that,
   such as a new direct `IngestRepo` write to `runner_jobs` or the Postgres
-  primary's clock stepping backwards across a failover. Find the cause, then
-  repair the rows by queuing the backfill again from a live node:
-  `bin/tuist rpc 'Oban.insert!(Tuist.Runners.Workers.RepairReplicaDivergenceWorker.new(%{enqueued_after: "<ISO-8601 floor>"}))'`.
+  primary's clock stepping backwards across a failover. Find and fix the cause;
+  the fix also has to repair the rows it left behind, since nothing else will.
+  The 2026-10 backfill (tuist/tuist#14179) is the pattern: re-emit each
+  affected row's Postgres state through the transition outbox, in a one-off
+  job queued by a migration.
 - Data-correctness, not availability: dispatch reads Postgres directly, so jobs
   keep running while this fires. What breaks is analytics —
   `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
@@ -6112,6 +6138,42 @@ max by (fleet) (
   not converge on its own.
 - Summary: `Runner fleet {{ $labels.fleet }}: {{ $values.A.Value }} job(s) stuck
   non-terminal in ClickHouse while Postgres says they finished`
+
+### Rack Mac mini running hot
+
+```promql
+avg_over_time((
+  max by (cluster, env, instance) (
+    macos_sensor_temperature_celsius{rack_host="true", sensor=~"PMU tdie.*"}
+  )
+)[10m:30s])
+```
+
+- Threshold: `> 100`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `ag1dnto1ibzswd`, folder `Alerts`, group `Rack`
+- Summary: `Rack Mac mini {{ $labels.instance }} has averaged
+  {{ humanize $values.A.Value }} C on its hottest die sensor for 20 minutes`
+
+The early warning before
+[Rack Mac mini under heavy thermal pressure](#rack-mac-mini-under-heavy-thermal-pressure).
+The threshold comes from a measured baseline on the M5 Pro minis
+(2026-10-15 12:40 UTC to 2026-10-16 07:00 UTC, including an evening of
+sustained CI load on every slot):
+
+| | Busy minis | b01 under sustained benchmarks |
+| --- | --- | --- |
+| Highest 10-minute average | 89.8-94.5 C | 97.5 C |
+| 99th percentile of 10-minute averages | 87.9-91.0 C | 95.4 C |
+| Highest instant reading | 96.9-102.5 C | 100.7 C |
+
+Instant readings cross 100 C on healthy machines under load, which is why the
+rule averages over 10 minutes first and then holds for 10 more. Thermal
+pressure never went past moderate in that window.
+
+It selects on `rack_host`, not on the site join, so a mini without a Node is
+still covered.
 
 ### Rack Mac mini host sensors stale
 

@@ -1023,7 +1023,7 @@ xcresultProcessor:
 # bootstraps the node itself.
 kuraFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   machine:
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
@@ -1061,6 +1061,24 @@ vultrFleets:
       adoptTag: tuist-kura-vultr-production
       region: ord
       plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
+  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
+  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
+  # kura-us-central pool, so the region schedules across both fleets; adoption
+  # matches the plan, so neither fleet claims the other's boxes. The
+  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
+  us-central-8c:
+    enabled: true
+    replicas: 2
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-8c-64gb-amd
       osID: 2284
       egressBudgetMbps: 1000
     sshExternalSecret:
@@ -1331,6 +1349,24 @@ rackFleet:
   # ber1-store-a's Kura gateway on the machines segment.
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
+  # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
+  # the prewarm set sync, then route hosts through it one at a time in
+  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
+  # one re-pushes that mini's launchd config and needs an operator image
+  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+  # 400 GiB of store-a's 928 GB /data holds one release of every image the
+  # rack runs plus the previous one while the rack rolls off it (a release of
+  # all nine catalog images is 404 GB of distinct blobs, 578 GB beside its
+  # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
+  # so both are on the rack before a mini asks.
+  imageCache:
+    enabled: false
+    routeHosts: []
+    nodes:
+      - name: ber1-store-a
+        address: 10.10.0.11
+    sizeGi: 400
+    prewarm: ["26.6", "27.0"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the
@@ -1417,13 +1453,15 @@ rackFleet:
         pdu: ber1-pdu-b
         outlet: "11"
   machine:
-    # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
-    # values-managed-production.yaml), so a rack runner is the runner customers
-    # already get: two 6 vCPU / 14 GB guests, both dimensions binding at two.
-    # Apple's licence caps a host at two macOS guests, so the rest of the
-    # mini goes to the host.
-    hostCPU: 12
-    hostMemoryMB: 28672
+    # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
+    # `guestShapes` below), both dimensions binding at the same count, and 2 of
+    # the 18 cores and 16 of the 64 GB left to the host. Apple's licence caps a
+    # host at two macOS guests. Benchmarked on ber1-runner-b01 in October 2026:
+    # two 8 vCPU guests built about 10% faster than two 6 vCPU guests and a host
+    # finished about 12% more builds an hour; a ninth vCPU per guest and more
+    # memory per vCPU changed nothing.
+    hostCPU: 16
+    hostMemoryMB: 49152
     guestCapacity: 2
     # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
     # guest slot can transiently hold its running Pod plus a predecessor GC has
@@ -1434,13 +1472,22 @@ rackFleet:
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
   # is a macOS 26 guest, which fits the hosts' macOS 27.
   #
+  # On the rack those shapes run bigger guests (`guestShapes`): 8 vCPU / 24 GB
+  # for the 6 vCPU shape and 16 vCPU / 48 GB for the 12 vCPU shape. Jobs are
+  # still recorded, billed and counted against concurrency limits at the shape
+  # the profile names, and one that spills over to the rented fleet runs at
+  # that shape.
+  #
   # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
   # and the `ber1` smoke pool share through the fleet allocator, apart from
-  # the rented fleet's 14. A 12 vCPU guest takes a whole host, so that shape's
-  # ceiling is the host count. 26.6 keeps one runner warm because `tuist-macos`
-  # resolves there; the rest start cold.
+  # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
+  # that shape's ceiling is the host count. 26.6 keeps one runner warm because
+  # `tuist-macos` resolves there; the rest start cold.
   runners:
     enabled: true
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+      12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
@@ -1967,6 +2014,11 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 16
+    "27.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
     "27.1-rc":
       autoscaling:
         enabled: true
@@ -2042,9 +2094,11 @@ runnersFleet:
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
         holdRecentPeak: false
+      # The rack's guest size for the 6 vCPU shape (`rackFleet.runners
+      # .guestShapes`), so every guest on the fleet has the same memory per vCPU.
       pod:
-        cpuMilli: 6000
-        memoryMB: 14336
+        cpuMilli: 8000
+        memoryMB: 24576
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env

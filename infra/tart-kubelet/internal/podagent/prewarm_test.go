@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -197,5 +198,39 @@ func TestPrewarmImagesIgnoresLinuxPools(t *testing.T) {
 	}
 	if len(images) != 0 {
 		t.Fatalf("images = %v, want none from a Linux pool", images)
+	}
+}
+
+// syncingGoldens answers errMirrorSyncing for an image a set number of
+// times before materialising it, the way a Reconciler does while the rack's
+// image cache fetches the image.
+type syncingGoldens struct {
+	recordingGoldens
+	syncs map[string]int
+}
+
+func (g *syncingGoldens) ensureGolden(ctx context.Context, image string) (string, bool, error) {
+	if g.syncs[image] > 0 {
+		g.syncs[image]--
+		g.pulled = append(g.pulled, image)
+		return "", false, errMirrorSyncing
+	}
+	return g.recordingGoldens.ensureGolden(ctx, image)
+}
+
+// An image the rack's image cache is still fetching is waited for, not
+// skipped: skipping it would let Pods onto the host to wait on that fetch.
+func TestPrewarmerWaitsForAnImageTheCacheIsFetching(t *testing.T) {
+	goldens := &syncingGoldens{syncs: map[string]int{img266: 2}}
+	gate := &fakeGate{held: true}
+	p := &Prewarmer{K8s: &poolLister{pools: rackCatalog()}, Goldens: goldens, Gate: gate, Fleet: "tuist-tuist-rack-fleet", DiskFree: plentyOfDisk, SyncRetry: time.Millisecond}
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if want := []string{img266, img266, img266, img270}; !reflect.DeepEqual(goldens.pulled, want) {
+		t.Fatalf("pulled %v, want 26.6 asked for until the cache had it, then 27.0", goldens.pulled)
+	}
+	if !gate.released {
+		t.Fatal("gate not released")
 	}
 }

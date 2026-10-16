@@ -151,6 +151,13 @@ complete compilation bundle. Tuist verifies its files, application metadata,
 declared BEAMs and SCM manifest before staged installation. Corrupt entries are
 repaired after successful compilation.
 
+On OTP 28 and later, remote sessions negotiate zstd compression for ByteStream
+transfers of at least 1 KiB. Incompressible uploads, older OTP runtimes and servers
+without compression use identity transport. Digests, artifact limits and reported
+bytes refer to uncompressed content. Decoded bytes are bounded and verified before
+installation. Each dependency remains a single CAS bundle, avoiding per-file or
+chunk requests for small artifacts.
+
 Remote credentials/connections are resolved lazily; idle builds and local hits
 don't contact remote endpoints. One session is closed on every exit, including
 compiler failure. Client RPCs have a 30-second deadline. Mix remains responsible
