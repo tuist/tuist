@@ -153,8 +153,8 @@ copies sources even on a hit. Never archive these mounted paths. Set
 `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
 do not invalidate manifest fingerprints. `Tuist.swift` uses plain
 `packageManifestEnvironment: .automatic`. This depends on the defaults and
-separate native-resolution authentication environment from PR #14162; upgrade
-the bootstrap CLI pin to a release containing it before merging this migration.
+separate native-resolution authentication environment from PR #14162, shipped
+in the pinned CLI 4.214.0-canary.32.
 GitHub job/branch metadata and rotating credentials are excluded from cached
 manifest evaluation, while native dependency fetching retains known credentials.
 Keep platform/toolchain and application inputs visible, and always measure
