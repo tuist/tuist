@@ -4,6 +4,7 @@ This directory holds Phoenix configuration for the server.
 
 ## Responsibilities
 - Environment-specific configuration (dev, test, prod).
+- Boruta entity caching uses `Tuist.OAuth.NoCache` with upstream Ecto adapters. Follow the [OAuth upgrade/rollback gate](../lib/tuist/oauth/AGENTS.md) before replacing replicas that still read the legacy cache.
 - Runtime config and endpoint settings.
 - Origin app identity uses `TUIST_ORIGIN_APP_ID` and `TUIST_ORIGIN_APP_PRIVATE_KEY` (Ed25519 PEM) through `Tuist.Environment`. Managed production, canary, and staging sync independent signing keys from their respective 1Password vaults; development loads its own `Development/ORIGIN_APP/private_key` through `server/fnox.toml`. Configuring the key alone does not enable PR reporting or authenticate without the App ID.
 - Request logging filters Google One Tap credentials alongside passwords, secrets and tokens.
