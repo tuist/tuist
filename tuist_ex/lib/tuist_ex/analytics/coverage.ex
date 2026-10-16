@@ -2,9 +2,10 @@ defmodule TuistEx.Analytics.Coverage do
   @moduledoc false
 
   # The line coverage of a `mix tuist.test --cover` run, read from the
-  # runtime's native line counters and Erlang's `cover`, and shaped as the server's `coverage` block: one entry per source file of
-  # the repository, with the OTP application it belongs to, whether it is test
-  # code, and how many times each executable line ran.
+  # runtime's native line counters and Erlang's `cover`, and shaped as the
+  # server's `coverage` block: one entry per source file of the repository,
+  # with the OTP application it belongs to, whether it is test code, and how
+  # many times each executable line ran.
   #
   # The counters are read by the formatter when the suite finishes: every test
   # has run, and Mix's own coverage tool has not yet turned them into its
@@ -170,9 +171,12 @@ defmodule TuistEx.Analytics.Coverage do
   defp instrument_beam(path) do
     beam = String.to_charlist(path)
 
-    with {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}, compile_info: info]}} <-
-           :beam_lib.chunks(beam, [:abstract_code, :compile_info]),
+    # Decoding Elixir's debug info is the costly part, so a module that
+    # already carries the counters is told apart by its compile options first.
+    with {:ok, {_module, [compile_info: info]}} <- :beam_lib.chunks(beam, [:compile_info]),
          false <- :line_coverage in (info[:options] || []),
+         {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}]}} <-
+           :beam_lib.chunks(beam, [:abstract_code]),
          {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),

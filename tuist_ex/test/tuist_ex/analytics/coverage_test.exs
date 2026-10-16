@@ -348,6 +348,19 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert {1, []} = Coverage.instrument(ebin)
     end
 
+    # The consolidated protocols are built into a directory of their own.
+    test "instruments every directory it is given", %{directory: directory, ebin: ebin} do
+      consolidated = Path.join(directory, "consolidated")
+      File.mkdir_p!(consolidated)
+
+      File.cp!(
+        Path.join(ebin, "Elixir.TuistExNativeFixture.Calc.beam"),
+        Path.join(consolidated, "Elixir.TuistExNativeFixture.Calc.beam")
+      )
+
+      assert {2, []} = Coverage.instrument([ebin, consolidated])
+    end
+
     # In a runtime started without `+JPcover`, as a user's is.
     test "switches the runtime to native counters and counts lines, without cover", %{
       directory: directory,
