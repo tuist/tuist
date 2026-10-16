@@ -387,6 +387,9 @@ kuraGatewayNetworkPolicy:
   # kura-controller's `gatewayGRPCPort`, the gRPC-only port the gRPC Ingress
   # routes to once an instance's pods serve it.
   grpcPort: 4001
+  # kura-controller's `peerPort`, which the regional peer demux forwards the
+  # public peer hosts to.
+  peerPort: 7443
 
 external-dns:
   enabled: true
