@@ -135,7 +135,7 @@ enum PackageResolver {
                     forceResolvedVersions: forceResolvedVersions
                 ),
                 workingDirectory: packageDir,
-                customEnvironment: Environment.manifestValues,
+                customEnvironment: Environment.resolution,
                 forwardOutput: forwardOutput
             )
             let resolvedPathExists = try await fileSystem.exists(resolvedPath.absolutePath)
@@ -405,7 +405,9 @@ enum PackageResolver {
             }
             for dependency in dependencies {
                 if dependency.kind == .sourceControl {
-                    for transformedIdentity in transformedIdentities where expectedIdentities.insert(transformedIdentity).inserted {
+                    for transformedIdentity in transformedIdentities
+                        where expectedIdentities.insert(transformedIdentity).inserted
+                    {
                         identitiesToInspect.append(transformedIdentity)
                     }
                 }
@@ -690,7 +692,7 @@ enum PackageResolver {
             "swift",
             arguments,
             workingDirectory: packageDir,
-            customEnvironment: Environment.manifestValues
+            customEnvironment: Environment.resolution
         )
     }
 

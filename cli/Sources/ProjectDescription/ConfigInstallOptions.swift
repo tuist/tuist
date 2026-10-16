@@ -38,12 +38,18 @@ extension Config {
                 self.excludedVariablePatterns = excludedVariablePatterns
             }
 
-            /// Hides recognized volatile CI execution identifiers and Tuist runner/cache metadata.
+            /// Hides CI inputs that would otherwise invalidate reusable dependency manifests.
             ///
-            /// Branches, commits, platform/toolchain settings and dependency authentication variables remain visible.
-            /// Authentication variables also reach native SwiftPM dependency resolution; excluding them
-            /// can prevent private packages from being fetched. Use `automatic(including:excluding:)`
-            /// to customize the environment contract for your manifests.
+            /// On GitHub Actions, excludes `GITHUB_*`, `ACTIONS_*`, `RUNNER_*` and `SSH_AUTH_SOCK`,
+            /// retaining `GITHUB_ACTIONS`, `RUNNER_OS` and `RUNNER_ARCH`. Other providers use selected
+            /// volatile execution identifiers. Tuist runner/cache identities are excluded everywhere.
+            /// Toolchain settings and application-defined inputs remain visible and fingerprinted.
+            ///
+            /// Known GitHub/SSH credentials remain available to native dependency resolution, which
+            /// also evaluates manifests while fetching packages. Cached manifest evaluation excludes
+            /// them. Manifests that intentionally depend on CI metadata or credentials should restore
+            /// those inputs with `automatic(including:)`, or use `all`, to use the same inputs on both paths.
+            /// Explicit exclusions apply to native resolution too and can disable authentication.
             public static let automatic = Self(usesAutomaticProviderDefaults: true)
 
             /// Preserves the complete process environment.

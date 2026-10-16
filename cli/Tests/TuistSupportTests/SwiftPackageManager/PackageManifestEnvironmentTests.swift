@@ -3,26 +3,24 @@ import Testing
 @testable import TuistSupport
 
 struct PackageManifestEnvironmentTests {
-    @Test func automatic_defaults_ignore_execution_identities_across_github_jobs() async {
+    @Test func automatic_defaults_stabilize_manifest_inputs_across_github_jobs_without_overrides() async {
         let packageInputs = [
             "GITHUB_ACTIONS": "true",
-            "GITHUB_REF": "refs/heads/main",
-            "GITHUB_SHA": "commit",
             "RUNNER_OS": "macOS",
             "RUNNER_ARCH": "ARM64",
             "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer",
             "SDKROOT": "/sdk",
             "SWIFT_EXEC": "/toolchain/swiftc",
             "TUIST_EE": "1",
-            "SSH_AUTH_SOCK": "/agent.sock",
-            "GITHUB_TOKEN": "git-credential",
-            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc-credential",
-            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://issuer.example/token",
         ]
         let executionVariables = [
             "ACTIONS_ORCHESTRATION_ID", "GITHUB_RUN_ID", "GITHUB_STATE",
             "RUNNER_NAME", "RUNNER_TRACKING_ID", "TUIST_CACHE_SIGNING_GRANT",
             "TUIST_RUNNER_POD_NAME", "TUIST_RUNNER_POD_UID",
+            "GITHUB_REF", "GITHUB_HEAD_REF", "GITHUB_BASE_REF", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA",
+            "GITHUB_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL",
+            "ACTIONS_RUNTIME_TOKEN", "ACTIONS_RUNTIME_URL", "ACTIONS_RESULTS_URL", "SSH_AUTH_SOCK",
+            "RUNNER_TEMP", "GITHUB_WORKSPACE", "GITHUB_EVENT_PATH",
         ]
 
         for job in ["first", "second"] {
@@ -37,16 +35,8 @@ struct PackageManifestEnvironmentTests {
         }
     }
 
-    @Test(arguments: [
-        "GITHUB_REF",
-        "GITHUB_SHA",
-        "RUNNER_ARCH",
-        "SSH_AUTH_SOCK",
-        "GITHUB_TOKEN",
-        "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
-        "ACTIONS_ID_TOKEN_REQUEST_URL"
-    ])
-    func automatic_defaults_preserve_changes_to_package_and_authentication_inputs(variable: String) async {
+    @Test(arguments: ["RUNNER_ARCH", "RUNNER_OS", "DEVELOPER_DIR", "SDKROOT", "SWIFT_EXEC", "TUIST_EE"])
+    func automatic_defaults_preserve_changes_to_package_inputs(variable: String) async {
         let first = await PackageManifestEnvironment.withConfiguration(.init()) {
             PackageManifestEnvironment.filtered(["GITHUB_ACTIONS": "true", variable: "first"])
         }
@@ -56,6 +46,44 @@ struct PackageManifestEnvironmentTests {
         #expect(first?[variable] == "first")
         #expect(second?[variable] == "second")
         #expect(first != second)
+    }
+
+    @Test(arguments: ["GITHUB_REF", "GITHUB_SHA", "SSH_AUTH_SOCK", "GITHUB_TOKEN"])
+    func explicit_includes_restore_inputs_and_their_invalidation(variable: String) async {
+        await PackageManifestEnvironment.withConfiguration(.init(includedVariablePatterns: [variable])) {
+            let first = PackageManifestEnvironment.filtered(["GITHUB_ACTIONS": "true", variable: "first"])
+            let second = PackageManifestEnvironment.filtered(["GITHUB_ACTIONS": "true", variable: "second"])
+            #expect(first?[variable] == "first")
+            #expect(second?[variable] == "second")
+            #expect(first != second)
+        }
+    }
+
+    @Test func native_resolution_keeps_authentication_but_excludes_job_metadata() async {
+        let credentials = [
+            "SSH_AUTH_SOCK": "/agent.sock",
+            "GITHUB_TOKEN": "git-token",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc-token",
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://issuer.example/token",
+            "ACTIONS_RUNTIME_TOKEN": "runtime-token",
+            "ACTIONS_RUNTIME_URL": "https://runtime.example",
+            "ACTIONS_RESULTS_URL": "https://results.example",
+        ]
+        let variables = credentials.merging([
+            "GITHUB_ACTIONS": "true", "GITHUB_REF": "main", "GITHUB_SHA": "commit",
+            "RUNNER_NAME": "runner", "TUIST_CACHE_SIGNING_GRANT": "grant",
+        ], uniquingKeysWith: { _, new in new })
+        await PackageManifestEnvironment.withConfiguration(.init()) {
+            #expect(PackageManifestEnvironment.filtered(variables) == ["GITHUB_ACTIONS": "true"])
+            #expect(PackageManifestEnvironment.filtered(variables, forDependencyResolution: true)
+                == credentials.merging(["GITHUB_ACTIONS": "true"], uniquingKeysWith: { _, new in new }))
+        }
+        await PackageManifestEnvironment.withConfiguration(.init(excludedVariablePatterns: ["GITHUB_TOKEN", "SSH_*"])) {
+            let native = PackageManifestEnvironment.filtered(variables, forDependencyResolution: true)
+            #expect(native?["GITHUB_TOKEN"] == nil)
+            #expect(native?["SSH_AUTH_SOCK"] == nil)
+            #expect(native?["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] == "oidc-token")
+        }
     }
 
     @Test func automatic_defaults_exclude_tuist_metadata_without_a_provider_marker() async {
@@ -162,7 +190,7 @@ struct PackageManifestEnvironmentTests {
         let providers = [
             (
                 ["GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "run", "GITHUB_REF": "refs/heads/main"],
-                ["GITHUB_ACTIONS": "true", "GITHUB_REF": "refs/heads/main"]
+                ["GITHUB_ACTIONS": "true"]
             ),
             (
                 ["BITRISE_IO": "true", "BITRISE_BUILD_SLUG": "build", "BITRISE_GIT_BRANCH": "main"],

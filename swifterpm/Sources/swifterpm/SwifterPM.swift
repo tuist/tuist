@@ -48,6 +48,8 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scmToRegistryTransformation: SCMToRegistryTransformation
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var manifestEnvironment: [String: String]?
+    /// Native resolution also performs authenticated fetches. When omitted, it uses `manifestEnvironment`.
+    public var resolutionEnvironment: [String: String]?
     public var quiet: Bool
 
     public init(
@@ -67,6 +69,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         scmToRegistryTransformation: SCMToRegistryTransformation = .disabled,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
         manifestEnvironment: [String: String]? = nil,
+        resolutionEnvironment: [String: String]? = nil,
         quiet: Bool = false
     ) {
         self.packageDirectory = packageDirectory
@@ -85,6 +88,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.scmToRegistryTransformation = scmToRegistryTransformation
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
         self.manifestEnvironment = manifestEnvironment
+        self.resolutionEnvironment = resolutionEnvironment
         self.quiet = quiet
     }
 }
@@ -136,7 +140,9 @@ public struct SwifterPM: Sendable {
         -> SwifterPMResolutionResult
     {
         try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
@@ -150,7 +156,9 @@ public struct SwifterPM: Sendable {
         -> SwifterPMResolutionResult
     {
         try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {

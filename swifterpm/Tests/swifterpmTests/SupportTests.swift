@@ -4,6 +4,41 @@ import Testing
 
 struct SupportTests {
     @Test
+    func resolutionCredentialsDoNotChangeManifestFingerprints() async throws {
+        let manifest = ["PATH": "/usr/bin:/bin", "PACKAGE_FEATURE": "enabled"]
+        var firstFingerprint: String?
+        for token in ["first", "second"] {
+            let resolution = manifest.merging(["GITHUB_TOKEN": token], uniquingKeysWith: { _, new in new })
+            try await Environment.withManifestEnvironment(manifest, resolutionEnvironment: resolution) {
+                let process = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.resolution)
+                #expect(process.stdoutString.contains("GITHUB_TOKEN=\(token)"))
+                let dumpProcess = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.manifestValues)
+                #expect(!dumpProcess.stdoutString.contains("GITHUB_TOKEN="))
+                let fingerprint = ManifestEnvironmentFingerprint.current()
+                if let firstFingerprint {
+                    #expect(fingerprint == firstFingerprint)
+                } else {
+                    firstFingerprint = fingerprint
+                }
+            }
+        }
+        #expect(Environment.manifestValues == nil)
+        #expect(Environment.resolutionValues == nil)
+    }
+
+    @Test
+    func omittedResolutionEnvironmentPreservesExistingManifestContract() async throws {
+        let manifest = ["PACKAGE_FEATURE": "enabled"]
+        try await Environment.withManifestEnvironment(manifest) {
+            #expect(Environment.resolution == manifest)
+            try await Environment.withManifestEnvironment(nil) {
+                #expect(Environment.manifest == manifest)
+                #expect(Environment.resolution == manifest)
+            }
+        }
+    }
+
+    @Test
     func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
         let result = try await SystemProcess.run(
             "/usr/bin/env",
@@ -179,12 +214,15 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
                 try await fileSystem.atomicWrite(
-                    "manifest", to: source.appendingPathComponent("Package.swift"))
+                    "manifest", to: source.appendingPathComponent("Package.swift")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -208,10 +246,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
@@ -230,10 +270,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -408,7 +450,8 @@ struct SupportTests {
         try await withTemporaryDirectory { directory in
             let target = directory.appendingPathComponent("Target")
             try await fileSystem.makeDirectory(
-                at: target.absolutePath, options: [.createTargetParentDirectories])
+                at: target.absolutePath, options: [.createTargetParentDirectories]
+            )
             let link = directory.appendingPathComponent("Link")
             try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
             let absent = directory.appendingPathComponent("Absent/Deep")
