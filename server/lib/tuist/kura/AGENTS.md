@@ -40,3 +40,5 @@
 - Stable routing uses existing instance regions only when an account has no placement rows. Explicit desired/retiring rows take precedence, including an all-retiring set. Keep direct DNS intent, batched reconciliation and activation consistent without writing placement as a read side effect.
 
 - Cold activation polling must continue after the regional deployment closes until stable intent is published and fresh controller readiness reaches the shared projection. Keep this in the bounded unique background worker, never in the authenticated request. Stop for draining, moving, private and unclaimed instances; preserve generation/TLS/provider checks and the original job stall deadline.
+
+- A storage claim is account-wide and applies all or nothing across every storage-governed region the account runs in, private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) included: one full region refuses the growth everywhere. Every shrink, occupancy included, is floored at the plan's starting claim.

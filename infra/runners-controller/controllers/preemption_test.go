@@ -26,6 +26,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
@@ -591,5 +592,32 @@ func TestPreemption_ReplacedRunnerIsNotFreeCapacity(t *testing.T) {
 	chosen, starved := planPreemption(victim.Name, inputs)
 	if len(chosen) != 1 || strings.Join(starved, ",") != "ber1" {
 		t.Fatalf("chosen %d for %v, want 1 for ber1 (the finished runner's seat goes to its replacement)", len(chosen), starved)
+	}
+}
+
+// The starved Pod takes whichever seat frees, so the victim gives up the
+// runner on a host that already holds the starved pool's golden image and
+// the starved job clones it instead of pulling it.
+func TestPreemption_PrefersHostsHoldingTheStarvedPoolsImage(t *testing.T) {
+	r, c := rackFixture(t, 1, 5*time.Minute)
+	ctx := context.Background()
+
+	smoke := &tuistv1.RunnerPool{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "ber1", Namespace: "tuist-runners"}, smoke); err != nil {
+		t.Fatalf("get smoke pool: %v", err)
+	}
+	node := &corev1.Node{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "ber1-runner-b07"}, node); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	node.Labels[podtemplate.GoldenNodeAffinityKey(smoke.Spec.Image)] = "true"
+	if err := c.Update(ctx, node); err != nil {
+		t.Fatalf("label node: %v", err)
+	}
+
+	reconcileOnce(t, r, "macos-ber1-27-0")
+
+	if marked := markedPods(t, c, "macos-ber1-27-0"); strings.Join(marked, ",") != "xcode-idle-3=ber1" {
+		t.Fatalf("marked = %v, want xcode-idle-3 (the idle runner on b07, which holds the smoke pool's image)", marked)
 	}
 }

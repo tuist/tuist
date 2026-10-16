@@ -17,7 +17,7 @@ defmodule Tuist.Kura.ClaimSizing do
   take at least a tenth less claim. A ring that rotates shrinks on retention
   once every day of a month kept its content for three retention floors: it
   lands where the floor plus the growth headroom would be kept, at most halving
-  the claim in one step and never under the plan's starting claim. Both are
+  the claim in one step. Neither goes under the plan's starting claim. Both are
   slower to confirm than any growth, because a shrink that overshoots costs a
   rebuild to undo and one that waits costs only disk.
 
@@ -677,9 +677,8 @@ defmodule Tuist.Kura.ClaimSizing do
   # account's rotating content on a smaller claim and keeps three floors
   # there: that claim is measured rather than projected, so the step may go to
   # it. A ring that never filled measures nothing about rotating content and
-  # does not count. Retention never goes under the claim the plan starts an
-  # account at; a ring that never filled may go to the smallest any instance
-  # is built with.
+  # does not count. No shrink goes under the claim the plan starts an account
+  # at.
   defp finalize_shrink(shrinks, current_bytes, context, policy) do
     {_signal, region, target_bytes, _claim_bytes, evidence} = Enum.max_by(shrinks, &elem(&1, 2))
 
@@ -700,7 +699,7 @@ defmodule Tuist.Kura.ClaimSizing do
     bytes =
       target_bytes
       |> max(step_bytes)
-      |> max(quantity_bytes(shrink_minimum(measured, context.plan)))
+      |> max(quantity_bytes(Regions.storage_profile(context.plan).claim_size))
       |> min(current_bytes)
 
     recommended = to_gibibyte_quantity(bytes)
@@ -723,9 +722,6 @@ defmodule Tuist.Kura.ClaimSizing do
       :none
     end
   end
-
-  defp shrink_minimum([], _plan), do: Regions.minimum_storage_claim()
-  defp shrink_minimum(_measured, plan), do: Regions.storage_profile(plan).claim_size
 
   defp grow_evidence(window, floor_seconds, threshold_seconds) do
     %{
@@ -774,8 +770,8 @@ defmodule Tuist.Kura.ClaimSizing do
     |> Enum.min(fn -> nil end)
   end
 
-  # How far a claim may grow. The plan's starting claim, which bounds a
-  # retention shrink, is the other place a plan changes the outcome.
+  # How far a claim may grow. The plan's starting claim, which bounds every
+  # shrink, is the other place a plan changes the outcome.
   defp ceiling(plan, policy), do: Map.get(policy.ceiling, plan, policy.ceiling.air)
 
   defp quantity_bytes(quantity) do
