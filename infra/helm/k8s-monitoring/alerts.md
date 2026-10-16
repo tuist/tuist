@@ -6078,15 +6078,11 @@ max by (fleet) (
 ```
 
 - Pending period: 15 minutes
-- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
-  receiver `Slack #notifications 2`.
-- **Paused.** Until the release that ships the one-off
-  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker` backfill, the gauge
-  also counted long-running jobs in the minute between their completion and the
-  outbox flush, so it read 10 to 35 every day without any lasting divergence.
-  Unpause once that release is deployed and
-  `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
-  reads 0.
+- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`.
+  It carries no receiver of its own (the one it was created with was dropped on
+  2026-09-10), so it routes through the default notification policy.
+- Unpaused on 2026-10-16, once the one-off backfill had repaired every
+  diverged row and the gauge read 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
   `queued`/`claimed`/`running` while the authoritative Postgres
   `runner_workflow_jobs` row is terminal. Both stores must have settled for
@@ -6098,9 +6094,11 @@ max by (fleet) (
   clock after its row write, so of two writes to one job the later commit
   carries the later version. A reading here means something bypassed that,
   such as a new direct `IngestRepo` write to `runner_jobs` or the Postgres
-  primary's clock stepping backwards across a failover. Find the cause, then
-  repair the rows by queuing the backfill again from a live node:
-  `bin/tuist rpc 'Oban.insert!(Tuist.Runners.Workers.RepairReplicaDivergenceWorker.new(%{enqueued_after: "<ISO-8601 floor>"}))'`.
+  primary's clock stepping backwards across a failover. Find and fix the cause;
+  the fix also has to repair the rows it left behind, since nothing else will.
+  The 2026-10 backfill (tuist/tuist#14179) is the pattern: re-emit each
+  affected row's Postgres state through the transition outbox, in a one-off
+  job queued by a migration.
 - Data-correctness, not availability: dispatch reads Postgres directly, so jobs
   keep running while this fires. What breaks is analytics —
   `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
@@ -6112,6 +6110,42 @@ max by (fleet) (
   not converge on its own.
 - Summary: `Runner fleet {{ $labels.fleet }}: {{ $values.A.Value }} job(s) stuck
   non-terminal in ClickHouse while Postgres says they finished`
+
+### Rack Mac mini running hot
+
+```promql
+avg_over_time((
+  max by (cluster, env, instance) (
+    macos_sensor_temperature_celsius{rack_host="true", sensor=~"PMU tdie.*"}
+  )
+)[10m:30s])
+```
+
+- Threshold: `> 100`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `ag1dnto1ibzswd`, folder `Alerts`, group `Rack`
+- Summary: `Rack Mac mini {{ $labels.instance }} has averaged
+  {{ humanize $values.A.Value }} C on its hottest die sensor for 20 minutes`
+
+The early warning before
+[Rack Mac mini under heavy thermal pressure](#rack-mac-mini-under-heavy-thermal-pressure).
+The threshold comes from a measured baseline on the M5 Pro minis
+(2026-10-15 12:40 UTC to 2026-10-16 07:00 UTC, including an evening of
+sustained CI load on every slot):
+
+| | Busy minis | b01 under sustained benchmarks |
+| --- | --- | --- |
+| Highest 10-minute average | 89.8-94.5 C | 97.5 C |
+| 99th percentile of 10-minute averages | 87.9-91.0 C | 95.4 C |
+| Highest instant reading | 96.9-102.5 C | 100.7 C |
+
+Instant readings cross 100 C on healthy machines under load, which is why the
+rule averages over 10 minutes first and then holds for 10 more. Thermal
+pressure never went past moderate in that window.
+
+It selects on `rack_host`, not on the site join, so a mini without a Node is
+still covered.
 
 ### Rack Mac mini host sensors stale
 

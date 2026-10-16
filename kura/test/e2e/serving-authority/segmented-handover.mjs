@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fixture, handover } from "./fixture.mjs";
 
@@ -10,9 +12,14 @@ const count = Number(process.env.KURA_E2E_SEGMENT_RECORDS ?? 512);
 assert([512, 2048].includes(count), "record count must be 512 or 2048");
 const fullRing = count === 2048;
 const repairOld = process.env.KURA_E2E_RETAINED_RECENCY === "1";
+const repairChurn = process.env.KURA_E2E_REPAIR_CHURN === "1";
 assert(
   !repairOld || fullRing,
   "recency repair requires the full-ring workload",
+);
+assert(
+  !repairChurn || (fullRing && !repairOld),
+  "repair churn requires its own full-ring workload",
 );
 const f = await fixture(image, "active", output);
 const retained = [];
@@ -57,6 +64,64 @@ try {
   await sleep(10000);
   result.settled = f.snapshot();
   result.beforeHandoverMetrics = await Promise.all([0, 1].map(f.metric));
+  if (repairChurn) {
+    for (const replica of [0, 1])
+      assert.equal(
+        (await f.report(replica)).backfill_ring_fullness_percent,
+        100,
+      );
+    // Diverge only the standby with old destination-only bodies. The source's
+    // ordinary recency policy must leave these outside its already-full ring.
+    await promisify(execFile)(
+      "docker",
+      [
+        "--context",
+        "default",
+        "exec",
+        `${f.prefix}-api`,
+        "node",
+        "--input-type=module",
+        "-e",
+        `
+      for (let i = 0; i < 512; i++) {
+        const r = await fetch(${JSON.stringify(`http://${f.names[1]}:7443/_internal/replicate/artifact?producer=gradle&inline=false&namespace_id=segmented-handover&content_type=application%2Foctet-stream&version_ms=1&key=destination-only-`)} + i,
+          {method: 'PUT', body: Buffer.alloc(2 * 1024 * 1024, 91), signal: AbortSignal.timeout(30000)});
+        await r.arrayBuffer(); if (r.status !== 204) throw Error('seed status ' + r.status);
+      }
+    `,
+      ],
+      { timeout: 120000, maxBuffer: 1024 * 1024 },
+    );
+    await sleep(10000);
+    const id = createHash("sha256")
+      .update("gradle\0default\0segmented-handover\0destination-only-511")
+      .digest("hex");
+    for (const replica of [0, 1]) {
+      const status = Number(
+        f
+          .docker(
+            "exec",
+            f.names[replica],
+            "curl",
+            "-sS",
+            "--max-time",
+            "30",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            `http://127.0.0.1:7443/_internal/backfill/artifacts/${id}`,
+          )
+          .trim(),
+      );
+      assert.equal(
+        status,
+        replica === 0 ? 404 : 200,
+        "destination-only seed must not change the source corpus",
+      );
+    }
+    result.divergentStandbyBytes = 512 * body.length;
+  }
   if (repairOld) {
     for (const replica of [0, 1])
       assert.equal(
@@ -137,6 +202,25 @@ try {
   result.handoverSeconds = (Date.now() - startHandover) / 1000;
   result.afterHandoverMetrics = await Promise.all([0, 1].map(f.metric));
   assert(result.barrier, "segmented retained corpus did not satisfy handover");
+  if (repairChurn) {
+    const events = f
+      .logs(f.names[1])
+      .split("\n")
+      .flatMap((line) => {
+        try {
+          return [JSON.parse(line)];
+        } catch {
+          return [];
+        }
+      });
+    result.repairRevisits = events.filter(
+      (event) => event["event.name"] === "kura.handover.repair_revisit",
+    ).length;
+    assert(
+      result.repairRevisits > 0,
+      "fixture must exercise repair eviction and a second walk",
+    );
+  }
   if (repairOld) {
     const response = await fetch(
       `${f.urls[1]}/api/cache/gradle/old-missing?tenant_id=default&namespace_id=segmented-handover`,

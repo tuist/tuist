@@ -911,7 +911,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on
@@ -1253,6 +1255,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes

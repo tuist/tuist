@@ -83,6 +83,43 @@ defmodule TuistEx.Cache.Reapi.ActionCache.Stub do
   use GRPC.Stub, service: TuistEx.Cache.Reapi.ActionCache.Service
 end
 
+defmodule TuistEx.Cache.Reapi.GetCapabilitiesRequest do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  field(:instance_name, 1, type: :string)
+end
+
+defmodule TuistEx.Cache.Reapi.CacheCapabilities do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  field(:supported_compressors, 6, repeated: true, type: :int32, packed: true)
+end
+
+defmodule TuistEx.Cache.Reapi.ServerCapabilities do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  field(:cache_capabilities, 1, type: TuistEx.Cache.Reapi.CacheCapabilities)
+end
+
+defmodule TuistEx.Cache.Reapi.Capabilities.Service do
+  @moduledoc false
+  use GRPC.Service, name: "build.bazel.remote.execution.v2.Capabilities"
+
+  rpc(
+    :GetCapabilities,
+    TuistEx.Cache.Reapi.GetCapabilitiesRequest,
+    TuistEx.Cache.Reapi.ServerCapabilities
+  )
+end
+
+defmodule TuistEx.Cache.Reapi.Capabilities.Stub do
+  @moduledoc false
+  use GRPC.Stub, service: TuistEx.Cache.Reapi.Capabilities.Service
+end
+
 defmodule TuistEx.Cache.Reapi.ByteStream.Service do
   @moduledoc false
   use GRPC.Service, name: "google.bytestream.ByteStream"

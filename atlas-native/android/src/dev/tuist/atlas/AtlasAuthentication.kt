@@ -77,7 +77,7 @@ class AtlasSecureStorage(
     }
 }
 
-private class AuthFailure(
+class AuthFailure(
     val kind: String,
     message: String,
 ) : Exception(message)
@@ -94,9 +94,12 @@ class AtlasAuthentication(
     var listener: (() -> Unit)? = null
     var authorizationURL: String? = null
     private var deferredCallback: String? = null
+    private var apiRequests = 0
+    private var closing = false
 
     fun close() {
-        worker.shutdown()
+        closing = true
+        if (apiRequests == 0) worker.shutdown()
         listener = null
     }
 
@@ -112,12 +115,7 @@ class AtlasAuthentication(
     fun restore() {
         work {
             val saved = storage.load("session") ?: return@work
-            try {
-                accept(command(JSONObject().put("operation", "restore").put("session", saved)))
-            } catch (failure: AuthFailure) {
-                if (failure.kind == "rejected") storage.delete("session")
-                throw failure
-            }
+            accept(command(JSONObject().put("operation", "restore").put("session", saved)))
         }
     }
 
@@ -155,10 +153,49 @@ class AtlasAuthentication(
     }
 
     fun signOut() {
-        work {
-            storage.delete("session")
-            storage.delete("pending")
-            main.post { server = null }
+        work { discardSession() }
+    }
+
+    private fun discardSession(removeRegistration: Boolean = false) {
+        storage.delete("session")
+        main.post { server = null }
+        storage.delete("pending")
+        if (removeRegistration) storage.delete("registration")
+    }
+
+    fun aiAccounts(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        apiRequests += 1
+        worker.execute {
+            val result =
+                try {
+                    val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                    val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                    // Commit rotated credentials even when the following API request fails.
+                    storage.save("session", restored)
+                    val request = JSONObject(action.toString()).put("operation", "ai_accounts").put("session", restored)
+                    Result.success(command(request))
+                } catch (error: AuthFailure) {
+                    if (error.kind == "rejected") {
+                        try {
+                            discardSession(removeRegistration = true)
+                            main.post { errorMessage = error.message }
+                        } catch (_: Exception) {
+                            main.post { errorMessage = "Could not delete rejected Atlas credentials. Try again." }
+                        }
+                    }
+                    Result.failure(error)
+                } catch (_: Exception) {
+                    Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again."))
+                }
+            main.post {
+                apiRequests -= 1
+                completion(result)
+                if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
+                if (closing && apiRequests == 0) worker.shutdown()
+            }
         }
     }
 
@@ -188,7 +225,7 @@ class AtlasAuthentication(
             } catch (error: AuthFailure) {
                 if (error.kind == "rejected") {
                     try {
-                        storage.delete("registration")
+                        discardSession(removeRegistration = true)
                     } catch (_: Exception) {
                         // Preserve the credential failure without exposing storage details.
                     }

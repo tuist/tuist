@@ -382,6 +382,7 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
+        redis_children() ++
         [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
         once_events_grpc_children()
 
@@ -420,15 +421,6 @@ defmodule Tuist.Application do
         []
       end
     )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -438,6 +430,18 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  defp redis_children do
+    if Environment.redis_url() do
+      [
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+      ]
+    else
+      []
+    end
   end
 
   # Only in the tree while a destination is configured, which is only during

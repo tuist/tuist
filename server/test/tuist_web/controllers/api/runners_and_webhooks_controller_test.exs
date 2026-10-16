@@ -132,15 +132,24 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       response = conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
-      assert %{"cache_writer_branches" => []} = Enum.find(response["profiles"], &(&1["name"] == "ci"))
+
+      assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => []} =
+               Enum.find(response["profiles"], &(&1["name"] == "ci"))
 
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["main", "release/*"]})
+        |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{
+          cache_writer_default_branch: false,
+          cache_writer_branches: ["develop", "release/*"]
+        })
         |> json_response(:ok)
 
-      assert %{"name" => "ci", "cache_writer_branches" => ["main", "release/*"]} = response
+      assert %{
+               "name" => "ci",
+               "cache_writer_default_branch" => false,
+               "cache_writer_branches" => ["develop", "release/*"]
+             } = response
 
       response =
         conn
@@ -148,8 +157,8 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
         |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: []})
         |> json_response(:ok)
 
-      assert %{"cache_writer_branches" => []} = response
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+      assert %{"cache_writer_default_branch" => false, "cache_writer_branches" => []} = response
+      assert %{cache_writer_default_branch: false, cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
     end
 
     test "rejects invalid branches and unknown profiles", %{conn: conn, user: user, account: account} do
@@ -160,10 +169,9 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
                |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["a b"]})
                |> json_response(:unprocessable_entity)
 
-      assert %{"message" => "Missing field: cache_writer_branches"} =
-               conn
-               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{})
-               |> json_response(:bad_request)
+      conn
+      |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_default_branch: "sometimes"})
+      |> json_response(:bad_request)
 
       assert %{"message" => "The runner profile was not found."} =
                conn

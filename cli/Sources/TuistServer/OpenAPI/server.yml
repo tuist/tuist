@@ -9722,12 +9722,17 @@ components:
     RunnerProfile:
       properties:
         cache_writer_branches:
-          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
           items:
             type: string
             x-struct:
             x-validate:
           type: array
+          x-struct:
+          x-validate:
+        cache_writer_default_branch:
+          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+          type: boolean
           x-struct:
           x-validate:
         id:
@@ -9779,6 +9784,7 @@ components:
         - vcpus
         - memory_gb
         - protected
+        - cache_writer_default_branch
         - cache_writer_branches
         - inserted_at
         - updated_at
@@ -13644,12 +13650,17 @@ paths:
                     items:
                       properties:
                         cache_writer_branches:
-                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                           items:
                             type: string
                             x-struct:
                             x-validate:
                           type: array
+                          x-struct:
+                          x-validate:
+                        cache_writer_default_branch:
+                          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                          type: boolean
                           x-struct:
                           x-validate:
                         id:
@@ -13701,6 +13712,7 @@ paths:
                         - vcpus
                         - memory_gb
                         - protected
+                        - cache_writer_default_branch
                         - cache_writer_branches
                         - inserted_at
                         - updated_at
@@ -14854,7 +14866,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan:
     post:
       callbacks: {}
-      description: "Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under."
+      description: "Given the test cases a run just executed, returns the ones that have not run in CI in the trailing ninety days on the project's default branch, or on a commit the default branch has since reached, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under."
       operationId: createStressPlan
       parameters:
         - description: The handle of the project's account.
@@ -31175,7 +31187,7 @@ paths:
   /api/accounts/{account_handle}/runners/profiles/{profile_name}:
     patch:
       callbacks: {}
-      description: Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+      description: "Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows."
       operationId: updateRunnerProfile
       parameters:
         - description: The account handle.
@@ -31200,7 +31212,7 @@ paths:
             schema:
               properties:
                 cache_writer_branches:
-                  description: Branch names or * patterns. An empty list follows each repository's default branch.
+                  description: Additional branch names or * patterns that save. An empty list removes them.
                   items:
                     type: string
                     x-struct:
@@ -31208,8 +31220,11 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-              required:
-                - cache_writer_branches
+                cache_writer_default_branch:
+                  description: Whether jobs on each repository's default branch save.
+                  type: boolean
+                  x-struct:
+                  x-validate:
               type: object
               x-struct:
               x-validate:
@@ -31222,12 +31237,17 @@ paths:
               schema:
                 properties:
                   cache_writer_branches:
-                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                     items:
                       type: string
                       x-struct:
                       x-validate:
                     type: array
+                    x-struct:
+                    x-validate:
+                  cache_writer_default_branch:
+                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    type: boolean
                     x-struct:
                     x-validate:
                   id:
@@ -31279,6 +31299,7 @@ paths:
                   - vcpus
                   - memory_gb
                   - protected
+                  - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
                   - updated_at
