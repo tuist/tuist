@@ -386,6 +386,10 @@ swiftRegistrySync:
 # drop `:process_xcresult` and the macOS Pods own the queue.
 xcresultProcessor:
   enabled: true
+  # Installed by server-deployment.yml as the `<release>-xcresult-processor`
+  # release from infra/helm/xcresult-processor, which the deploy does not
+  # roll back on; see that chart.
+  ownRelease: true
   replicaCount: 2
   queueConcurrency: 4
   image:
