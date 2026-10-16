@@ -115,9 +115,9 @@ defmodule Tuist.Shards.BinPacker do
   Units are `{name, duration_ms, :parallel | :serial}`. Returns
   `{index, [{name, duration_ms}], estimated_duration_ms}` tuples, as `pack/2`.
   """
-  def pack_concurrent(units, shard_count, concurrency)
-      when is_list(units) and is_integer(shard_count) and shard_count > 0 and is_number(concurrency) and concurrency > 0 do
-    empty_shards = Enum.map(0..(shard_count - 1), &{&1, [], {0, 0, 0}})
+  def pack_concurrent(units, count, concurrency)
+      when is_list(units) and is_integer(count) and count > 0 and is_number(concurrency) and concurrency > 0 do
+    empty_shards = Enum.map(0..(count - 1), &{&1, [], {0, 0, 0}})
 
     units
     |> Enum.sort_by(&elem(&1, 1), :desc)

@@ -482,6 +482,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/get(listProjectXcodeCachedModuleHistory)`.
     func listProjectXcodeCachedModuleHistory(_ input: Operations.listProjectXcodeCachedModuleHistory.Input) async throws -> Operations.listProjectXcodeCachedModuleHistory.Output
+    /// Record a Cargo invocation and its observed rustc compilations.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cargo/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)`.
+    func createCargoBuild(_ input: Operations.createCargoBuild.Input) async throws -> Operations.createCargoBuild.Output
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds`.
@@ -2287,6 +2292,21 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Record a Cargo invocation and its observed rustc compilations.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cargo/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)`.
+    public func createCargoBuild(
+        path: Operations.createCargoBuild.Input.Path,
+        headers: Operations.createCargoBuild.Input.Headers = .init(),
+        body: Operations.createCargoBuild.Input.Body? = nil
+    ) async throws -> Operations.createCargoBuild.Output {
+        try await createCargoBuild(Operations.createCargoBuild.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// List builds associated with a given project.
@@ -4315,6 +4335,7 @@ public enum Components {
                 case gradle = "gradle"
                 case mix = "mix"
                 case bazel = "bazel"
+                case cargo = "cargo"
             }
             /// The build system used by the test run.
             ///
@@ -29790,6 +29811,7 @@ public enum Operations {
                         case gradle = "gradle"
                         case mix = "mix"
                         case bazel = "bazel"
+                        case cargo = "cargo"
                     }
                     /// The build system used by the test run.
                     ///
@@ -58850,6 +58872,1059 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Record a Cargo invocation and its observed rustc compilations.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cargo/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)`.
+    public enum createCargoBuild {
+        public static let id: Swift.String = "createCargoBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createCargoBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCargoBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCargoBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createCargoBuild.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache`.
+                    public struct cachePayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/background_upload_failures`.
+                        public var background_upload_failures: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details`.
+                        public struct detailsPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload`.
+                            public struct cas_outputsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/duration_ns`.
+                                public var duration_ns: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/key`.
+                                public var key: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/operation`.
+                                @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case download = "download"
+                                    case upload = "upload"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/operation`.
+                                public var operation: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.operationPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/size_bytes`.
+                                public var size_bytes: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case downloaded = "downloaded"
+                                    case uploaded = "uploaded"
+                                    case present = "present"
+                                    case failed = "failed"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputsPayload/status`.
+                                public var status: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.statusPayload
+                                /// Creates a new `cas_outputsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration_ns:
+                                ///   - key:
+                                ///   - operation:
+                                ///   - size_bytes:
+                                ///   - status:
+                                public init(
+                                    duration_ns: Swift.Int,
+                                    key: Swift.String,
+                                    operation: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.operationPayload,
+                                    size_bytes: Swift.Int,
+                                    status: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.statusPayload
+                                ) {
+                                    self.duration_ns = duration_ns
+                                    self.key = key
+                                    self.operation = operation
+                                    self.size_bytes = size_bytes
+                                    self.status = status
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration_ns
+                                    case key
+                                    case operation
+                                    case size_bytes
+                                    case status
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.duration_ns = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .duration_ns
+                                    )
+                                    self.key = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .key
+                                    )
+                                    self.operation = try container.decode(
+                                        Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.operationPayload.self,
+                                        forKey: .operation
+                                    )
+                                    self.size_bytes = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .size_bytes
+                                    )
+                                    self.status = try container.decode(
+                                        Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload.statusPayload.self,
+                                        forKey: .status
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "duration_ns",
+                                        "key",
+                                        "operation",
+                                        "size_bytes",
+                                        "status"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputs`.
+                            public typealias cas_outputsPayload = [Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/cas_outputs`.
+                            public var cas_outputs: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload`.
+                            public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/cas_keys`.
+                                public var cas_keys: [Swift.String]?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/key`.
+                                public var key: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/kind`.
+                                @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case rust = "rust"
+                                    case compiler = "compiler"
+                                    case build_script = "build_script"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/kind`.
+                                public var kind: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.kindPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/name`.
+                                public var name: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/read_duration_ns`.
+                                public var read_duration_ns: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case hit = "hit"
+                                    case miss = "miss"
+                                    case unconsulted = "unconsulted"
+                                    case verification = "verification"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/status`.
+                                public var status: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.statusPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasksPayload/write_duration_ns`.
+                                public var write_duration_ns: Swift.Int?
+                                /// Creates a new `tasksPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - cas_keys:
+                                ///   - key:
+                                ///   - kind:
+                                ///   - name:
+                                ///   - read_duration_ns:
+                                ///   - status:
+                                ///   - write_duration_ns:
+                                public init(
+                                    cas_keys: [Swift.String]? = nil,
+                                    key: Swift.String,
+                                    kind: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.kindPayload,
+                                    name: Swift.String,
+                                    read_duration_ns: Swift.Int? = nil,
+                                    status: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.statusPayload,
+                                    write_duration_ns: Swift.Int? = nil
+                                ) {
+                                    self.cas_keys = cas_keys
+                                    self.key = key
+                                    self.kind = kind
+                                    self.name = name
+                                    self.read_duration_ns = read_duration_ns
+                                    self.status = status
+                                    self.write_duration_ns = write_duration_ns
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case cas_keys
+                                    case key
+                                    case kind
+                                    case name
+                                    case read_duration_ns
+                                    case status
+                                    case write_duration_ns
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.cas_keys = try container.decodeIfPresent(
+                                        [Swift.String].self,
+                                        forKey: .cas_keys
+                                    )
+                                    self.key = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .key
+                                    )
+                                    self.kind = try container.decode(
+                                        Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.kindPayload.self,
+                                        forKey: .kind
+                                    )
+                                    self.name = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .name
+                                    )
+                                    self.read_duration_ns = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .read_duration_ns
+                                    )
+                                    self.status = try container.decode(
+                                        Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload.statusPayload.self,
+                                        forKey: .status
+                                    )
+                                    self.write_duration_ns = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .write_duration_ns
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "cas_keys",
+                                        "key",
+                                        "kind",
+                                        "name",
+                                        "read_duration_ns",
+                                        "status",
+                                        "write_duration_ns"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasks`.
+                            public typealias tasksPayload = [Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/tasks`.
+                            public var tasks: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/truncated`.
+                            public var truncated: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/version`.
+                            @frozen public enum versionPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                                case _1 = 1
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details/version`.
+                            public var version: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.versionPayload
+                            /// Creates a new `detailsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cas_outputs:
+                            ///   - tasks:
+                            ///   - truncated:
+                            ///   - version:
+                            public init(
+                                cas_outputs: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayload,
+                                tasks: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayload,
+                                truncated: Swift.Bool,
+                                version: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.versionPayload
+                            ) {
+                                self.cas_outputs = cas_outputs
+                                self.tasks = tasks
+                                self.truncated = truncated
+                                self.version = version
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cas_outputs
+                                case tasks
+                                case truncated
+                                case version
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.cas_outputs = try container.decode(
+                                    Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.cas_outputsPayload.self,
+                                    forKey: .cas_outputs
+                                )
+                                self.tasks = try container.decode(
+                                    Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.tasksPayload.self,
+                                    forKey: .tasks
+                                )
+                                self.truncated = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .truncated
+                                )
+                                self.version = try container.decode(
+                                    Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.versionPayload.self,
+                                    forKey: .version
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "cas_outputs",
+                                    "tasks",
+                                    "truncated",
+                                    "version"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/details`.
+                        public var details: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/divergences`.
+                        public var divergences: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/downloaded_bytes`.
+                        public var downloaded_bytes: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/estimated_compiler_duration_avoided_ns`.
+                        public var estimated_compiler_duration_avoided_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/hits`.
+                        public var hits: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/materialization_duration_ns`.
+                        public var materialization_duration_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/misses`.
+                        public var misses: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/prefetch_duration_ns`.
+                        public var prefetch_duration_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/prefetched_actions`.
+                        public var prefetched_actions: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/remote_action_lookup_duration_ns`.
+                        public var remote_action_lookup_duration_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/remote_blob_transfer_duration_ns`.
+                        public var remote_blob_transfer_duration_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/remote_failures`.
+                        public var remote_failures: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/unconsulted`.
+                        public var unconsulted: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/upload_drain_duration_ns`.
+                        public var upload_drain_duration_ns: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/uploaded_bytes`.
+                        public var uploaded_bytes: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/verifications`.
+                        public var verifications: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/version`.
+                        @frozen public enum versionPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                            case _1 = 1
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache/version`.
+                        public var version: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.versionPayload
+                        /// Creates a new `cachePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - background_upload_failures:
+                        ///   - details:
+                        ///   - divergences:
+                        ///   - downloaded_bytes:
+                        ///   - estimated_compiler_duration_avoided_ns:
+                        ///   - hits:
+                        ///   - materialization_duration_ns:
+                        ///   - misses:
+                        ///   - prefetch_duration_ns:
+                        ///   - prefetched_actions:
+                        ///   - remote_action_lookup_duration_ns:
+                        ///   - remote_blob_transfer_duration_ns:
+                        ///   - remote_failures:
+                        ///   - unconsulted:
+                        ///   - upload_drain_duration_ns:
+                        ///   - uploaded_bytes:
+                        ///   - verifications:
+                        ///   - version:
+                        public init(
+                            background_upload_failures: Swift.Int? = nil,
+                            details: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload? = nil,
+                            divergences: Swift.Int? = nil,
+                            downloaded_bytes: Swift.Int? = nil,
+                            estimated_compiler_duration_avoided_ns: Swift.Int? = nil,
+                            hits: Swift.Int? = nil,
+                            materialization_duration_ns: Swift.Int? = nil,
+                            misses: Swift.Int? = nil,
+                            prefetch_duration_ns: Swift.Int? = nil,
+                            prefetched_actions: Swift.Int? = nil,
+                            remote_action_lookup_duration_ns: Swift.Int? = nil,
+                            remote_blob_transfer_duration_ns: Swift.Int? = nil,
+                            remote_failures: Swift.Int? = nil,
+                            unconsulted: Swift.Int? = nil,
+                            upload_drain_duration_ns: Swift.Int? = nil,
+                            uploaded_bytes: Swift.Int? = nil,
+                            verifications: Swift.Int? = nil,
+                            version: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.versionPayload
+                        ) {
+                            self.background_upload_failures = background_upload_failures
+                            self.details = details
+                            self.divergences = divergences
+                            self.downloaded_bytes = downloaded_bytes
+                            self.estimated_compiler_duration_avoided_ns = estimated_compiler_duration_avoided_ns
+                            self.hits = hits
+                            self.materialization_duration_ns = materialization_duration_ns
+                            self.misses = misses
+                            self.prefetch_duration_ns = prefetch_duration_ns
+                            self.prefetched_actions = prefetched_actions
+                            self.remote_action_lookup_duration_ns = remote_action_lookup_duration_ns
+                            self.remote_blob_transfer_duration_ns = remote_blob_transfer_duration_ns
+                            self.remote_failures = remote_failures
+                            self.unconsulted = unconsulted
+                            self.upload_drain_duration_ns = upload_drain_duration_ns
+                            self.uploaded_bytes = uploaded_bytes
+                            self.verifications = verifications
+                            self.version = version
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case background_upload_failures
+                            case details
+                            case divergences
+                            case downloaded_bytes
+                            case estimated_compiler_duration_avoided_ns
+                            case hits
+                            case materialization_duration_ns
+                            case misses
+                            case prefetch_duration_ns
+                            case prefetched_actions
+                            case remote_action_lookup_duration_ns
+                            case remote_blob_transfer_duration_ns
+                            case remote_failures
+                            case unconsulted
+                            case upload_drain_duration_ns
+                            case uploaded_bytes
+                            case verifications
+                            case version
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.background_upload_failures = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .background_upload_failures
+                            )
+                            self.details = try container.decodeIfPresent(
+                                Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.detailsPayload.self,
+                                forKey: .details
+                            )
+                            self.divergences = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .divergences
+                            )
+                            self.downloaded_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .downloaded_bytes
+                            )
+                            self.estimated_compiler_duration_avoided_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .estimated_compiler_duration_avoided_ns
+                            )
+                            self.hits = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .hits
+                            )
+                            self.materialization_duration_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .materialization_duration_ns
+                            )
+                            self.misses = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .misses
+                            )
+                            self.prefetch_duration_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .prefetch_duration_ns
+                            )
+                            self.prefetched_actions = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .prefetched_actions
+                            )
+                            self.remote_action_lookup_duration_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .remote_action_lookup_duration_ns
+                            )
+                            self.remote_blob_transfer_duration_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .remote_blob_transfer_duration_ns
+                            )
+                            self.remote_failures = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .remote_failures
+                            )
+                            self.unconsulted = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .unconsulted
+                            )
+                            self.upload_drain_duration_ns = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .upload_drain_duration_ns
+                            )
+                            self.uploaded_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .uploaded_bytes
+                            )
+                            self.verifications = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .verifications
+                            )
+                            self.version = try container.decode(
+                                Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload.versionPayload.self,
+                                forKey: .version
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "background_upload_failures",
+                                "details",
+                                "divergences",
+                                "downloaded_bytes",
+                                "estimated_compiler_duration_avoided_ns",
+                                "hits",
+                                "materialization_duration_ns",
+                                "misses",
+                                "prefetch_duration_ns",
+                                "prefetched_actions",
+                                "remote_action_lookup_duration_ns",
+                                "remote_blob_transfer_duration_ns",
+                                "remote_failures",
+                                "unconsulted",
+                                "upload_drain_duration_ns",
+                                "uploaded_bytes",
+                                "verifications",
+                                "version"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/cache`.
+                    public var cache: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/ci_host`.
+                    public var ci_host: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/ci_project_handle`.
+                    public var ci_project_handle: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/ci_provider`.
+                    public var ci_provider: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/ci_run_id`.
+                    public var ci_run_id: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/command`.
+                    public var command: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload`.
+                    public struct compilationsPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/dependencies`.
+                        public var dependencies: [Swift.String]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload`.
+                        public struct diagnosticsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload/file`.
+                            public var file: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload/line`.
+                            public var line: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload/message`.
+                            public var message: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload/severity`.
+                            @frozen public enum severityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case warning = "warning"
+                                case error = "error"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnosticsPayload/severity`.
+                            public var severity: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.diagnosticsPayloadPayload.severityPayload
+                            /// Creates a new `diagnosticsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - file:
+                            ///   - line:
+                            ///   - message:
+                            ///   - severity:
+                            public init(
+                                file: Swift.String? = nil,
+                                line: Swift.Int? = nil,
+                                message: Swift.String,
+                                severity: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.diagnosticsPayloadPayload.severityPayload
+                            ) {
+                                self.file = file
+                                self.line = line
+                                self.message = message
+                                self.severity = severity
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case file
+                                case line
+                                case message
+                                case severity
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnostics`.
+                        public typealias diagnosticsPayload = [Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.diagnosticsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/diagnostics`.
+                        public var diagnostics: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.diagnosticsPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/duration_ms`.
+                        public var duration_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/kind`.
+                        public var kind: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/name`.
+                        public var name: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/source`.
+                        public var source: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/start_offset_ms`.
+                        public var start_offset_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilationsPayload/status`.
+                        public var status: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.statusPayload
+                        /// Creates a new `compilationsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - dependencies:
+                        ///   - diagnostics:
+                        ///   - duration_ms:
+                        ///   - kind:
+                        ///   - name:
+                        ///   - source:
+                        ///   - start_offset_ms:
+                        ///   - status:
+                        public init(
+                            dependencies: [Swift.String],
+                            diagnostics: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.diagnosticsPayload? = nil,
+                            duration_ms: Swift.Int,
+                            kind: Swift.String,
+                            name: Swift.String,
+                            source: Swift.String,
+                            start_offset_ms: Swift.Int,
+                            status: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload.statusPayload
+                        ) {
+                            self.dependencies = dependencies
+                            self.diagnostics = diagnostics
+                            self.duration_ms = duration_ms
+                            self.kind = kind
+                            self.name = name
+                            self.source = source
+                            self.start_offset_ms = start_offset_ms
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case dependencies
+                            case diagnostics
+                            case duration_ms
+                            case kind
+                            case name
+                            case source
+                            case start_offset_ms
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilations`.
+                    public typealias compilationsPayload = [Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/compilations`.
+                    public var compilations: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/contract_version`.
+                    public var contract_version: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/duration_ms`.
+                    public var duration_ms: Swift.Int
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/id`.
+                    public var id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/is_ci`.
+                    public var is_ci: Swift.Bool?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/rust_version`.
+                    public var rust_version: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/started_at`.
+                    public var started_at: Foundation.Date?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/status`.
+                    public var status: Operations.createCargoBuild.Input.Body.jsonPayload.statusPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache:
+                    ///   - ci_host:
+                    ///   - ci_project_handle:
+                    ///   - ci_provider:
+                    ///   - ci_run_id:
+                    ///   - command:
+                    ///   - compilations:
+                    ///   - contract_version:
+                    ///   - duration_ms:
+                    ///   - git_branch:
+                    ///   - git_commit_sha:
+                    ///   - git_ref:
+                    ///   - git_remote_url_origin:
+                    ///   - id:
+                    ///   - is_ci:
+                    ///   - rust_version:
+                    ///   - started_at:
+                    ///   - status:
+                    public init(
+                        cache: Operations.createCargoBuild.Input.Body.jsonPayload.cachePayload? = nil,
+                        ci_host: Swift.String? = nil,
+                        ci_project_handle: Swift.String? = nil,
+                        ci_provider: Swift.String? = nil,
+                        ci_run_id: Swift.String? = nil,
+                        command: Swift.String? = nil,
+                        compilations: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayload? = nil,
+                        contract_version: Swift.String? = nil,
+                        duration_ms: Swift.Int,
+                        git_branch: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
+                        id: Swift.String,
+                        is_ci: Swift.Bool? = nil,
+                        rust_version: Swift.String? = nil,
+                        started_at: Foundation.Date? = nil,
+                        status: Operations.createCargoBuild.Input.Body.jsonPayload.statusPayload
+                    ) {
+                        self.cache = cache
+                        self.ci_host = ci_host
+                        self.ci_project_handle = ci_project_handle
+                        self.ci_provider = ci_provider
+                        self.ci_run_id = ci_run_id
+                        self.command = command
+                        self.compilations = compilations
+                        self.contract_version = contract_version
+                        self.duration_ms = duration_ms
+                        self.git_branch = git_branch
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
+                        self.id = id
+                        self.is_ci = is_ci
+                        self.rust_version = rust_version
+                        self.started_at = started_at
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case cache
+                        case ci_host
+                        case ci_project_handle
+                        case ci_provider
+                        case ci_run_id
+                        case command
+                        case compilations
+                        case contract_version
+                        case duration_ms
+                        case git_branch
+                        case git_commit_sha
+                        case git_ref
+                        case git_remote_url_origin
+                        case id
+                        case is_ci
+                        case rust_version
+                        case started_at
+                        case status
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/content/application\/json`.
+                case json(Operations.createCargoBuild.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createCargoBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createCargoBuild.Input.Path,
+                headers: Operations.createCargoBuild.Input.Headers = .init(),
+                body: Operations.createCargoBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/201/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/201/content/json/id`.
+                        public var id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        public init(id: Swift.String) {
+                            self.id = id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/201/content/application\/json`.
+                    case json(Operations.createCargoBuild.Output.Created.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createCargoBuild.Output.Created.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCargoBuild.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCargoBuild.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Build created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createCargoBuild.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createCargoBuild.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCargoBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCargoBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid report
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createCargoBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createCargoBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCargoBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCargoBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createCargoBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createCargoBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createCargoBuild.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCargoBuild.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createCargoBuild.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createCargoBuild.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createCargoBuild.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createCargoBuild.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -105453,6 +106528,7 @@ public enum Operations {
                         case bazel = "bazel"
                         case once = "once"
                         case mix = "mix"
+                        case cargo = "cargo"
                     }
                     /// The build system used by the project.
                     ///

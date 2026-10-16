@@ -939,6 +939,10 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
+        scope "/cargo" do
+          post "/builds", CargoController, :create_build
+        end
+
         scope "/mix" do
           get "/files", MixFilesController, :index
           get "/files/:file_id", MixFilesController, :show
@@ -1579,6 +1583,7 @@ defmodule TuistWeb.Router do
 
       live "/builds/build-runs/:build_run_id", BuildRunLive, metadata: @public_project_route_metadata
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+      live "/builds/cargo-builds/:build_id", CargoBuildLive, metadata: @public_project_route_metadata
       live "/builds/mix-builds/:build_id", MixBuildLive, metadata: @public_project_route_metadata
       live "/previews", PreviewsLive, metadata: @public_project_route_metadata
       live "/runs/:run_id", RunDetailLive, metadata: @public_project_route_metadata

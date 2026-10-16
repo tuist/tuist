@@ -34,7 +34,7 @@ defmodule Tuist.ShardsTest do
     %{name: name, status: "success", duration: duration, execution_mode: execution_mode, test_cases: []}
   end
 
-  defp sharded_run_fixture(project, shards) do
+  defp sharded_run_fixture(project, shards, build_system \\ "mix") do
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: length(shards))
 
     shards
@@ -44,7 +44,7 @@ defmodule Tuist.ShardsTest do
         project_id: project.id,
         is_ci: true,
         git_branch: project.default_branch,
-        build_system: "mix",
+        build_system: build_system,
         shard_plan_id: plan.id,
         shard_index: index,
         duration: duration,
@@ -1116,6 +1116,35 @@ defmodule Tuist.ShardsTest do
         Shards.create_shard_plan(project, %{reference: "concurrent-modules-summed", modules: modules, shard_total: 2})
 
       assert Enum.map(summed.shard_assignments, & &1["estimated_duration_ms"]) == [50_000, 50_000]
+    end
+
+    test "Cargo binary plans account for measured overlap without summing their wall times" do
+      project = ProjectsFixtures.project_fixture(build_system: :cargo)
+      binaries = Enum.map(0..3, &"store::test/integration_#{&1}")
+
+      sharded_run_fixture(project, [{20_000, Enum.map(binaries, &module_run(&1, 20_000, "parallel"))}], "cargo")
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "cargo-measured-overlap",
+          modules: binaries,
+          concurrent_modules: binaries,
+          shard_total: 2
+        })
+
+      assert result.shard_count == 2
+      assert Enum.map(result.shard_assignments, & &1["estimated_duration_ms"]) == [20_000, 20_000]
+      assert Enum.map(result.shard_assignments, &length(&1["test_targets"])) == [2, 2]
+      assert planned_targets(result) == MapSet.new(binaries)
+
+      unmeasured =
+        Shards.create_shard_plan(project, %{
+          reference: "cargo-summed-fallback",
+          modules: binaries,
+          shard_total: 2
+        })
+
+      assert Enum.map(unmeasured.shard_assignments, & &1["estimated_duration_ms"]) == [40_000, 40_000]
     end
 
     test "prices concurrent modules by the concurrency their shard runs achieved" do

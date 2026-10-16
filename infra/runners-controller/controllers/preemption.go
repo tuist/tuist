@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
 // Cross-pool preemption: when a pool's queued jobs cannot be placed because
@@ -283,6 +284,12 @@ func (r *AutoscalerReconciler) preemptForStarvedSiblings(
 		inputs = append(inputs, input)
 	}
 
+	warm, err := r.nodesHoldingStarvedImages(ctx, pool, fleet, inputs)
+	if err != nil {
+		return false, err
+	}
+	mine.preemptible = preferPodsOnNodes(mine.preemptible, warm)
+
 	chosen, starved := planPreemption(pool.Name, inputs)
 	if len(chosen) == 0 {
 		return false, nil
@@ -319,6 +326,57 @@ func (r *AutoscalerReconciler) preemptForStarvedSiblings(
 	logger.Info("preempting idle runners for starved siblings",
 		"from", current, "to", target, "pods", len(chosen), "for", forPools)
 	return true, nil
+}
+
+// nodesHoldingStarvedImages returns the fleet's hosts that already hold the
+// golden image of a starved pool. A starved Pod takes whichever seat frees,
+// so freeing one of these lets its job clone the image instead of pulling it.
+func (r *AutoscalerReconciler) nodesHoldingStarvedImages(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	fleet *fleetAllocation,
+	inputs []*preemptionPool,
+) (map[string]bool, error) {
+	var keys []string
+	for _, input := range inputs {
+		if input.starvedNeed() <= 0 {
+			continue
+		}
+		if image := fleet.members[input.name].pool.Spec.Image; image != "" {
+			keys = append(keys, podtemplate.GoldenNodeAffinityKey(image))
+		}
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+		return nil, fmt.Errorf("list fleet nodes: %w", err)
+	}
+	warm := map[string]bool{}
+	for i := range nodes.Items {
+		for _, key := range keys {
+			if _, ok := nodes.Items[i].Labels[key]; ok {
+				warm[nodes.Items[i].Name] = true
+				break
+			}
+		}
+	}
+	return warm, nil
+}
+
+// preferPodsOnNodes moves the Pods bound to `nodes` ahead of the rest,
+// keeping the order within each group.
+func preferPodsOnNodes(pods []*corev1.Pod, nodes map[string]bool) []*corev1.Pod {
+	if len(nodes) == 0 {
+		return pods
+	}
+	sorted := append([]*corev1.Pod(nil), pods...)
+	sort.SliceStable(sorted, func(a, b int) bool {
+		return nodes[sorted[a].Spec.NodeName] && !nodes[sorted[b].Spec.NodeName]
+	})
+	return sorted
 }
 
 // rejectedForCapacity reports whether the scheduler has refused a Pod for

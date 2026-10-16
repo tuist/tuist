@@ -397,6 +397,7 @@ components:
             - gradle
             - mix
             - bazel
+            - cargo
           type: string
           x-struct:
           x-validate:
@@ -14607,6 +14608,7 @@ paths:
                     - gradle
                     - mix
                     - bazel
+                    - cargo
                   type: string
                   x-struct:
                   x-validate:
@@ -24675,6 +24677,524 @@ paths:
       summary: List recorded history for an Xcode generated-project module across builds.
       tags:
         - XcodeCachedModule
+  /api/projects/{account_handle}/{project_handle}/cargo/builds:
+    post:
+      callbacks: {}
+      operationId: createCargoBuild
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache:
+                  additionalProperties: false
+                  properties:
+                    background_upload_failures:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    details:
+                      additionalProperties: false
+                      properties:
+                        cas_outputs:
+                          items:
+                            additionalProperties: false
+                            properties:
+                              duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              key:
+                                maxLength: 100
+                                pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                type: string
+                                x-struct:
+                                x-validate:
+                              operation:
+                                enum:
+                                  - download
+                                  - upload
+                                type: string
+                                x-struct:
+                                x-validate:
+                              size_bytes:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              status:
+                                enum:
+                                  - downloaded
+                                  - uploaded
+                                  - present
+                                  - failed
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - key
+                              - operation
+                              - status
+                              - size_bytes
+                              - duration_ns
+                            type: object
+                            x-struct:
+                            x-validate:
+                          maxItems: 5000
+                          type: array
+                          x-struct:
+                          x-validate:
+                        tasks:
+                          items:
+                            additionalProperties: false
+                            properties:
+                              cas_keys:
+                                items:
+                                  maxLength: 100
+                                  pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                maxItems: 128
+                                type: array
+                                x-struct:
+                                x-validate:
+                              key:
+                                maxLength: 100
+                                pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                type: string
+                                x-struct:
+                                x-validate:
+                              kind:
+                                enum:
+                                  - rust
+                                  - compiler
+                                  - build_script
+                                type: string
+                                x-struct:
+                                x-validate:
+                              name:
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                                x-struct:
+                                x-validate:
+                              read_duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              status:
+                                enum:
+                                  - hit
+                                  - miss
+                                  - unconsulted
+                                  - verification
+                                type: string
+                                x-struct:
+                                x-validate:
+                              write_duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                            required:
+                              - key
+                              - name
+                              - kind
+                              - status
+                            type: object
+                            x-struct:
+                            x-validate:
+                          maxItems: 2000
+                          type: array
+                          x-struct:
+                          x-validate:
+                        truncated:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        version:
+                          enum:
+                            - 1
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - version
+                        - tasks
+                        - cas_outputs
+                        - truncated
+                      type: object
+                      x-struct:
+                      x-validate:
+                    divergences:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    downloaded_bytes:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    estimated_compiler_duration_avoided_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    hits:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    materialization_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    misses:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    prefetch_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    prefetched_actions:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_action_lookup_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_blob_transfer_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_failures:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    unconsulted:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    upload_drain_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    uploaded_bytes:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    verifications:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    version:
+                      enum:
+                        - 1
+                      type: integer
+                      x-struct:
+                      x-validate:
+                  required:
+                    - version
+                  type: object
+                  x-struct:
+                  x-validate:
+                ci_host:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_project_handle:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_provider:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_run_id:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                command:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                compilations:
+                  items:
+                    properties:
+                      dependencies:
+                        items:
+                          maxLength: 1024
+                          type: string
+                          x-struct:
+                          x-validate:
+                        maxItems: 5000
+                        type: array
+                        x-struct:
+                        x-validate:
+                      diagnostics:
+                        items:
+                          properties:
+                            file:
+                              maxLength: 4096
+                              type: string
+                              x-struct:
+                              x-validate:
+                            line:
+                              maximum: 4294967295
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            message:
+                              maxLength: 10000
+                              type: string
+                              x-struct:
+                              x-validate:
+                            severity:
+                              enum:
+                                - warning
+                                - error
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - severity
+                            - message
+                          type: object
+                          x-struct:
+                          x-validate:
+                        maxItems: 100
+                        type: array
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      kind:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      source:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      start_offset_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      status:
+                        enum:
+                          - success
+                          - failure
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                      - source
+                      - kind
+                      - dependencies
+                      - start_offset_ms
+                      - duration_ms
+                      - status
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 20000
+                  type: array
+                  x-struct:
+                  x-validate:
+                contract_version:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                duration_ms:
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_remote_url_origin:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                id:
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                is_ci:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                rust_version:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                started_at:
+                  format: date-time
+                  type: string
+                  x-struct:
+                  x-validate:
+                status:
+                  enum:
+                    - success
+                    - failure
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - id
+                - duration_ms
+                - status
+              type: object
+              x-struct:
+              x-validate:
+        description: Cargo build
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                type: object
+                x-struct:
+                x-validate:
+          description: Build created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid report
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Record a Cargo invocation and its observed rustc compilations.
+      tags:
+        - Cargo
   /api/projects/{account_handle}/{project_handle}/xcode/builds:
     get:
       callbacks: {}
@@ -40935,6 +41455,7 @@ paths:
                     - bazel
                     - once
                     - mix
+                    - cargo
                   type: string
                   x-struct:
                   x-validate:

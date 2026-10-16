@@ -14,6 +14,8 @@
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
 
+- `RuntimeChildren.readiness_server/1` starts `Tuist.Readiness.Plug` on port 9092 for `:xcresult_processor` only, after Oban so it stops first. tart-kubelet probes `GET /ready`, which checks Postgres, ClickHouse (and the shadow ClickHouse when configured) and the `:process_xcresult` queue. Keep the port in sync with `infra/helm/tuist/templates/xcresult-processor-deployment.yaml`.
+
 ## Replica-safety rollout
 
 Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task. Keep best-effort test-ingestion enrichments on the existing detached `Tuist.Tasks` path; they do not require an application-level task supervisor, drainer or extra pod grace. Required analytics buffer shutdown and shadow-write draining retain their existing lifecycles; neither makes acknowledged in-memory staging durable across hard replica loss.

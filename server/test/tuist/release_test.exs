@@ -48,6 +48,33 @@ defmodule Tuist.ReleaseTest do
     end
   end
 
+  describe "check_clickhouse_parity/0 with a table only the destination holds" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    test "raises on schema drift even when every compared table agrees" do
+      # A migration dropped it on the source, and the additive reconcile never
+      # drops it on the destination.
+      stub(Parity, :compare, fn ->
+        {:ok,
+         %{
+           compared: 2,
+           skipped: [],
+           matching: ["build_runs", "test_case_runs"],
+           differing: [],
+           schema: %{missing_on_destination: [], missing_on_source: ["test_run_enumerated_tests"], differing_columns: []},
+           migrations: %{missing_on_destination: [], only_on_destination: []},
+           derived: %{compared: 0, matching: [], differing: []}
+         }}
+      end)
+
+      assert_raise RuntimeError, ~r/schema drift.*test_run_enumerated_tests/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
+
   describe "clickhouse_repair_window/3" do
     test "parses the instants as UTC, to the second" do
       assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:05:00.500Z") ==
@@ -269,7 +296,7 @@ defmodule Tuist.ReleaseTest do
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits TO "tuist_processor"),
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits, "public".git_repositories, "public".git_refs, "public".git_commits TO "tuist_processor"),
                ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|,
                ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions TO "tuist_processor"|,
                ~s(GRANT SELECT, INSERT ON TABLE "public".mcp_event_job_keys TO "tuist_processor")
@@ -284,7 +311,7 @@ defmodule Tuist.ReleaseTest do
         |> File.read!()
 
       expected_read_grant =
-        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits TO tuist_processor;)
+        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits, :"tuist_schema".git_repositories, :"tuist_schema".git_refs, :"tuist_schema".git_commits TO tuist_processor;)
 
       assert occurrences(sql, expected_read_grant) == 1
 

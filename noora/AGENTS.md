@@ -38,7 +38,7 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
 - `Noora.Icon` tracks each SVG as an `@external_resource` and recompiles on added or removed icons through `__mix_recompile__?/0`. Don't declare the `icons` directory itself as an external resource: Mix can't digest a directory, so every fresh checkout would recompile `Noora.Icon` and everything that depends on Noora.
-- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
+- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`, `brand-rust.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
 
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
@@ -49,4 +49,4 @@ Do not bootstrap the npm package from a local machine. The first automated relea
   listeners once per hook lifetime rather than once per render.
 
 - Chart tooltips take `dateFormat: "day" | "week" | "month"` to title a point by the calendar period it stands for (its date is the period's start, formatted in UTC; a week reads as a range), besides `"minute"` and `"hour"`.
-- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Explicit unit formatters and category/time axes retain their formats; series values remain numeric.
+- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Percentage tooltip templates round to at most one decimal in both series rows and scatter titles without rounding the underlying data. Explicit unit formatters and category/time axes retain their formats; series values remain numeric.

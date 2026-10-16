@@ -1360,7 +1360,7 @@ rackFleet:
   # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
   # so both are on the rack before a mini asks.
   imageCache:
-    enabled: false
+    enabled: true
     routeHosts: []
     nodes:
       - name: ber1-store-a
@@ -2010,6 +2010,11 @@ runnersFleet:
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
+    "27.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
