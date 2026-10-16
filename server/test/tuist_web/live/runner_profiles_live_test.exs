@@ -173,18 +173,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
 
-      Tuist.Repo.insert!(%Tuist.Runners.CacheVolumes.Volume{
-        account_id: account.id,
-        provider: "github",
-        provider_instance: "github.com",
-        scope_id: "1",
-        repository: "acme/app",
-        key: "deps",
-        architecture: "arm64",
-        uid: 501,
-        default_branch: "develop",
-        last_used_at: DateTime.utc_now()
-      })
+      record_default_branch(account, "develop")
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
@@ -192,6 +181,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
     end
 
     test "edits the branches that save cache in a collapsed section", %{conn: conn, account: account} do
+      record_default_branch(account, "main")
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
@@ -235,6 +225,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
     end
 
     test "rejects invalid cache writer branches before adding them", %{conn: conn, account: account} do
+      record_default_branch(account, "main")
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
@@ -251,5 +242,64 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "save_profile", %{})
       assert %{cache_writer_branches: ["main", "feature"]} = Profiles.get_by_name(account, "ci")
     end
+
+    test "looks the default branch up on GitHub before any volume has recorded it", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      account_id = account.id
+
+      for {repository, offset} <- [{"acme/app", 0}, {"acme/lib", -60}] do
+        Tuist.Repo.insert!(%Tuist.Runners.WorkflowJob{
+          workflow_job_id: System.unique_integer([:positive]),
+          account_id: account.id,
+          fleet_name: "test",
+          status: "completed",
+          repository: repository,
+          enqueued_at: DateTime.add(DateTime.utc_now(), offset)
+        })
+      end
+
+      stub(Tuist.VCS, :get_github_app_installation_for_account, fn ^account_id -> {:ok, %{id: 1}} end)
+
+      stub(Tuist.GitHub.Client, :get_repository, fn
+        %{id: 1}, "acme/app" -> {:ok, %{"default_branch" => "develop"}}
+        %{id: 1}, "acme/lib" -> {:ok, %{"default_branch" => "master"}}
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      render_async(lv)
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*develop, master\s*</
+    end
+
+    test "shows no placeholder branch when the default branch is unknown", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      stub(Tuist.VCS, :get_github_app_installation_for_account, fn _ -> {:error, :not_found} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      render_async(lv)
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      refute html =~ ~s(class="noora-tag")
+      assert html =~ "Include it, such as main, when you add branches."
+
+      render_hook(lv, "add_cache_writer_branch", %{"branch" => "develop"})
+      render_hook(lv, "save_profile", %{})
+      assert %{cache_writer_branches: ["develop"]} = Profiles.get_by_name(account, "ci")
+    end
+  end
+
+  defp record_default_branch(account, branch) do
+    Tuist.Repo.insert!(%Tuist.Runners.CacheVolumes.Volume{
+      account_id: account.id,
+      provider: "github",
+      provider_instance: "github.com",
+      scope_id: "1",
+      repository: "acme/app",
+      key: "deps-#{branch}",
+      architecture: "arm64",
+      uid: 501,
+      default_branch: branch,
+      last_used_at: DateTime.utc_now()
+    })
   end
 end

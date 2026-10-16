@@ -39,10 +39,32 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
-     |> assign(:default_branches, CacheVolumes.default_branches(selected_account.id))
+     |> assign_default_branches()
      |> assign_profiles()
      |> reset_form()}
   end
+
+  # Volumes record their repository's default branch. Before any has, look it
+  # up on GitHub without blocking the page.
+  defp assign_default_branches(%{assigns: %{selected_account: account}} = socket) do
+    case CacheVolumes.default_branches(account.id) do
+      [] ->
+        socket = assign(socket, :default_branches, [])
+
+        if connected?(socket),
+          do: start_async(socket, :default_branches, fn -> CacheVolumes.github_default_branches(account.id) end),
+          else: socket
+
+      branches ->
+        assign(socket, :default_branches, branches)
+    end
+  end
+
+  @impl true
+  def handle_async(:default_branches, {:ok, branches}, socket),
+    do: {:noreply, assign(socket, :default_branches, branches)}
+
+  def handle_async(:default_branches, {:exit, _reason}, socket), do: {:noreply, socket}
 
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
@@ -380,9 +402,8 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   @doc """
   Branches shown as badges. Without a custom list, the profile follows each
-  repository's default branch, shown by the names seen on the account's volumes.
+  repository's default branch, shown by its name when known.
   """
-  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: []}), do: ["main"]
   def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: branches}), do: branches
   def shown_cache_writer_branches(%{form_cache_writer_branches: branches}), do: branches
 
@@ -390,6 +411,8 @@ defmodule TuistWeb.RunnerProfilesLive do
   Summary of the branches being edited, shown on the collapsed section. A
   profile that follows the default branch shows the default branch names.
   """
+  def cache_saving_summary([]), do: dgettext("dashboard_runners", "Default branch")
+
   def cache_saving_summary(branches) do
     if "*" in branches do
       dgettext("dashboard_runners", "Any branch")

@@ -216,6 +216,15 @@
                     on_dismiss="remove_cache_writer_branch"
                     dismiss_value={branch}
                   />
+                  <span
+                    :if={shown_cache_writer_branches(assigns) == []}
+                    data-part="unknown-default-branch"
+                  >
+                    {dgettext(
+                      "dashboard_runners",
+                      "Follows each repository's default branch. Include it, such as main, when you add branches."
+                    )}
+                  </span>
                 </div>
                 <.form
                   for={%{}}

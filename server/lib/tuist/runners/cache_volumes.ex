@@ -11,6 +11,7 @@ defmodule Tuist.Runners.CacheVolumes do
   import Ecto.Query
 
   alias Tuist.Environment
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -23,6 +24,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.VCS
 
   @retention_seconds 7 * 24 * 60 * 60
 
@@ -314,6 +316,42 @@ defmodule Tuist.Runners.CacheVolumes do
         group_by: v.default_branch,
         order_by: [desc_nulls_last: max(v.last_used_at)],
         select: v.default_branch
+      )
+    )
+  end
+
+  @doc """
+  Default branches of the GitHub repositories that most recently ran jobs on the
+  account's runners, looked up through its GitHub app installation. Used before
+  any volume has recorded one. Empty when the account has no installation or
+  the lookups fail.
+  """
+  def github_default_branches(account_id, limit \\ 5) do
+    case VCS.get_github_app_installation_for_account(account_id) do
+      {:ok, installation} ->
+        account_id
+        |> recent_github_repositories(limit)
+        |> Enum.flat_map(fn repository ->
+          case GitHubClient.get_repository(installation, repository) do
+            {:ok, %{"default_branch" => branch}} when is_binary(branch) and branch != "" -> [branch]
+            _ -> []
+          end
+        end)
+        |> Enum.uniq()
+
+      _ ->
+        []
+    end
+  end
+
+  defp recent_github_repositories(account_id, limit) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.account_id == ^account_id and j.provider == "github" and j.repository != "",
+        group_by: j.repository,
+        order_by: [desc: max(j.enqueued_at)],
+        limit: ^limit,
+        select: j.repository
       )
     )
   end

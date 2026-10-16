@@ -207,6 +207,11 @@
       display: flex;
       flex-wrap: wrap;
       gap: var(--noora-spacing-2);
+
+      & > [data-part="unknown-default-branch"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
     }
 
     & [data-part="branch-input"] {
