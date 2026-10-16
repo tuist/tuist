@@ -370,6 +370,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			// Not a return path for its own failures: a host that cannot
+			// offer nested guests still serves every other Pod, and the
+			// drift checks after this one must keep running for it.
+			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kvmErr != nil {
+				logger.Error(kvmErr, "kata nested virtualization repair failed; will retry")
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
 				logger.Error(quotaErr, "containerd quota lift failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
