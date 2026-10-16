@@ -48,6 +48,8 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scmToRegistryTransformation: SCMToRegistryTransformation
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var manifestEnvironment: [String: String]?
+    /// Native resolution also performs authenticated fetches. When omitted, it uses `manifestEnvironment`.
+    public var resolutionEnvironment: [String: String]?
     public var reportTimings: Bool
     public var quiet: Bool
 
@@ -68,6 +70,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         scmToRegistryTransformation: SCMToRegistryTransformation = .disabled,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
         manifestEnvironment: [String: String]? = nil,
+        resolutionEnvironment: [String: String]? = nil,
         reportTimings: Bool = false,
         quiet: Bool = false
     ) {
@@ -87,6 +90,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.scmToRegistryTransformation = scmToRegistryTransformation
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
         self.manifestEnvironment = manifestEnvironment
+        self.resolutionEnvironment = resolutionEnvironment
         self.reportTimings = reportTimings
         self.quiet = quiet
     }
@@ -141,8 +145,10 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
@@ -160,8 +166,10 @@ public struct SwifterPM: Sendable {
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
@@ -177,7 +185,7 @@ public struct SwifterPM: Sendable {
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
@@ -249,6 +257,7 @@ public struct SwifterPM: Sendable {
         var timing = ResolutionTiming(enabled: request.reportTimings)
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
+        try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: scratch)
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
         let mirrors = try await MirrorConfig.load(
             packageDir: package, configPath: request.registryConfigurationPath

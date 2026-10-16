@@ -731,6 +731,13 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -1357,6 +1364,25 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # Off until the processor leaves the main release. The server deploy runs
+  # `helm upgrade --atomic --wait` on the whole release, which waits on
+  # every Deployment, so one NotReady processor (a shared Postgres or
+  # ClickHouse outage, or a host that cannot reach its guest) would hold
+  # and roll back every server deploy, including ones that do not touch
+  # the processor.
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
@@ -1632,6 +1658,66 @@ rackFleet:
   # private destination stays blocked. Empty passes none.
   vmCacheGatewayCIDRs: []
 
+  # The rack's VM image cache: a zot registry on each of the rack's storage
+  # nodes that mirrors the runner images, so an image crosses the WAN once per
+  # rack instead of once per mini. Rendered by the rack-nodes chart
+  # (infra/helm/rack-nodes/templates/image-cache.yaml), which a deploy does not
+  # wait on. See "The rack's VM image cache" in infra/rack-nodes/AGENTS.md.
+  imageCache:
+    # Runs the cache on each of `nodes` and keeps `prewarm` synced.
+    enabled: false
+    # The rack hosts (`hosts[].name`) whose tart-kubelet pulls golden bases
+    # through the caches (`--image-mirror`), in the order of `nodes`, before
+    # the upstream; `"*"` routes every host. A cache that is down, does not
+    # hold the image or fails the pull falls back to the upstream. Adding or
+    # removing a host drifts that host only, so one host can carry the cache
+    # before the rest.
+    routeHosts: []
+    # The registry the caches mirror. Only images from it are routed.
+    upstream: ghcr.io
+    # The repositories the caches serve, as zot sync prefixes.
+    repositories:
+      - tuist/tuist-runner
+    # Each storage node that runs a cache, by Node name, and its address on
+    # the machines segment, which the cache binds and the minis pull from.
+    #   - name: ber1-store-a
+    #     address: 10.10.0.11
+    nodes: []
+    port: 5000
+    # The cache's volume on the node's XFS /data (a quota-bounded local-path
+    # volume), also requested as ephemeral-storage so the Kura region on the
+    # same node places its instances around it.
+    storageClass: scw-local-nvme
+    sizeGi: 400
+    # Catalog Xcode versions (`runnersFleet.xcodeVersions`) the caches fetch
+    # as soon as a release names them, rather than on the first pull. Every
+    # other image of `repositories` is fetched on its first pull, which the
+    # hosts that want it wait for together.
+    prewarm: []
+    # How often the prewarm set is asked for again, which is how a release's
+    # new tags reach the cache once a deploy names them.
+    syncInterval: 10m
+    # Tags neither in `prewarm` nor pulled within this long are deleted, and
+    # their blobs collected, so a release's previous images go once the rack
+    # has rolled off them.
+    keepPulledWithin: 24h
+    image:
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.22@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+      pullPolicy: IfNotPresent
+    # The prewarm loop's wget. From ECR Public, so the rack's one egress IP
+    # spends nothing of Docker Hub's anonymous budget.
+    prewarmImage:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
@@ -1726,8 +1812,19 @@ rackFleet:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
     # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`).
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
     xcodeOverrides: {}
+    # A bigger guest on this fleet for a catalog shape, keyed
+    # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
+    # shape still route to it and its jobs are recorded, billed and counted
+    # against concurrency limits at the shape; only its Pods grow. Size the
+    # hosts' `machine` for the guests, and keep memory per vCPU the same across
+    # this fleet's guests so memory binds guest count where CPU does. A guest
+    # smaller than its shape fails the render.
+    guestShapes: {}
+    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
@@ -3425,9 +3522,12 @@ clickhouse:
       # Under the default object-storage bucket, then the namespace, so
       # environments sharing a bucket cannot restore over each other.
       prefix: clickhouse-backups
-      # Six hours. Long enough for a full of a dataset this size, short enough
-      # that a wedged backup does not block the next one indefinitely.
-      timeoutSeconds: 21600
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
       # Memory budget for the `backup` user the jobs run as, which is separate
       # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
       # leaves the user unbounded below the server's own ceiling.
@@ -3830,7 +3930,9 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
-  ingressClassName: nginx
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
   servers:
     production: https://tuist.dev
     canary: https://canary.tuist.dev

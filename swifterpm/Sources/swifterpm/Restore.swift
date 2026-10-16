@@ -36,7 +36,8 @@ enum WorkspaceRestorer {
         let scratchLock = try await PathLock.acquire(
             at: scratchDir.appendingPathComponent(".swifterpm.lock")
         )
-        _ = scratchLock
+        defer { withExtendedLifetime(scratchLock) {} }
+        try await assertNoEditedDependencies(scratchDir: scratchDir)
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         let registryDownloads = scratchDir.appendingPathComponent("registry/downloads")
         async let createCheckouts: Void = fileSystem.makeDirectory(
@@ -53,7 +54,8 @@ enum WorkspaceRestorer {
         let skipped = resolved.pins.count - sourcePins.count - registryPins.count
 
         async let restoredSources = restoreSourcePins(
-            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors
+            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
+            ownedCheckouts: resolved.nativeOwnedCheckouts
         )
         async let restoredRegistry = restoreRegistryPins(
             registryPins,
@@ -156,7 +158,7 @@ enum WorkspaceRestorer {
             )
             if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                 let lock = try await cache.lock(namespace: "artifacts", key: cachedArtifact.path)
-                _ = lock
+                defer { withExtendedLifetime(lock) {} }
                 if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                     try await downloadBinaryArtifact(
                         identity: identity,
@@ -268,7 +270,7 @@ enum WorkspaceRestorer {
                 try await HTTPClient.download(
                     url: remoteURL,
                     destination: archivePath,
-                    headers: await HTTPClient.binaryArtifactHeaders(for: remoteURL)
+                    headers: try await HTTPClient.binaryArtifactHeaders(for: remoteURL)
                 )
 
                 let actualChecksum = try Hashing.sha256Hex(fileAt: archivePath)
@@ -668,14 +670,26 @@ enum WorkspaceRestorer {
         _ pins: [ResolvedPin],
         checkouts: URL,
         cache: Cache,
-        mirrors: MirrorConfig
+        mirrors: MirrorConfig,
+        ownedCheckouts: Set<String>
     ) async throws -> [(String, URL)] {
         let results = try await ConcurrentTasks.map(pins) { pin in
             let location = mirrors.effectiveLocation(of: pin)
             do {
-                let source = try await ensureSource(cache: cache, pin: pin, location: location)
                 let checkout = checkouts.appendingPathComponent(
                     PinKind.checkoutDirectoryName(pin, mirrors: mirrors)
+                )
+                let cached = try cache.sourcePath(pin: pin)
+                if fileSystem.existsIncludingSymlinks(cached.appendingPathComponent(".git")) {
+                    try await restoreLegacyGitSource(
+                        source: cached, checkout: checkout, pin: pin, location: location,
+                        owned: ownedCheckouts.contains(checkout.lastPathComponent)
+                    )
+                    return (pin.identity, checkout)
+                }
+                let source = try await ensureSource(cache: cache, pin: pin, location: location)
+                try await assertCheckoutCanBeReplaced(
+                    checkout, revision: pin.revision(), owned: ownedCheckouts.contains(checkout.lastPathComponent)
                 )
                 try await fileSystem.replaceWithSymlinkedDirectory(
                     source: source, destination: checkout
@@ -688,14 +702,17 @@ enum WorkspaceRestorer {
         return results.sorted { $0.0 < $1.0 }
     }
 
-    /// Makes source-control checkouts created by native SwiftPM available to future SwifterPM
-    /// installations. On the usual same-volume cache layout this is a rename, not a copy.
+    /// Publishes pinned Git objects, never the mutable native work tree or its index.
+    /// Legacy shared Git entries are left in place; their replacement is workspace-local.
     static func cacheNativeSourceCheckouts(
         scratchDir: URL,
         cache: Cache,
         mirrors: MirrorConfig,
         resolved: ResolvedPins
     ) async throws {
+        let scratchLock = try await PathLock.acquire(at: scratchDir.appendingPathComponent(".swifterpm.lock"))
+        defer { withExtendedLifetime(scratchLock) {} }
+        try await assertNoEditedDependencies(scratchDir: scratchDir)
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isSourceControl($0.kind) }) { pin in
             let checkout = checkouts.appendingPathComponent(
@@ -707,46 +724,161 @@ enum WorkspaceRestorer {
 
             let destination = try cache.sourcePath(pin: pin)
             let expectedRevision = try pin.revision()
-            // The cache already holds this revision, so hand the workspace the cached copy
-            // instead of leaving SwiftPM's checkout behind. Returning early here left a real
-            // directory in a scratch directory whose other pins are symlinks.
-            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
-                try await fileSystem.replaceWithCachedDirectory(
-                    source: destination, destination: checkout
-                )
-                return
-            }
-
+            let owned = resolved.nativeOwnedCheckouts.contains(checkout.lastPathComponent)
+            try await assertCheckoutCanBeReplaced(checkout, revision: expectedRevision, owned: owned)
             let lock = try await cache.lock(namespace: "sources", key: destination.path)
-            _ = lock
-            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
-                try await fileSystem.replaceWithCachedDirectory(
-                    source: destination, destination: checkout
-                )
+            defer { withExtendedLifetime(lock) {} }
+            if !fileSystem.existsIncludingSymlinks(destination.appendingPathComponent(".git")),
+               try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision)
+            {
+                try await replaceNativeCheckout(checkout, withCachedSource: destination)
                 return
             }
-
-            if try await fileSystem.exists(destination.absolutePath) {
-                try await fileSystem.remove(destination.absolutePath)
+            guard fileSystem.existsIncludingSymlinks(checkout.appendingPathComponent(".git")) else {
+                // A Git-free private copy is usable, but is not an authoritative cache input.
+                return
             }
-
-            let gitDirectory = checkout.appendingPathComponent(".git")
-            if try await fileSystem.exists(gitDirectory.absolutePath) {
-                try await fileSystem.remove(gitDirectory.absolutePath)
-            }
-            try await writeSourceRevisionMarker(directory: checkout, revision: expectedRevision)
-            try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
+            let staging = try await fileSystem.temporaryDirectory(in: destination.deletingLastPathComponent())
+            let snapshot = staging.appendingPathComponent("package")
             do {
-                try await fileSystem.replaceWithCachedDirectory(
-                    source: destination,
-                    destination: checkout
-                )
+                do {
+                    try await PinnedSourceSnapshot.write(
+                        from: checkout, revision: expectedRevision, to: snapshot, staging: staging
+                    )
+                    guard try await cachedSourceIsUsable(snapshot) else {
+                        throw ToolError.message("incomplete source snapshot for \(pin.identity)")
+                    }
+                } catch {
+                    try? await fileSystem.removePath(staging)
+                    FileHandle.standardError
+                        .write(
+                            Data(
+                                "warning: keeping native checkout for \(pin.identity); could not cache pinned sources: \(error)\n"
+                                    .utf8
+                            )
+                        )
+                    return
+                }
+                try await writeSourceRevisionMarker(directory: snapshot, revision: expectedRevision)
+                if fileSystem.existsIncludingSymlinks(destination.appendingPathComponent(".git")) {
+                    let privateStaging = try await fileSystem.temporaryDirectory(in: checkout.deletingLastPathComponent())
+                    do {
+                        let privateSnapshot = privateStaging.appendingPathComponent("package")
+                        if pin.kind == "localSourceControl" {
+                            try await PinnedSourceSnapshot.writeLocalWorkingCopy(
+                                from: checkout.path,
+                                origin: mirrors.effectiveLocation(of: pin),
+                                revision: expectedRevision,
+                                to: privateSnapshot
+                            )
+                            try await writeSourceRevisionMarker(directory: privateSnapshot, revision: expectedRevision)
+                        } else {
+                            try await fileSystem.copyPrivately(source: snapshot, destination: privateSnapshot)
+                        }
+                        try await fileSystem.replaceWithStagedItem(source: privateSnapshot, destination: checkout)
+                        try await fileSystem.removePath(privateStaging)
+                    } catch {
+                        try? await fileSystem.removePath(privateStaging)
+                        throw error
+                    }
+                } else {
+                    if try await fileSystem.exists(destination.absolutePath) {
+                        try await fileSystem.removePath(destination)
+                    }
+                    try await fileSystem.move(from: snapshot.absolutePath, to: destination.absolutePath)
+                    try await replaceNativeCheckout(checkout, withCachedSource: destination)
+                }
+                try await fileSystem.removePath(staging)
             } catch {
-                try? await fileSystem.remove(checkout.absolutePath)
-                try? await fileSystem.move(from: destination.absolutePath, to: checkout.absolutePath)
+                try? await fileSystem.removePath(staging)
                 throw error
             }
         }
+    }
+
+    private static func replaceNativeCheckout(_ checkout: URL, withCachedSource source: URL) async throws {
+        let staging = try await fileSystem.temporaryDirectory(in: checkout.deletingLastPathComponent())
+        do {
+            let replacement = staging.appendingPathComponent("checkout")
+            try await fileSystem.replaceWithCachedDirectory(source: source, destination: replacement)
+            try await fileSystem.replaceWithStagedItem(source: replacement, destination: checkout)
+            try? await fileSystem.removePath(staging)
+        } catch {
+            try? await fileSystem.removePath(staging)
+            throw error
+        }
+    }
+
+    private static func restoreLegacyGitSource(
+        source: URL, checkout: URL, pin: ResolvedPin, location: String, owned: Bool
+    ) async throws {
+        let revision = try pin.revision()
+        let preservesGitContext = pin.kind == "localSourceControl"
+        if preservesGitContext, fileSystem.isDirectoryAndNotSymlink(checkout),
+           fileSystem.existsIncludingSymlinks(checkout.appendingPathComponent(".git")),
+           (try? await PinnedSourceSnapshot.isPristine(checkout, revision: revision)) == true
+        { return }
+        if !preservesGitContext, fileSystem.isDirectoryAndNotSymlink(checkout),
+           !fileSystem.existsIncludingSymlinks(checkout.appendingPathComponent(".git")),
+           try await cachedSourceIsUsable(checkout, expectedRevision: revision)
+        {
+            return
+        }
+        try await assertCheckoutCanBeReplaced(checkout, revision: revision, owned: owned)
+        let staging = try await fileSystem.temporaryDirectory(in: checkout.deletingLastPathComponent())
+        let snapshot = staging.appendingPathComponent("package")
+        do {
+            do {
+                if preservesGitContext {
+                    try await PinnedSourceSnapshot.writeLocalWorkingCopy(
+                        from: source.path,
+                        origin: location,
+                        revision: revision,
+                        to: snapshot
+                    )
+                } else {
+                    try await PinnedSourceSnapshot.write(from: source, revision: revision, to: snapshot, staging: staging)
+                }
+            } catch {
+                try await resetDirectory(snapshot)
+                if preservesGitContext {
+                    try await PinnedSourceSnapshot.writeLocalWorkingCopy(
+                        from: location,
+                        origin: location,
+                        revision: revision,
+                        to: snapshot
+                    )
+                } else {
+                    try await fetchCheckout(pin: pin, location: location, destination: snapshot)
+                }
+            }
+            try await writeSourceRevisionMarker(directory: snapshot, revision: revision)
+            try await fileSystem.replaceWithStagedItem(source: snapshot, destination: checkout)
+            try await fileSystem.removePath(staging)
+        } catch {
+            try? await fileSystem.removePath(staging)
+            throw error
+        }
+    }
+
+    private static func assertCheckoutCanBeReplaced(
+        _ checkout: URL, revision: String, owned: Bool = false
+    ) async throws {
+        guard !owned, fileSystem.isDirectoryAndNotSymlink(checkout) else { return }
+        if fileSystem.existsIncludingSymlinks(checkout.appendingPathComponent(".git")) {
+            if (try? await PinnedSourceSnapshot.isPristine(checkout, revision: revision)) == true { return }
+            if (try? await PinnedSourceSnapshot.canReplaceOlderCheckout(checkout, revision: revision)) == true { return }
+        } else {
+            let marker = checkout.appendingPathComponent(sourceRevisionMarkerFilename)
+            if let data = try? await fileSystem.readFile(at: marker.absolutePath),
+               !String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return
+            }
+        }
+        throw ToolError.message(
+            "preserving modified or unmanaged checkout at \(checkout.path); it may contain local edits or be a private copy of a damaged legacy cache entry. Move it aside to rebuild from pinned sources, or use an explicit local package override"
+        )
     }
 
     private static func sourceRestoreError(pin: ResolvedPin, location: String, error: any Error) -> ToolError {
@@ -789,7 +921,7 @@ enum WorkspaceRestorer {
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
-        _ = lock
+        defer { withExtendedLifetime(lock) {} }
         if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
             return destination
         }
@@ -845,10 +977,10 @@ enum WorkspaceRestorer {
         return try await submodulesAreMaterialized(in: source)
     }
 
-    // Verifies the checkout in `source` was written for `expectedRevision` by reading the
-    // `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
-    // treats the entry as a miss so the next resolve refetches instead of trusting a stale
-    // Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
+    /// Verifies the checkout in `source` was written for `expectedRevision` by reading the
+    /// `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
+    /// treats the entry as a miss so the next resolve refetches instead of trusting a stale
+    /// Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
     private static func cachedSourceIsUsable(_ source: URL, expectedRevision: String) async throws -> Bool {
         guard try await cachedSourceIsUsable(source) else {
             return false
@@ -863,9 +995,7 @@ enum WorkspaceRestorer {
         guard recorded == expectedRevision else {
             return false
         }
-        return try await !fileSystem.exists(
-            source.appendingPathComponent(".git/objects/info/alternates").absolutePath
-        )
+        return !fileSystem.existsIncludingSymlinks(source.appendingPathComponent(".git"))
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {
@@ -908,7 +1038,7 @@ enum WorkspaceRestorer {
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
-        _ = lock
+        defer { withExtendedLifetime(lock) {} }
         if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
             return destination
         }
@@ -989,7 +1119,7 @@ enum WorkspaceRestorer {
             }
 
             let lock = try await cache.lock(namespace: "sources", key: destination.path)
-            _ = lock
+            defer { withExtendedLifetime(lock) {} }
             if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
                     source: destination, destination: download
@@ -1101,7 +1231,7 @@ enum WorkspaceRestorer {
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
             let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
-            _ = lock
+            defer { withExtendedLifetime(lock) {} }
             if try !(await fileSystem.exists(archivePath.absolutePath)) {
                 var headers = ["User-Agent": "swifterpm/0.1"]
                 if let token = await GitHubAuth.token() {
@@ -1132,7 +1262,7 @@ enum WorkspaceRestorer {
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
             let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
-            _ = lock
+            defer { withExtendedLifetime(lock) {} }
             if try !(await fileSystem.exists(archivePath.absolutePath)) {
                 try await GitLabAPI.downloadArchive(
                     repo: repo, revision: revision, destination: archivePath
@@ -1188,18 +1318,23 @@ enum WorkspaceRestorer {
                     in: destination,
                     allowFileProtocol: isLocalSourceControlPackage
                 )
-                let gitDir = destination.appendingPathComponent(".git")
-                if !isLocalSourceControlPackage,
-                   try await fileSystem.exists(gitDir.absolutePath)
-                {
-                    try await fileSystem.remove(gitDir.absolutePath)
-                }
+                try await removeGitMetadata(in: destination)
                 return
             } catch {
                 attempts.append((location, error))
             }
         }
         throw GitFetchFailure.error(location: fetchLocation, attempts: attempts)
+    }
+
+    private static func removeGitMetadata(in source: URL) async throws {
+        for path in try await submodulePaths(in: source) {
+            let child = source.appendingPathComponent(path).standardizedFileURL
+            guard child.path.hasPrefix(source.standardizedFileURL.path + "/"),
+                  fileSystem.isDirectoryAndNotSymlink(child) else { continue }
+            try await removeGitMetadata(in: child)
+        }
+        try await fileSystem.removePath(source.appendingPathComponent(".git"))
     }
 
     private static func updateSubmodulesIfNeeded(
@@ -1265,6 +1400,20 @@ enum WorkspaceRestorer {
         try await fileSystem.makeDirectory(at: url.absolutePath, options: [.createTargetParentDirectories])
     }
 
+    static func assertNoEditedDependencies(scratchDir: URL) async throws {
+        let path = scratchDir.appendingPathComponent("workspace-state.json")
+        guard try await fileSystem.exists(path.absolutePath) else { return }
+        let state = try JSONSerialization.jsonObject(with: await fileSystem.readFile(at: path.absolutePath)) as? [String: Any]
+        let object = state?["object"] as? [String: Any]
+        let dependencies = object?["dependencies"] as? [[String: Any]] ?? []
+        if dependencies.contains(where: { ($0["state"] as? [String: Any])?["name"] as? String == "edited" }) {
+            throw ToolError
+                .message(
+                    "preserving SwiftPM edited dependencies; use native SwiftPM (TUIST_USE_SWIFTERPM=0) or unedit them before using SwifterPM"
+                )
+        }
+    }
+
     static func writeWorkspaceState(
         packageDir: URL,
         scratchDir: URL,
@@ -1272,6 +1421,7 @@ enum WorkspaceRestorer {
         resolved: ResolvedPins,
         disableSandbox: Bool
     ) async throws {
+        try await assertNoEditedDependencies(scratchDir: scratchDir)
         var dependencies: [[String: Any]] = []
 
         for pin in resolved.pins {

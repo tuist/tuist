@@ -51,6 +51,7 @@ rules:
       - rackhosts
       - rackpdus
       - rackatses
+      - racksites
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -77,6 +78,7 @@ rules:
       - rackpdus/finalizers
       - rackatses/status
       - rackatses/finalizers
+      - racksites/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,
@@ -461,6 +463,10 @@ spec:
             - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
             {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
             - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
+            {{- end }}
+            {{- with include "tuist.rackImageMirrors" . }}
+            - --rackhost-image-mirrors={{ . }}
+            - --rackhost-image-mirror-hosts={{ include "tuist.rackImageMirrorHosts" $ }}
             {{- end }}
             {{- if .Values.rackFleet.cardRootKey.enabled }}
             - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}

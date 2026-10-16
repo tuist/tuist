@@ -23,7 +23,17 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits)
+  @processor_read_tables ~w(
+    accounts
+    projects
+    automation_alerts
+    webhook_endpoints
+    feature_flags
+    coverage_commits
+    git_repositories
+    git_refs
+    git_commits
+  )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @repair_settle_minutes 15
 
@@ -264,7 +274,7 @@ defmodule Tuist.Release do
       {:ok,
        %{
          differing: [],
-         schema: %{missing_on_destination: [], differing_columns: []},
+         schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
          migrations: %{missing_on_destination: [], only_on_destination: []}
        } = report} ->
         Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas and migration ledgers included")
@@ -272,15 +282,18 @@ defmodule Tuist.Release do
 
       # Once the in-cluster server is primary, `migrate/0` runs every version
       # missing from its ledger again, data migrations included.
-      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+      {:ok,
+       %{differing: [], schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []}} = report} ->
         raise "ClickHouse schema_migrations drift: #{inspect(report.migrations)}"
 
       # Gated separately from the row comparison, and deliberately fatal. Until
       # the in-cluster server is primary a missing column costs a dropped
       # mirror write; from that moment it breaks the ingest path, so this is
-      # the condition to clear before a cutover rather than after one.
+      # the condition to clear before a cutover rather than after one. A table
+      # only the destination holds is one the source dropped: the reconcile
+      # never drops anything, so it stays until somebody does.
       {:ok, %{differing: []} = report} ->
-        raise "ClickHouse schema drift: #{inspect(Map.take(report.schema, [:missing_on_destination, :differing_columns]))}"
+        raise "ClickHouse schema drift: #{inspect(report.schema)}"
 
       {:ok, report} ->
         raise "ClickHouse parity failed: #{inspect(report.differing)}"

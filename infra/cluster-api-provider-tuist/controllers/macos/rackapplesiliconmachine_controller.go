@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -81,6 +82,17 @@ type RackAppleSiliconMachineReconciler struct {
 	// host's Tart VMs may reach on TCP 443. Overlaid by rackFleetConfig, so
 	// the rented fleets sharing FleetConfig never pass them.
 	VMCacheGatewayCIDRs []string
+
+	// ImageMirrors are the rack's VM image caches, which a rack host's
+	// tart-kubelet tries before the upstream when it pulls a golden base.
+	// Overlaid by rackFleetConfig, like VMCacheGatewayCIDRs, on the hosts
+	// ImageMirrorHosts names.
+	ImageMirrors []string
+
+	// ImageMirrorHosts are the RackHosts that get ImageMirrors, or `*` for
+	// every one, so one host can carry the caches before the rest. Only the
+	// hosts it names drift when it changes.
+	ImageMirrorHosts []string
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
@@ -568,9 +580,9 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(cause),
 		clusterv1.ConditionSeverityWarning, "%v", cause)
-	r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	r.Recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(cause),
 		"%v (attempt %d on %s, will retry)", cause, attempts, host.Name)
 
 	switch {
@@ -598,7 +610,22 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
 			"Quarantined %s after %d bootstrap failures; bootstrap starts over when the quarantine expires", host.Name, attempts)
 
+	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && bootstrap.RestartUnsafe(cause):
+		// A power cycle would leave a FileVault host at the unlock screen with
+		// no sshd, the restart bootstrap itself refused.
+		if attempts == r.BootstrapRebootAfter {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoverySkipped",
+				"Not cycling %s's outlet: FileVault is on, so the host would not come back over SSH", host.Name)
+		}
 	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && !machine.Status.BootstrapRebootIssued:
+		if m, off := r.poweredOffAtOutlet(ctx, host); off {
+			// The flag stays clear, so a host that is started but still fails
+			// gets its cycle on a later attempt.
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PowerButtonNeeded",
+				"Not cycling %s's outlet after %d bootstrap failures: the mini is plugged in and powered off (%s), and a cycle starts one only once bootstrap has set `pmset autorestart 1`. Press its power button.",
+				host.Name, attempts, m)
+			break
+		}
 		if err := r.cycleHostPower(ctx, host); err != nil {
 			logger.Error(err, "power cycle for bootstrap recovery failed; will retry on the next attempt")
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoveryFailed",
@@ -683,6 +710,27 @@ func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, 
 	r.Recorder.Eventf(fresh, corev1.EventTypeWarning, "Quarantined",
 		"Bootstrap held off: %s", reason)
 	return nil
+}
+
+// poweredOffAtOutlet reads the host's outlet and its meter, and reports a mini
+// plugged in and off (power.DrawPoweredOff). An outlet that cannot be read, or
+// has no meter, is not: the cycle goes ahead as it would without a meter.
+func (r *RackAppleSiliconMachineReconciler) poweredOffAtOutlet(ctx context.Context, host *infrav1.RackHost) (power.Measures, bool) {
+	logger := log.FromContext(ctx)
+	driver, outlet, err := rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
+	if err != nil {
+		return power.Measures{}, false
+	}
+	state, err := driver.State(ctx, outlet)
+	if err != nil {
+		logger.Info("could not read the outlet before a recovery cycle; cycling anyway", "host", host.Name, "error", err.Error())
+		return power.Measures{}, false
+	}
+	draw, m, err := outletDraw(ctx, driver, outlet, state)
+	if err != nil && !errors.Is(err, power.ErrMeasuresUnsupported) {
+		logger.Info("could not read the outlet's meter before a recovery cycle; cycling anyway", "host", host.Name, "error", err.Error())
+	}
+	return m, draw == power.DrawPoweredOff
 }
 
 func (r *RackAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
@@ -998,7 +1046,8 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// It also carries the rack's cache gateways into the VM egress firewall.
+// It also carries the rack's cache gateways into the VM egress firewall and
+// the rack's image caches into tart-kubelet.
 //
 // Both push paths and the stamped hash go through here, so a change to any of
 // them drifts the host rather than being recorded as converged without
@@ -1008,6 +1057,9 @@ func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHo
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
 	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
+	if slices.Contains(r.ImageMirrorHosts, "*") || slices.Contains(r.ImageMirrorHosts, host.Name) {
+		cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
+	}
 	// A lent host's custom cache volumes are the other cluster's server's.
 	if lent := host.Spec.NodeCluster; lent != nil {
 		cfg.CustomCacheURL = lent.CacheVolumesURL

@@ -52,7 +52,7 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           working-directory: atlas-native
-          install: swiftlint github:tuist/once
+          install: rust swiftlint github:tuist/once
       - run: mise run lint:swift
 
   lint-kotlin:

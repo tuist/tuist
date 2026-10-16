@@ -17,12 +17,21 @@ let project = Project(
     ),
     targets: [
         .target(
+            name: "LookupDependency",
+            destinations: .macOS,
+            product: .staticLibrary,
+            bundleId: "dev.tuist.LookupDependency",
+            deploymentTargets: .macOS("15.0"),
+            sources: ["Dependency.swift"]
+        ),
+        .target(
             name: "LookupFixture",
             destinations: .macOS,
             product: .staticLibrary,
             bundleId: "dev.tuist.LookupFixture",
             deploymentTargets: .macOS("15.0"),
-            sources: ["Fixture.swift"]
+            sources: ["Fixture.swift", "Fixture.m"],
+            dependencies: [.target(name: "LookupDependency")]
         ),
     ]
 )

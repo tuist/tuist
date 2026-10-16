@@ -287,6 +287,72 @@ func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
 	}
 }
 
+// A host without a GUI session must not read as a generic bootstrap failure: it
+// is the one failure that would otherwise look like a healthy Node, since
+// tart-kubelet runs fine and only every VM start fails.
+func TestBootstrapFailureWithoutAGUISessionSaysSo(t *testing.T) {
+	machine := rackMachine("ber1-0")
+	host := rackHost("mini-01")
+	r := newRackReconciler(t, host, machine)
+
+	guiErr := &bootstrap.GUISessionError{
+		User:   "tuist",
+		State:  bootstrap.GUISessionState{ConsoleUser: "_mbsetupuser", FileVaultOff: true},
+		Reason: "still missing after a restart and a loginwindow kick",
+	}
+	r.handleBootstrapFailure(context.Background(), machine, host, fmt.Errorf("gui session: %w", guiErr))
+
+	cond := conditions.Get(machine, BootstrappedCondition)
+	if cond == nil || cond.Status != corev1.ConditionFalse || cond.Reason != "GUISessionMissing" {
+		t.Fatalf("Bootstrapped = %+v, want False with reason GUISessionMissing", cond)
+	}
+	if !strings.Contains(cond.Message, "_mbsetupuser") {
+		t.Fatalf("condition message %q does not say who holds the console", cond.Message)
+	}
+
+	r.handleBootstrapFailure(context.Background(), machine, host, errors.New("ssh wedged"))
+	if got := conditions.GetReason(machine, BootstrappedCondition); got != "BootstrapFailed" {
+		t.Fatalf("reason = %q for any other failure, want BootstrapFailed", got)
+	}
+}
+
+// Bootstrap refuses to restart a FileVault host because it would stop at the
+// unlock screen with no sshd. The recovery ladder's power cycle is the same
+// restart and must be refused too; quarantine still applies.
+func TestBootstrapFailureDoesNotCycleAFileVaultHost(t *testing.T) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Status.BootstrapAttempts = 2
+	})
+	host := rackHost("mini-01")
+	r := newRackReconciler(t, host, machine)
+	driver := &stubPowerDriver{on: true}
+	r.Power = registryWithShelly(driver)
+
+	fileVault := fmt.Errorf("gui session: %w", &bootstrap.GUISessionError{
+		User:          "tuist",
+		State:         bootstrap.GUISessionState{ConsoleUser: "root"},
+		Reason:        "FileVault is not off",
+		RestartUnsafe: true,
+	})
+	r.handleBootstrapFailure(context.Background(), machine, host, fileVault)
+
+	if got := driver.recorded(); len(got) != 0 {
+		t.Fatalf("outlet calls = %v, want none for a FileVault host", got)
+	}
+	if machine.Status.BootstrapRebootIssued {
+		t.Fatal("BootstrapRebootIssued set although no cycle was issued")
+	}
+
+	machine.Status.BootstrapAttempts = r.BootstrapMaxAttempts - 1
+	r.handleBootstrapFailure(context.Background(), machine, host, fileVault)
+	if machine.Status.Phase != "Quarantined" {
+		t.Fatalf("phase = %q, want the host quarantined at exhaustion", machine.Status.Phase)
+	}
+	if got := driver.recorded(); len(got) != 0 {
+		t.Fatalf("outlet calls = %v at exhaustion, want none", got)
+	}
+}
+
 func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.BootstrapAttempts = 4
@@ -673,6 +739,45 @@ func TestRackHostCarriesTheCacheGatewaysIntoItsFirewall(t *testing.T) {
 	without := &RackAppleSiliconMachineReconciler{FleetConfig: r.FleetConfig, DefaultGuestCapacity: 1}
 	if r.desiredHostConfigHash(machine, host) == without.desiredHostConfigHash(machine, host) {
 		t.Fatal("adding a cache gateway does not drift the host; an already bootstrapped mini would keep dropping it")
+	}
+}
+
+// The rack's image caches ride the same overlay, on the hosts routed through
+// them: a routed host pulls its golden bases through them, every other host
+// and the rented fleets never see them, and routing a host drifts only that
+// host.
+func TestRackHostPullsThroughTheRackImageCachesWhenRouted(t *testing.T) {
+	mirrors := []string{"ghcr.io=http://10.10.0.11:5000"}
+	r := &RackAppleSiliconMachineReconciler{
+		ImageMirrors:         mirrors,
+		ImageMirrorHosts:     []string{"mini-01"},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	routed := rackHost("mini-01")
+	other := rackHost("mini-02")
+
+	if pushed := r.hostConfig(machine, routed, bootstrap.PerHost{}); !slices.Equal(pushed.ImageMirrors, mirrors) {
+		t.Fatalf("routed host's image mirrors = %v, want %v", pushed.ImageMirrors, mirrors)
+	}
+	if pushed := r.hostConfig(machine, other, bootstrap.PerHost{}); len(pushed.ImageMirrors) != 0 {
+		t.Fatalf("a host that is not routed was pushed image mirrors %v", pushed.ImageMirrors)
+	}
+	if len(r.FleetConfig.ImageMirrors) != 0 {
+		t.Fatalf("the rack overlay changed the shared fleet config to %v; rented minis would pull from the rack", r.FleetConfig.ImageMirrors)
+	}
+
+	without := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	if r.desiredHostConfigHash(machine, routed) == without.desiredHostConfigHash(machine, routed) {
+		t.Fatal("routing a host does not drift it; an already bootstrapped mini would keep pulling from the upstream")
+	}
+	if r.desiredHostConfigHash(machine, other) != without.desiredHostConfigHash(machine, other) {
+		t.Fatal("routing one host drifted another")
+	}
+
+	everyHost := &RackAppleSiliconMachineReconciler{ImageMirrors: mirrors, ImageMirrorHosts: []string{"*"}, DefaultGuestCapacity: 1}
+	if pushed := everyHost.hostConfig(machine, other, bootstrap.PerHost{}); !slices.Equal(pushed.ImageMirrors, mirrors) {
+		t.Fatalf(`"*" left a host unrouted: %v`, pushed.ImageMirrors)
 	}
 }
 

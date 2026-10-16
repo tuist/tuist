@@ -61,9 +61,12 @@ defmodule Atlas.MCP do
         updated = Ecto.Changeset.apply_changes(changeset)
 
         changed? =
-          Enum.any?([:name, :url, :authorization_url, :token_url, :registration_url, :scopes], fn field ->
-            Map.get(server, field) != Map.get(updated, field)
-          end)
+          Enum.any?(
+            [:name, :url, :auth_type, :bearer_token, :authorization_url, :token_url, :registration_url, :scopes],
+            fn field ->
+              Map.get(server, field) != Map.get(updated, field)
+            end
+          )
 
         multi = Ecto.Multi.new() |> Ecto.Multi.update(:server, changeset)
 
@@ -114,7 +117,7 @@ defmodule Atlas.MCP do
       target_type: "mcp_server_configuration",
       target_id: server.id,
       target_label: server.name,
-      metadata: %{"server_name" => server.name}
+      metadata: %{"server_name" => server.name, "auth_type" => server.auth_type, "path" => "/admin/mcps"}
     })
 
     result

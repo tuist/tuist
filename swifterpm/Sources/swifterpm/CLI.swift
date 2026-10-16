@@ -553,7 +553,7 @@ enum CLIRunner {
             let netrc = try await Netrc.resolve(
                 netrcConfiguration(cli: cli, paths: paths), environment: Environment.current
             )
-            try await Environment.withNetrc(netrc) {
+            try await Environment.withNetrc(netrc, quiet: cli.quiet) {
                 let directory: CLIPath
                 let scratchDirectory: CLIPath?
                 switch cli.command {

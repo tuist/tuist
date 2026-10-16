@@ -59,6 +59,11 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: HCloudMachineTemplate
             name: tuist-hcloud-hcloud-machinetemplate
+        # A MachineDeployment topology that sets any `healthCheck` field
+        # replaces this whole block, not just the fields it sets: a pool that
+        # overrides only `remediation` gets no unhealthy node conditions and
+        # never remediates a node that fails after joining. Overrides must
+        # restate `checks`.
         healthCheck:
           checks:
             nodeStartupTimeoutSeconds: 600
@@ -71,7 +76,11 @@ spec:
                 timeoutSeconds: 300
           remediation:
             triggerIf:
-              unhealthyInRange: "[0-2]"
+              # Remediate one unhealthy node at a time. Two or more unhealthy
+              # at once usually means a shared cause, such as a control-plane
+              # or network blip, and on a two-node pool any wider range lets
+              # that blip replace the whole pool.
+              unhealthyInRange: "[0-1]"
       # Hetzner Robot bare-metal worker. Linux runner Pods (Firecracker
       # microVMs via Kata Containers — see `kataContainers` in the
       # helm chart) schedule onto these exclusively. The `installimage`
@@ -448,10 +457,28 @@ spec:
         openAPIV3Schema:
           type: string
           default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Opt-in because changing API-server metrics requires a control-plane roll.
+    - name: aggregateApiServerMetrics
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+          default: false
     # Rollout switch for a kubeadm control-plane join failure observed with
     # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
     # each environment can validate the compatibility fallback separately.
     - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+    # Opt-in kernel lockup hardening for cloud workers, the same settings the
+    # bare-metal fleets get from cluster-api-provider-tuist: soft and hard CPU
+    # lockups panic, a panic reboots after 10 seconds, and systemd arms the
+    # watchdog device when the VM has one. Without it a node whose kernel locks
+    # up stays NotReady until a MachineHealthCheck or an operator replaces it.
+    # Set it as a MachineDeployment override to roll one pool at a time.
+    - name: nodeLockupHardening
       required: false
       schema:
         openAPIV3Schema:
@@ -692,7 +719,54 @@ spec:
             - op: replace
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
               valueFrom:
-                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }{{ if .aggregateApiServerMetrics }}, {"name": "allow-metric-labels-manifest", "value": "/etc/kubernetes/metric-labels.yaml"}{{ end }}]'
+    - name: ApiServerMetricLabelAggregation
+      enabledIf: "{{ if .aggregateApiServerMetrics }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraVolumes"
+              value:
+                - name: metric-labels
+                  hostPath: /etc/kubernetes/metric-labels.yaml
+                  mountPath: /etc/kubernetes/metric-labels.yaml
+                  readOnly: true
+                  pathType: File
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/files/-"
+              value:
+                owner: root:root
+                path: /etc/kubernetes/metric-labels.yaml
+                permissions: "0600"
+                # Flat metric,label -> allowed value map. __none__ is never
+                # emitted, so even empty labels become unexpected at increment
+                # time. An empty allow-list would leave empty values distinct.
+                content: |
+                  "apiserver_request_total,component": "__none__"
+                  "apiserver_request_total,dry_run": "__none__"
+                  "apiserver_request_total,group": "__none__"
+                  "apiserver_request_total,resource": "__none__"
+                  "apiserver_request_total,scope": "__none__"
+                  "apiserver_request_total,subresource": "__none__"
+                  "apiserver_request_total,version": "__none__"
+                  "apiserver_request_duration_seconds,component": "__none__"
+                  "apiserver_request_duration_seconds,dry_run": "__none__"
+                  "apiserver_request_duration_seconds,group": "__none__"
+                  "apiserver_request_duration_seconds,resource": "__none__"
+                  "apiserver_request_duration_seconds,scope": "__none__"
+                  "apiserver_request_duration_seconds,subresource": "__none__"
+                  "apiserver_request_duration_seconds,version": "__none__"
+                  "apiserver_request_terminations_total,component": "__none__"
+                  "apiserver_request_terminations_total,group": "__none__"
+                  "apiserver_request_terminations_total,resource": "__none__"
+                  "apiserver_request_terminations_total,scope": "__none__"
+                  "apiserver_request_terminations_total,subresource": "__none__"
+                  "apiserver_request_terminations_total,version": "__none__"
     # kubeadm's local-mode join points the bootstrap kubelet at the new node's
     # control-plane endpoint before that endpoint exists. On the affected
     # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
@@ -712,6 +786,43 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
               valueFrom:
                 template: '{"ControlPlaneKubeletLocalMode": false}'
+    - name: KubeadmConfigTemplateWorkerNodeLockupHardening
+      enabledIf: "{{ if .nodeLockupHardening }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/sysctl.d/99-tuist-hardening.conf
+                permissions: "0644"
+                content: |
+                  kernel.softlockup_panic = 1
+                  kernel.hardlockup_panic = 1
+                  kernel.panic_on_oops = 1
+                  kernel.panic = 10
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/systemd/system.conf.d/10-tuist-watchdog.conf
+                permissions: "0644"
+                content: |
+                  [Manager]
+                  RuntimeWatchdogSec=30s
+                  RebootWatchdogSec=5min
+            # The existing `sysctl --system` step loads the sysctl file. PID 1
+            # reads system.conf.d only when it re-executes.
+            - op: add
+              path: "/spec/template/spec/preKubeadmCommands/-"
+              value: systemctl daemon-reexec
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -768,8 +879,8 @@ spec:
             extraArgs:
               # Default value. The KubeadmControlPlaneKubeletAddressTypes patch
               # rebuilds this whole extraArgs array from the
-              # kubeletPreferredAddressTypes variable, so keep
-              # kubelet-preferred-address-types the only apiServer extraArg.
+              # kubeletPreferredAddressTypes variable, plus the optional
+              # metric-labels manifest. Add future args to that patch too.
               - name: kubelet-preferred-address-types
                 value: ExternalIP,Hostname,InternalDNS,ExternalDNS
           controllerManager:

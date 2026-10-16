@@ -8,10 +8,16 @@ defmodule AtlasWeb.DocsHTML do
 
   @overview_introduction "Atlas grew out of Tuist's need to maximize the value each employee could create. We engineered our operations around that goal: centralizing the company's context in one place, connecting it through database relationships, and giving agents and bots interfaces to query it and act on it. We built Atlas incrementally as our way of working evolved."
 
+  @sidebar_titles %{"ai-accounts" => "AI accounts"}
+
   @pages (for {slug, title, category, section, description} <- [
-                {"", "Overview", "Overview", "Atlas",
+                {"", "Overview", "Guides", "Atlas",
                  "Built at Tuist to maximize value per employee: shared organizational context for people, agents, and bots."},
+                {"ai-accounts", "Connect Claude or ChatGPT", "Guides", "Atlas",
+                 "Connect your Claude or ChatGPT account for inference in sessions you start."},
                 {"mcps", "MCPs", "Guides", "Atlas", "Configure upstream MCP servers in Atlas."},
+                {"ai-account-tools", "AI accounts", "References", "MCP",
+                 "Manage personal Claude and ChatGPT connections through Atlas's MCP tools."},
                 {"self-hosting", "Self-hosting", "Guides", "Self-hosting",
                  "Deploy Atlas with Docker Compose or Helm on your own infrastructure."}
               ] do
@@ -24,6 +30,7 @@ defmodule AtlasWeb.DocsHTML do
             %{
               slug: slug,
               title: title,
+              sidebar_title: Map.get(@sidebar_titles, slug, title),
               category: category,
               section: section,
               description: description,
@@ -40,6 +47,32 @@ defmodule AtlasWeb.DocsHTML do
 
   def pages, do: @pages
   def page(slug), do: Enum.find(@pages, &(&1.slug == slug))
+
+  attr :id, :string, required: true
+  attr :category, :string, required: true
+
+  def category_selector(assigns) do
+    assigns = assign(assigns, :categories, Enum.uniq_by(@pages, & &1.category))
+
+    ~H"""
+    <.button_group
+      id={@id}
+      size="large"
+      data-part="nav-tabs"
+      role="group"
+      aria-label="Documentation sections"
+    >
+      <.button_group_item
+        :for={page <- @categories}
+        label={page.category}
+        href={if(page.slug == "", do: ~p"/docs", else: ~p"/docs/#{page.slug}")}
+        data-category={page.category}
+        data-selected={page.category == @category}
+        aria-current={if(page.category == @category, do: "true")}
+      />
+    </.button_group>
+    """
+  end
 
   attr :id, :string, required: true
   attr :slug, :string, required: true

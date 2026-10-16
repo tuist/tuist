@@ -17,13 +17,18 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
   alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
+  alias Tuist.Runners.Workers.SiteSpilloverWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   setup :verify_on_exit!
@@ -213,6 +218,67 @@ defmodule Tuist.RunnersTest do
       reject(&Claims.attempt/5)
 
       assert {:error, :pod_committed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "dispatch_for_sa/2 site exclusivity" do
+    setup do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      account = organization_fixture(preload: [:account]).account
+
+      Tuist.Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "site-exclusive",
+        platform: :macos,
+        xcode_version: "26.6",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos}}
+      end)
+
+      stub(FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+
+      %{account: account, prefix: prefix}
+    end
+
+    test "a rented runner claims no job routed to a site that is up", %{account: account, prefix: prefix} do
+      stub(Sites, :available?, fn _site_pool -> true end)
+      stub(Sites, :status, fn _site_pool -> :up end)
+
+      assert {:ok, target} = Dispatch.resolve_dispatch_target(account, ["tuist-site-exclusive"])
+      assert target.pool_name == "#{prefix}-ber1-26-6"
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 940_001,
+          account_id: account.id,
+          fleet_name: target.pool_name,
+          platform: "macos",
+          vcpus: target.vcpus,
+          memory_gb: target.memory_gb,
+          repository: "tuist/tuist",
+          requested_dispatch_label: target.requested_dispatch_label,
+          enqueued_at: DateTime.add(DateTime.utc_now(), -300, :second)
+        })
+
+      assert :ok = perform_job(SiteSpilloverWorker, %{})
+
+      rented_pool = "#{prefix}-26-6"
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", rented_pool)}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", ^rented_pool -> {:ok, pool_with_image(image)} end)
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, pod_with_image("pod-1", image)} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert Tuist.Repo.get!(WorkflowJob, 940_001).fleet_name == "#{prefix}-ber1-26-6"
     end
   end
 

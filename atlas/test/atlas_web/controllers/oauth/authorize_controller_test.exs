@@ -31,7 +31,9 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
 
     assert %{"client_id" => client_id} = json_response(registration_conn, 201)
 
-    {conn, _user} = log_in_user(build_conn(), %{email: "oauth-mcp@tuist.dev"})
+    verifier = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    challenge = :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
+    {conn, _user} = log_in_user(build_conn())
 
     conn =
       get(conn, ~p"/oauth2/authorize", %{
@@ -39,7 +41,9 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
         "client_id" => client_id,
         "redirect_uri" => redirect_uri,
         "scope" => "mcp",
-        "state" => "claude-state"
+        "state" => "claude-state",
+        "code_challenge" => challenge,
+        "code_challenge_method" => "S256"
       })
 
     redirect = redirected_to(conn)
@@ -55,7 +59,8 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
         "grant_type" => "authorization_code",
         "client_id" => client_id,
         "redirect_uri" => redirect_uri,
-        "code" => code
+        "code" => code,
+        "code_verifier" => verifier
       })
 
     assert %{
@@ -80,7 +85,8 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
         "grant_type" => "authorization_code",
         "client_id" => client_id,
         "redirect_uri" => redirect_uri,
-        "code" => code
+        "code" => code,
+        "code_verifier" => verifier
       })
 
     assert %{"error" => "invalid_grant"} = json_response(replay_conn, 400)
@@ -155,7 +161,9 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
 
     assert %{"client_id" => client_id} = json_response(registration_conn, 201)
 
-    {conn, _user} = log_in_user(build_conn(), %{email: "oauth-mcp-resource@tuist.dev"})
+    verifier = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    challenge = :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
+    {conn, _user} = log_in_user(build_conn())
 
     conn =
       get(conn, ~p"/oauth2/authorize", %{
@@ -164,7 +172,9 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
         "redirect_uri" => redirect_uri,
         "scope" => "mcp",
         "state" => "claude-state",
-        "resource" => resource
+        "resource" => resource,
+        "code_challenge" => challenge,
+        "code_challenge_method" => "S256"
       })
 
     %{"code" => code} =
@@ -176,7 +186,8 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
         "client_id" => client_id,
         "redirect_uri" => redirect_uri,
         "code" => code,
-        "resource" => resource
+        "resource" => resource,
+        "code_verifier" => verifier
       })
 
     assert %{"access_token" => access_token, "refresh_token" => refresh_token} =

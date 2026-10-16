@@ -3,9 +3,11 @@ defmodule Tuist.Tests.StressNewTests do
   Server half of the stress gate for newly added tests.
 
   The client runs the suite, sends the test cases that executed, and gets back
-  the subset that has not run in CI on the project's default branch in the
-  trailing ninety days, each priced with the number of repetitions its own
-  duration earns on the repetition curve. The guards whose inputs only the
+  the subset that has not run in CI in the trailing ninety days on the
+  project's default branch, or on a commit the default branch has since
+  reached (`Tuist.Tests.test_case_ids_landed_on_default_branch/3`), each
+  priced with the number of repetitions its own duration earns on the
+  repetition curve. The guards whose inputs only the
   server holds (the default branch and its history, how many test cases the
   default branch already knows) are decided here and returned as a signal the client prints. The
   candidate cap is applied here too, so both clients only have to run what they
@@ -82,7 +84,7 @@ defmodule Tuist.Tests.StressNewTests do
       if known_count == 0 do
         guard("no_default_branch_history", length(test_cases), 0)
       else
-        new_test_cases = reject_known(project.id, default_branch, test_cases)
+        new_test_cases = reject_known(project, default_branch, test_cases)
         new_count = length(new_test_cases)
 
         if new_count >= parameters.bulk_change_floor and
@@ -118,25 +120,28 @@ defmodule Tuist.Tests.StressNewTests do
 
   defp identity(test_case), do: {test_case.module_name, test_case.suite_name, test_case.name}
 
-  defp reject_known(project_id, default_branch, test_cases) do
+  defp reject_known(project, default_branch, test_cases) do
     by_id =
       Map.new(test_cases, fn test_case ->
-        {Tests.generate_test_case_id(project_id, test_case.name, test_case.module_name, test_case.suite_name), test_case}
+        {Tests.generate_test_case_id(project.id, test_case.name, test_case.module_name, test_case.suite_name), test_case}
       end)
 
     known =
       by_id
       |> Map.keys()
       |> Enum.chunk_every(@batch_size)
-      |> Enum.flat_map(&known_test_case_ids(project_id, default_branch, &1))
+      |> Enum.flat_map(&known_test_case_ids(project.id, default_branch, &1))
       |> MapSet.new()
 
-    by_id
-    |> Enum.reject(fn {id, _} -> MapSet.member?(known, id) end)
+    unknown = Enum.reject(by_id, fn {id, _} -> MapSet.member?(known, id) end)
+    landed = Tests.test_case_ids_landed_on_default_branch(project, default_branch, Enum.map(unknown, &elem(&1, 0)))
+
+    unknown
+    |> Enum.reject(fn {id, _} -> MapSet.member?(landed, id) end)
     |> Enum.map(fn {_, test_case} -> test_case end)
   end
 
-  # The window matches the one `Tuist.Tests.check_new_test_cases/3` reads, so the
+  # The window matches the one `Tuist.Tests.check_new_test_cases/2` reads, so the
   # gate and the new-test badge answer the same question. Selective testing keeps
   # an unchanged target off the default branch for as long as its inputs are
   # stable, so a module dormant for longer than the window reads as new and is

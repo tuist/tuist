@@ -7,8 +7,10 @@ name: Runner Image
 #
 # Releases go through runner-image-release.yml, which publishes the
 # immutable per-release profile tags the chart pins. This workflow's
-# `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
-# by the chart.
+# `:macos-<dashes>-<git-sha>` tag is normally dispatch-only. A new
+# profile may temporarily pin a verified dispatch build in the chart
+# until its first release exists. Do not rebuild the same Xcode/SHA
+# while that bootstrap tag is pinned; record its digest in the PR.
 #
 # Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs

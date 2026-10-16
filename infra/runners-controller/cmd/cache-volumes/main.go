@@ -44,7 +44,6 @@ type agent struct {
 	prefetch                               *prefetcher
 }
 type request struct {
-	Commit       string `json:"commit,omitempty"`
 	PodName      string `json:"pod_name"`
 	PodUID       string `json:"pod_uid"`
 	Key          string `json:"key"`
@@ -53,7 +52,7 @@ type request struct {
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" || (r.URL.Path != "/acquire" && r.URL.Path != "/acquire-commit") {
+	if r.Method != "POST" || r.URL.Path != "/acquire" {
 		http.NotFound(w, r)
 		return
 	}
@@ -86,25 +85,13 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
-	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID, "commit": cachevolumes.CommitMode(input.Commit)})
+	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID})
 	authorized := a.observe.Start("authorize", "none")
-	authorizeURL := a.authorizeURL
-	if cachevolumes.CommitMode(input.Commit) != "auto" {
-		authorizeURL += "-commit"
-	}
-	identity, err := a.authorizeAt(ctx, authorizeURL, body)
+	identity, err := a.authorize(ctx, body)
 	authorized(err)
 	outcome = err
 	if err != nil {
-		if errors.Is(err, cachevolumes.ErrCommitUnsupported) {
-			http.Error(w, "commit mode unsupported", http.StatusNotImplemented)
-			return
-		}
 		http.Error(w, "unavailable", 403)
-		return
-	}
-	if !identity.AcceptsCommit(input.Commit) {
-		http.Error(w, "commit mode unsupported", http.StatusNotImplemented)
 		return
 	}
 	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
@@ -118,7 +105,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID, "commit": identity.Commit, "can_publish": identity.CanPublish})
+	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID})
 }
 func (a *agent) gone(name, uid string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
