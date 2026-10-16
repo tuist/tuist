@@ -103,6 +103,7 @@ runs the mixed-version latency expression through promtool.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
+- Preserve the dotted REAPI binary metadata header through Kura ingress: the shared regional/runner config and dedicated gRPC activation controller require `ignore-invalid-headers: "false"`. Leave the main web ingress unchanged. `infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks environment overlays and, with `TUIST_TEST_NGINX`, real HTTP/2 `grpc_pass` forwarding. Successful artifact transfers without attribution do not establish analytics delivery; verify fresh signed events by project/invocation after the normal platform rollout. Previously skipped events cannot be reconstructed from client observations.
 - Managed Kura analytics are enabled by `kuraController.analytics.enabled`.
   `tuist/templates/kura-analytics-external-secret.yaml` sends the server's
   internal address and existing webhook signing key to the shared runtime
