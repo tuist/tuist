@@ -94,7 +94,7 @@ This directory contains the core business logic and domain modules for the serve
 - Oauth: `server/lib/tuist/oauth/AGENTS.md`
 - Ops: `server/lib/tuist/ops/AGENTS.md`
 - Projects: `server/lib/tuist/projects/AGENTS.md`
-- Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
+- Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`. Shared rate-limiter outage counters live in `Tuist.PromEx.RateLimit`; the web policy uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
 - Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`
 - Remote Execution API Cache: `server/lib/tuist/reapi_cache/AGENTS.md`
 - Repo: `server/lib/tuist/repo/AGENTS.md`

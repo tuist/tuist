@@ -1,5 +1,6 @@
 # Application Supervision
 
+- Start Redis and both persistent limiter clients before the endpoint, Oban and Once gRPC ingress so they outlive traffic and draining jobs. This orders clients, not backend readiness; shared failures follow the explicit limiter policy.
 - Keep the endpoint before Oban so workers can access endpoint configuration throughout startup and shutdown. Keep queues in Oban's configuration so its internal supervisors can restore consumers.
 - `Tuist.Application.prep_stop/1` calls `EndpointDrainer` before the application supervision tree stops. It drains Phoenix sockets and Bandit connections while Oban and endpoint configuration remain available.
 - Drain socket transports before the Bandit servers, following Phoenix's shutdown order. Terminate children through their supervisor so they are not restarted; leave endpoint configuration alive for Oban's subsequent job drain.
