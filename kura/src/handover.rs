@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{sync::atomic::Ordering, time::Duration};
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 const MAX_BATCH_RECORDS: usize = 32;
 const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
@@ -159,6 +160,28 @@ pub async fn verify(
     State(state): State<SharedState>,
     Json(request): Json<VerifyRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if request.begin {
+        // A source's per-request timeout can be shorter than retained repair.
+        // Keep the serialized preparation alive across caller cancellation;
+        // the named intent/deadline and runtime drain still bound its work.
+        tokio::spawn(verify_response(state, request).in_current_span())
+            .await
+            .map_err(|error| {
+                tracing::error!(%error, "Retained-corpus preparation task failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "retained corpus preparation task failed".into(),
+                )
+            })?
+    } else {
+        verify_response(state, request).await
+    }
+}
+
+async fn verify_response(
+    state: SharedState,
+    request: VerifyRequest,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let context = verification_context(&request);
     let id = bounded_detail(&request.intent.id);
     verify_inner(&state, request)
@@ -298,6 +321,9 @@ async fn verify_inner(
 }
 
 fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> Result<(), String> {
+    if state.runtime.is_draining() {
+        return Err("handover destination draining".into());
+    }
     let authority = &state.runtime.authority;
     let grant = authority.intent().ok_or("no handover intent")?;
     if grant.phase != "Quiescing"
@@ -1187,6 +1213,126 @@ mod tests {
                 .is_none()
         );
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn disconnected_begin_keeps_one_repair_until_authority_cancels_it() {
+        for stop in ["complete", "abort", "deadline", "drain"] {
+            let target = test_context(|_| {}).await;
+            let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+            let release = std::sync::Arc::new(tokio::sync::Notify::new());
+            let requests = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let app = axum::Router::new().fallback({
+                let entered = entered.clone();
+                let release = release.clone();
+                let requests = requests.clone();
+                move || {
+                    let entered = entered.clone();
+                    let release = release.clone();
+                    let requests = requests.clone();
+                    async move {
+                        requests.fetch_add(1, Ordering::SeqCst);
+                        entered.notify_one();
+                        release.notified().await;
+                        Json(serde_json::json!({"entries": [], "next_after": null}))
+                    }
+                }
+            });
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let mut request = begin_request(&target.state, url);
+            if stop == "deadline" {
+                request.intent.deadline_ms = crate::utils::now_ms() + 1_000;
+                let mut grant = target.state.runtime.authority.intent().unwrap();
+                grant.handover = Some(request.intent.clone());
+                target.state.runtime.authority.install(grant).unwrap();
+            }
+            let state = target.state.clone();
+            let first = request.clone();
+            let caller = tokio::spawn(async move { verify(State(state), Json(first)).await });
+            tokio::time::timeout(Duration::from_secs(5), entered.notified())
+                .await
+                .unwrap();
+            caller.abort();
+            assert!(caller.await.unwrap_err().is_cancelled());
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .handover_preparation
+                    .try_lock()
+                    .is_err(),
+                "{stop}: caller cancellation must not abandon the repair"
+            );
+            let rejection = verify(State(target.state.clone()), Json(request.clone()))
+                .await
+                .unwrap_err();
+            assert!(
+                rejection.1.contains("reconciliation in progress"),
+                "{rejection:?}"
+            );
+            assert_eq!(requests.load(Ordering::SeqCst), 1);
+            match stop {
+                "complete" => release.notify_one(),
+                "abort" => {
+                    let mut grant = target.state.runtime.authority.intent().unwrap();
+                    grant.phase = "Serving".into();
+                    grant.handover = None;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "deadline" => {}
+                "drain" => {
+                    target.state.runtime.request_drain();
+                }
+                _ => unreachable!(),
+            }
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    if target
+                        .state
+                        .runtime
+                        .authority
+                        .handover_preparation
+                        .try_lock()
+                        .is_ok()
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+            if stop == "complete" {
+                assert_eq!(
+                    target.state.store.handover_hold.lock().unwrap().as_deref(),
+                    Some("repair")
+                );
+                let response = verify(State(target.state.clone()), Json(request))
+                    .await
+                    .unwrap();
+                assert_eq!(response.0["max_batch_records"], MAX_BATCH_RECORDS);
+                assert_eq!(requests.load(Ordering::SeqCst), 1);
+            } else {
+                assert!(
+                    target.state.store.handover_hold.lock().unwrap().is_none(),
+                    "{stop}"
+                );
+            }
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .barrier
+                    .lock()
+                    .unwrap()
+                    .is_none()
+            );
+            server.abort();
+        }
     }
 
     #[tokio::test]

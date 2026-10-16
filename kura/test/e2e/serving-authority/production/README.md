@@ -80,6 +80,15 @@ revisits, and proves that the same source resumes HTTP/gRPC writes after an
 explicit abort. Startup failures, missing corpus, OOMs, unexpected restarts and
 generic timeouts fail the run.
 
+The calibrated `.canary.9` baseline on 2026-10-16 started with exactly three
+missing 814,310,767-byte bodies, failed after 300.999 seconds, and safely resumed
+the source after abort. It transferred 13.76 GB of peer-body responses and applied
+9.70 GB during repair. Its nine timed-out preparation requests never completed a
+repair walk, so the strict classifier returned `not-reproduced`: it exposed a
+cancellation/restart variant, not the earlier production signature of completed
+walks followed by eviction revisits. Preserve this distinction when interpreting
+subsequent results; a valid failed workload is not automatically the same failure.
+
 A passing run requires matching full retained-corpus receipts, positive source
 revocation, destination activation, rejection of writes on the original source
 HTTP/2 and gRPC sessions, and successful destination writes. The runtime barrier
