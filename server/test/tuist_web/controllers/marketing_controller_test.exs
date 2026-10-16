@@ -8,8 +8,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CacheGlobe
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
@@ -45,6 +47,68 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "shows today's cache download count linking to the globe page", %{conn: conn} do
+      stub(Stats, :get_globe, fn ->
+        Map.merge(CacheGlobe.empty(), %{
+          downloads: 658_422,
+          recent_downloads: 1_200,
+          updated_at: "2026-10-13T12:00:00Z",
+          observed_at: "2026-10-13T11:58:00Z",
+          status: :available
+        })
+      end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      assert [eyebrow] = html |> LazyHTML.from_document() |> LazyHTML.query("#home-hero-cache-count") |> Enum.to_list()
+      assert LazyHTML.attribute(eyebrow, "href") == ["/globe"]
+      assert LazyHTML.attribute(eyebrow, "data-recent-downloads") == ["1200"]
+      assert LazyHTML.text(eyebrow) =~ "Cache download requests today:"
+      assert LazyHTML.text(eyebrow) =~ "658,422"
+    end
+
+    test "renders the customer stories carousel with OpenAI's quote first", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
+
+      slides = html |> LazyHTML.query("#customers-carousel [data-part=slide]") |> Enum.to_list()
+
+      assert Enum.flat_map(slides, &LazyHTML.attribute(&1, "data-company")) ==
+               ["openai", "monzo", "toss", "trendyol", "monday", "delivery-hero"]
+
+      assert [first | rest] = slides
+      assert LazyHTML.attribute(first, "data-active") == ["true"]
+      assert LazyHTML.attribute(first, "inert") == []
+      assert Enum.all?(rest, &(LazyHTML.attribute(&1, "inert") != []))
+      assert LazyHTML.text(first) =~ "Tuist has made a meaningful difference to developer productivity"
+      assert LazyHTML.text(first) =~ "Eric Burke"
+      assert first |> LazyHTML.query("a") |> Enum.count() == 0
+
+      assert html |> LazyHTML.query("#customers-carousel a[href='/customers/monzo']") |> Enum.count() == 1
+
+      assert html
+             |> LazyHTML.query("#customers-carousel a[href^='https://deliveryhero.jobs/']")
+             |> Enum.count() == 1
+
+      tabs = html |> LazyHTML.query("#customers-carousel [role=tab]") |> Enum.to_list()
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-label")) ==
+               ["OpenAI", "Monzo", "Toss", "Trendyol", "monday.com", "Delivery Hero"]
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-selected")) ==
+               ["true", "false", "false", "false", "false", "false"]
+
+      assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
+      assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+    end
+
+    test "omits the cache download count while the globe has no data", %{conn: conn} do
+      stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "home-hero-cache-count"
     end
 
     test "describes the site and the product with structured data", %{conn: conn} do

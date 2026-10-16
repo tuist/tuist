@@ -164,6 +164,20 @@
         />
       </.sidebar_group>
       <.sidebar_group
+        id="sidebar-people"
+        label={gettext("People")}
+        icon="users"
+        collapsible={false}
+      >
+        <.sidebar_item
+          id="sidebar-time-off"
+          label={gettext("Time off")}
+          icon="calendar_week"
+          navigate={~p"/people/time-off"}
+          selected={String.starts_with?(@current_path, "/people/time-off")}
+        />
+      </.sidebar_group>
+      <.sidebar_group
         :if={Atlas.Users.has_scope?(@current_user, "assets:read")}
         id="sidebar-operations"
         label={gettext("Operations")}

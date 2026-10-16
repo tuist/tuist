@@ -26,6 +26,7 @@ impl Transport for MockTransport {
                 method,
                 token,
                 payload,
+                ..
             } => json!({"method": method.as_str(), "token": token, "payload": payload}),
             Body::Form(pairs) => Value::Object(
                 pairs

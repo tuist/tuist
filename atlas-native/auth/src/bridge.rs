@@ -17,6 +17,11 @@ enum Command {
     Restore {
         session: Session,
     },
+    TimeOff {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::time_off::Action,
+    },
     AiAccounts {
         session: Session,
         #[serde(flatten)]
@@ -39,6 +44,9 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::TimeOff { session, action } => {
+                return crate::time_off::execute(session, action);
+            }
             Command::AiAccounts { session, action } => {
                 return crate::accounts::execute(session, action);
             }
