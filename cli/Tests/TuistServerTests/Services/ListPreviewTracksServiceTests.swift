@@ -17,9 +17,15 @@ struct ListPreviewTracksServiceTests {
 
     @Test(arguments: [[String](), ["QA", "Release/2027 β"]])
     func accepts_empty_lists_and_open_track_names(tracks: [String]) async throws {
-        let json = String(decoding: try JSONEncoder().encode(tracks), as: UTF8.self)
+        let data = try JSONSerialization.data(withJSONObject: [
+            "total_count": 42,
+            "tracks": tracks.map { ["name": $0, "count": 21] as [String: Any] },
+            "future_field": "ignored",
+        ])
+        let json = String(decoding: data, as: UTF8.self)
         let result = try await subject(status: 200, json: json).listPreviewTracks(fullHandle: "team/app", serverURL: serverURL)
-        #expect(result == tracks)
+        #expect(result?.totalCount == 42)
+        #expect(result?.tracks == tracks.map { .init(name: $0, count: 21) })
     }
 
     @Test func older_servers_without_the_endpoint_return_no_track_discovery() async throws {

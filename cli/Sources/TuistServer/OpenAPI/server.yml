@@ -3431,12 +3431,39 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
       x-validate:
     PreviewTracks:
-      items:
-        type: string
-        x-struct:
-        x-validate:
+      properties:
+        total_count:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        tracks:
+          items:
+            properties:
+              count:
+                minimum: 0
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - count
+            title: PreviewTrack
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - total_count
+        - tracks
       title: PreviewTracks
-      type: array
+      type: object
       x-struct:
       x-validate:
     StressNewTestsResult:
@@ -4643,6 +4670,24 @@ components:
       required:
         - test_run_id
       title: CoverageUploadRequest
+      type: object
+      x-struct:
+      x-validate:
+    PreviewTrack:
+      properties:
+        count:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - count
+      title: PreviewTrack
       type: object
       x-struct:
       x-validate:
@@ -15077,6 +15122,14 @@ paths:
         - description: The display name of previews.
           in: query
           name: display_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
+          in: query
+          name: search
           required: false
           schema:
             type: string
@@ -31920,7 +31973,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/previews/tracks:
     get:
       callbacks: {}
-      description: Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.
+      description: Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
       operationId: listPreviewTracks
       parameters:
         - description: The handle of the account.
@@ -31944,12 +31997,39 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  type: string
-                  x-struct:
-                  x-validate:
+                properties:
+                  total_count:
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tracks:
+                    items:
+                      properties:
+                        count:
+                          minimum: 0
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - count
+                      title: PreviewTrack
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - total_count
+                  - tracks
                 title: PreviewTracks
-                type: array
+                type: object
                 x-struct:
                 x-validate:
           description: Available preview tracks.

@@ -1035,6 +1035,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       AppBuildsFixtures.preview_fixture(project: project, track: "qa")
       AppBuildsFixtures.preview_fixture(project: project, track: "")
       AppBuildsFixtures.preview_fixture(track: "private-other-project")
+      AppBuildsFixtures.preview_fixture(project: project, track: "hidden", bundle_identifier: nil)
 
       response =
         conn
@@ -1042,7 +1043,10 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
         |> json_response(:ok)
 
-      assert Enum.map(response, &String.downcase/1) == ["qa" | tracks]
+      assert response["total_count"] == 28
+      assert Enum.map(response["tracks"], &String.downcase(&1["name"])) == ["qa" | tracks]
+      assert hd(response["tracks"])["count"] == 2
+      assert Enum.all?(tl(response["tracks"]), &(&1["count"] == 1))
     end
 
     test "returns an empty list when a project has no named tracks", %{
@@ -1056,7 +1060,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert conn
              |> Authentication.put_current_user(user)
              |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
-             |> json_response(:ok) == []
+             |> json_response(:ok) == %{"total_count" => 1, "tracks" => []}
     end
 
     test "requires preview-read authorization", %{conn: conn, project: project, account: account} do
@@ -1074,6 +1078,63 @@ defmodule TuistWeb.PreviewsControllerTest do
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/previews" do
+    test "search matches display names before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "QA")
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "beta")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", track: "QA")
+      AppBuildsFixtures.preview_fixture(display_name: "Blueprint App", track: "QA")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "BLUEprint",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
+    test "search treats wildcard characters literally and an empty search returns all names", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App")
+      authenticated = Authentication.put_current_user(conn, user)
+
+      filtered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => "%_"})
+        |> json_response(:ok)
+
+      assert filtered["pagination_metadata"]["total_count"] == 1
+      assert hd(filtered["previews"])["display_name"] == "Build 100%_ready"
+
+      unfiltered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => ""})
+        |> json_response(:ok)
+
+      assert unfiltered["pagination_metadata"]["total_count"] == 2
+    end
+
     test "omitting track or sending an empty track returns all tracks", %{
       conn: conn,
       user: user,

@@ -46,6 +46,20 @@ struct PreviewRowView: View {
                             }
                         }
 
+                        if let track = preview.track, !track.isEmpty {
+                            HStack(spacing: Noora.Spacing.spacing1) {
+                                Image(systemName: "tag")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 12, height: 12)
+                                Text(track)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                            .accessibilityElement(children: .combine)
+                        }
+
                         Spacer()
                     }
 
@@ -53,13 +67,6 @@ struct PreviewRowView: View {
                         .font(.headline.weight(.medium))
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                         .lineLimit(1)
-
-                    if let track = preview.track, !track.isEmpty {
-                        Label(track, systemImage: "tag")
-                            .font(.caption2)
-                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
-                            .lineLimit(1)
-                    }
 
                     HStack(spacing: Noora.Spacing.spacing4) {
                         HStack(spacing: Noora.Spacing.spacing1) {

@@ -4295,6 +4295,13 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "search",
+                    value: input.query.search
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "track",
                     value: input.query.track
                 )
@@ -22540,7 +22547,7 @@ public struct Client: APIProtocol {
     }
     /// List the available preview tracks for a project.
     ///
-    /// Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
@@ -22581,7 +22588,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            [Swift.String].self,
+                            Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

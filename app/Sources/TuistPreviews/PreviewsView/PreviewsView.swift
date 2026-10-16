@@ -11,6 +11,7 @@ public struct PreviewsView: View {
     @State var viewModel = PreviewsViewModel()
     @State private var navigationPath = NavigationPath()
     @State private var pressedPreviewId: String?
+    @State private var searchText = ""
     private let imagePrefetcher = ImagePrefetcher()
 
     public init() {}
@@ -40,6 +41,7 @@ public struct PreviewsView: View {
                                 NooraDropdown<ServerProject>(
                                     options: viewModel.projects,
                                     currentOption: selectedProject,
+                                    cornerRadius: Noora.CornerRadius.max,
                                     selectedOption: { project in
                                         errorHandling.fireAndHandleError {
                                             try await viewModel.selectProject(project)
@@ -54,30 +56,21 @@ public struct PreviewsView: View {
                             )
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
 
-                            HStack(spacing: Noora.Spacing.spacing3) {
-                                Text("Showing")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
+                            VStack(alignment: .leading, spacing: Noora.Spacing.spacing3) {
+                                Text("Tracks")
+                                    .font(.headline.weight(.medium))
                                     .foregroundColor(Noora.Colors.surfaceLabelPrimary)
 
-                                Menu {
-                                    Picker("Track", selection: Binding(
-                                        get: { viewModel.selectedTrack },
-                                        set: { selectTrack($0) }
-                                    )) {
-                                        Text("All Tracks").tag(nil as String?)
+                                ScrollView(.horizontal) {
+                                    HStack(spacing: Noora.Spacing.spacing3) {
+                                        trackChip("All", track: nil, count: viewModel.totalPreviewCount)
                                         ForEach(viewModel.trackOptions, id: \.self) { track in
-                                            Text(track).tag(Optional(track))
+                                            trackChip(track, track: track, count: viewModel.previewCount(for: track))
                                         }
                                     }
-                                    .pickerStyle(.inline)
-                                } label: {
-                                    NooraDropdownLabel(text: viewModel.selectedTrack ?? "All Tracks")
+                                    .padding(.vertical, Noora.Spacing.spacing1)
                                 }
-                                .disabled(viewModel.trackOptions.isEmpty)
-                                .accessibilityLabel("Filter by track")
-                                .accessibilityValue(viewModel.selectedTrack ?? "All Tracks")
-                                .accessibilityIdentifier("preview-track-menu")
+                                .scrollIndicators(.hidden)
                             }
                             .padding(.bottom, Noora.Spacing.spacing4)
                             .listRowSeparator(.hidden)
@@ -189,6 +182,21 @@ public struct PreviewsView: View {
             }
             .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+            .task(id: searchText) {
+                do {
+                    try await Task.sleep(for: .milliseconds(300))
+                    try Task.checkCancellation()
+                    try await viewModel.searchPreviews(searchText)
+                } catch is CancellationError {
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    errorHandling.handle(error: error)
+                }
+            }
+            .onChange(of: viewModel.selectedProject?.fullName) {
+                searchText = viewModel.searchQuery
+            }
             .background(Noora.Colors.surfaceBackgroundPrimary)
             .navigationDestination(for: ServerPreview.self) { preview in
                 PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
@@ -204,6 +212,36 @@ public struct PreviewsView: View {
                 handleOpenURL(url)
             }
         }
+    }
+
+    private func trackChip(_ title: String, track: String?, count: Int?) -> some View {
+        let isSelected = track.map { viewModel.selectedTrack?.caseInsensitiveCompare($0) == .orderedSame }
+            ?? (viewModel.selectedTrack == nil)
+        return Button {
+            selectTrack(track)
+        } label: {
+            HStack(spacing: Noora.Spacing.spacing2) {
+                Text(title)
+                    .foregroundStyle(isSelected ? .white : Noora.Colors.surfaceLabelPrimary)
+                if let count {
+                    Text(count.formatted())
+                        .foregroundStyle(isSelected ? .white.opacity(0.65) : Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+            .font(.subheadline)
+            .padding(.horizontal, Noora.Spacing.spacing4)
+            .padding(.vertical, Noora.Spacing.spacing2)
+            .background(
+                isSelected ? Noora.Colors.buttonPrimaryBackground : Noora.Colors.surfaceBackgroundTertiary,
+                in: Capsule()
+            )
+            .overlay(Capsule().strokeBorder(Noora.Colors.neutralGray24Alpha, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(track ?? "All tracks")
+        .accessibilityValue(count.map { "\($0) previews" } ?? "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(track.map { "preview-track-\($0)" } ?? "preview-track-all")
     }
 
     private func selectTrack(_ track: String?) {

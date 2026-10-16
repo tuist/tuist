@@ -531,6 +531,12 @@ defmodule TuistWeb.API.PreviewsController do
         type: :string,
         description: "The display name of previews."
       ],
+      search: [
+        in: :query,
+        type: :string,
+        description:
+          "Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names."
+      ],
       track: [
         in: :query,
         type: :string,
@@ -628,6 +634,7 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         distinct: distinct,
+        search: Map.get(params, :search),
         supported_platforms: Map.get(params, :supported_platforms),
         preload: [:app_builds, :created_by_account]
       )
@@ -652,7 +659,7 @@ defmodule TuistWeb.API.PreviewsController do
   operation(:tracks,
     summary: "List the available preview tracks for a project.",
     description:
-      "Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.",
+      "Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.",
     operation_id: "listPreviewTracks",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
@@ -661,7 +668,26 @@ defmodule TuistWeb.API.PreviewsController do
     responses: %{
       ok:
         {"Available preview tracks.", "application/json",
-         %Schema{title: "PreviewTracks", type: :array, items: %Schema{type: :string}}},
+         %Schema{
+           title: "PreviewTracks",
+           type: :object,
+           properties: %{
+             total_count: %Schema{type: :integer, minimum: 0},
+             tracks: %Schema{
+               type: :array,
+               items: %Schema{
+                 title: "PreviewTrack",
+                 type: :object,
+                 properties: %{
+                   name: %Schema{type: :string},
+                   count: %Schema{type: :integer, minimum: 0}
+                 },
+                 required: [:name, :count]
+               }
+             }
+           },
+           required: [:total_count, :tracks]
+         }},
       unauthorized: {"Authentication is required.", "application/json", Error},
       forbidden: {"The authenticated subject cannot read this project's previews.", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()

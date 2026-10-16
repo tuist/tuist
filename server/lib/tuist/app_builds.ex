@@ -171,13 +171,19 @@ defmodule Tuist.AppBuilds do
   end
 
   def list_preview_tracks(%Project{id: project_id}) do
-    Repo.all(
-      from p in Preview,
-        where: p.project_id == ^project_id and p.track != "",
-        group_by: p.track,
-        order_by: p.track,
-        select: min(fragment("?::text", p.track))
-    )
+    tracks =
+      Repo.all(
+        from p in Preview,
+          where: p.project_id == ^project_id and not is_nil(p.bundle_identifier) and p.bundle_identifier != "",
+          group_by: p.track,
+          order_by: p.track,
+          select: %{name: min(fragment("?::text", p.track)), count: count(p.id)}
+      )
+
+    %{
+      total_count: Enum.sum(Enum.map(tracks, & &1.count)),
+      tracks: Enum.reject(tracks, &(&1.name in [nil, ""]))
+    }
   end
 
   def list_previews(attrs, opts \\ []) do
@@ -185,6 +191,7 @@ defmodule Tuist.AppBuilds do
 
     Preview
     |> preload(^preload)
+    |> query_with_search_when_needed(opts)
     |> query_with_supported_platforms_when_needed(opts)
     |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
@@ -218,6 +225,13 @@ defmodule Tuist.AppBuilds do
       )
 
     previews
+  end
+
+  defp query_with_search_when_needed(query, opts) do
+    case Keyword.get(opts, :search) do
+      search when search in [nil, ""] -> query
+      search -> where(query, [p], fragment("strpos(lower(?), lower(?)) > 0", p.display_name, ^search))
+    end
   end
 
   defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do

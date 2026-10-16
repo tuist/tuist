@@ -11,9 +11,15 @@ struct SelectedProjectFullHandleKey: AppStorageKey {
 
 enum PreviewsViewModelError: LocalizedError, Equatable {
     case trackFilteringUnsupported
+    case searchUnsupported
 
     var errorDescription: String? {
-        "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+        switch self {
+        case .trackFilteringUnsupported:
+            "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+        case .searchUnsupported:
+            "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search."
+        }
     }
 }
 
@@ -29,8 +35,17 @@ final class PreviewsViewModel: Sendable {
     private(set) var previews: [ServerPreview] = []
     private(set) var selectedProject: ServerProject?
     private(set) var selectedTrack: String?
-    private(set) var availableTracks: [String] = []
+    private(set) var trackSummary: ServerPreviewTrackSummary?
+    private(set) var searchQuery = ""
     private(set) var isTrackSelectionSupported = true
+    private var unfilteredTotalCount: Int?
+
+    var availableTracks: [String] { trackSummary?.tracks.map(\.name) ?? [] }
+    var totalPreviewCount: Int? { trackSummary?.totalCount ?? unfilteredTotalCount }
+
+    func previewCount(for track: String) -> Int? {
+        trackSummary?.tracks.first { $0.name.caseInsensitiveCompare(track) == .orderedSame }?.count
+    }
 
     var trackOptions: [String] {
         var options = availableTracks
@@ -81,7 +96,9 @@ final class PreviewsViewModel: Sendable {
     func selectProject(_ project: ServerProject) async throws {
         selectedProject = project
         selectedTrack = nil
-        availableTracks = []
+        searchQuery = ""
+        trackSummary = nil
+        unfilteredTotalCount = nil
         isTrackSelectionSupported = true
         previews = []
         try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
@@ -92,6 +109,15 @@ final class PreviewsViewModel: Sendable {
         selectedTrack = track.flatMap { $0.isEmpty ? nil : $0 }
         previews = []
         guard let selectedProject else { return }
+        try await loadPreviews(for: selectedProject)
+    }
+
+    func searchPreviews(_ query: String) async throws {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query != searchQuery, let selectedProject else { return }
+        guard query.isEmpty || isTrackSelectionSupported else { throw PreviewsViewModelError.searchUnsupported }
+        searchQuery = query
+        previews = []
         try await loadPreviews(for: selectedProject)
     }
 
@@ -112,7 +138,7 @@ final class PreviewsViewModel: Sendable {
                 fullHandle: project.fullName, serverURL: serverEnvironmentService.url()
             )
             guard requestID == loadID else { return }
-            availableTracks = tracks ?? []
+            trackSummary = tracks
             isTrackSelectionSupported = tracks != nil
         } catch {
             guard requestID == loadID else { return }
@@ -197,7 +223,9 @@ final class PreviewsViewModel: Sendable {
         guard let project = projects.first(where: { $0.fullName == storedProjectFullHandle }) ?? projects.first else { return }
         if selectedProject?.fullName != project.fullName {
             selectedTrack = nil
-            availableTracks = []
+            searchQuery = ""
+            trackSummary = nil
+            unfilteredTotalCount = nil
             isTrackSelectionSupported = true
             previews = []
         }
@@ -209,17 +237,28 @@ final class PreviewsViewModel: Sendable {
         let requestID = loadID
         let previewsPage: ServerPreviewsPage
         do {
-            previewsPage = try await listPreviewsService.listPreviews(
-                displayName: nil,
-                specifier: nil,
-                track: selectedTrack,
-                supportedPlatforms: [],
-                page: page,
-                pageSize: 20,
-                distinctField: nil,
-                fullHandle: project.fullName,
-                serverURL: serverEnvironmentService.url()
-            )
+            if searchQuery.isEmpty {
+                previewsPage = try await listPreviewsService.listPreviews(
+                    displayName: nil,
+                    specifier: nil,
+                    track: selectedTrack,
+                    supportedPlatforms: [],
+                    page: page,
+                    pageSize: 20,
+                    distinctField: nil,
+                    fullHandle: project.fullName,
+                    serverURL: serverEnvironmentService.url()
+                )
+            } else {
+                previewsPage = try await listPreviewsService.searchPreviews(
+                    search: searchQuery,
+                    track: selectedTrack,
+                    page: page,
+                    pageSize: 20,
+                    fullHandle: project.fullName,
+                    serverURL: serverEnvironmentService.url()
+                )
+            }
         } catch {
             guard requestID == loadID else { return }
             throw error
@@ -230,6 +269,15 @@ final class PreviewsViewModel: Sendable {
            previewsPage.previews.contains(where: { $0.track?.caseInsensitiveCompare(selectedTrack) != .orderedSame })
         {
             throw PreviewsViewModelError.trackFilteringUnsupported
+        }
+
+        if !searchQuery.isEmpty,
+           previewsPage.previews.contains(where: { $0.displayName?.localizedCaseInsensitiveContains(searchQuery) != true })
+        {
+            throw PreviewsViewModelError.searchUnsupported
+        }
+        if selectedTrack == nil, searchQuery.isEmpty {
+            unfilteredTotalCount = previewsPage.paginationMetadata.totalCount
         }
 
         if previewsPage.paginationMetadata.currentPage == 1 {

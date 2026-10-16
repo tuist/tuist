@@ -849,7 +849,7 @@ public protocol APIProtocol: Sendable {
     func listGenerations(_ input: Operations.listGenerations.Input) async throws -> Operations.listGenerations.Output
     /// List the available preview tracks for a project.
     ///
-    /// Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
@@ -3097,7 +3097,7 @@ extension APIProtocol {
     }
     /// List the available preview tracks for a project.
     ///
-    /// Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
@@ -8471,7 +8471,53 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/PreviewTracks`.
-        public typealias PreviewTracks = [Swift.String]
+        public struct PreviewTracks: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/total_count`.
+            public var total_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload`.
+            public struct tracksPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracksPayload/name`.
+                public var name: Swift.String
+                /// Creates a new `tracksPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - count:
+                ///   - name:
+                public init(
+                    count: Swift.Int,
+                    name: Swift.String
+                ) {
+                    self.count = count
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case count
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracks`.
+            public typealias tracksPayload = [Components.Schemas.PreviewTracks.tracksPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PreviewTracks/tracks`.
+            public var tracks: Components.Schemas.PreviewTracks.tracksPayload
+            /// Creates a new `PreviewTracks`.
+            ///
+            /// - Parameters:
+            ///   - total_count:
+            ///   - tracks:
+            public init(
+                total_count: Swift.Int,
+                tracks: Components.Schemas.PreviewTracks.tracksPayload
+            ) {
+                self.total_count = total_count
+                self.tracks = tracks
+            }
+            public enum CodingKeys: String, CodingKey {
+                case total_count
+                case tracks
+            }
+        }
         /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
         ///
         /// - Remark: Generated from `#/components/schemas/StressNewTestsResult`.
@@ -10474,6 +10520,29 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case test_run_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PreviewTrack`.
+        public struct PreviewTrack: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewTrack/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/PreviewTrack/name`.
+            public var name: Swift.String
+            /// Creates a new `PreviewTrack`.
+            ///
+            /// - Parameters:
+            ///   - count:
+            ///   - name:
+            public init(
+                count: Swift.Int,
+                name: Swift.String
+            ) {
+                self.count = count
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case count
+                case name
             }
         }
         /// The list of organizations the authenticated subject is part of.
@@ -31829,6 +31898,10 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
                 public var display_name: Swift.String?
+                /// Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/search`.
+                public var search: Swift.String?
                 /// Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/track`.
@@ -31861,6 +31934,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
+                ///   - search: Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
                 ///   - track: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///   - supported_platforms:
@@ -31869,6 +31943,7 @@ public enum Operations {
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 public init(
                     display_name: Swift.String? = nil,
+                    search: Swift.String? = nil,
                     track: Swift.String? = nil,
                     specifier: Swift.String? = nil,
                     supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
@@ -31877,6 +31952,7 @@ public enum Operations {
                     distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
+                    self.search = search
                     self.track = track
                     self.specifier = specifier
                     self.supported_platforms = supported_platforms
@@ -83165,7 +83241,7 @@ public enum Operations {
     }
     /// List the available preview tracks for a project.
     ///
-    /// Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.
+    /// Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/tracks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/tracks/get(listPreviewTracks)`.
@@ -83225,13 +83301,61 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/total_count`.
+                        public var total_count: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload`.
+                        public struct tracksPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracksPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `tracksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - count:
+                            ///   - name:
+                            public init(
+                                count: Swift.Int,
+                                name: Swift.String
+                            ) {
+                                self.count = count
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case count
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracks`.
+                        public typealias tracksPayload = [Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/json/tracks`.
+                        public var tracks: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - total_count:
+                        ///   - tracks:
+                        public init(
+                            total_count: Swift.Int,
+                            tracks: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload.tracksPayload
+                        ) {
+                            self.total_count = total_count
+                            self.tracks = tracks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case total_count
+                            case tracks
+                        }
+                    }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/tracks/GET/responses/200/content/application\/json`.
-                    case json([Swift.String])
+                    case json(Operations.listPreviewTracks.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: [Swift.String] {
+                    public var json: Operations.listPreviewTracks.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
