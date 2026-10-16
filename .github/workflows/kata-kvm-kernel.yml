@@ -78,7 +78,7 @@ jobs:
         run: |
           docker run --rm --runtime io.containerd.kata.v2 --device /dev/kvm \
             -v "$PWD/infra/kata-kvm-kernel:/check:ro" \
-            docker.io/library/ubuntu:24.04 sh /check/check-kvm.sh
+            docker.io/library/ubuntu:24.04 sh -c 'sh -x /check/check-kvm.sh; echo "check-kvm.sh exited $?"'
 
   release:
     needs: [build, verify]
