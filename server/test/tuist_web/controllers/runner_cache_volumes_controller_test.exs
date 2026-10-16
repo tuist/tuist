@@ -13,20 +13,22 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     :post |> Plug.Test.conn("/report") |> put_req_header("authorization", "Bearer agent-token")
   end
 
-  test "versioned commit authorization uses the same authenticated controller" do
-    for path <- ["authorize", "authorize-commit"] do
-      assert %{plug: Controller, plug_opts: :authorize} =
-               Phoenix.Router.route_info(
-                 TuistWeb.Router,
-                 "POST",
-                 "/api/internal/runners/cache-volumes/#{path}",
-                 "localhost"
-               )
-    end
+  test "older agents get 404 for explicit commit modes, which they treat as unsupported" do
+    assert %{plug: Controller, plug_opts: :authorize} =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize",
+               "localhost"
+             )
 
-    reject(CacheVolumes, :allocate, 1)
-    result = Controller.authorize(Plug.Test.conn(:post, "/authorize-commit"), %{"commit" => "true"})
-    assert result.status == 403
+    assert :error =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize-commit",
+               "localhost"
+             )
   end
 
   test "rejects workflow or unrelated service account credentials before touching storage" do

@@ -368,6 +368,11 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :integer,
                                  description: "The compilation time of a binary in milliseconds."
                                },
+                               instrumented: %Schema{
+                                 type: :boolean,
+                                 description:
+                                   "Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss."
+                               },
                                subhashes: %Schema{
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",

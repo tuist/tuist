@@ -154,6 +154,17 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.summary(project.id, "nothing-measured") == nil
   end
 
+  test "lists a run whose product code all came from the binary cache without counters", %{
+    project: project,
+    account: account
+  } do
+    # The run measured no product line, so only its test file says it gathered coverage.
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Tests/ATests.swift", [1], is_test: true)])
+
+    assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.executable_lines}) ==
+             [{run.id, 0}]
+  end
+
   test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",
        %{project: project, account: account} do
     # Alone, a dirty run folds nothing: no run that counts measured the commit.

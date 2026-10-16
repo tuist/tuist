@@ -6,6 +6,32 @@ defmodule TuistWeb.Runs.RanByBadgeTest do
   alias Tuist.Accounts.Account
   alias TuistWeb.Runs.RanByBadge
 
+  test "uses the shared CI badge independently of an account name" do
+    html = render_component(&RanByBadge.run_ran_by_badge_cell/1, run: %{is_ci: true}, ran_by_name: "reporter")
+    assert badge_label(html, "information") == "CI"
+    refute html =~ "reporter"
+  end
+
+  test "uses the reporting account badge for known local work" do
+    html = render_component(&RanByBadge.run_ran_by_badge_cell/1, run: %{is_ci: false}, ran_by_name: "reporter")
+    assert badge_label(html, "primary") == "reporter"
+  end
+
+  test "missing local attribution remains Unknown" do
+    for name <- [nil, ""] do
+      html = render_component(&RanByBadge.run_ran_by_badge_cell/1, run: %{is_ci: false}, ran_by_name: name)
+      assert badge_label(html, "neutral") == "Unknown"
+    end
+  end
+
+  test "unknown environment never becomes CI or an inferred local user" do
+    for name <- [nil, "reporter"] do
+      html = render_component(&RanByBadge.run_ran_by_badge_cell/1, run: %{is_ci: nil}, ran_by_name: name)
+      assert badge_label(html, "neutral") == "Unknown"
+      refute html =~ "reporter"
+    end
+  end
+
   test "all build and test pages share verified, reported, and unknown presentation" do
     for {component, key} <- [
           {&RanByBadge.build_ran_by_badge_cell/1, :build},
@@ -27,6 +53,11 @@ defmodule TuistWeb.Runs.RanByBadgeTest do
 
       html = render_component(component, [{key, %{record | claimed_actor_id: ""}}])
       assert html =~ "Unknown"
+
+      html = render_component(component, [{key, %{verified | is_ci: nil}}])
+      assert badge_label(html, "neutral") == "Unknown"
+      refute html =~ "verified-person"
+      refute html =~ "developer-123"
     end
   end
 
@@ -56,5 +87,13 @@ defmodule TuistWeb.Runs.RanByBadgeTest do
 
     assert html =~ "CI"
     refute html =~ "claimed"
+  end
+
+  defp badge_label(html, color) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find(".noora-badge[data-color=#{color}]")
+    |> Floki.text()
+    |> String.trim()
   end
 end

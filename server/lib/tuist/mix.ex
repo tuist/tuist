@@ -9,6 +9,7 @@ defmodule Tuist.Mix do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
@@ -284,7 +285,13 @@ defmodule Tuist.Mix do
       now
     )
 
-    insert_compiled_files(build_id, attrs.project_id, attrs |> Map.get(:files, []) |> Enum.take(@max_files), now)
+    files = attrs |> Map.get(:files, []) |> Enum.take(@max_files)
+    compiled_files = insert_compiled_files(build_id, attrs.project_id, files, now)
+
+    if BuildEntities.enabled?(build_entry.project_id) do
+      BuildEntities.Producers.mix_build(build_entry, Enum.zip(files, compiled_files))
+    end
+
     insert_steps(build_id, attrs.project_id, attrs |> Map.get(:steps, []) |> Enum.take(@max_steps), now)
     Cache.insert(attrs, now)
 
@@ -387,7 +394,7 @@ defmodule Tuist.Mix do
   defp percent(value) when is_number(value), do: value |> max(0) |> min(100) |> Kernel./(1)
   defp percent(_value), do: 0.0
 
-  defp insert_compiled_files(_build_id, _project_id, [], _now), do: :ok
+  defp insert_compiled_files(_build_id, _project_id, [], _now), do: []
 
   defp insert_compiled_files(build_id, project_id, files, now) do
     rows =
@@ -417,7 +424,7 @@ defmodule Tuist.Mix do
       end)
 
     CompiledFile.Buffer.insert_all(rows)
-    :ok
+    rows
   end
 
   @step_categories ~w(type_check write compiler other)

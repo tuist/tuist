@@ -139,15 +139,6 @@ or deleting the profile discards pending changes the new list no longer allows;
 a deleted profile falls back to the default branch. Buildkite and GitLab CI
 always save from the default branch.
 
-### Skip or request a save {#skip-or-request-a-save}
-
-The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
-this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the profile's **Save cache from** list and successful job
-completion; `true` cannot grant a branch permission or save a failed job. If the
-job is not allowed to save when the volume is attached, the action emits a warning
-and its changes are discarded.
-
 ## Capacity and retention {#capacity-and-retention}
 
 Each volume holds up to **20 GB** and expires after **7 days without a job mount**.

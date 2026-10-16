@@ -97,10 +97,30 @@ struct CoverageMapping {
     /// header per member, a `#1/<length>` name carried in the member's data, an even-byte pad
     /// after each member), leaving out members that are not Mach-O, such as the symbol table.
     static func mappings(archivePath path: String) -> [CoverageMapping] {
-        guard let archive = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
-              archive.count >= 8, archive.prefix(8).elementsEqual("!<arch>\n".utf8)
-        else { return [] }
-        var mappings: [CoverageMapping] = []
+        guard let archive = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else { return [] }
+        return archiveMembers(archive).compactMap { member in
+            let sections = sections(of: member, named: ["__llvm_covmap", "__llvm_covfun"])
+            guard let covmap = sections["__llvm_covmap"], let covfun = sections["__llvm_covfun"] else { return nil }
+            return CoverageMapping(covmap: covmap, covfun: covfun)
+        }
+    }
+
+    /// Whether the product at `path`, a Mach-O image or a static archive, carries a coverage
+    /// mapping: the code in it was built with coverage, so a run that collects coverage counts
+    /// its lines. Anything else, or anything unreadable, does not.
+    static func carriesMapping(path: String) -> Bool {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), data.count >= 32
+        else { return false }
+        if data.prefix(8).elementsEqual("!<arch>\n".utf8) {
+            return archiveMembers(data).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
+        }
+        return !sections(of: data, named: ["__llvm_covmap"]).isEmpty
+    }
+
+    /// The 64-bit Mach-O members of a BSD `ar` archive.
+    static func archiveMembers(_ archive: Data) -> [Data] {
+        guard archive.count >= 8, archive.prefix(8).elementsEqual("!<arch>\n".utf8) else { return [] }
+        var members: [Data] = []
         var offset = 8
         while offset + 60 <= archive.count {
             let header = archive.subdata(in: archive.startIndex + offset ..< archive.startIndex + offset + 60)
@@ -116,17 +136,10 @@ struct CoverageMapping {
             }
             guard length >= 0, start + length <= archive.count else { break }
             let member = archive.subdata(in: archive.startIndex + start ..< archive.startIndex + start + length)
-            if member.count >= 4, (member.load(at: 0) as UInt32) == 0xFEED_FACF {
-                let sections = sections(of: member, named: ["__llvm_covmap", "__llvm_covfun"])
-                if let covmap = sections["__llvm_covmap"], let covfun = sections["__llvm_covfun"],
-                   let mapping = CoverageMapping(covmap: covmap, covfun: covfun)
-                {
-                    mappings.append(mapping)
-                }
-            }
+            if member.count >= 32, (member.load(at: 0) as UInt32) == 0xFEED_FACF { members.append(member) }
             offset = (offset + 60 + size + 1) & ~1
         }
-        return mappings
+        return members
     }
 
     init?(covmap: Data, covfun: Data) {

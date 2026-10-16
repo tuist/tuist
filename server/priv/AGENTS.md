@@ -12,6 +12,7 @@ This directory contains database migrations and other private assets.
 - REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
 - Xcode coverage prefix-mapping opt-ins and generated-project LLDB source namespaces are documented in `docs/en/guides/features/cache/xcode-cache.md`; keep the `xccov` compatibility warning and per-target mapping guidance aligned with the CLI.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
+- Persistent build inventories require PostgreSQL Once target mappings/publication marker and its concurrent unpublished-terminal-run index, then the ClickHouse observations/catalog/materialized view before enabling any project's `:build_entities` flag. Keep the flag default-off; `:build_entities_kill_switch` is the deploy-free stop. Observe ingestion rows, compressed bytes, merge backlog and query limits during an approved canary before expanding enrollment. No automatic backfill or production benchmark load.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - GitHub Enterprise split-host/proxy setup, App repository permissions, and webhook events are documented in `docs/en/guides/integrations/gitforge/github.md`. Document only the repository permissions and webhook events required for PR feedback, checking API usage in `Tuist.GitHub.Client` and event handling in `TuistWeb.Webhooks.GitHubController`; manual App setup belongs in the self-hosting guide. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
@@ -56,6 +57,26 @@ This directory contains database migrations and other private assets.
 - Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
   block-size, and query-memory settings, including catch-up passes. Copying
   one partition at a time alone does not bound their peak memory usage.
+- Build a new skip index for existing parts with one asynchronous mutation per
+  partition (`SchemaClone.partition_ids/3` and
+  `SchemaClone.materialize_index_statements/4`, `mutations_sync = 0`), never a
+  whole-table `MATERIALIZE INDEX`: retention does not bound how much one
+  mutation does. `SchemaClone.reconcile/1` adds skip indexes a migration added
+  to existing tables onto the in-cluster ClickHouse after every deploy
+  (additive only), and logs and reports (`indices_mismatched`) an index both
+  sides define differently instead of replacing it. On every run it also
+  materializes the indexes listed in `@materialized_on_reconcile`
+  (`gradle_builds.idx_id`, `mix_builds.idx_id`) in each partition that still
+  has parts without index data, unless a materialization of that index is
+  already pending; one that keeps failing is logged, not resubmitted. That
+  detection reads per-part index sizes, so an allowlisted index must be its
+  table's only skip index. Add an index there only when a hot read depends on
+  it and the table is small enough to rebuild partition by partition.
+- Tests reading `system.parts`, `system.data_skipping_indices` or
+  `system.mutations`, or running `ALTER`, cannot use DataCase's ClickHouse
+  transaction: use `ExUnit.Case, async: false` with
+  `Sandbox.start_owner!(Tuist.IngestRepo, shared: true, sandbox: false)` (see
+  `test/tuist/clickhouse/schema_clone_materialization_test.exs`).
 - Add marketing changelog entries only for customer-facing product changes that are ready to announce.
 - Do not add product changelog entries for ops-only, admin-only, internal rollout, infrastructure-only, or otherwise unannounced functionality.
 
@@ -98,4 +119,4 @@ This directory contains database migrations and other private assets.
 
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
 
-- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory.
+- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory. `runner_cache_volume_uses.commit_mode` and `runner_cache_volumes.writer_branches` are no longer read.

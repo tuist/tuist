@@ -155,12 +155,48 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
 
+    test "titles the modal for the mode it was opened in", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*New profile\s*</
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*Edit profile\s*</
+
+      html = render_hook(lv, "dismiss_modal", %{})
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*New profile\s*</
+    end
+
+    test "summarizes the default branch by the names recorded on the account's volumes", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+
+      Tuist.Repo.insert!(%Tuist.Runners.CacheVolumes.Volume{
+        account_id: account.id,
+        provider: "github",
+        provider_instance: "github.com",
+        scope_id: "1",
+        repository: "acme/app",
+        key: "deps",
+        architecture: "arm64",
+        uid: 501,
+        default_branch: "develop",
+        last_used_at: DateTime.utc_now()
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*develop\s*</
+    end
+
     test "edits the branches that save cache in a collapsed section", %{conn: conn, account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      assert html =~ ~r/data-part="summary">\s*main\s*</
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
       assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">main</
@@ -184,7 +220,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "*"})
       assert html =~ ~r/data-part="summary">\s*Any branch\s*</
       html = render_hook(lv, "use_default_cache_writer_branch", %{})
-      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      assert html =~ ~r/data-part="summary">\s*main\s*</
       render_hook(lv, "save_profile", %{})
       assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
 
@@ -192,7 +228,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "add_cache_writer_branch", %{"branch" => "release/*"})
       render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
       html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
-      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      assert html =~ ~r/data-part="summary">\s*main\s*</
       assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">main</
       render_hook(lv, "save_profile", %{})
       assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")

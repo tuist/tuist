@@ -745,8 +745,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:265
 #: lib/tuist_web/live/runner_jobs_live.ex:580
 #: lib/tuist_web/live/runner_jobs_live.ex:624
-#: lib/tuist_web/live/runner_profiles_live.ex:417
-#: lib/tuist_web/live/runner_profiles_live.ex:434
+#: lib/tuist_web/live/runner_profiles_live.ex:416
+#: lib/tuist_web/live/runner_profiles_live.ex:433
 #: lib/tuist_web/live/runner_workflows_live.ex:241
 #: lib/tuist_web/live/runners_live.ex:368
 #: lib/tuist_web/live/runners_live.ex:370
@@ -773,8 +773,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:262
 #: lib/tuist_web/live/runner_jobs_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:621
-#: lib/tuist_web/live/runner_profiles_live.ex:418
-#: lib/tuist_web/live/runner_profiles_live.ex:435
+#: lib/tuist_web/live/runner_profiles_live.ex:417
+#: lib/tuist_web/live/runner_profiles_live.ex:434
 #: lib/tuist_web/live/runner_workflows_live.ex:240
 #: lib/tuist_web/live/runners_live.ex:367
 #: lib/tuist_web/live/runners_live.ex:369
@@ -990,7 +990,7 @@ msgstr ""
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:472
+#: lib/tuist_web/live/runner_profiles_live.ex:471
 #, elixir-autogen, elixir-format
 msgid "Select platform"
 msgstr ""
@@ -1085,18 +1085,18 @@ msgstr ""
 msgid "Operating system"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:503
-#: lib/tuist_web/live/runner_profiles_live.ex:505
+#: lib/tuist_web/live/runner_profiles_live.ex:502
+#: lib/tuist_web/live/runner_profiles_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "Select Xcode version"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:453
+#: lib/tuist_web/live/runner_profiles_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Ubuntu 22.04 LTS"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:508
+#: lib/tuist_web/live/runner_profiles_live.ex:507
 #, elixir-autogen, elixir-format
 msgid "Xcode %{version}"
 msgstr ""
@@ -1418,7 +1418,7 @@ msgstr ""
 msgid "Every recent workflow run was skipped or cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:454
+#: lib/tuist_web/live/runner_profiles_live.ex:453
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
 msgstr ""
@@ -1503,7 +1503,7 @@ msgstr ""
 msgid "Volume"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:471
+#: lib/tuist_web/components/app_layout_components.ex:488
 #: lib/tuist_web/live/runner_job_live.ex:163
 #: lib/tuist_web/live/runner_volumes_live.ex:28
 #: lib/tuist_web/live/runner_volumes_live.ex:429
@@ -1693,14 +1693,9 @@ msgstr ""
 msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:396
+#: lib/tuist_web/live/runner_profiles_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "Any branch"
-msgstr ""
-
-#: lib/tuist_web/live/runner_profiles_live.ex:392
-#, elixir-autogen, elixir-format
-msgid "Default branch"
 msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:197
@@ -1708,7 +1703,7 @@ msgstr ""
 msgid "Save cache from"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:403
+#: lib/tuist_web/live/runner_profiles_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "%{branches} + %{count} more"
 msgid_plural "%{branches} + %{count} more"

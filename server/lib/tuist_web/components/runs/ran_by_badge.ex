@@ -11,7 +11,10 @@ defmodule TuistWeb.Runs.RanByBadge do
 
   def run_ran_by_badge_cell(assigns) do
     ~H"""
-    <.actor_badge_cell record={@run} legacy_name={@ran_by_name} />
+    <.actor_badge_cell
+      record={@run}
+      legacy_name={if @ran_by_name == "", do: nil, else: @ran_by_name}
+    />
     """
   end
 
@@ -47,14 +50,14 @@ defmodule TuistWeb.Runs.RanByBadge do
 
     ~H"""
     <.badge_cell
-      :if={@record.is_ci}
+      :if={@record.is_ci == true}
       label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
     />
     <.badge_cell
-      :if={not @record.is_ci}
+      :if={@record.is_ci == false}
       label={
         if @actor.source == :reported,
           do: @actor.name <> " (" <> dgettext("dashboard", "Unverified") <> ")",
@@ -72,6 +75,12 @@ defmodule TuistWeb.Runs.RanByBadge do
         if @actor.source == :reported,
           do: dgettext("dashboard", "Reported by the build client, not verified.")
       }
+    />
+    <.badge_cell
+      :if={@record.is_ci not in [true, false]}
+      label={dgettext("dashboard", "Unknown")}
+      color="neutral"
+      style="light-fill"
     />
     """
   end
