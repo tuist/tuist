@@ -767,6 +767,13 @@ func main() {
 		setupLog.Error(err, "setup RackATSReconciler")
 		os.Exit(1)
 	}
+	if err := (&macos.RackSiteReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackSiteReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),

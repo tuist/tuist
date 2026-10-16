@@ -6460,6 +6460,75 @@ gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
 in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 5-minute windows, which alone made the 95th percentile three times the commit.
 
+### Rack power draw near its contracted limit
+
+```promql
+sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
+/ on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+```
+
+- Threshold: `> 0.8`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `eg1eawacfhkaoe`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} rack draw is {{ humanize $values.B.Value }}W,
+  {{ humanizePercentage $values.A.Value }} of its contracted power`
+
+The rule has a second query, `B`, which is the numerator alone, so the summary
+can show the draw in watts. The divisor is the site's contracted power in
+effect. It comes from `contracted_power` in the site definition
+(`infra/rack-switch-fleet/sites/<site>.json`), as dated steps, and the RackSite
+controller switches to each step on its first day. A contract change is a new
+step there, not an edit to this rule. A site with no contracted power has no
+ratio, which [Rack has no contracted power](#rack-has-no-contracted-power)
+catches.
+
+BER1's steps:
+
+| From | Contracted power | Fires above |
+| --- | --- | --- |
+| 2026-10-05 | 3 kW | 2400 W |
+| 2027-02-05 | 5 kW | 4000 W |
+| 2027-06-05 | 8 kW | 6400 W |
+
+The contract ends on 2027-10-04, and the last step stays in effect until the
+site definition changes. If the draw goes over the contracted power by up to
+10%, the facility sends a written notice and gives 7 working days to fix it.
+Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
+load or order more power before either happens.
+
+The sum covers only what the PDUs meter. Loads plugged straight into
+`ber1-ats-1` (`ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the
+KVMs) are left out, because the RackATS controller exports input voltage,
+active source and transfer state but no output draw. So the real draw is
+higher than the rule shows. The facility's meter (NTT Berlin 2) is the
+authoritative reading. A PDU the operator cannot read drops all its outlet
+series, which makes the sum smaller. That case is covered by
+[Rack power equipment not observed](#rack-power-equipment-not-observed).
+
+Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` shows
+which outlets grew.
+
+### Rack has no contracted power
+
+```promql
+group by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
+unless on (site)
+group by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `cg1eca8b0awowf`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} reports PDU draw but has no contracted power to
+  compare it with`
+
+Without this rule, a site missing from the divisor above would be silently
+unwatched. `kubectl get racksite <site> -o yaml` says which case it is: no
+object, no steps, a first step still in the future, or a `status.message` for
+a step that cannot be read.
+
 ### Tuist license expires within 30 days
 
 ```promql
