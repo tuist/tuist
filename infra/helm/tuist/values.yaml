@@ -1370,13 +1370,14 @@ xcresultProcessor:
   # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
   # soon as the VM has an IP.
   #
-  # It relies on the host reaching its guest, the same path the metrics
-  # forwarder uses, and on an image that serves /ready. An image release
-  # that fails leaves the previous image, which never passes, so the
-  # rollout holds until `helm --atomic` rolls it back. Disable it if a
-  # fleet's host-to-guest path is unreliable.
+  # Off until the processor leaves the main release. The server deploy runs
+  # `helm upgrade --atomic --wait` on the whole release, which waits on
+  # every Deployment, so one NotReady processor (a shared Postgres or
+  # ClickHouse outage, or a host that cannot reach its guest) would hold
+  # and roll back every server deploy, including ones that do not touch
+  # the processor.
   readinessProbe:
-    enabled: true
+    enabled: false
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
