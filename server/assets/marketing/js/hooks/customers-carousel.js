@@ -1,21 +1,25 @@
 /*
- * Home customers carousel: the previous/next buttons cycle the customer
- * story slides, wrapping at either end, and the carousel advances on its own
- * every AUTOPLAY_MS. The active slide is visible and interactive; the others
- * are inert (hidden from assistive technology and out of the tab order). The
- * card takes the active slide's brand colour through --slide-color, which
- * the stylesheet eases between slides.
+ * Home customers carousel: a row of customer logo tabs selects the story
+ * shown in the card below, and the carousel advances on its own every
+ * AUTOPLAY_MS, wrapping after the last story. It follows the tabs pattern:
+ * the selected tab is the only one in the tab order (arrow keys, Home and
+ * End move between tabs and select as they go), and the active panel is the
+ * only one visible and interactive; the others are inert. The card's dot
+ * field takes the active story's colour through --slide-color. A single
+ * underline slides to the selected tab, placed from its measured box (so it
+ * also follows the two-row phone layout); it jumps without animating on
+ * load and resize.
  *
- * Autoplay starts on page load (the first slide, OpenAI, shows first) and
+ * Autoplay starts on page load (the first story, OpenAI, shows first) and
  * cycles continuously, on screen or off. It pauses while a mouse pointer is
  * over the carousel (touch taps don't pause it), while keyboard focus is
- * inside it (a mouse click on an arrow doesn't count, so it never sticks
- * paused after a click) and while the browser tab is hidden, and is off
- * under prefers-reduced-motion. Using the buttons restarts the countdown. Only
+ * inside it (a mouse click on a tab doesn't count, so it never sticks paused
+ * after a click) and while the browser tab is hidden, and is off under
+ * prefers-reduced-motion. Choosing a tab restarts the countdown. Only
  * changes the visitor makes are announced: the live region is silenced
  * while autoplay advances.
  *
- * Server-rendered with the first slide active, so without this hook the
+ * Server-rendered with the first story selected, so without this hook the
  * section still shows one complete story.
  */
 const AUTOPLAY_MS = 5000;
@@ -24,30 +28,53 @@ export const CustomersCarousel = {
   mounted() {
     this.card = this.el.querySelector('[data-part="card"]');
     this.slides = Array.from(this.el.querySelectorAll('[data-part="slide"]'));
+    this.tabs = Array.from(this.el.querySelectorAll('[data-part="tab"]'));
+    this.tablist = this.el.querySelector('[data-part="tabs"]');
+    this.indicator = this.el.querySelector('[data-part="indicator"]');
     if (!this.card || this.slides.length === 0) return;
     this.index = Math.max(
       0,
       this.slides.findIndex((slide) => slide.dataset.active === "true"),
     );
     this.cleanups = [];
-
-    this.onClick = (event) => {
-      const button = event.target.closest("[data-action]");
-      if (!button || !this.el.contains(button)) return;
-      const step = button.dataset.action === "previous" ? -1 : button.dataset.action === "next" ? 1 : 0;
-      if (step === 0) return;
-      this.card.setAttribute("aria-live", "polite");
-      this.show(this.index + step);
-      this.schedule();
+    const listen = (target, type, handler) => {
+      target.addEventListener(type, handler);
+      this.cleanups.push(() => target.removeEventListener(type, handler));
     };
-    this.el.addEventListener("click", this.onClick);
-    this.cleanups.push(() => this.el.removeEventListener("click", this.onClick));
 
-    if (this.slides.length < 2) {
-      for (const button of this.el.querySelectorAll("[data-action]")) button.disabled = true;
-      return;
+    if (this.tablist && this.indicator) {
+      this.placeIndicator({ animate: false });
+      this.tablist.dataset.indicator = "";
+      const observer = new ResizeObserver(() => this.placeIndicator({ animate: false }));
+      observer.observe(this.tablist);
+      this.cleanups.push(() => observer.disconnect());
     }
 
+    // A visitor's choice: announce it and restart the autoplay countdown.
+    const choose = (index, { focus = false } = {}) => {
+      this.card.setAttribute("aria-live", "polite");
+      this.show(index);
+      if (focus) this.tabs[this.index]?.focus();
+      this.schedule();
+    };
+    listen(this.el, "click", (event) => {
+      const tab = event.target.closest('[data-part="tab"]');
+      if (tab && this.el.contains(tab)) choose(Number(tab.dataset.index));
+    });
+    listen(this.el, "keydown", (event) => {
+      if (!event.target.closest('[data-part="tab"]')) return;
+      const target = {
+        ArrowRight: this.index + 1,
+        ArrowLeft: this.index - 1,
+        Home: 0,
+        End: this.tabs.length - 1,
+      }[event.key];
+      if (target === undefined) return;
+      event.preventDefault();
+      choose(target, { focus: true });
+    });
+
+    if (this.slides.length < 2) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
@@ -59,16 +86,12 @@ export const CustomersCarousel = {
       else this.holds.delete(reason);
       this.schedule();
     };
-    const listen = (target, type, handler) => {
-      target.addEventListener(type, handler);
-      this.cleanups.push(() => target.removeEventListener(type, handler));
-    };
     listen(this.el, "pointerenter", (event) => {
       if (event.pointerType === "mouse") hold("hover", true);
     });
     listen(this.el, "pointerleave", () => hold("hover", false));
     // Keyboard focus only: buttons match :focus-visible when reached with
-    // Tab, not when clicked with a mouse.
+    // the keyboard, not when clicked with a mouse.
     listen(this.el, "focusin", (event) => {
       if (event.target.matches?.(":focus-visible")) hold("focus", true);
     });
@@ -84,7 +107,7 @@ export const CustomersCarousel = {
     (this.cleanups || []).forEach((fn) => fn());
   },
 
-  // (Re)starts the countdown to the next slide, unless something holds it.
+  // (Re)starts the countdown to the next story, unless something holds it.
   schedule() {
     clearTimeout(this.timer);
     if (!this.holds || this.holds.size > 0) return;
@@ -95,6 +118,21 @@ export const CustomersCarousel = {
     }, AUTOPLAY_MS);
   },
 
+  // Moves the underline to the selected tab. Positions are the tab's box
+  // within the tab row, which is the indicator's containing block.
+  placeIndicator({ animate = true } = {}) {
+    const tab = this.tabs[this.index];
+    if (!this.indicator || !tab) return;
+    if (!animate) this.indicator.dataset.instant = "";
+    this.indicator.style.setProperty("--indicator-x", `${tab.offsetLeft}px`);
+    this.indicator.style.setProperty("--indicator-y", `${tab.offsetTop + tab.offsetHeight - 2}px`);
+    this.indicator.style.setProperty("--indicator-w", `${tab.offsetWidth}px`);
+    if (!animate) {
+      this.indicator.getBoundingClientRect();
+      delete this.indicator.dataset.instant;
+    }
+  },
+
   show(index) {
     const count = this.slides.length;
     this.index = ((index % count) + count) % count;
@@ -103,6 +141,12 @@ export const CustomersCarousel = {
       slide.dataset.active = String(active);
       slide.inert = !active;
     });
+    this.tabs.forEach((tab, i) => {
+      const selected = i === this.index;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    this.placeIndicator();
     const slide = this.slides[this.index];
     this.card.style.setProperty("--slide-color", slide.dataset.color);
     // The dot field morphs into this story's figure.

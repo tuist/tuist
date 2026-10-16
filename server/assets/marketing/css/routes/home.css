@@ -2608,20 +2608,87 @@
       }
     }
 
-    /* Customer stories carousel (CustomersCarousel hook): a row of two
-       neutral icon buttons, 8px apart, above one full-width card in the
-       current slide's brand colour (--slide-color, eased between slides).
-       Slides share one grid cell, so the card keeps the tallest slide's
-       height and never jumps; only the active slide is visible. */
+    /* Customer stories carousel (CustomersCarousel hook): a row of customer
+       logo tabs above one full-width card. Slides share one grid cell, so
+       the card keeps the tallest slide's height and never jumps; only the
+       active slide is visible. */
     & > [data-part="carousel"] {
-      & > [data-part="controls"] {
-        display: flex;
-        gap: var(--noora-spacing-4);
-        padding: var(--noora-spacing-4);
+      /* One cell per story, in a hairline grid like the company logos
+         strip: the 1px gaps show the stroke-coloured background between
+         cells. Logos keep their colours at full strength; the selected cell
+         is underlined like Noora's horizontal tab menu (a 2px line in the
+         primary label colour). The hook draws that line as one indicator
+         that slides between cells; until it has placed it (or without
+         JavaScript) the selected cell carries a static underline instead.
+         Three columns on phones. */
+      & > [data-part="tabs"] {
+        display: grid;
+        position: relative;
+        grid-template-columns: repeat(var(--tab-count, 6), minmax(0, 1fr));
+        gap: 1px;
+        border-top: 1px solid var(--marketing-stroke-default);
+        background: var(--marketing-stroke-default);
 
-        & svg {
-          width: 20px;
-          height: 20px;
+        @media (max-width: 767px) {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        & > [data-part="tab"] {
+          display: grid;
+          place-items: center;
+          appearance: none;
+          cursor: pointer;
+          margin: 0;
+          border: 0;
+          background: var(--noora-surface-background-primary);
+          padding: 0 var(--noora-spacing-6);
+          height: 88px;
+          color: var(--noora-surface-label-primary);
+
+          & > svg {
+            width: auto;
+            max-width: 100%;
+            height: 24px;
+          }
+
+          &:focus-visible {
+            outline: 2px solid var(--noora-purple-500);
+            outline-offset: -2px;
+          }
+        }
+
+        &:not([data-indicator]) > [data-part="tab"][aria-selected="true"] {
+          box-shadow: inset 0 -2px 0 0 var(--noora-surface-label-primary);
+        }
+
+        /* The sliding underline: placed by the hook from the selected
+           cell's box (--indicator-x/-y/-w, in px within the tab row), so it
+           also follows the two-row phone layout. */
+        & > [data-part="indicator"] {
+          display: none;
+          position: absolute;
+          top: 0;
+          left: 0;
+          transform: translate(var(--indicator-x, 0), var(--indicator-y, 0));
+          transition:
+            transform 350ms var(--ease-out-cubic),
+            width 350ms var(--ease-out-cubic);
+          background: var(--noora-surface-label-primary);
+          width: var(--indicator-w, 0);
+          height: 2px;
+          pointer-events: none;
+
+          &[data-instant] {
+            transition: none;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            transition: none;
+          }
+        }
+
+        &[data-indicator] > [data-part="indicator"] {
+          display: block;
         }
       }
 
@@ -2667,19 +2734,9 @@
             transition: none;
           }
 
-          & > [data-part="logo"] {
-            display: flex;
-            height: 24px;
-
-            & > svg {
-              width: auto;
-              height: 100%;
-            }
-          }
-
           /* Runs the full card width, inside its 8px side padding. */
           & > p {
-            margin-top: var(--noora-spacing-9);
+            margin-top: 0;
             font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
           }
 

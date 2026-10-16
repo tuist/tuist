@@ -91,7 +91,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              |> LazyHTML.query("#customers-carousel a[href^='https://deliveryhero.jobs/']")
              |> Enum.count() == 1
 
-      assert html |> LazyHTML.query("#customers-carousel [data-action]") |> Enum.count() == 2
+      tabs = html |> LazyHTML.query("#customers-carousel [role=tab]") |> Enum.to_list()
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-label")) ==
+               ["OpenAI", "Monzo", "Toss", "Trendyol", "monday.com", "Delivery Hero"]
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-selected")) ==
+               ["true", "false", "false", "false", "false", "false"]
+
+      assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
+      assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
     end
 
     test "omits the cache download count while the globe has no data", %{conn: conn} do

@@ -97,112 +97,6 @@
       </div>
     </section>
 
-    <section data-part="customers" aria-labelledby="customers-title">
-      <div data-part="text">
-        <span data-part="eyebrow">{dgettext("marketing", "Customers")}</span>
-        <h2 id="customers-title">
-          {dgettext("marketing", "Powering teams that move fast")}
-        </h2>
-        <p>
-          {dgettext(
-            "marketing",
-            "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
-          )}
-        </p>
-        <.button
-          href={localized_href("/customers")}
-          variant="secondary"
-          size="medium"
-          label={dgettext("marketing", "Customer stories")}
-        >
-          <:icon_right><.chevron_right /></:icon_right>
-        </.button>
-      </div>
-      <%!-- Customer stories carousel: one slide per case study, each in its
-      brand colour. The CustomersCarousel hook cycles them with the two
-      buttons; without it the first slide shows on its own. The dotted
-      canvas is shared by every slide and morphs into each slide's figure. --%>
-      <div
-        id="customers-carousel"
-        data-part="carousel"
-        phx-hook="CustomersCarousel"
-        role="region"
-        aria-roledescription="carousel"
-        aria-label={dgettext("marketing", "Customer stories")}
-      >
-        <div data-part="controls">
-          <.neutral_button
-            size="large"
-            data-action="previous"
-            aria-controls="customers-slides"
-            aria-label={dgettext("marketing", "Previous customer story")}
-          >
-            <.chevron_left />
-          </.neutral_button>
-          <.neutral_button
-            size="large"
-            data-action="next"
-            aria-controls="customers-slides"
-            aria-label={dgettext("marketing", "Next customer story")}
-          >
-            <.chevron_right />
-          </.neutral_button>
-        </div>
-        <div
-          id="customers-slides"
-          data-part="card"
-          style={"--slide-color: #{hd(@customer_slides).color}"}
-          aria-live="polite"
-        >
-          <article
-            :for={{slide, index} <- Enum.with_index(@customer_slides)}
-            data-part="slide"
-            data-company={slide.slug}
-            data-color={slide.color}
-            data-figure={slide.figure}
-            data-active={to_string(index == 0)}
-            inert={index != 0}
-            aria-roledescription="slide"
-            aria-label={
-              dgettext("marketing", "%{index} of %{count}: %{company}",
-                index: index + 1,
-                count: length(@customer_slides),
-                company: slide.company
-              )
-            }
-          >
-            <span data-part="logo" aria-hidden="true">
-              <TuistWeb.Marketing.MarketingHomeComponents.customer_logo name={slide.slug} />
-            </span>
-            <p>{slide.statement}</p>
-            <.button
-              :if={slide.href}
-              href={slide.href}
-              variant="secondary"
-              size="medium"
-              label={dgettext("marketing", "Read more")}
-              aria-label={
-                dgettext("marketing", "Read the %{company} case study", company: slide.company)
-              }
-            >
-              <:icon_right><.chevron_right /></:icon_right>
-            </.button>
-            <footer :if={slide.author} data-part="author">
-              <span data-part="name">{slide.author}</span>
-              <span data-part="role">{slide.role}</span>
-            </footer>
-          </article>
-          <canvas
-            data-part="dots"
-            id="customers-dots"
-            phx-hook="CustomersDotsMorph"
-            data-figure={hd(@customer_slides).figure}
-            aria-hidden="true"
-          ></canvas>
-        </div>
-      </div>
-    </section>
-
     <section data-part="features">
       <div data-part="cache">
         <div data-part="text">
@@ -713,6 +607,128 @@
         data-levels="0"
         data-speed="1"
         data-phase="0"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="customers" aria-labelledby="customers-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Customers")}</span>
+        <h2 id="customers-title">
+          {dgettext("marketing", "Powering teams that move fast")}
+        </h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
+          )}
+        </p>
+        <.button
+          href={localized_href("/customers")}
+          variant="secondary"
+          size="medium"
+          label={dgettext("marketing", "Customer stories")}
+        >
+          <:icon_right><.chevron_right /></:icon_right>
+        </.button>
+      </div>
+      <%!-- Customer stories carousel: a row of customer logo tabs above one
+      card, one tab panel per story. The CustomersCarousel hook switches
+      stories from the tabs and autoplays them; without it the first story
+      shows on its own. The dotted canvas is shared by every story and
+      morphs into each one's figure. --%>
+      <div
+        id="customers-carousel"
+        data-part="carousel"
+        phx-hook="CustomersCarousel"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={dgettext("marketing", "Customer stories")}
+      >
+        <div
+          data-part="tabs"
+          role="tablist"
+          aria-label={dgettext("marketing", "Customer stories")}
+          style={"--tab-count: #{length(@customer_slides)}"}
+        >
+          <button
+            :for={{slide, index} <- Enum.with_index(@customer_slides)}
+            type="button"
+            id={"customers-tab-#{slide.slug}"}
+            data-part="tab"
+            data-index={index}
+            role="tab"
+            aria-selected={to_string(index == 0)}
+            aria-controls={"customers-slide-#{slide.slug}"}
+            aria-label={slide.company}
+            tabindex={if index == 0, do: "0", else: "-1"}
+          >
+            <TuistWeb.Marketing.MarketingHomeComponents.customer_logo name={slide.slug} />
+          </button>
+          <span data-part="indicator" aria-hidden="true"></span>
+        </div>
+        <div
+          id="customers-slides"
+          data-part="card"
+          style={"--slide-color: #{hd(@customer_slides).color}"}
+          aria-live="polite"
+        >
+          <article
+            :for={{slide, index} <- Enum.with_index(@customer_slides)}
+            id={"customers-slide-#{slide.slug}"}
+            data-part="slide"
+            data-company={slide.slug}
+            data-color={slide.color}
+            data-figure={slide.figure}
+            data-active={to_string(index == 0)}
+            inert={index != 0}
+            role="tabpanel"
+            aria-labelledby={"customers-tab-#{slide.slug}"}
+          >
+            <p>{slide.statement}</p>
+            <.button
+              :if={slide.href}
+              href={slide.href}
+              variant="secondary"
+              size="medium"
+              label={dgettext("marketing", "Read more")}
+              aria-label={
+                dgettext("marketing", "Read the %{company} case study", company: slide.company)
+              }
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+            <footer :if={slide.author} data-part="author">
+              <span data-part="name">{slide.author}</span>
+              <span data-part="role">{slide.role}</span>
+            </footer>
+          </article>
+          <canvas
+            data-part="dots"
+            id="customers-dots"
+            phx-hook="CustomersDotsMorph"
+            data-figure={hd(@customer_slides).figure}
+            aria-hidden="true"
+          ></canvas>
+        </div>
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="customers-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="11.3"
         data-dither="on"
         data-opacity="0.3"
       ></canvas>
