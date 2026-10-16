@@ -75,11 +75,13 @@ func TestActivationRoutesShareGRPCIngress(t *testing.T) {
 				return v
 			}
 			base, overlay := readValues("values.yaml"), readValues(platformValues)
-			for _, config := range []map[string]interface{}{base, overlay} {
-				class, _, _ := unstructured.NestedString(config, "cacheDNS", "activationIngressClass")
-				if class != "" {
-					t.Fatal("wildcard publication must remain off until pinned production validation passes")
-				}
+			baseClass, _, _ := unstructured.NestedString(base, "cacheDNS", "activationIngressClass")
+			overlayClass, _, _ := unstructured.NestedString(overlay, "cacheDNS", "activationIngressClass")
+			if baseClass != "" || (env != "production" && overlayClass != "") {
+				t.Fatal("wildcard DNS must have only the production owner")
+			}
+			if env == "production" && overlayClass != "nginx-grpc" {
+				t.Fatal("production wildcard DNS must follow the validated activation ingress")
 			}
 			enabled, _, _ := unstructured.NestedBool(overlay, "grpc-ingress-nginx", "enabled")
 			if !enabled {

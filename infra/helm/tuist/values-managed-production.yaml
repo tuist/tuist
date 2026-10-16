@@ -437,7 +437,7 @@ capi:
     vrackID: pn-2024093
     cidr: 172.30.243.0/24
 
-# Global cold-cache gateway. Publish wildcard DNS only after pinned validation.
+# Global cold-cache gateway; production platform owns the matching wildcard DNS.
 kuraActivation:
   enabled: true
   nodeSelector:

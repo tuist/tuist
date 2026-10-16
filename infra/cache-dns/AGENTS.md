@@ -33,4 +33,4 @@ staging self-hosted runner policy denies public Kura node IPs as Cilium
 `remote-node` destinations when the private endpoint override is removed;
 do not weaken that policy to make this public-client check pass.
 
-The optional shared activation gateway uses a Route53 wildcard fallback while exact regional latency records keep precedence. Production enables the gateway alone on the general worker pool. Ingress DNS sourcing stays off everywhere until pinned production validation passes; rollout and rollback are in `../kura-controller/activation.md`. Do not create wildcard owners in multiple environments.
+The optional shared activation gateway uses a Route53 wildcard fallback while exact regional latency records keep precedence. Production enables the gateway on the general worker pool and ingress DNS sourcing through nginx-grpc after pinned production validation. Other environments keep both off; rollout and rollback are in `../kura-controller/activation.md`. Do not create wildcard owners in multiple environments.
