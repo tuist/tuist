@@ -1758,6 +1758,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def rate_limit_fallback_replicas do
+    Application.get_env(:tuist, :rate_limit_fallback_replicas, 5)
+  end
+
   @doc """
   Returns the bucket size for the dashboard route rate limiter.
 

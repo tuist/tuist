@@ -13,10 +13,17 @@ ignores the normal bootstrap age horizon and recency selection cutoff, but
 preserves store capacity, version and tombstone guards, makes no sibling feed
 echoes, and cancels when the named intent ends. An older missing record may fit
 in the active segment or replace data the source already evicted. Normal ring
-rotation and quota-aware disk admission still apply; full verification rejects
-any source-retained records displaced during repair. Ordinary backward catch-up
-and forward pages retain their recency policies. Repair runs once per held intent;
-concurrent begin retries cannot duplicate it.
+rotation and quota-aware disk admission still apply. Each committed eviction
+advances an in-memory generation in the blocking worker, even when its waiter is
+cancelled. Repair repeats the complete walk if that generation changed during
+the pass: rotation can delete a previously checked blob and cascade its action
+cache entry. A pass without eviction acquires the destination hold under the
+eviction commit lock, closing the final comparison-to-freeze race. These serial
+passes share the original intent deadline and the normal replication budgets;
+they cannot guarantee convergence for every fragmented or undersized ring.
+Full verification still rejects any remaining retained holes. Ordinary backward
+catch-up and forward pages retain their recency policies. Concurrent begin
+requests cannot duplicate repair, and a retry after the hold never reopens it.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence

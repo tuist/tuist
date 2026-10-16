@@ -537,51 +537,6 @@ defmodule Tuist.Runners.Jobs do
     |> Enum.frequencies_by(&(&1.fleet_name || ""))
   end
 
-  @doc """
-  Repairs the ClickHouse rows `count_replica_divergence/3` counts: rows
-  enqueued at or after `enqueued_floor` that are still non-terminal in the
-  replica, whose Postgres lifecycle row reached a terminal state before
-  `settled_before`. Each such row's terminal state is
-  re-emitted through the outbox (`WorkflowJobs.republish_terminal/1`)
-  and reaches ClickHouse on the next flush.
-
-  It also closes the non-terminal rows that have no lifecycle row at all:
-  jobs from before `runner_workflow_jobs` existed, or whose accounts were
-  deleted. Nothing else will ever write those, so they are closed in
-  ClickHouse directly, as `completed` with the `"stale"` conclusion
-  `StaleQueuedJobsWorker` uses for jobs nothing can settle, and
-  `completed_at` at the row's last update. Only rows enqueued more than a
-  day ago are closed, so a job whose lifecycle row is still being written
-  is never touched.
-
-  Used once, by `Tuist.Runners.Workers.RepairReplicaDivergenceWorker`.
-  Scans at most `limit` candidates. Returns
-  `%{republished: n, closed: n, scanned: n}`; `scanned == limit` means
-  the scan was capped and another pass may find more.
-  """
-  def repair_replica_divergence(%DateTime{} = settled_before, %DateTime{} = enqueued_floor, limit \\ 5_000) do
-    candidates = list_non_terminal_before(settled_before, enqueued_floor, limit)
-    ids = Enum.map(candidates, & &1.workflow_job_id)
-    tracked = WorkflowJobs.existing_ids(ids)
-    settled = settled_terminal_ids(candidates, settled_before)
-
-    republished =
-      candidates
-      |> Enum.filter(&MapSet.member?(settled, &1.workflow_job_id))
-      |> Enum.map(&%{&1 | log_archived_at: to_utc_datetime(&1.log_archived_at)})
-      |> WorkflowJobs.republish_terminal()
-
-    untracked_before = DateTime.add(DateTime.utc_now(), -1, :day)
-
-    closed =
-      candidates
-      |> Enum.reject(&MapSet.member?(tracked, &1.workflow_job_id))
-      |> Enum.filter(&DateTime.before?(to_utc_datetime(&1.enqueued_at), untracked_before))
-      |> close_untracked_rows()
-
-    %{republished: republished, closed: closed, scanned: length(candidates)}
-  end
-
   defp settled_terminal_ids(candidates, settled_before) do
     candidates
     |> Enum.map(& &1.workflow_job_id)
@@ -589,46 +544,6 @@ defmodule Tuist.Runners.Jobs do
     |> Enum.filter(fn {_workflow_job_id, completed_at} -> DateTime.before?(completed_at, settled_before) end)
     |> MapSet.new(fn {workflow_job_id, _completed_at} -> workflow_job_id end)
   end
-
-  defp close_untracked_rows([]), do: 0
-
-  defp close_untracked_rows(candidates) do
-    now = DateTime.utc_now()
-
-    rows =
-      candidates
-      |> Enum.map(& &1.workflow_job_id)
-      |> Enum.chunk_every(1_000)
-      |> Enum.flat_map(&latest_rows/1)
-      |> Enum.filter(&(&1.status in @non_terminal_statuses))
-      |> Enum.map(fn job ->
-        job
-        |> job_to_row()
-        |> Map.merge(%{
-          status: "completed",
-          conclusion: "stale",
-          completed_at: job.updated_at,
-          updated_at: now
-        })
-      end)
-
-    {count, _} = IngestRepo.insert_all(Job, rows)
-    count
-  end
-
-  # The latest row of each job, one query for the batch. A job holds one
-  # row per unmerged transition, so the read stays a handful of rows per job.
-  defp latest_rows(workflow_job_ids) do
-    Job
-    |> where([j], j.workflow_job_id in ^workflow_job_ids)
-    |> ClickHouseRepo.all()
-    |> Enum.group_by(& &1.workflow_job_id)
-    |> Enum.map(fn {_workflow_job_id, rows} -> Enum.max_by(rows, & &1.updated_at, DateTime) end)
-  end
-
-  defp to_utc_datetime(nil), do: nil
-  defp to_utc_datetime(%DateTime{} = datetime), do: datetime
-  defp to_utc_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
 
   # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
   # the queue poll: `FINAL` would merge across every part on each tick.
@@ -641,8 +556,6 @@ defmodule Tuist.Runners.Jobs do
           workflow_job_id: j.workflow_job_id,
           fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
           status: fragment("argMax(?, ?)", j.status, j.updated_at),
-          log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
-          enqueued_at: min(j.enqueued_at),
           updated_at: max(j.updated_at)
         }
       )
@@ -650,13 +563,7 @@ defmodule Tuist.Runners.Jobs do
     ClickHouseRepo.all(
       from(s in subquery(latest),
         where: s.status in ^@non_terminal_statuses and s.updated_at < ^settled_before,
-        order_by: [asc: s.workflow_job_id],
-        select: %{
-          workflow_job_id: s.workflow_job_id,
-          fleet_name: s.fleet_name,
-          log_archived_at: s.log_archived_at,
-          enqueued_at: s.enqueued_at
-        },
+        select: %{workflow_job_id: s.workflow_job_id, fleet_name: s.fleet_name},
         limit: ^limit
       )
     )

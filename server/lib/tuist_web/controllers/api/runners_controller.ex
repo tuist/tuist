@@ -117,16 +117,30 @@ defmodule TuistWeb.API.RunnersController do
       memory_gb: %Schema{type: :integer},
       xcode_version: %Schema{type: :string, nullable: true},
       protected: %Schema{type: :boolean},
+      cache_writer_default_branch: %Schema{
+        type: :boolean,
+        description: "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
+      },
       cache_writer_branches: %Schema{
         type: :array,
         items: %Schema{type: :string},
-        description:
-          "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
+        description: "Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes."
       },
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
-    required: [:id, :name, :platform, :vcpus, :memory_gb, :protected, :cache_writer_branches, :inserted_at, :updated_at]
+    required: [
+      :id,
+      :name,
+      :platform,
+      :vcpus,
+      :memory_gb,
+      :protected,
+      :cache_writer_default_branch,
+      :cache_writer_branches,
+      :inserted_at,
+      :updated_at
+    ]
   }
 
   @job_step_schema %Schema{
@@ -473,7 +487,7 @@ defmodule TuistWeb.API.RunnersController do
   operation(:update_profile,
     summary: "Update which branches save a runner profile's cache volumes.",
     description:
-      "Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.",
+      "Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.",
     operation_id: "updateRunnerProfile",
     parameters:
       @account_parameters ++
@@ -490,13 +504,16 @@ defmodule TuistWeb.API.RunnersController do
        %Schema{
          type: :object,
          properties: %{
+           cache_writer_default_branch: %Schema{
+             type: :boolean,
+             description: "Whether jobs on each repository's default branch save."
+           },
            cache_writer_branches: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             description: "Branch names or * patterns. An empty list follows each repository's default branch."
+             description: "Additional branch names or * patterns that save. An empty list removes them."
            }
-         },
-         required: [:cache_writer_branches]
+         }
        }},
     responses: %{
       ok: {"Updated runner profile", "application/json", @profile_schema},
@@ -514,7 +531,11 @@ defmodule TuistWeb.API.RunnersController do
       ) do
     with true <- FeatureFlags.runners_enabled?(account),
          %Profile{} = profile <- Profiles.get_by_name(account, name),
-         {:ok, profile} <- Profiles.update_cache_writer_branches(profile, body.cache_writer_branches) do
+         {:ok, profile} <-
+           Profiles.update_cache_writer_policy(
+             profile,
+             Map.take(body, [:cache_writer_default_branch, :cache_writer_branches])
+           ) do
       json(conn, serialize_profile(profile))
     else
       false ->
@@ -618,7 +639,18 @@ defmodule TuistWeb.API.RunnersController do
 
   defp serialize_profile(profile) do
     profile
-    |> Map.take([:id, :name, :platform, :vcpus, :memory_gb, :xcode_version, :protected, :inserted_at, :updated_at])
+    |> Map.take([
+      :id,
+      :name,
+      :platform,
+      :vcpus,
+      :memory_gb,
+      :xcode_version,
+      :protected,
+      :cache_writer_default_branch,
+      :inserted_at,
+      :updated_at
+    ])
     |> Map.put(:cache_writer_branches, profile.cache_writer_branches || [])
   end
 
