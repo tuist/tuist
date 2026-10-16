@@ -61,6 +61,10 @@ class TuistTestInsightsGitHistoryFunctionalTest {
                         MockResponse().setResponseCode(200).setBody(Gson().toJson(mapOf("missing" to shas.map { it.asString })))
                     }
                     path == "$apiPath/git-history/commits" -> MockResponse().setResponseCode(204)
+                    path == "$apiPath/stress-new-tests/plan" ->
+                        MockResponse().setResponseCode(200).setBody(
+                            """{"guard":null,"known_count":40,"candidates":[],"parameters":{"candidate_cap":200,"wall_clock_ceiling_ms":600000,"bulk_change_ratio":0.3,"bulk_change_floor":50,"repetition_curve":[]}}"""
+                        )
                     path.startsWith("$apiPath/test-cases") ->
                         MockResponse().setResponseCode(200).setBody("""{"test_cases":[]}""")
                     else -> MockResponse().setResponseCode(200).setBody("{}")
@@ -89,14 +93,15 @@ class TuistTestInsightsGitHistoryFunctionalTest {
     }
 
     @Test
-    fun `reports the run's Git history and uploads the commits after the run`() {
+    fun `uploads the commits before reporting the run with its Git history`() {
         val result = runner().build()
 
         val paths = requests.map { it.first }
         val runIndex = paths.indexOf(apiPath)
         assertTrue(runIndex >= 0, "the run was not reported:\n${result.output}")
         assertTrue(paths.indexOf("$apiPath/git-history/settings") in 0 until runIndex, paths.toString())
-        assertTrue(paths.indexOf("$apiPath/git-history/commits/missing") > runIndex, paths.toString())
+        assertTrue(paths.indexOf("$apiPath/git-history/commits/missing") in 0 until runIndex, paths.toString())
+        assertTrue(paths.indexOf("$apiPath/git-history/commits") in 0 until runIndex, paths.toString())
 
         val run = body(apiPath)
         assertEquals(feature, run.get("git_commit_sha").asString)
@@ -119,6 +124,22 @@ class TuistTestInsightsGitHistoryFunctionalTest {
                 it.asJsonObject.get("branch").asString to it.asJsonObject.get("sha").asString
             }
         )
+    }
+
+    @Test
+    fun `publishes the Git history once, before the stress gate asks for its plan`() {
+        writeProject(stressMode = "report")
+
+        val result = runner().build()
+
+        val paths = requests.map { it.first }
+        val planIndex = paths.indexOf("$apiPath/stress-new-tests/plan")
+        assertTrue(planIndex >= 0, "the stress gate did not ask for a plan:\n${result.output}")
+        assertTrue(paths.indexOf("$apiPath/git-history/commits") in 0 until planIndex, paths.toString())
+        assertTrue(paths.indexOf(apiPath) > planIndex, paths.toString())
+        assertEquals(1, paths.count { it == "$apiPath/git-history/settings" }, paths.toString())
+        assertEquals(1, paths.count { it == "$apiPath/git-history/commits" }, paths.toString())
+        assertEquals("client", body(apiPath).get("history_source").asString)
     }
 
     @Test
@@ -151,7 +172,8 @@ class TuistTestInsightsGitHistoryFunctionalTest {
                     ) + environment
             )
 
-    private fun writeProject() {
+    private fun writeProject(stressMode: String? = null) {
+        val stress = stressMode?.let { "\n    stressNewTests {\n        mode = \"$it\"\n    }" }.orEmpty()
         File(projectDir, "settings.gradle.kts").writeText(
             """
             plugins {
@@ -159,7 +181,7 @@ class TuistTestInsightsGitHistoryFunctionalTest {
             }
 
             tuist {
-                project = "test-account/test-project"
+                project = "test-account/test-project"$stress
             }
 
             rootProject.name = "git-history-fixture"

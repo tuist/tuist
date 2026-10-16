@@ -51,15 +51,21 @@ class GitHistoryReaderTest {
         return checkout
     }
 
+    /** Records every command that reaches past the checkout. */
     private class RecordingGitRunner(private val delegate: GitRunner) : GitRunner {
-        val fetches = mutableListOf<List<String>>()
+        val remoteCommands = mutableListOf<List<String>>()
 
-        override fun capture(args: List<String>): String = delegate.capture(args)
-
-        override fun fetch(args: List<String>, timeoutMillis: Long): FetchOutcome {
-            fetches += args
-            return delegate.fetch(args, timeoutMillis)
+        override fun capture(args: List<String>): String {
+            if (args.first() in remoteCommandNames) remoteCommands += args
+            return delegate.capture(args)
         }
+
+        override fun captureWithin(args: List<String>, timeoutMillis: Long): String? {
+            remoteCommands += args
+            return delegate.captureWithin(args, timeoutMillis)
+        }
+
+        private val remoteCommandNames = setOf("fetch", "ls-remote", "pull", "remote")
     }
 
     private fun reader(checkout: File): Pair<GitHistoryReader, RecordingGitRunner> {
@@ -68,7 +74,7 @@ class GitHistoryReaderTest {
     }
 
     @Test
-    fun `finds the merge base of a full clone without fetching`() {
+    fun `finds the merge base of a full clone without contacting the remote`() {
         val origin = origin()
         val checkout = clone(origin, "--branch", "feature")
         val (reader, runner) = reader(checkout)
@@ -81,7 +87,7 @@ class GitHistoryReaderTest {
         assertEquals(origin.forkPoint, history.mergeBaseSha)
         assertEquals(origin.mainHead, history.baseHeadSha)
         assertNull(history.fallbackReason)
-        assertTrue(runner.fetches.isEmpty())
+        assertTrue(runner.remoteCommands.isEmpty())
         assertEquals(7, history.commits.size)
         assertEquals(origin.mainHead, history.commits.first().sha)
         val bySha = history.commits.associateBy { it.sha }
@@ -91,26 +97,54 @@ class GitHistoryReaderTest {
     }
 
     @Test
-    fun `fetches the base branch and deepens a shallow clone until the merge base is found`() {
+    fun `asks the remote for the base branch head when the checkout lacks the base branch`() {
         val origin = origin()
         val checkout = clone(origin, "--depth=1", "--branch", "feature")
         val (reader, runner) = reader(checkout)
 
         val history = reader.read(origin.feature, "main", GitHistoryLimits())
 
-        assertEquals(origin.forkPoint, history.mergeBaseSha)
+        assertNull(history.mergeBaseSha)
         assertEquals(origin.mainHead, history.baseHeadSha)
-        assertNull(history.fallbackReason)
+        assertEquals("the base branch main is not in the checkout", history.fallbackReason)
+        assertEquals(listOf(listOf("ls-remote", "origin", "refs/heads/main")), runner.remoteCommands)
+        assertFalse(fixture.hasRef(checkout, "refs/remotes/origin/main"))
+        assertTrue(fixture.isShallow(checkout))
         assertEquals(
-            listOf("fetch", "--no-tags", "--filter=blob:none", "--depth=1", "origin", "+main:refs/remotes/origin/main"),
-            runner.fetches[0]
+            listOf(GitHistoryCommit(origin.feature, listOf(origin.forkPoint), fixture.committedAt(checkout, origin.feature))),
+            history.commits
         )
-        assertEquals(
-            listOf("fetch", "--no-tags", "--filter=blob:none", "--deepen=50", "origin", "+main:refs/remotes/origin/main"),
-            runner.fetches[1]
-        )
-        assertEquals(2, runner.fetches.size)
+    }
+
+    @Test
+    fun `never contacts the remote when remote access is disabled`() {
+        val origin = origin()
+        val checkout = clone(origin, "--depth=1", "--branch", "feature")
+        val (reader, runner) = reader(checkout)
+
+        val history = reader.read(origin.feature, "main", GitHistoryLimits(remoteAccess = GitHistoryRemoteAccess.NONE))
+
+        assertNull(history.mergeBaseSha)
+        assertNull(history.baseHeadSha)
+        assertEquals("the base branch main is not in the checkout", history.fallbackReason)
+        assertTrue(runner.remoteCommands.isEmpty())
+        assertEquals(listOf(origin.feature), history.commits.map { it.sha })
+    }
+
+    @Test
+    fun `reads the shallow base branch the checkout has without deepening`() {
+        val origin = origin()
+        val checkout = clone(origin, "--depth=1", "--no-single-branch", "--branch", "feature")
+        val (reader, runner) = reader(checkout)
+
+        val history = reader.read(origin.feature, "main", GitHistoryLimits())
+
+        assertNull(history.mergeBaseSha)
+        assertEquals(origin.mainHead, history.baseHeadSha)
+        assertEquals("shallow clone: the merge base with main is not in the checkout", history.fallbackReason)
+        assertTrue(runner.remoteCommands.isEmpty())
         val bySha = history.commits.associateBy { it.sha }
+        assertEquals(setOf(origin.feature, origin.mainHead), bySha.keys)
         assertEquals(listOf(origin.forkPoint), bySha.getValue(origin.feature).parents)
         assertEquals(listOf(origin.mainParent), bySha.getValue(origin.mainHead).parents)
     }
@@ -121,7 +155,7 @@ class GitHistoryReaderTest {
         val checkout = clone(origin, "--depth=1", "--branch", "main")
         val (reader, runner) = reader(checkout)
 
-        val history = reader.read(origin.mainHead, null, GitHistoryLimits(unshallow = false))
+        val history = reader.read(origin.mainHead, null, GitHistoryLimits())
 
         assertTrue(fixture.isShallow(checkout))
         assertEquals(
@@ -129,48 +163,11 @@ class GitHistoryReaderTest {
             history.commits
         )
         assertEquals("no base branch is known", history.fallbackReason)
-        assertTrue(runner.fetches.isEmpty())
+        assertTrue(runner.remoteCommands.isEmpty())
     }
 
     @Test
-    fun `never fetches a missing base branch when unshallowing is disabled`() {
-        val origin = origin()
-        val checkout = clone(origin, "--depth=1", "--branch", "feature")
-        val (reader, runner) = reader(checkout)
-
-        val history = reader.read(origin.feature, "main", GitHistoryLimits(unshallow = false))
-
-        assertNull(history.mergeBaseSha)
-        assertNull(history.baseHeadSha)
-        assertEquals("the base branch main is not in the checkout and fetching it is disabled", history.fallbackReason)
-        assertTrue(runner.fetches.isEmpty())
-        assertFalse(fixture.hasRef(checkout, "refs/remotes/origin/main"))
-        assertEquals(listOf(origin.feature), history.commits.map { it.sha })
-    }
-
-    @Test
-    fun `reads the base branch the checkout has without deepening when unshallowing is disabled`() {
-        val origin = origin()
-        val checkout = clone(origin, "--depth=1", "--no-single-branch", "--branch", "feature")
-        val (reader, runner) = reader(checkout)
-
-        val history = reader.read(origin.feature, "main", GitHistoryLimits(unshallow = false))
-
-        assertNull(history.mergeBaseSha)
-        assertEquals(origin.mainHead, history.baseHeadSha)
-        assertEquals(
-            "shallow clone: the merge base with main is not in the checkout and deepening it is disabled",
-            history.fallbackReason
-        )
-        assertTrue(runner.fetches.isEmpty())
-        val bySha = history.commits.associateBy { it.sha }
-        assertEquals(setOf(origin.feature, origin.mainHead), bySha.keys)
-        assertEquals(listOf(origin.forkPoint), bySha.getValue(origin.feature).parents)
-        assertEquals(listOf(origin.mainParent), bySha.getValue(origin.mainHead).parents)
-    }
-
-    @Test
-    fun `reports a base branch the remote lacks`() {
+    fun `reports a base branch neither the checkout nor the remote has`() {
         val origin = origin()
         val checkout = clone(origin, "--depth=1", "--branch", "feature")
         val (reader, _) = reader(checkout)
@@ -179,8 +176,8 @@ class GitHistoryReaderTest {
 
         assertNull(history.mergeBaseSha)
         assertNull(history.baseHeadSha)
-        assertEquals("the base branch release is not in the checkout and could not be fetched", history.fallbackReason)
-        assertEquals(listOf(GitHistoryCommit(origin.feature, listOf(origin.forkPoint), fixture.committedAt(checkout, origin.feature))), history.commits)
+        assertEquals("the base branch release is not in the checkout", history.fallbackReason)
+        assertEquals(listOf(origin.feature), history.commits.map { it.sha })
     }
 
     @Test
@@ -192,75 +189,31 @@ class GitHistoryReaderTest {
         assertFalse(GitHistoryReader(ProcessGitRunner(plain, environment = fixture.environment), plain).isRepository())
     }
 
-    /** A shallow checkout whose merge base is never found, with the base branch present. */
-    private class ScriptedGitRunner(
-        private val baseBranchPresent: Boolean = true,
-        private val fetchOutcome: (List<String>) -> FetchOutcome = { FetchOutcome.SUCCEEDED },
-        private val onFetch: () -> Unit = {}
-    ) : GitRunner {
-        val fetches = mutableListOf<List<String>>()
+    /** A checkout without the base branch whose remote never answers in time. */
+    private class StalledRemoteGitRunner : GitRunner {
         val timeouts = mutableListOf<Long>()
 
         override fun capture(args: List<String>): String = when {
             args == listOf("rev-parse", "--show-object-format") -> "sha1\n"
-            args == listOf("rev-parse", "--is-shallow-repository") -> "true\n"
-            args.take(3) == listOf("rev-parse", "--verify", "--quiet") && baseBranchPresent && args[3] == "origin/main^{commit}" -> "basehead\n"
             args.first() == "log" && args.contains("--format=%H %P %ct") -> "head 1700000000\n"
             else -> throw GitCommandException("git ${args.first()} failed")
         }
 
-        override fun fetch(args: List<String>, timeoutMillis: Long): FetchOutcome {
-            fetches += args
+        override fun captureWithin(args: List<String>, timeoutMillis: Long): String? {
             timeouts += timeoutMillis
-            onFetch()
-            return fetchOutcome(args)
+            return null
         }
-
-        fun deepens(): List<String> = fetches.mapNotNull { fetch -> fetch.firstOrNull { it.startsWith("--deepen=") } }
     }
 
     @Test
-    fun `keeps the deepening steps within the history window`() {
-        val runner = ScriptedGitRunner()
-
-        val history = GitHistoryReader(runner, tempDir).read("head", "main", GitHistoryLimits(windowCommits = 120))
-
-        assertEquals(listOf("--deepen=50", "--deepen=70"), runner.deepens())
-        assertNull(history.mergeBaseSha)
-        assertEquals("basehead", history.baseHeadSha)
-        assertEquals("shallow clone: the merge base with main was not found within 60s", history.fallbackReason)
-    }
-
-    @Test
-    fun `stops deepening after a failed fetch`() {
-        val runner = ScriptedGitRunner(fetchOutcome = { FetchOutcome.FAILED })
-
-        val history = GitHistoryReader(runner, tempDir).read("head", "main", GitHistoryLimits())
-
-        assertEquals(listOf("--deepen=50"), runner.deepens())
-        assertEquals("shallow clone: the merge base with main was not found within 60s", history.fallbackReason)
-    }
-
-    @Test
-    fun `gives each fetch what is left of the budget and stops at the deadline`() {
-        var now = 0L
-        val runner = ScriptedGitRunner(onFetch = { now += 40_000 })
-
-        GitHistoryReader(runner, tempDir, clock = { now }).read("head", "main", GitHistoryLimits(deepenBudgetSeconds = 60))
-
-        assertEquals(listOf("--deepen=50", "--deepen=100"), runner.deepens())
-        assertEquals(listOf(60_000L, 20_000L), runner.timeouts)
-    }
-
-    @Test
-    fun `gives up on a base branch fetch still running at the deadline`() {
-        val runner = ScriptedGitRunner(baseBranchPresent = false, fetchOutcome = { FetchOutcome.TIMED_OUT })
+    fun `bounds the remote lookup by the budget`() {
+        val runner = StalledRemoteGitRunner()
 
         val history = GitHistoryReader(runner, tempDir).read("head", "main", GitHistoryLimits(deepenBudgetSeconds = 5))
 
-        assertEquals(1, runner.fetches.size)
+        assertEquals(listOf(5_000L), runner.timeouts)
         assertNull(history.baseHeadSha)
-        assertEquals("the base branch main is not in the checkout and could not be fetched within 5s", history.fallbackReason)
+        assertEquals("the base branch main is not in the checkout", history.fallbackReason)
         assertEquals(listOf("head"), history.commits.map { it.sha })
     }
 
@@ -319,13 +272,13 @@ class GitHistoryReaderTest {
     }
 
     @Test
-    fun `fetch reports how the command ended`() {
-        assertEquals(FetchOutcome.SUCCEEDED, ProcessGitRunner(tempDir, gitExecutable = script("exit 0")).fetch(listOf("fetch"), 10_000))
-        assertEquals(FetchOutcome.FAILED, ProcessGitRunner(tempDir, gitExecutable = script("exit 1")).fetch(listOf("fetch"), 10_000))
+    fun `captureWithin returns the output of a command that succeeds in time`() {
+        assertEquals("abc\trefs/heads/main", ProcessGitRunner(tempDir, gitExecutable = script("printf 'abc\\trefs/heads/main\\n'")).captureWithin(listOf("ls-remote"), 10_000)?.trim())
+        assertNull(ProcessGitRunner(tempDir, gitExecutable = script("echo out; exit 1")).captureWithin(listOf("ls-remote"), 10_000))
     }
 
     @Test
-    fun `fetch kills a command still running at the timeout together with its child processes`() {
+    fun `captureWithin kills a command still running at the timeout together with its child processes`() {
         val pidFile = File(tempDir, "child.pid")
         val runner = ProcessGitRunner(
             tempDir,
@@ -334,17 +287,17 @@ class GitHistoryReaderTest {
         )
 
         val started = System.nanoTime()
-        val outcome = runner.fetch(listOf("fetch"), 1_000)
+        val output = runner.captureWithin(listOf("ls-remote"), 1_000)
         val elapsedMillis = (System.nanoTime() - started) / 1_000_000
 
-        assertEquals(FetchOutcome.TIMED_OUT, outcome)
-        assertTrue(elapsedMillis < 10_000, "the fetch returned after ${elapsedMillis}ms")
+        assertNull(output)
+        assertTrue(elapsedMillis < 10_000, "the command returned after ${elapsedMillis}ms")
         val child = ProcessHandle.of(pidFile.readText().trim().toLong())
         val deadline = System.currentTimeMillis() + 5_000
         while (child.map { it.isAlive }.orElse(false) && System.currentTimeMillis() < deadline) {
             Thread.sleep(50)
         }
-        assertFalse(child.map { it.isAlive }.orElse(false), "the fetch's child process is still running")
+        assertFalse(child.map { it.isAlive }.orElse(false), "the command's child process is still running")
     }
 
     private fun script(body: String): String {

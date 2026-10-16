@@ -14,6 +14,7 @@ import java.io.File
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -159,7 +160,17 @@ class GitHistoryServiceTest {
                 .collect(pullRequest, workingDirectory, isCi = true)
         )
 
-        assertEquals(listOf(GitHistoryLimits(windowDays = 30, windowCommits = 100, deepenBudgetSeconds = 10, unshallow = true)), reader.limits)
+        assertEquals(
+            listOf(
+                GitHistoryLimits(
+                    windowDays = 30,
+                    windowCommits = 100,
+                    deepenBudgetSeconds = 10,
+                    remoteAccess = GitHistoryRemoteAccess.BASE_HEAD
+                )
+            ),
+            reader.limits
+        )
         assertEquals(
             TestRunGitHistory(
                 baseBranch = "main",
@@ -189,13 +200,13 @@ class GitHistoryServiceTest {
     }
 
     @Test
-    fun `reads the checkout without fetching when unshallowing is disabled`() {
+    fun `reads only the checkout when unshallowing is disabled`() {
         val reader = FakeReader { _, _, _ -> history() }
 
         service(reader = reader, environment = mapOf("TUIST_GIT_UNSHALLOW_ENABLED" to "false"))
             .collect(pullRequest, workingDirectory, isCi = true)
 
-        assertEquals(false, reader.limits.single().unshallow)
+        assertEquals(GitHistoryRemoteAccess.NONE, reader.limits.single().remoteAccess)
     }
 
     @Test
@@ -304,17 +315,19 @@ class GitHistoryServiceTest {
     }
 
     @Test
-    fun `reports the base branch head only when the history lists it`() {
+    fun `reports the base branch head even when the history does not list it`() {
         missing = { emptyList() }
-        val subject = service(reader = FakeReader { _, _, _ -> history(baseHeadSha = "unlisted") })
+        val subject = service(reader = FakeReader { _, _, _ -> history(baseHeadSha = "remotehead") })
         val collected = subject.collect(pullRequest, workingDirectory, isCi = true)
         requests.clear()
 
         subject.upload(collected)
 
         assertEquals(
-            listOf("feature"),
-            json(requests.last()).getAsJsonArray("branch_heads").map { it.asJsonObject.get("branch").asString }
+            listOf("feature" to "head", "main" to "remotehead"),
+            json(requests.last()).getAsJsonArray("branch_heads").map {
+                it.asJsonObject.get("branch").asString to it.asJsonObject.get("sha").asString
+            }
         )
     }
 
@@ -373,12 +386,50 @@ class GitHistoryServiceTest {
     }
 
     @Test
-    fun `an upload failure is not thrown`() {
+    fun `upload says whether the commits are up and never throws`() {
         val subject = service()
         val collected = subject.collect(pullRequest, workingDirectory, isCi = true)
-        server.shutdown()
 
-        subject.upload(collected)
+        assertTrue(subject.upload(collected))
+        server.shutdown()
+        assertFalse(subject.upload(collected))
+    }
+
+    @Test
+    fun `the publisher collects once and publishes until an upload succeeds`() {
+        val collected = CollectedGitHistory(
+            payload = TestRunGitHistory(null, null, false, null, "sha1", "client", null),
+            history = history(),
+            branch = "feature",
+            repositoryUrl = "git@github.com:acme/app.git",
+            settings = GitHistorySettings(),
+            observedAt = observedAt
+        )
+        var collections = 0
+        val uploadResults = ArrayDeque(listOf(false, true))
+        var uploads = 0
+        val publisher = GitHistoryPublisher(
+            collect = { collections += 1; collected },
+            upload = { uploads += 1; uploadResults.removeFirst() }
+        )
+
+        assertEquals(collected, publisher.publish())
+        assertEquals(collected, publisher.publish())
+        assertEquals(collected, publisher.publish())
+
+        assertEquals(1, collections)
+        assertEquals(2, uploads)
+    }
+
+    @Test
+    fun `the publisher collects once even when there is nothing to collect`() {
+        var collections = 0
+        val publisher = GitHistoryPublisher(collect = { collections += 1; null }, upload = { true })
+
+        assertNull(publisher.publish())
+        assertNull(publisher.publish())
+
+        assertEquals(1, collections)
     }
 
     @Test
@@ -404,7 +455,7 @@ class GitHistoryServiceTest {
         assertTrue(GitHistoryEnvironment(mapOf("TUIST_GIT_UPLOAD_ENABLED" to "1")).enabled(isCi = true))
         assertEquals(false, GitHistoryEnvironment(emptyMap()).enabled(isCi = false))
         assertEquals(false, GitHistoryEnvironment(mapOf("TUIST_GIT_UPLOAD_ENABLED" to "no")).enabled(isCi = true))
-        assertTrue(GitHistoryEnvironment(emptyMap()).unshallowEnabled())
-        assertEquals(false, GitHistoryEnvironment(mapOf("TUIST_GIT_UNSHALLOW_ENABLED" to "0")).unshallowEnabled())
+        assertEquals(GitHistoryRemoteAccess.BASE_HEAD, GitHistoryEnvironment(emptyMap()).remoteAccess())
+        assertEquals(GitHistoryRemoteAccess.NONE, GitHistoryEnvironment(mapOf("TUIST_GIT_UNSHALLOW_ENABLED" to "0")).remoteAccess())
     }
 }
