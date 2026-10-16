@@ -71,14 +71,17 @@ jobs:
           sudo mkdir -p /etc/kata-containers
           sed -E 's#^kernel = .*#kernel = "/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container"#' \
             /opt/kata/share/defaults/kata-containers/configuration-qemu.toml | sudo tee /etc/kata-containers/configuration.toml > /dev/null
-          # The mode the runner hosts give /dev/kvm; the device node inside the
-          # guest inherits it.
+          # docker --device copies the host node's mode into the guest, so open
+          # it up here; on runner hosts the device plugin's CDI spec sets 0666
+          # on the container's node instead and the host keeps 0660.
           sudo chmod 0666 /dev/kvm
       - name: Create a VM from an unprivileged Kata container
         run: |
-          docker run --rm --runtime io.containerd.kata.v2 --device /dev/kvm \
+          # --init: run as PID 1 in the Kata guest, the script exits 0 but the
+          # container reports 255.
+          docker run --rm --init --runtime io.containerd.kata.v2 --device /dev/kvm \
             -v "$PWD/infra/kata-kvm-kernel:/check:ro" \
-            docker.io/library/ubuntu:24.04 sh -c 'sh -x /check/check-kvm.sh; echo "check-kvm.sh exited $?"'
+            docker.io/library/ubuntu:24.04 sh /check/check-kvm.sh
 
   release:
     needs: [build, verify]
