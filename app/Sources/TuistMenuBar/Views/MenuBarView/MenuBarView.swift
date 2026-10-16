@@ -1,92 +1,44 @@
-import Combine
-import Foundation
-import Sparkle
+import AppKit
 import SwiftUI
 import TuistAuthentication
 
 public struct MenuBarView: View {
-    @State var isExpanded = false
-    @State var canCheckForUpdates = false
-    private let errorHandling: ErrorHandling
-    private let deviceService: DeviceService
-    @StateObject
-    private var authenticationService = AuthenticationService()
-    @State var viewModel: MenuBarViewModel
-    private var cancellables = Set<AnyCancellable>()
-    private let taskStatusReporter: TaskStatusReporter
-    private let updater: SPUUpdater
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var applicationModel: MacApplicationModel
+    @ObservedObject private var authenticationService: AuthenticationService
 
-    public init(
-        appDelegate: AppDelegate,
-        updaterController: SPUStandardUpdaterController
-    ) {
-        let viewModel = MenuBarViewModel()
-        self.viewModel = viewModel
-        let taskStatusRepoter = TaskStatusReporter()
-        taskStatusReporter = taskStatusRepoter
-
-        let deviceService = DeviceService(
-            taskStatusReporter: taskStatusRepoter
-        )
-        self.deviceService = deviceService
-
-        let errorHandling = ErrorHandling()
-        self.errorHandling = errorHandling
-
-        // We can't rely on SwiftUI views to be rendered before a deeplink is triggered.
-        // Instead, we listen to the deeplink URL through an `AppDelegate` callback
-        // that's eagerly set up in this `init` on startup.
-        appDelegate.onChangeOfURLs.sink { urls in
-            guard let url = urls.first else { return }
-            Task {
-                do {
-                    try await deviceService.launchPreviewDeeplink(with: url)
-                } catch {
-                    errorHandling.handle(error: error)
-                }
-            }
-        }
-        .store(in: &cancellables)
-
-        Task {
-            do {
-                try await deviceService.loadDevices()
-            } catch {
-                errorHandling.handle(error: error)
-            }
-        }
-
-        updater = updaterController.updater
-
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .sink {
-                viewModel.canCheckForUpdatesValueChanged($0)
-            }
-            .store(in: &cancellables)
+    public init(applicationModel: MacApplicationModel) {
+        self.applicationModel = applicationModel
+        authenticationService = applicationModel.authenticationService
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Button("Open Tuist") {
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .menuItemStyle()
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
+
             switch authenticationService.authenticationState {
             case let .loggedIn(account, _):
-                MenuHeader(
-                    accountHandle: account.handle
-                )
+                MenuHeader(accountHandle: account.handle)
 
-                AppPreviews(
-                    viewModel: AppPreviewsViewModel(
-                        deviceService: deviceService
-                    )
-                )
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
+                AppPreviews(viewModel: AppPreviewsViewModel(deviceService: applicationModel.deviceService))
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
 
-                DevicesView(
-                    viewModel: DevicesViewModel(deviceService: deviceService)
-                )
+                DevicesView(viewModel: DevicesViewModel(deviceService: applicationModel.deviceService))
             case .loggedOut:
-                MenuBarLoginView()
+                Button("Sign In…") {
+                    openWindow(id: "main")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .menuItemStyle()
+                .padding(.horizontal, 8)
             }
 
             Divider()
@@ -94,37 +46,44 @@ public struct MenuBarView: View {
                 .padding(.vertical, 4)
 
             Group {
+                SettingsLink {
+                    Text("Settings…")
+                }
+                .buttonStyle(.plain)
+                .menuItemStyle()
+
+                Button("Check for Updates…") {
+                    applicationModel.checkForUpdates()
+                }
+                .disabled(!applicationModel.canCheckForUpdates)
+                .menuItemStyle()
+
                 if authenticationService.authenticationState != .loggedOut {
-                    Button("Log out") {
-                        errorHandling.fireAndHandleError {
+                    Button("Sign Out") {
+                        applicationModel.errorHandling.fireAndHandleError {
                             await authenticationService.signOut()
                         }
                     }
-                    .padding(.vertical, 2)
                     .menuItemStyle()
-                    .padding(.horizontal, 8)
                 }
-
-                Button("Check for updates", action: {
-                    updater.checkForUpdates()
-                })
-                .disabled(!viewModel.canCheckForUpdates)
-                .padding(.vertical, 2)
-                .menuItemStyle()
-                .padding(.horizontal, 8)
 
                 Button("Quit Tuist") {
                     NSApplication.shared.terminate(nil)
                 }
-                .padding(.vertical, 2)
                 .menuItemStyle()
-                .padding(.horizontal, 8)
             }
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
         }
         .padding(.vertical, 8)
-        .environmentObject(errorHandling)
-        .environmentObject(deviceService)
-        .environmentObject(taskStatusReporter)
-        .environmentObject(authenticationService)
+        .frame(minWidth: 300)
+        .macApplicationEnvironment(applicationModel)
+        .task {
+            do {
+                try await applicationModel.loadDevices()
+            } catch {
+                applicationModel.errorHandling.handle(error: error)
+            }
+        }
     }
 }

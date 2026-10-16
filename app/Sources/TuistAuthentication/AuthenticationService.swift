@@ -1,3 +1,6 @@
+#if os(macOS)
+    import AppKit
+#endif
 import AuthenticationServices
 import CryptoKit
 import Foundation
@@ -461,7 +464,11 @@ private final class ASWebAuthenticationPresentationContextProvider: NSObject,
     ASWebAuthenticationPresentationContextProviding
 {
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        return ASPresentationAnchor()
+        #if os(macOS)
+            return NSApp.keyWindow ?? NSApp.mainWindow ?? ASPresentationAnchor()
+        #else
+            return ASPresentationAnchor()
+        #endif
     }
 }
 

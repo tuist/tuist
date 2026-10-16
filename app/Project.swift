@@ -4,6 +4,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
     [
         .target(name: "TuistAuthentication"),
         .target(name: "TuistAppStorage"),
+        .target(name: "TuistProjects"),
         .external(name: "Path"),
         .project(target: "TuistSupport", path: "../"),
         .project(target: "TuistCore", path: "../"),
@@ -21,7 +22,6 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .external(name: "Mockable"),
         .external(name: "Collections"),
         .external(name: "OpenAPIRuntime"),
-        .external(name: "FluidMenuBarExtra"),
     ]
 }
 
@@ -108,7 +108,6 @@ let project = Project(
                             ]
                         ),
                     ],
-                    "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
                     "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
                     // Served from a stable GitHub Release asset (tag
@@ -132,9 +131,9 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistProjects"),
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
-                .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
                 .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
@@ -179,8 +178,39 @@ let project = Project(
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistProjects"),
                 .project(target: "XcodeGraph", path: "../"),
                 .external(name: "NukeUI"),
+            ]
+        ),
+        .target(
+            name: "TuistPreviewsTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.previews.tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistPreviewsTests/**"],
+            dependencies: [
+                .target(name: "TuistPreviews"),
+                .target(name: "TuistProjects"),
+                .target(name: "TuistAppStorage"),
+                .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
+                .external(name: "Mockable"),
+            ]
+        ),
+        .target(
+            name: "TuistProjects",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "dev.tuist.projects",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            sources: ["Sources/TuistProjects/**"],
+            dependencies: [
+                .target(name: "TuistAppStorage"),
+                .target(name: "TuistAuthentication"),
+                .project(target: "TuistServer", path: "../"),
             ]
         ),
         .target(
@@ -284,7 +314,6 @@ let project = Project(
             resources: [],
             dependencies: tuistMenuBarDependencies() + [
                 .target(name: "TuistMenuBar"),
-                .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
                 .external(name: "TestCoverageAttribution"),
@@ -292,6 +321,11 @@ let project = Project(
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistPreviews",
+            buildAction: .buildAction(targets: ["TuistPreviews"]),
+            testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
         .scheme(
             name: "TuistApp",
             buildAction: .buildAction(

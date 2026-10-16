@@ -4,13 +4,14 @@ import Mockable
 
 @Mockable
 protocol MenuBarFocusServicing {
-    /// Focus on the menu bar window, in other words, it puts the menu bar window to the foreground
+    /// Brings the application forward to display preview installation progress.
     func focus() async
 }
 
 struct MenuBarFocusService: MenuBarFocusServicing {
     func focus() async {
-        let statusItem = await NSApp.windows.first?.value(forKey: "statusItem") as? NSStatusItem
-        await statusItem?.button?.performClick(nil)
+        await MainActor.run {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }

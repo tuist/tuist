@@ -4,10 +4,9 @@ import SwiftUI
 import TuistNoora
 import TuistServer
 
-struct PreviewRowView: View {
+public struct PreviewRowView: View {
     let preview: ServerPreview
-    @Binding var navigationPath: NavigationPath
-    @Binding var pressedPreviewId: String?
+    let onSelect: () -> Void
     @State private var isPressed = false
 
     private let relativeDateFormatter: RelativeDateTimeFormatter = {
@@ -16,7 +15,12 @@ struct PreviewRowView: View {
         return formatter
     }()
 
-    var body: some View {
+    public init(preview: ServerPreview, onSelect: @escaping () -> Void) {
+        self.preview = preview
+        self.onSelect = onSelect
+    }
+
+    public var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: Noora.Spacing.spacing6) {
                 LazyImage(url: preview.iconURL) { state in
@@ -84,7 +88,7 @@ struct PreviewRowView: View {
             NooraDivider()
         }
         .onTapGesture {
-            navigationPath.append(preview)
+            onSelect()
         }
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { isPressing in
             isPressed = isPressing

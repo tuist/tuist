@@ -1,13 +1,20 @@
 import SwiftUI
 import TuistNoora
 
-struct PreviewsEmptyStateView: View {
+public struct PreviewsEmptyStateView: View {
     let title: String
     let buttonTitle: String
     let isLoading: Bool
     let action: () -> Void
 
-    var body: some View {
+    public init(title: String, buttonTitle: String, isLoading: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.buttonTitle = buttonTitle
+        self.isLoading = isLoading
+        self.action = action
+    }
+
+    public var body: some View {
         VStack(spacing: Noora.Spacing.spacing6) {
             Image("iPhoneMockup")
                 .resizable()

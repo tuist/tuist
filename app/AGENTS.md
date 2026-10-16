@@ -1,11 +1,14 @@
 # Tuist App (iOS and macOS)
 
-This node covers the Tuist companion app under `app/`. The app provides a menu bar interface for macOS and an iOS app for managing Tuist projects and previews.
+This node covers the Tuist companion app under `app/`. The app provides a native desktop application with an optional menu-bar companion on macOS, and an iOS app for managing Tuist projects and previews.
 
 ## Project Structure
-- `Sources/TuistApp` - Main app target (macOS and iOS)
-- `Sources/TuistMenuBar` - macOS menu bar functionality
-- `Sources/TuistPreviews` - iOS preview management
+- `Sources/TuistApp` - Main app target (macOS and iOS). The iOS `HomeView` is the extensible, section-based landing page, initially showing recent previews.
+- `Sources/TuistMenuBar` - Shared macOS services and the menu-bar quick launcher.
+- `Sources/TuistMenuBar/Desktop` - Native macOS Home/Previews window, preview details, login, Settings, and shared application state; see `Sources/TuistMenuBar/Desktop/AGENTS.md`. The app uses a regular Dock presence and native SwiftUI `Window`, `Settings`, and optional `MenuBarExtra` scenes. Closing the window keeps the app running; Dock reopen, Open Tuist (⌘0), and the menu-bar companion restore it.
+- `Sources/TuistPreviews` - iOS preview management and reusable preview UI/state for Home. Home is the default tab and starts with the five newest previews for the selected project; Previews retains the full paginated browser. Both tabs consume the shell's `ProjectContext` and share one `PreviewsViewModel` for preview data. Project selection appears in both navigation bars, opening a native searchable sheet; changing projects resets project-specific navigation but preserves the selected tab. Preview destinations capture their project handle. The signed-in root waits for initial project discovery before routing a typed preview destination, selecting its project when available. Public preview links remain readable even if their project is absent from the account's project list; the destination always carries its own project handle.
+- `Sources/TuistProjects` - Shared project context and native project switcher for both platforms; see `Sources/TuistProjects/AGENTS.md`. Preferences and recent projects are scoped by server and account, independently of feature models.
+- `Tests/TuistPreviewsTests` - iOS project context, preview, and Home state tests (the `TuistPreviews` scheme)
 - `Sources/TuistOnboarding` - iOS onboarding flow
 - `Sources/TuistProfile` - iOS user profile
 - `Sources/TuistNoora` - iOS design system components
@@ -17,6 +20,8 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 - Generate the project: `tuist generate --no-open` (from `app/` directory)
 - Build: `xcodebuild build -workspace TuistApp.xcworkspace -scheme TuistApp`
 - Test: `xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp`
+- For an interactive iOS Simulator build that can sign in, keep Xcode's simulator signing enabled: `CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="-"`. Xcode embeds the simulated Keychain entitlements during linking. Signing-disabled compile checks do not provide those entitlements, and manually attaching device entitlements with `codesign` is not equivalent.
+- `TuistMenuBarTests` are unhosted macOS logic tests. Keep them independent of the `TuistApp` executable so running service/model tests does not launch the desktop UI, read a developer's session, or start device discovery.
 
 ## Dependencies
 The app depends on several CLI modules:
