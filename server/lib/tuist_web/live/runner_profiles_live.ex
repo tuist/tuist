@@ -387,10 +387,9 @@ defmodule TuistWeb.RunnerProfilesLive do
   def shown_cache_writer_branches(%{form_cache_writer_branches: branches}), do: branches
 
   @doc """
-  Summary of the branches being edited, shown on the collapsed section.
+  Summary of the branches being edited, shown on the collapsed section. A
+  profile that follows the default branch shows the default branch names.
   """
-  def cache_saving_summary(nil), do: dgettext("dashboard_runners", "Default branch")
-
   def cache_saving_summary(branches) do
     if "*" in branches do
       dgettext("dashboard_runners", "Any branch")

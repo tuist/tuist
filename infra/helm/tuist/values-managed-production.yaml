@@ -679,6 +679,12 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
+      # The standalone proxy reaches the xcresult VMs only through a DERP
+      # relay, because their Mac's vmnet NAT and this cluster's NAT never agree
+      # on a direct path. The ProxyGroup's static UDP endpoints give them one.
+      # Switching needs the standalone proxy's device deleted by hand; see the
+      # runbook in #14224.
+      proxyGroup: tailnet-ingress
     backup:
       enabled: true
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on

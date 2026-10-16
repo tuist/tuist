@@ -40,8 +40,13 @@ These windows define how long selected dashboard and activity data remains avail
 | --- | --- |
 | Xcode project graph records | 30 days |
 | Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
+| Generated Xcode module history on persistent module detail pages | 30 days |
+| Task, declared action, compiled file and module observations on persistent detail pages | 90 days, except generated Xcode modules above |
+| Persistent task/action/module/file identity metadata | 365 days without an observation |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
+
+Persistent detail URLs do not depend on a particular build remaining available. Their identity metadata can outlive individual observations, so a detail page may have no history in the selected period. New history is indexed from reports received after the feature is deployed; existing run-level history is not retroactively copied.
 
 ClickHouse's internal `system.*` operational log tables are configured at the ClickHouse layer rather than by Tuist's product data-retention policy. They are unbounded by default; the bundled self-hosted Docker Compose and embedded Helm ClickHouse configurations can cap them, as described under <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.

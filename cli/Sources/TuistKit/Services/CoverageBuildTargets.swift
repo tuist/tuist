@@ -24,14 +24,7 @@ enum CoverageBuildTargets {
         }
         let closure = Set(roots).union(traverser.allTargetDependencies(traversingFromTargets: roots))
 
-        let xcframeworks = Dictionary(
-            generatedGraph.dependencies.flatMap { [$0.key] + Array($0.value) }
-                .compactMap { dependency -> (String, GraphDependency.XCFramework)? in
-                    guard case let .xcframework(xcframework) = dependency else { return nil }
-                    return (xcframework.path.basenameWithoutExt, xcframework)
-                },
-            uniquingKeysWith: { first, _ in first }
-        )
+        let xcframeworks = xcframeworks(in: generatedGraph)
 
         return closure
             .map { graphTarget in
@@ -45,6 +38,19 @@ enum CoverageBuildTargets {
                 )
             }
             .sorted { $0.name < $1.name }
+    }
+
+    /// The xcframeworks the generated graph links, by product name: what the binary cache put in
+    /// place of the targets it replaced.
+    static func xcframeworks(in generatedGraph: Graph) -> [String: GraphDependency.XCFramework] {
+        Dictionary(
+            generatedGraph.dependencies.flatMap { [$0.key] + Array($0.value) }
+                .compactMap { dependency -> (String, GraphDependency.XCFramework)? in
+                    guard case let .xcframework(xcframework) = dependency else { return nil }
+                    return (xcframework.path.basenameWithoutExt, xcframework)
+                },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     /// The sources a target compiles: the ones it lists, and those of its buildable folders, which

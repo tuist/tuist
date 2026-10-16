@@ -330,6 +330,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
           Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
           Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+          Supervisor.child_spec(Tuist.BuildEntities.Observation.Buffer, id: Tuist.BuildEntities.Observation.Buffer),
           Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
           Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
           Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
