@@ -1815,7 +1815,11 @@ configuration (`rack_linux_converge.go`):
 - sets the Cilium nodes' `lxc*` rp_filter sysctl.
 
 The operator removes the Cilium exclusion from an existing Node itself, since a
-kubelet registers labels only once. Every edge of the host's site renders
+kubelet registers labels only once, and only once the host has applied the
+configuration carrying the dummy (`clusterAddressApplied`: the agent's, or the
+SSH converge's, applied hash equals the published one). Cilium binds its health
+responder to the node IP once at start and never retries, so a Cilium that
+starts before the address exists answers no node probe until it restarts. Every edge of the host's site renders
 `tuist_cluster_forwards`: DNAT of 8472/udp, 4240/tcp and 10250/tcp on each
 cluster-network host's public address to its address, from the set `nodes`.
 `RackNodeConfig.clusterNodeSets` asks the node agent to keep that set equal to

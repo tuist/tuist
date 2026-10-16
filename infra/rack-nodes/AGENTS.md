@@ -472,8 +472,12 @@ server reaches its kubelet on 10250/tcp. So:
 
 Switching a host is a deploy. The operator rewrites the host's
 configuration: dummy, health rule, no bridge CNI, kubelet at the public
-address. It removes the Node's Cilium exclusion and repoints its addresses,
-and Cilium's DaemonSet schedules there. Pods that started on the bridge keep
+address. It repoints the Node's addresses, and once the host has applied that
+configuration it removes the Node's Cilium exclusion, and Cilium's DaemonSet
+schedules there. Cilium binds its health responder to the public address once,
+at start: a Cilium that starts before the dummy exists (as on ber1-store-a on
+2026-10-16, before the operator waited) answers no node probe on 4240 until
+its pod is deleted. Pods that started on the bridge keep
 their bridge addresses until they are recreated. Delete them (`kubectl delete
 pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
 once Cilium is Ready on the node. The bridge interface goes at the next reboot.
