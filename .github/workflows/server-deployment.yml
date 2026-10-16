@@ -724,9 +724,11 @@ jobs:
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
-    # when helm was bumped from 30m). 80m keeps helm < step < job so a
-    # stuck deploy fails via helm's own clean path, not this ceiling.
-    timeout-minutes: 80
+    # when helm was bumped from 30m). It also covers the smoke test and the
+    # xcresult processor rollout report (35m) that follow. 125m keeps helm <
+    # step < job so a stuck deploy fails via helm's own clean path, not this
+    # ceiling.
+    timeout-minutes: 125
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -1193,6 +1195,12 @@ jobs:
           else
             registry_enabled=false
           fi
+          xcresult_processor_name="$HELM_RELEASE_NAME-tuist-xcresult-processor"
+          if grep -qx "  name: $xcresult_processor_name" "$registry_render"; then
+            main_renders_xcresult_processor=true
+          else
+            main_renders_xcresult_processor=false
+          fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
@@ -1306,6 +1314,65 @@ jobs:
           rm -f "$runner_pools_render"
           echo "::endgroup::"
 
+          # The xcresult processor's Deployment and PDB ship in a release of
+          # their own, rendered from the same values by
+          # infra/helm/xcresult-processor, and nothing below waits on it or
+          # rolls it back. Its readinessProbe follows Postgres, ClickHouse and
+          # the Mac mini's path to its Tart guest, so inside this release's
+          # `--atomic --wait` a single NotReady processor held every server
+          # deploy for the full timeout and then rolled it back. The
+          # "xcresult processor rollout" step reports on it instead.
+          xcresult_release="$HELM_RELEASE_NAME-xcresult-processor"
+          xcresult_args=(
+            --namespace "$NAMESPACE"
+            --set tuistRelease="$HELM_RELEASE_NAME"
+            "${helm_values_args[@]}"
+            "${image_sets[@]}"
+          )
+          xcresult_render="$(mktemp)"
+          helm template "$xcresult_release" infra/helm/xcresult-processor \
+            "${xcresult_args[@]}" > "$xcresult_render"
+          if grep -q '^kind: Deployment$' "$xcresult_render"; then
+            xcresult_owner="$xcresult_release"
+            echo "XCRESULT_PROCESSOR_DEPLOYMENT=$xcresult_processor_name" >> "$GITHUB_ENV"
+          elif [ "$main_renders_xcresult_processor" = "true" ]; then
+            xcresult_owner="$HELM_RELEASE_NAME"
+          else
+            xcresult_owner=""
+          fi
+          rm -f "$xcresult_render"
+
+          # Move the live objects to the release that renders them before
+          # either upgrade, so the processor keeps running across the move.
+          # Helm adopts an existing object whose ownership annotations name
+          # the installing release. `keep` stops the release that stops
+          # rendering it from deleting it; Helm checks that annotation on the
+          # live object when an upgrade drops a resource. It is cleared once
+          # the processor release is upgraded below.
+          #
+          # Both directions, so a deploy from a commit that renders the
+          # processor in this release takes it back.
+          echo "::group::xcresult processor release ownership"
+          xcresult_handed_over=()
+          if [ -n "$xcresult_owner" ]; then
+            for object in "deployment/$xcresult_processor_name" "poddisruptionbudget/$xcresult_processor_name"; do
+              current_owner="$(
+                kubectl -n "$NAMESPACE" get "$object" --ignore-not-found \
+                  -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}'
+              )"
+              if [ -n "$current_owner" ] && [ "$current_owner" != "$xcresult_owner" ]; then
+                echo "Handing $object from release $current_owner to $xcresult_owner."
+                kubectl -n "$NAMESPACE" annotate --overwrite "$object" \
+                  "meta.helm.sh/release-name=$xcresult_owner" \
+                  "meta.helm.sh/release-namespace=$NAMESPACE" \
+                  helm.sh/resource-policy=keep
+                xcresult_handed_over+=("$object")
+              fi
+            done
+          fi
+          echo "xcresult processor objects belong to: ${xcresult_owner:-no release (processor disabled)}"
+          echo "::endgroup::"
+
           # Push the rendered release through the API server, admission
           # webhooks included, without persisting anything. A rejection fails
           # the deploy here, before the real upgrade has mutated the release,
@@ -1336,13 +1403,16 @@ jobs:
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" \
-              --dry-run=server >"$preflight_log" 2>&1; then
+              --dry-run=server >"$preflight_log" 2>&1 &&
+              helm upgrade --install "$xcresult_release" infra/helm/xcresult-processor \
+                "${xcresult_args[@]}" \
+                --dry-run=server >>"$preflight_log" 2>&1; then
               rm -f "$preflight_log"
-              echo "Preflight passed; the API server accepts the rendered release."
+              echo "Preflight passed; the API server accepts the rendered releases."
               echo "::endgroup::"
             else
               echo "::endgroup::"
-              echo "::error title=Helm preflight failed::The API server rejected the rendered release. Nothing was applied and the live release is untouched."
+              echo "::error title=Helm preflight failed::The API server rejected a rendered release. Neither release was upgraded."
               tail -80 "$preflight_log"
               rm -f "$preflight_log"
               exit 1
@@ -1380,6 +1450,16 @@ jobs:
             "${helm_values_args[@]}" \
             "${rack_node_sets[@]}" \
             --wait=hookOnly
+
+          # After the upgrade above, so a new processor boots against migrated
+          # databases, and without waiting: a NotReady processor must not
+          # fail a deploy whose server release is already out.
+          helm upgrade --install "$xcresult_release" infra/helm/xcresult-processor \
+            "${xcresult_args[@]}" \
+            --wait=hookOnly
+          if [ "${#xcresult_handed_over[@]}" -gt 0 ]; then
+            kubectl -n "$NAMESPACE" annotate "${xcresult_handed_over[@]}" helm.sh/resource-policy-
+          fi
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
@@ -1390,6 +1470,9 @@ jobs:
           set +e
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm history (xcresult processor)"
+          helm history "$HELM_RELEASE_NAME-xcresult-processor" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
           echo "::group::helm get manifest (last attempted revision)"
           helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
@@ -1502,3 +1585,45 @@ jobs:
           else
             echo "Swift registry component disabled; skipping registry smoke test."
           fi
+      - name: xcresult processor rollout
+        # Reports the processor release's rollout without gating the deploy:
+        # the server release is out by now and stays out whatever the
+        # processor does. A processor that never turns Ready (a shared
+        # Postgres or ClickHouse outage, or a Mac mini that cannot reach its
+        # Tart guest) fails this step, which annotates the run, and the job
+        # still succeeds. `:process_xcresult` jobs queue until a processor is
+        # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
+        # Tart VM cycle per replica.
+        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != ''
+        continue-on-error: true
+        timeout-minutes: 35
+        run: |
+          set -uo pipefail
+          deployment="deploy/$XCRESULT_PROCESSOR_DEPLOYMENT"
+          if kubectl -n "$NAMESPACE" rollout status "$deployment" --timeout=30m; then
+            exit 0
+          fi
+
+          echo "::error title=xcresult processor not Ready::$deployment did not finish rolling out within 30m. The server release is deployed and was not rolled back; :process_xcresult jobs queue until a processor is Ready."
+          echo "::group::$deployment"
+          kubectl -n "$NAMESPACE" describe "$deployment" || true
+          echo "::endgroup::"
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
+            echo "::group::$pod"
+            # A Tart Pod carries provisioning and readiness failures in its
+            # status rather than in Warning events.
+            kubectl -n "$NAMESPACE" get "$pod" \
+              -o jsonpath='{.spec.nodeName}{" "}{.status.phase}{" "}{.status.reason}{" "}{.status.message}{"\n"}{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "::endgroup::"
+          done
+          {
+            echo "### xcresult processor not Ready"
+            echo
+            echo "\`$deployment\` did not finish rolling out within 30 minutes. The server release is deployed and was not rolled back."
+            echo
+            echo '```'
+            kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o wide 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

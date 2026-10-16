@@ -95,6 +95,7 @@ jobs:
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
             "infra/helm/rack-nodes|"
+            "infra/helm/xcresult-processor|"
             "infra/helm/rack-cache-gateways|"
           )
           failed=()
@@ -236,6 +237,24 @@ jobs:
       # infra/rack-nodes/AGENTS.md.
       - name: Rack workloads stay out of waited releases
         run: infra/mise/tasks/helm/rack-independence.sh
+      # The xcresult processor chart renders the tuist chart's processor
+      # templates for the tuist release it names, which the loop above cannot
+      # express either.
+      - name: kubeconform the xcresult processor chart
+        run: |
+          set -euo pipefail
+          for env in staging canary production; do
+            helm template tuist-xcresult-processor infra/helm/xcresult-processor --namespace tuist \
+              --set tuistRelease=tuist \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              -f infra/helm/tuist/values-ci.yaml > xcresult-processor.yaml
+            if ! grep -q "^kind: Deployment$" xcresult-processor.yaml; then
+              echo "::error::The $env render of infra/helm/xcresult-processor has no Deployment."
+              exit 1
+            fi
+            kubeconform -strict -summary xcresult-processor.yaml
+          done
       # The rack charts render with another chart's values, which the loop
       # above cannot express.
       - name: kubeconform the rack charts
