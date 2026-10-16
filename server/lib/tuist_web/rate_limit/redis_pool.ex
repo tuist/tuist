@@ -2,7 +2,7 @@ defmodule TuistWeb.RateLimit.RedisPool do
   @moduledoc false
 
   def child_spec(name, opts) do
-    %{id: name, start: {name, :start_link, [opts]}, type: :supervisor}
+    %{id: name, start: {name, :start_link, [opts]}, type: :supervisor, shutdown: 5000}
   end
 
   def start_link(name, opts) do

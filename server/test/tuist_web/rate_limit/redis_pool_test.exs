@@ -59,7 +59,7 @@ defmodule TuistWeb.RateLimit.RedisPoolTest do
   end
 
   test "child specifications retain distinct supervisor identities" do
-    assert %{id: __MODULE__, type: :supervisor, start: {__MODULE__, :start_link, [[]]}} =
+    assert %{id: __MODULE__, type: :supervisor, shutdown: 5000, start: {__MODULE__, :start_link, [[]]}} =
              RedisPool.child_spec(__MODULE__, [])
   end
 end
