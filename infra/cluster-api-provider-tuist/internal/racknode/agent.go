@@ -156,8 +156,11 @@ func (a *Agent) syncClusterNodeSets(ctx context.Context, sets []infrav1.RackNode
 	return nil
 }
 
-// ClusterNodeAddresses are the IPv4 InternalIPs of the nodes that run Cilium:
-// Linux nodes without the Cilium exclusion, sorted.
+// ClusterNodeAddresses are the IPv4 addresses of the nodes that run Cilium:
+// Linux nodes without the Cilium exclusion, sorted. Both InternalIPs and
+// ExternalIPs: a Hetzner Cloud node, the control plane's included, has only an
+// ExternalIP, which is where its tunnel and its API server's kubelet calls
+// come from.
 func ClusterNodeAddresses(nodes []corev1.Node) []string {
 	var addresses []string
 	for i := range nodes {
@@ -166,7 +169,7 @@ func ClusterNodeAddresses(nodes []corev1.Node) []string {
 			continue
 		}
 		for _, address := range node.Status.Addresses {
-			if ip := net.ParseIP(address.Address); address.Type == corev1.NodeInternalIP && ip != nil && ip.To4() != nil {
+			if ip := net.ParseIP(address.Address); (address.Type == corev1.NodeInternalIP || address.Type == corev1.NodeExternalIP) && ip != nil && ip.To4() != nil {
 				addresses = append(addresses, ip.To4().String())
 			}
 		}

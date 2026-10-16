@@ -1813,7 +1813,7 @@ kubelet registers labels only once. Every edge of the host's site renders
 `tuist_cluster_forwards`: DNAT of 8472/udp, 4240/tcp and 10250/tcp on each
 cluster-network host's public address to its address, from the set `nodes`.
 `RackNodeConfig.clusterNodeSets` asks the node agent to keep that set equal to
-the Cilium nodes' IPv4 InternalIPs (`racknode.ClusterNodeAddresses`). The
+the Cilium nodes' IPv4 InternalIPs and ExternalIPs (`racknode.ClusterNodeAddresses`): a Hetzner Cloud node, the control plane included, has only an ExternalIP. The
 agent replaces it in one nft transaction when the Nodes change and every
 reapply. The addresses stay out of the configuration and its hash, because a
 hash change restarts the edge's kubelet, containerd and networkd. The file

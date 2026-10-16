@@ -51,8 +51,8 @@ type RackNodeConfig struct {
 	Kubelet RackNodeKubelet `json:"kubelet"`
 
 	// ClusterNodeSets are nftables sets the node agent keeps equal to the
-	// IPv4 InternalIPs of the cluster's Cilium nodes, every apply and
-	// whenever they change. The addresses are not in the configuration, so a
+	// IPv4 InternalIPs and ExternalIPs of the cluster's Cilium nodes, every
+	// apply and whenever they change. The addresses are not in the configuration, so a
 	// node joining or leaving the cluster changes no hash and restarts nothing
 	// here. A file in Nftables declares each set without flushing it.
 	// +optional

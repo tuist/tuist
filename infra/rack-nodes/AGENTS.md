@@ -459,7 +459,8 @@ server reaches its kubelet on 10250/tcp. So:
   machines address, from the cluster's Cilium nodes only. The forwards are the
   edge's `tuist_cluster_forwards` table, in its node configuration. The node
   agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
-  InternalIPs without the Cilium exclusion. The set is not in the
+  addresses without the Cilium exclusion, ExternalIPs included: Hetzner
+  Cloud nodes and the control plane have no InternalIP. The set is not in the
   configuration, so a node joining the cluster restarts nothing on the edge.
   The WAN filter lets through what the edge translated (`ct status dnat`).
   Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
