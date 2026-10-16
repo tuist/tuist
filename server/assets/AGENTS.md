@@ -4,6 +4,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 ## Responsibilities
 
+- `app/css/pages/build_entity.css` scopes the shared native task/action/module/file detail layout. Match test-case analytics spacing, wrap identity badges and controls, stack widgets on small screens, and let Noora tables own horizontal scrolling. Charts explicitly fill their section; table search/sort/filter controls and active chips use Test Case Runs spacing inside the same white card section as the table, never a separate bordered toolbar section. Header identity explanations use the shared regular small body font, secondary label color and zero paragraph margins; don't leave them as browser-default serif text. It is imported through `pages.css`.
+
 - Expanded Xcode cache task rows append CAS outputs with a Noora Load more button; the build-run stylesheet adds spacing around the control. Loading and pagination are managed by LiveView; output IDs are not embedded in the initial table.
 
 - Timeline summary values (elapsed time, step count and target count) use small decorative separator dots.
@@ -65,6 +67,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Metrics with explicit `duration_ms` represent native Bazel counter buckets. Render horizontal segments and return the bucket value on hover throughout that interval, preserving gaps and the original start. Point samples from Xcode and Gradle retain their existing interpolation and collection bounds.
 - Profile-based timelines use the profile duration and recorded event bounds, not the longer BEP invocation clock. Adjacent metric intervals tolerate sub-microsecond floating-point rounding when connecting their segments; real collection gaps stay blank.
 
+- Xcode and Cargo cache details share the compilation-cache card, stacked-breakdown styling and responsive two-widget row. Cargo reuses the Cacheable Tasks / CAS Outputs tabs, Noora table cells and shared toolbar. Two latency/throughput widgets have equal widths independent of text; toolbars wrap on narrow screens and tables own horizontal scrolling. Cache Summary remains the shared five-widget section with equal-width cards independent of title/value lengths (five columns on desktop, two at 1200px and below, one at 768px and below); keep Xcode and Cargo geometry identical for ready and empty widgets. Cumulative Cargo timings must not be styled or labelled as average latency.
 - Hash-input detail values wrap long values within the cache and selective-testing tables.
 
 - Direct dependency links wrap within expanded target rows in both cache tabs.
@@ -72,7 +75,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
 
 - The GitHub integration card uses equal-width description and form columns on desktop. Enterprise fields fill the right column, actions remain right-aligned, and the columns stack at 768px and below.
-- Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
+- Origin and GitHub share the forge integration styles in `app/css/pages/integrations.css`: equal-width description and content columns, right-aligned actions, connected-account/project cards, and stacked columns below 768px. Their Noora project/repository modals share the dropdown widths and connector illustration; the optional Origin namespace selector uses the same dropdown styling. Long repository labels wrap within cards without widening the page. Runner integration cards retain the separate Buildkite/GitLab header layout. Shared runner connection-modal spacing targets both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
 - Runner step rails shrink with the viewport and hide below 900px. When rails are visible, duration slots retain equal widths even without timestamps; minimum-width ticks stay within the track. Only the recorded offset and width are supplied inline as custom properties.
 - Runner step logs and the Logs-tab viewport contain vertical overscroll so reaching a log boundary does not scroll the surrounding page.
 

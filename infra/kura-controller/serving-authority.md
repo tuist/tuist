@@ -90,12 +90,18 @@ publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
 before freezing its retained corpus. This bounded replication pass fetches missing
 records outside the normal bootstrap horizon without echoing them into the sibling
-feed. It preserves resource admission, capacity, version and tombstone checks;
+feed. It preserves resource admission, store capacity, version and tombstone checks;
 an incompatible or undersized destination can still fail the final barrier.
-Repair applies the capacity check separately to each record at listing and
-dispatch, preserving newer queued records when the listing reaches an older
-capacity-rejected record. It does not increase ring capacity or guarantee that
-equal-sized fragmented replicas can hold the same corpus.
+Named repair bypasses the recency cutoff at listing and dispatch: an older
+missing record still belongs to the source's retained corpus. Ordinary catch-up
+keeps its recency policy. Repair does not increase ring capacity or bypass disk
+admission. If rotation evicts records during a repair pass, the destination walks
+the retained index again before taking its hold; this also repairs action-cache
+entries cascaded away by blob eviction after an earlier presence check. A pass
+without eviction acquires the hold atomically with its eviction-generation check.
+All passes share the original preparation deadline. Equal-sized fragmented
+replicas are not guaranteed to converge; the final full-corpus check still
+refuses promotion when required data remains missing.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification

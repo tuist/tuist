@@ -88,11 +88,18 @@ defmodule Tuist.Kura.Lifecycle do
 
   Enterprise is never archived for inactivity, only for never being used. Pro
   follows the 90-day window. Air follows a 7-day window
-  (`Tuist.Environment.kura_air_inactive_days/0`): an Air account that used its
-  cache and stopped gives the room back within a week, and since demand is real
-  cache traffic, an account whose clients only resolve the endpoint does not
-  bring it back. Once archived for inactivity, an account-region is provisioned
-  again only by demand recorded after the archival. Open-source accounts are
+  (`Tuist.Environment.kura_air_inactive_days/0`) measured on traffic
+  (`last_cache_traffic_at`) rather than demand, and only traffic cancels its
+  drain: an older CLI resolves the endpoint on every command whether or not it
+  uses the cache, so on the demand clock an instance that served nothing stayed
+  in service for as long as anybody ran a command. An Air account that used its
+  cache and stopped is archived as `:inactive` and returns on its next demand.
+  One whose service period carried no traffic at all is archived as `:idle`,
+  and for `Tuist.Kura.Demand.idle_hold_days/0` after that only traffic returns
+  it; resolution and dispatch do once the hold runs out, or as soon as the
+  account leaves Air. A returned instance gets a full window from its return,
+  whatever its traffic clock says. Every other archival
+  for inactivity returns on demand recorded after it. Open-source accounts are
   outside the lifecycle entirely: `Tuist.Kura.AccountPolicies` resolves no
   service region for them, so they are never provisioned and never archived.
 
@@ -111,6 +118,7 @@ defmodule Tuist.Kura.Lifecycle do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
@@ -172,8 +180,8 @@ defmodule Tuist.Kura.Lifecycle do
   Returns the account's instances that are coming up, whether this call started
   them or not, so the caller can apply and await each one.
   """
-  def provision_account(account_id, %DateTime{} = requested_at) do
-    {:ok, _count} = Demand.persist_now(account_id, requested_at)
+  def provision_account(account_id, %DateTime{} = requested_at, opts \\ []) do
+    {:ok, _count} = Demand.persist_now(account_id, requested_at, traffic: Keyword.get(opts, :traffic, false))
 
     case image_tag() do
       nil ->
@@ -485,13 +493,54 @@ defmodule Tuist.Kura.Lifecycle do
       where: l.last_cache_demand_at >= ^default_cutoff,
       where: not exists(live_server_exists),
       where: not exists(destroyed_since_demand_exists),
-      # An instance reclaimed for inactivity, for never storing anything or
-      # under pressure comes back only for demand recorded after its archival,
-      # not for the demand it already had: Air's window is far shorter than the
-      # window this query provisions within.
-      where:
-        is_nil(l.drain_reason) or l.drain_reason not in [:inactive, :unused, :capacity_pressure] or
-          is_nil(l.archived_at) or l.last_cache_demand_at > l.archived_at
+      where: ^returnable_after_archival()
+    )
+  end
+
+  # An instance reclaimed for inactivity, for never storing anything or under
+  # pressure comes back only for demand recorded after its archival, not for
+  # the demand it already had: Air's window is far shorter than the window
+  # `needing_instance_query/0` provisions within.
+  #
+  # An `:idle` one served no traffic at all in the period that ended, and the
+  # demand that kept it warm was resolution or dispatch that moved no bytes.
+  # Returning it for more of the same would cycle it straight back into
+  # service, so until its hold runs out only traffic returns it. The hold is an
+  # Air rule: an account that has since moved to a paid plan returns on demand
+  # like any other archival. Any live paid subscription counts, which can only
+  # release a hold `Billing.effective_plan/1` would have kept, never keep one
+  # it would have released.
+  defp returnable_after_archival do
+    dynamic(
+      [lifecycle: l],
+      ^not_held_by_archival() or (l.drain_reason != :idle and l.last_cache_demand_at > l.archived_at) or
+        (l.drain_reason == :idle and ^idle_returnable())
+    )
+  end
+
+  defp not_held_by_archival do
+    dynamic(
+      [lifecycle: l],
+      is_nil(l.drain_reason) or l.drain_reason not in [:inactive, :idle, :unused, :capacity_pressure] or
+        is_nil(l.archived_at)
+    )
+  end
+
+  defp idle_returnable do
+    idle_hold_cutoff = DateTime.add(now(), -Demand.idle_hold_days() * 86_400, :second)
+
+    left_air =
+      from(sub in Subscription,
+        where: sub.account_id == parent_as(:lifecycle).account_id,
+        where: sub.status in ^Billing.live_subscription_statuses(),
+        where: sub.plan != :air,
+        select: 1
+      )
+
+    dynamic(
+      [lifecycle: l],
+      l.last_cache_traffic_at > l.archived_at or
+        (l.last_cache_demand_at > l.archived_at and (l.archived_at <= ^idle_hold_cutoff or exists(left_air)))
     )
   end
 
@@ -762,9 +811,9 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   # One row per active instance whose account-region has demand tracking older
-  # than the grace period and demand older than the shortest window any plan
-  # can use. Keep-warm instances never appear: they hold their allocation
-  # while inactive by definition.
+  # than the grace period and demand, or for Air traffic, older than the
+  # shortest window any plan can use. Keep-warm instances never appear: they
+  # hold their allocation while inactive by definition.
   defp active_instances_with_lifecycle(region_id, shortest_cutoff, tracking_cutoff) do
     Repo.all(
       from(s in Server,
@@ -774,7 +823,9 @@ defmodule Tuist.Kura.Lifecycle do
         where: s.status == :active,
         where: s.move_phase == :none,
         where: l.keep_warm == false,
-        where: l.last_cache_demand_at < ^shortest_cutoff,
+        where:
+          fragment("LEAST(?, COALESCE(?, ?))", l.last_cache_demand_at, l.last_cache_traffic_at, l.inserted_at) <
+            ^shortest_cutoff,
         where: l.inserted_at < ^tracking_cutoff,
         where: s.inserted_at < ^tracking_cutoff,
         order_by: [asc: l.last_cache_demand_at],
@@ -791,8 +842,8 @@ defmodule Tuist.Kura.Lifecycle do
       not archivable_plan?(plan) ->
         []
 
-      plan == :air and DateTime.before?(lifecycle.last_cache_demand_at, cutoffs.air) ->
-        [{server, lifecycle, plan, :inactive}]
+      plan == :air and DateTime.before?(air_clock(server, lifecycle), cutoffs.air) ->
+        [{server, lifecycle, plan, air_inactivity_reason(server, lifecycle)}]
 
       DateTime.before?(lifecycle.last_cache_demand_at, cutoffs.default) ->
         [{server, lifecycle, plan, :inactive}]
@@ -806,6 +857,30 @@ defmodule Tuist.Kura.Lifecycle do
       true ->
         []
     end
+  end
+
+  # Air's window runs on traffic, not demand: an older CLI resolves the endpoint
+  # on every command whether or not it then uses the cache, which on the demand
+  # clock kept instances that served nothing in service indefinitely. A row
+  # without traffic yet has gone without it since it was created.
+  #
+  # Never earlier than the current service period's start. A return brought
+  # about by demand alone keeps the traffic stamp from before the archival and
+  # reuses the server row, and reading that stamp as-is would drain the
+  # returned instance on the next sweep instead of giving it its window.
+  # Classification still compares the raw stamp (`air_inactivity_reason/2`).
+  defp air_clock(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
+    Enum.max([lifecycle.last_cache_traffic_at || lifecycle.inserted_at, service_started_at(server, lifecycle)], DateTime)
+  end
+
+  # `:idle` when the service period ending now carried no traffic at all, so
+  # what kept it warm was demand that moved no bytes and resolution alone should
+  # not bring it straight back. An instance that was used and then went quiet is
+  # `:inactive`, and returns on its next request like before.
+  defp air_inactivity_reason(server, %AccountRegionLifecycle{last_cache_traffic_at: traffic_at} = lifecycle) do
+    if is_nil(traffic_at) or DateTime.before?(traffic_at, service_started_at(server, lifecycle)),
+      do: :idle,
+      else: :inactive
   end
 
   # Pressure archival reclaims only as much as it takes to fit. Instances past
@@ -952,7 +1027,7 @@ defmodule Tuist.Kura.Lifecycle do
 
         cancel_drain(server, lifecycle, plan)
 
-      lifecycle.keep_warm or demand_returned?(lifecycle) ->
+      lifecycle.keep_warm or demand_returned?(lifecycle, plan) ->
         cancel_drain(server, lifecycle, plan)
 
       # A drain-pending row with no clock cannot have waited out its window,
@@ -982,13 +1057,22 @@ defmodule Tuist.Kura.Lifecycle do
   # Any cache demand recorded after the drain began cancels archival. Entering
   # the drain required demand older than a full inactivity window, so a
   # timestamp newer than the drain start can only be a client that came back.
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}), do: false
+  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}, _plan), do: false
 
   # A never-used instance holds no cache to keep, so demand does not cancel its
   # drain. Demand recorded after the archival returns it instead.
-  defp demand_returned?(%AccountRegionLifecycle{drain_reason: :unused}), do: false
+  defp demand_returned?(%AccountRegionLifecycle{drain_reason: :unused}, _plan), do: false
 
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}) do
+  # Air entered the drain on its traffic clock, so only traffic cancels it. The
+  # resolution that failed to keep it warm would otherwise cancel every drain
+  # on the next tick.
+  defp demand_returned?(%AccountRegionLifecycle{drain_reason: reason} = lifecycle, :air)
+       when reason in [:inactive, :idle] do
+    is_struct(lifecycle.last_cache_traffic_at, DateTime) and
+      DateTime.compare(lifecycle.last_cache_traffic_at, lifecycle.drain_started_at) != :lt
+  end
+
+  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}, _plan) do
     # At-or-after, not strictly after: both clocks are second-resolution, and
     # a request arriving in the same second the drain started is a client that
     # came back. Entering the drain required demand at least a full inactivity

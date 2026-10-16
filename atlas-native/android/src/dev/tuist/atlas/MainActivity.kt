@@ -5,8 +5,11 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.view.Menu
+import android.view.MenuItem
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -14,19 +17,37 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Toolbar
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
+    private var settings: AtlasAIAccountsScreen? = null
+    private var accounts: AtlasAIAccountsModel? = null
+    private var recoveredLoginId: String? = null
+
+    private data class Retained(
+        val authentication: AtlasAuthentication,
+        val accounts: AtlasAIAccountsModel?,
+    )
+
+    private var restoreSettings = false
+    private var unregisterSettingsBack: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        authentication = (lastNonConfigurationInstance as? AtlasAuthentication) ?: AtlasAuthentication(this)
-        if (savedInstanceState == null && intent.data == null) authentication.restore()
+        val retained = lastNonConfigurationInstance as? Retained
+        authentication = retained?.authentication ?: AtlasAuthentication(this)
+        accounts = retained?.accounts
+        recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
+        restoreSettings = savedInstanceState?.getBoolean("settings") == true
+        if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
-    override fun onRetainNonConfigurationInstance(): Any = authentication
+    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts)
 
     override fun onStart() {
         super.onStart()
@@ -39,7 +60,16 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("settings", settings != null || restoreSettings)
+        outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroy() {
+        settings?.close(cancelPending = !isChangingConfigurations)
+        if (!isChangingConfigurations && settings == null) accounts?.takeIf { it.pendingLoginId != null }?.load()
+        unregisterSettingsBack?.invoke()
         if (!isChangingConfigurations) authentication.close()
         super.onDestroy()
     }
@@ -61,7 +91,13 @@ class MainActivity : Activity() {
             authentication.authorizationURL = null
             openBrowser(Uri.parse(url))
         }
+        invalidateOptionsMenu()
         if (authentication.server == null) {
+            settings?.close()
+            settings = null
+            accounts = null
+            updateSettingsBack()
+            setActionBar(null)
             setContentView(
                 AtlasLoginView(
                     this,
@@ -73,6 +109,13 @@ class MainActivity : Activity() {
             )
             return
         }
+        if (settings != null) return
+        if (restoreSettings) {
+            restoreSettings = false
+            showSettings()
+            return
+        }
+        title = getString(R.string.app_name)
         val content =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -102,50 +145,133 @@ class MainActivity : Activity() {
         val server = authentication.server
         if (server != null) {
             content.addView(TextView(this).apply { text = Uri.parse(server).host })
-            AtlasCore().sections().forEach { section ->
-                button(section.title) {
-                    val origin = Uri.parse(server)
-                    val destination =
-                        Uri
-                            .parse(
-                                section.url,
-                            ).buildUpon()
-                            .scheme(origin.scheme)
-                            .encodedAuthority(origin.encodedAuthority)
-                            .build()
-                    openBrowser(destination)
+            AtlasCore()
+                .sections()
+                .filter {
+                    !Uri
+                        .parse(it.url)
+                        .path
+                        .orEmpty()
+                        .startsWith("/settings/")
+                }.forEach { section ->
+                    button(section.title) {
+                        val origin = Uri.parse(server)
+                        val destination =
+                            Uri
+                                .parse(
+                                    section.url,
+                                ).buildUpon()
+                                .scheme(origin.scheme)
+                                .encodedAuthority(origin.encodedAuthority)
+                                .build()
+                        openBrowser(destination)
+                    }
+                    content.addView(
+                        TextView(this).apply {
+                            text = section.description
+                            textSize = 16f
+                            setPadding(0, 0, 0, 32)
+                        },
+                    )
                 }
-                content.addView(
-                    TextView(this).apply {
-                        text = section.description
-                        textSize = 16f
-                        setPadding(0, 0, 0, 32)
-                    },
-                )
-            }
             content.addView(
                 TextView(this).apply {
                     text = "Sections currently open in your browser, which may ask you to sign in separately."
                 },
             )
-            button("Sign out") { authentication.signOut() }
         }
-        if (authentication.busy) content.addView(TextView(this).apply { text = "Signing in…" })
+        if (authentication.busy) content.addView(TextView(this).apply { text = "Updating session…" })
         authentication.errorMessage?.let { message -> content.addView(TextView(this).apply { text = message }) }
-        setContentView(
+        val toolbar = Toolbar(this)
+        setActionBar(toolbar)
+        val scroll =
             ScrollView(this).apply {
+                addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        setContentView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 setOnApplyWindowInsetsListener { view, insets ->
-                    view.setPadding(
-                        insets.systemWindowInsetLeft,
-                        insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight,
-                        insets.systemWindowInsetBottom,
-                    )
+                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, 0)
+                    scroll.setPadding(0, 0, 0, insets.systemWindowInsetBottom)
                     insets
                 }
-                addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             },
         )
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menu.add(0, 1, 0, "Settings").apply {
+            setIcon(android.R.drawable.ic_menu_preferences)
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        }
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(1)?.isVisible = authentication.server != null && settings == null
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean =
+        when (item.itemId) {
+            1 -> {
+                showSettings()
+                true
+            }
+            android.R.id.home -> {
+                leaveSettings()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        if (settings != null) leaveSettings() else super.onBackPressed()
+    }
+
+    private fun showSettings() {
+        val server = authentication.server ?: return
+        val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts)
+        accounts = model
+        recoveredLoginId = null
+        val screen =
+            AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::leaveSettings) {
+                settings?.close()
+                settings = null
+                accounts = null
+                updateSettingsBack()
+                actionBar?.setDisplayHomeAsUpEnabled(false)
+                authentication.signOut()
+            }
+        settings = screen
+        updateSettingsBack()
+        actionBar?.setDisplayHomeAsUpEnabled(true)
+        invalidateOptionsMenu()
+        setContentView(screen.view)
+        screen.load()
+    }
+
+    private fun leaveSettings() {
+        if (settings?.back() == true) return
+        settings?.close()
+        settings = null
+        updateSettingsBack()
+        actionBar?.setDisplayHomeAsUpEnabled(false)
+        render()
+    }
+
+    private fun updateSettingsBack() {
+        unregisterSettingsBack?.invoke()
+        unregisterSettingsBack = null
+        if (Build.VERSION.SDK_INT >= 33 && settings != null) {
+            val callback = OnBackInvokedCallback { leaveSettings() }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+            unregisterSettingsBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
+        }
     }
 
     private fun selfHostedPrompt() {

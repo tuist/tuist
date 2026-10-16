@@ -56,6 +56,32 @@ reads as ready.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.
 
+## REAPI request metadata
+
+Kura's regional and runner ingress controllers, and the dedicated gRPC controller
+used by cold activation, set `ignore-invalid-headers: "false"`. Nginx's default
+otherwise strips the standard dotted header
+`build.bazel.remote.execution.v2.requestmetadata-bin`: cache RPCs still succeed,
+but Kura cannot attribute them to Mix/Bazel builds and skips their signed cache
+analytics. The shared Kura configuration keeps this consistent across regions
+and runner gateways. The unrelated main web ingress retains its existing header
+handling; cache authorization and webhook signature checks are unchanged.
+
+The fix takes effect through the normal platform Helm deployment and nginx
+configuration reload, not a Kura runtime restart. After deployment, use fresh
+cache traffic with a known project and invocation ID to verify signed
+`reapi_cache_events` reach ClickHouse with the expected client kind. The
+`kura_analytics_events_total_total` counter's `skipped_no_bazel_metadata` result
+is shared by missing/unsupported REAPI metadata, including Mix; it must not be
+interpreted as a Mix-only counter. Forwarding success alone does not prove that
+the producer retained request attribution. Previously skipped events are not
+backfilled, and missing observations must not be replaced by fabricated zeros.
+
+`infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks every
+platform values overlay and reproduces the failure through a real HTTP/2 nginx
+`grpc_pass` proxy. Set `TUIST_TEST_NGINX` to a local nginx binary to include the
+transport regression; the values checks do not require nginx.
+
 ## Preview Janitor
 
 The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that

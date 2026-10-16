@@ -11,21 +11,21 @@ defmodule TuistWeb.Runs.RanByBadge do
   def run_ran_by_badge_cell(assigns) do
     ~H"""
     <.badge_cell
-      :if={@run.is_ci}
+      :if={@run.is_ci == true}
       label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
     />
     <.badge_cell
-      :if={not @run.is_ci and @ran_by_name}
+      :if={@run.is_ci == false and @ran_by_name not in [nil, ""]}
       label={@ran_by_name}
       icon="user"
       color="primary"
       style="light-fill"
     />
     <.badge_cell
-      :if={!@run.is_ci and !@ran_by_name}
+      :if={@run.is_ci != true and (@run.is_ci != false or @ran_by_name in [nil, ""])}
       label={dgettext("dashboard", "Unknown")}
       color="neutral"
       style="light-fill"

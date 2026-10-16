@@ -59,6 +59,11 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: HCloudMachineTemplate
             name: tuist-hcloud-hcloud-machinetemplate
+        # A MachineDeployment topology that sets any `healthCheck` field
+        # replaces this whole block, not just the fields it sets: a pool that
+        # overrides only `remediation` gets no unhealthy node conditions and
+        # never remediates a node that fails after joining. Overrides must
+        # restate `checks`.
         healthCheck:
           checks:
             nodeStartupTimeoutSeconds: 600
@@ -71,7 +76,11 @@ spec:
                 timeoutSeconds: 300
           remediation:
             triggerIf:
-              unhealthyInRange: "[0-2]"
+              # Remediate one unhealthy node at a time. Two or more unhealthy
+              # at once usually means a shared cause, such as a control-plane
+              # or network blip, and on a two-node pool any wider range lets
+              # that blip replace the whole pool.
+              unhealthyInRange: "[0-1]"
       # Hetzner Robot bare-metal worker. Linux runner Pods (Firecracker
       # microVMs via Kata Containers — see `kataContainers` in the
       # helm chart) schedule onto these exclusively. The `installimage`
@@ -463,6 +472,17 @@ spec:
       schema:
         openAPIV3Schema:
           type: boolean
+    # Opt-in kernel lockup hardening for cloud workers, the same settings the
+    # bare-metal fleets get from cluster-api-provider-tuist: soft and hard CPU
+    # lockups panic, a panic reboots after 10 seconds, and systemd arms the
+    # watchdog device when the VM has one. Without it a node whose kernel locks
+    # up stays NotReady until a MachineHealthCheck or an operator replaces it.
+    # Set it as a MachineDeployment override to roll one pool at a time.
+    - name: nodeLockupHardening
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -766,6 +786,43 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
               valueFrom:
                 template: '{"ControlPlaneKubeletLocalMode": false}'
+    - name: KubeadmConfigTemplateWorkerNodeLockupHardening
+      enabledIf: "{{ if .nodeLockupHardening }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/sysctl.d/99-tuist-hardening.conf
+                permissions: "0644"
+                content: |
+                  kernel.softlockup_panic = 1
+                  kernel.hardlockup_panic = 1
+                  kernel.panic_on_oops = 1
+                  kernel.panic = 10
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/systemd/system.conf.d/10-tuist-watchdog.conf
+                permissions: "0644"
+                content: |
+                  [Manager]
+                  RuntimeWatchdogSec=30s
+                  RebootWatchdogSec=5min
+            # The existing `sysctl --system` step loads the sysctl file. PID 1
+            # reads system.conf.d only when it re-executes.
+            - op: add
+              path: "/spec/template/spec/preKubeadmCommands/-"
+              value: systemctl daemon-reexec
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate

@@ -26,7 +26,7 @@ func TestMacRealAttachAndCleanDetach(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mountRoot, command, "auto"); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mountRoot, command); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mount, "dependency"), []byte("retained"), 0644); err != nil {

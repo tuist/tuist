@@ -140,6 +140,8 @@ grpc-ingress-nginx:
       enabled: false
     config:
       use-proxy-protocol: "true"
+      # Preserve standard dotted REAPI metadata headers on the Kura activation path.
+      ignore-invalid-headers: "false"
       # Explicit so the intent is visible. Anything above zero stops the
       # `Connection` header, and 320 is the controller default.
       upstream-keepalive-connections: "320"
@@ -182,13 +184,13 @@ kura-eu-west-ingress-nginx:
     # the same validator for the Kura Ingress annotations.
     admissionWebhooks: &kuraGatewayAdmissionWebhooks
       enabled: false
-    # Anchored so every regional Kura gateway shares ONE nginx config
-    # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
-    # derives its patched nginx config from the window keys here, and the
-    # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
-    # every shared key in a unit test (TestGatewayNginxConfigMatchesChart) — so
-    # these settings cannot silently drift between the two render paths.
+    # Regional and runner gateways inherit the same streaming and metadata
+    # settings. TestKuraIngressPreservesREAPIMetadata checks environment overrides;
+    # kura/test/e2e/grpc-upload-throughput derives its window settings here too.
     config: &kuraGatewayNginxConfig
+      # Nginx otherwise drops build.bazel.remote.execution.v2.requestmetadata-bin,
+      # leaving successful cache operations without Mix/Bazel analytics attribution.
+      ignore-invalid-headers: "false"
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"

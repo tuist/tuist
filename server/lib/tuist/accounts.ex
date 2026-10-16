@@ -2897,7 +2897,7 @@ defmodule Tuist.Accounts do
         # asking — would pay a write-through and a unique job insert per
         # request forever, to schedule work that is deduplicated anyway.
         urls = kura_cache_endpoint_urls(account, Origins.value(origin))
-        provisioning? = urls == [] and Demand.instance_expected?(account)
+        provisioning? = urls == [] and kura_instance_coming?(account)
         kick? = provisioning? and Demand.claim_provision_kick(account.id)
         Demand.record(account.id, origin, persist_origin: kick?)
         if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
@@ -2934,6 +2934,13 @@ defmodule Tuist.Accounts do
   # archived account gets cold misses there rather than its own artifacts.
   # `:kura` clients never get that lane: they build locally while they wait for
   # the instance.
+  # An instance held as `:idle` is not brought back by a resolution, so the
+  # client is not told one is coming: it would re-resolve on the provisioning
+  # answer's short max age for the whole hold.
+  defp kura_instance_coming?(%Account{} = account) do
+    Demand.instance_expected?(account) and not Demand.idle_hold?(account)
+  end
+
   defp absent_kura_endpoint_urls(%Account{} = account, technology) do
     case {Demand.lifecycle_managed?(account), technology} do
       {true, :kura} -> []

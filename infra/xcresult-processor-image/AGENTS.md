@@ -76,7 +76,8 @@ at least as new an Xcode as any active runner-image profile.
 The Xcode version is declared inline in
 `.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
-the `XCODE_VERSION` env var on that step). Bump it alongside the
+the `XCODE_VERSION` env var on that step, currently `27.1`). Track the
+newest stable runner Xcode, not prerelease profiles. Bump it alongside the
 runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
@@ -144,13 +145,16 @@ inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
-can see. tart-kubelet is not a real kubelet: it implements no container
-probes at all, and
-`infra/tart-kubelet/internal/podagent/reconciler.go` sets
-`PodReady=True` (plus synthesized Ready container statuses) as soon as
-the VM has an IP. A VM that boots and then dies at `tailscale-up.sh`
-therefore reads `1/1 Running` forever, the Deployment reports
-`Available=True`, and `:process_xcresult` simply stops being consumed.
+can see. With `xcresultProcessor.readinessProbe.enabled`, the Deployment
+declares a `readinessProbe` on `GET /ready` (port 9092,
+`Tuist.Readiness.Plug`), which tart-kubelet evaluates against the guest IP:
+the Pod stays NotReady until the release answers and can reach Postgres,
+ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` then reads `0/1 Running`, and the rolling update and
+`helm upgrade --wait` stop on it. Without the probe, tart-kubelet sets
+`PodReady=True` as soon as the VM has an IP, so such a VM reads
+`1/1 Running` forever, the Deployment reports `Available=True`, and
+`:process_xcresult` simply stops being consumed.
 
 This has happened twice, from unrelated causes with the same outward
 shape:
@@ -233,16 +237,16 @@ a server-side credential rejection and an unreachable control plane
 through the same "did not reach Running within timeout" path, which is
 what made the two incidents above look alike from the outside.
 
-**Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
-can see this class of failure, it is caught in the metrics pipeline
-instead. Four rules in
+**Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
+ExternalSecrets cannot see this class of failure at all, so it is caught
+in the metrics pipeline too. Four rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere. This is the readiness probe tart-kubelet cannot provide. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere, independent of the readiness probe. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 

@@ -313,6 +313,7 @@ defmodule Tuist.Application do
     #
     #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
     #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+    # Last, so it starts once Oban is up and stops first on shutdown.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -330,6 +331,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
           Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
           Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+          Supervisor.child_spec(Tuist.BuildEntities.Observation.Buffer, id: Tuist.BuildEntities.Observation.Buffer),
           Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
           Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
           Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
@@ -337,6 +339,8 @@ defmodule Tuist.Application do
           Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
           Supervisor.child_spec(Buffer, id: Buffer),
           Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Build.Buffer, id: Tuist.Cargo.Build.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Compilation.Buffer, id: Tuist.Cargo.Compilation.Buffer),
           Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
           Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
           Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
@@ -381,8 +385,10 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
+        redis_children() ++
         [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
-        once_events_grpc_children()
+        once_events_grpc_children() ++
+        RuntimeChildren.readiness_server(Environment.mode())
 
     children
     |> Kernel.++(
@@ -419,15 +425,6 @@ defmodule Tuist.Application do
         []
       end
     )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -437,6 +434,18 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  defp redis_children do
+    if Environment.redis_url() do
+      [
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+      ]
+    else
+      []
+    end
   end
 
   # Only in the tree while a destination is configured, which is only during
@@ -537,7 +546,7 @@ defmodule Tuist.Application do
     if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
-          {Task, &Kura.reconcile_orphaned_deployments/0},
+          {Task, &Kura.enqueue_reconcile_orphaned_deployments/0},
           id: Kura.Reconciler
         )
       ]

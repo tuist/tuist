@@ -139,7 +139,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["resolve"]
         )
 
-        let environment = manifestEnvironment ?? environmentVariables()
+        let environment = resolutionEnvironment ?? environmentVariables()
         let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
         try await SwifterPM().withNativeWorkspace(
             packageDirectory: directories.package, scratchDirectory: directories.scratch
@@ -169,7 +169,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["update"]
         )
 
-        let environment = manifestEnvironment ?? environmentVariables()
+        let environment = resolutionEnvironment ?? environmentVariables()
         let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
         try await SwifterPM().withNativeWorkspace(
             packageDirectory: directories.package, scratchDirectory: directories.scratch
@@ -344,11 +344,16 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
         request.quiet = request.quiet || !printOutput
         request.manifestEnvironment = manifestEnvironment
+        request.resolutionEnvironment = resolutionEnvironment
         return request
     }
 
     private var manifestEnvironment: [String: String]? {
         PackageManifestEnvironment.filtered(environmentVariables())
+    }
+
+    private var resolutionEnvironment: [String: String]? {
+        PackageManifestEnvironment.filtered(environmentVariables(), forDependencyResolution: true)
     }
 
     private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {

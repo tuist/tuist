@@ -1479,6 +1479,32 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
     end
 
+    test "ignores a long-running job whose completion is still waiting for the flush" do
+      account = account_fixture()
+      started_at = DateTime.add(DateTime.utc_now(), -1, :hour)
+      :ok = WorkflowJobs.upsert_queued(%{workflow_job_id: 7364, account_id: account.id, fleet_name: "fleet-div5"})
+      Repo.delete_all(Tuist.Runners.WorkflowJobTransitionEvent)
+
+      {1, _} =
+        IngestRepo.insert_all(Job, [
+          %{
+            workflow_job_id: 7364,
+            account_id: account.id,
+            fleet_name: "fleet-div5",
+            repository: "acme/cli",
+            status: "running",
+            enqueued_at: started_at,
+            started_at: started_at,
+            updated_at: started_at
+          }
+        ])
+
+      {:ok, _} = Jobs.complete(7364, "success")
+      settled_before = DateTime.add(DateTime.utc_now(), -5, :minute)
+
+      assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
+    end
+
     test "ignores a job still genuinely running in both stores" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 7363, fleet: "fleet-div4")

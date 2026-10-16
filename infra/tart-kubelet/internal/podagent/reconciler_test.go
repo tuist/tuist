@@ -124,7 +124,7 @@ func TestRunningContainerStatusesReportsReady(t *testing.T) {
 	}
 	startedAt := metav1.Now()
 
-	statuses := runningContainerStatuses(pod, "vm-abc", startedAt)
+	statuses := runningContainerStatuses(pod, "vm-abc", startedAt, true)
 
 	if len(statuses) != 1 {
 		t.Fatalf("expected 1 container status (Pod ↔ VM is 1:1), got %d", len(statuses))

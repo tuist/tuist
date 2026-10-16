@@ -16,7 +16,7 @@ use crate::{
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 const MAX_BATCH_RECORDS: usize = 32;
@@ -214,17 +214,38 @@ async fn verify_inner(
             hold.is_some()
         };
         if !already_held {
-            reconcile_retained_corpus(state, &request).await?;
+            loop {
+                require_current_destination(state, &request)?;
+                let before = state
+                    .store
+                    .handover_eviction_generation
+                    .load(Ordering::Acquire);
+                reconcile_retained_corpus(state, &request).await?;
+                let mut hold = state
+                    .store
+                    .handover_hold
+                    .lock()
+                    .map_err(|_| "handover hold poisoned")?;
+                // Share the eviction commit lock: a removal cannot slip between
+                // this comparison and freezing the destination. Never release a
+                // hold to repair a failed verification; finish repair first.
+                require_current_destination(state, &request)?;
+                let after = state
+                    .store
+                    .handover_eviction_generation
+                    .load(Ordering::Acquire);
+                if before != after {
+                    tracing::info!(event.name="kura.handover.repair_revisit", id=%request.intent.id,
+                        eviction_commits=after.wrapping_sub(before),
+                        "Revisiting retained corpus after repair eviction");
+                    continue;
+                }
+                *hold = Some(request.intent.id.clone());
+                break;
+            }
         }
-        let mut hold = state
-            .store
-            .handover_hold
-            .lock()
-            .map_err(|_| "handover hold poisoned")?;
-        // Reconciliation awaited peer I/O. An abort or a replaced intent must
-        // not acquire a hold or acknowledge preparation after that wait.
+        // An idempotent begin still has to belong to the current intent.
         require_current_destination(state, &request)?;
-        *hold = Some(request.intent.id.clone());
         return Ok(
             serde_json::json!({"destination": authority.identity(), "max_batch_records": MAX_BATCH_RECORDS}),
         );
@@ -297,8 +318,9 @@ async fn reconcile_retained_corpus(
     // A feed cursor covers arrivals, not everything the source still retains:
     // bootstrap is horizon bounded and local eviction can remove older rows.
     // Reuse the bounded replication pipeline before freezing the destination.
-    // Keep ordinary capacity/version/tombstone rules; the subsequent full
-    // verification, never pass completion, is what authorizes the transfer.
+    // Keep store capacity/version/tombstone rules, but not the ordinary
+    // age-based selection policy: even old records belong to this barrier.
+    // Full verification, never pass completion, authorizes the transfer.
     let mut tuning = BackfillPassTuning::from_config(&state.config);
     tuning.source = PassSource::RetainedIndex;
     tuning.feed_rows = false;
@@ -781,16 +803,256 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn retained_repair_keeps_newer_work_queued_before_capacity_cutoff() {
+    async fn retained_repair_revisits_records_evicted_after_their_presence_check() {
+        use crate::{
+            segment::{reference::SegmentReference, state::SegmentState},
+            utils::artifact_storage_id,
+        };
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            ActionResult, Digest, OutputFile,
+        };
+        use prost::Message;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        let digest = Digest {
+            hash: "ab".repeat(32),
+            size_bytes: 8,
+        };
+        let key = crate::utils::blob_key(&format!("{}/8", digest.hash));
+        let action_key = format!("action_cache/{}/0", "cd".repeat(32));
+        let action = ActionResult {
+            output_files: vec![OutputFile {
+                path: "out".into(),
+                digest: Some(digest),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for ctx in [&source, &target] {
+            ctx.state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"retained",
+                    3000,
+                )
+                .await
+                .unwrap();
+            ctx.state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &action_key,
+                    "application/x-protobuf",
+                    &action,
+                    4000,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "missing-old",
+                "application/octet-stream",
+                b"old",
+                1000,
+            )
+            .await
+            .unwrap();
+        let blob_id = artifact_storage_id(ArtifactProducer::Reapi, "test-tenant", "ios", &key);
+        let action_id =
+            artifact_storage_id(ArtifactProducer::Reapi, "test-tenant", "ios", &action_key);
+        let segment = target
+            .state
+            .store
+            .manifest(&blob_id)
+            .unwrap()
+            .unwrap()
+            .segment_id
+            .unwrap();
+        // Seal the resident segment without a large allocation. The real eviction
+        // path will remove both its blob and the referencing action-cache entry.
+        let ring = SegmentState {
+            old: vec![SegmentReference::new(segment.clone(), 3000)],
+            new: vec![SegmentReference::new("empty-active".into(), 5000)],
+            ..Default::default()
+        };
+        target
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .unwrap();
+        source.state.store.run_backfill_index_build().unwrap();
+        let evicted = Arc::new(AtomicBool::new(false));
+        let did_evict = evicted.clone();
+        let destination = target.state.clone();
+        let app = crate::http::router(source.state.clone()).layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let destination = destination.clone();
+                let segment = segment.clone();
+                let action_id = action_id.clone();
+                let did_evict = did_evict.clone();
+                async move {
+                    // Newest-first listing has already skipped the resident blob
+                    // and action when the older missing body's request is sent.
+                    if request.uri().path() == "/_internal/backfill/bodies"
+                        && !did_evict.swap(true, Ordering::SeqCst)
+                    {
+                        destination.store.evict_segment_for_testing(&segment).await;
+                        assert!(
+                            destination
+                                .store
+                                .manifest_from_db(&action_id)
+                                .unwrap()
+                                .is_none()
+                        );
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let request = begin_request(
+            &target.state,
+            format!("http://{}", listener.local_addr().unwrap()),
+        );
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        verify_inner(&target.state, request).await.unwrap();
+        assert!(evicted.load(Ordering::SeqCst));
+        let entries = source
+            .state
+            .store
+            .backfill_index_page(None, 10)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 3);
+        for entry in entries {
+            let expected = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            verify_record(&target.state, &expected).await.unwrap();
+        }
+        assert_eq!(
+            target.state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn repeated_eviction_cannot_freeze_an_unconverged_destination() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+        use std::sync::{Arc, atomic::AtomicUsize};
+
+        let target = test_context(|_| {}).await;
+        let state = target.state.clone();
+        let walks = Arc::new(AtomicUsize::new(0));
+        let count = walks.clone();
+        let app = axum::Router::new().fallback(move || {
+            let state = state.clone();
+            let count = count.clone();
+            async move {
+                let pass = count.fetch_add(1, Ordering::SeqCst);
+                let artifact = state
+                    .store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        "destination-only",
+                        "application/octet-stream",
+                        b"extra",
+                    )
+                    .await
+                    .unwrap();
+                let segment = artifact.segment_id.unwrap();
+                state
+                    .store
+                    .install_segment_state_for_testing(SegmentState {
+                        old: vec![SegmentReference::new(segment.clone(), 1)],
+                        new: vec![SegmentReference::new(format!("empty-{pass}"), 2)],
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+                state.store.evict_segment_for_testing(&segment).await;
+                Json(serde_json::json!({"entries": [], "next_after": null}))
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut request = begin_request(
+            &target.state,
+            format!("http://{}", listener.local_addr().unwrap()),
+        );
+        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
+        let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.handover = Some(request.intent.clone());
+        target.state.runtime.authority.install(grant).unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let error =
+            tokio::time::timeout(Duration::from_secs(5), verify_inner(&target.state, request))
+                .await
+                .unwrap()
+                .unwrap_err();
+        assert!(
+            walks.load(Ordering::SeqCst) > 1,
+            "must exercise repeat walks"
+        );
+        assert!(error.contains("deadline mismatch"), "{error}");
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn retained_repair_copies_missing_records_older_than_the_evictee() {
         use crate::segment::{reference::SegmentReference, state::SegmentState};
 
         let source = test_context(|_| {}).await;
         let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
-        for (ctx, key, version) in [
-            (&source, "newer", 1000),
-            (&source, "older", 400),
-            (&target, "older", 400),
-        ] {
+        for (ctx, key, version) in [(&source, "newer", 1000), (&source, "older", 400)] {
             ctx.state
                 .store
                 .apply_replicated_artifact_from_bytes(
@@ -845,8 +1107,8 @@ mod tests {
                 .unwrap(),
             );
         }
-        // The older retained record is already present. Listing it must not
-        // cancel the newer missing record queued in the same response page.
+        // Both records are missing. The recency heuristic would reject the
+        // older one even though it fits in the active segment without eviction.
         assert!(expected.iter().any(|r| r.version == 1000));
         verify_inner(&target.state, request).await.unwrap();
         for record in expected {

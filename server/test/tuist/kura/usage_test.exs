@@ -13,25 +13,26 @@ defmodule Tuist.Kura.UsageTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
+  setup :verify_on_exit!
 
   test "failed ingestion does not refresh managed demand" do
     account = AccountsFixtures.user_fixture().account
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second)})
     expect(IngestRepo, :insert_all, fn UsageEvent, _ -> raise "ingest unavailable" end)
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
     assert_raise RuntimeError, "ingest unavailable", fn -> Usage.create_events([event]) end
   end
 
-  test "fresh managed traffic refreshes demand once per account" do
+  test "fresh managed traffic refreshes demand and the traffic clock once per account" do
     account = AccountsFixtures.user_fixture().account
-    expect(Demand, :record, fn id -> assert id == account.id end)
+    expect(Demand, :record, fn id, nil, [traffic: true] -> assert id == account.id end)
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second) - 60})
     assert {:ok, 2} = Usage.create_events([event, %{event | "event_id" => "another-event"}])
   end
 
   test "replayed, future, empty, peer and self-hosted traffic do not keep managed capacity warm" do
     account = AccountsFixtures.user_fixture().account
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
     now = System.system_time(:second)
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => now})
 
