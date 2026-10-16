@@ -144,7 +144,7 @@
       icon="stack_2"
       data-part="targets-card"
     >
-      <.card_section :if={@targets_measured?} data-part="targets-section">
+      <.card_section :if={@targets_listed?} data-part="targets-section">
         <div data-part="filters">
           <.form
             for={%{}}
@@ -211,7 +211,23 @@
               patch={@targets_sort_by == "coverage" && targets_sort_patch(assigns, "coverage")}
               sort_order={@targets_sort_by == "coverage" && @targets_sort_order}
             >
-              <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
+              <.coverage_cell
+                :if={not Map.get(target, :unmeasured, false)}
+                covered={target.covered_lines}
+                executable={target.executable_lines}
+              />
+              <.tooltip_badge_cell
+                :if={Map.get(target, :unmeasured, false)}
+                id={"target-#{target.name}-unmeasured"}
+                label={dgettext("dashboard_tests", "Not measured")}
+                color="warning"
+                description={
+                  dgettext(
+                    "dashboard_tests",
+                    "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
+                  )
+                }
+              />
             </:col>
             <:col
               :let={target}
@@ -219,7 +235,11 @@
               patch={@targets_sort_by == "files" && targets_sort_patch(assigns, "files")}
               sort_order={@targets_sort_by == "files" && @targets_sort_order}
             >
-              <.text_cell label={format_number(target.files_count)} />
+              <.text_cell label={
+                if Map.get(target, :unmeasured, false),
+                  do: "—",
+                  else: format_number(target.files_count)
+              } />
             </:col>
             <:empty_state>
               <.table_empty_state
@@ -238,7 +258,7 @@
         </div>
       </.card_section>
       <.coverage_empty
-        :if={not @targets_measured?}
+        :if={not @targets_listed?}
         title={dgettext("dashboard_tests", "No target was measured at this commit")}
         image="table"
         data-part="empty-targets"

@@ -19,6 +19,7 @@
 @import "./pages/gradle_cache.css";
 @import "./pages/mix_cache.css";
 @import "./pages/gradle_tasks.css";
+@import "./pages/build_entity.css";
 @import "./pages/gradle_task_execution.css";
 @import "./pages/gradle_overview.css";
 @import "./pages/bazel_invocation.css";

@@ -45,7 +45,7 @@ func TestMacAttachAndDetach(t *testing.T) {
 		}
 		return nil
 	}
-	dir, id, warm, err := acquireMacAt(context.Background(), "key", share, mount, command, "auto")
+	dir, id, warm, err := acquireMacAt(context.Background(), "key", share, mount, command)
 	if err != nil || dir != response.Directory || id != "lease" || !warm {
 		t.Fatal(dir, id, warm, err)
 	}
@@ -80,7 +80,7 @@ func TestMacCancelledAcquisitionNeverMountsLateResponse(t *testing.T) {
 	_, _, _, err := acquireMacAt(ctx, "key", share, mount, func(...string) error {
 		t.Fatal("mounted after cancellation")
 		return nil
-	}, "auto")
+	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func respondMac(t *testing.T, share string, data []byte) {
 				return
 			case <-ticker.C:
 			}
-			paths, _ := filepath.Glob(filepath.Join(share, "*request"))
+			paths, _ := filepath.Glob(filepath.Join(share, "*.request"))
 			for _, path := range paths {
 				if _, err := os.Stat(path + ".response"); os.IsNotExist(err) {
 					_ = os.WriteFile(path+".response", data, 0600)
@@ -129,7 +129,7 @@ func TestMacRetryIgnoresStaleResponseAndCleansMailbox(t *testing.T) {
 	respondMac(t, share, data)
 	for range 2 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, _, warm, err := acquireMacAt(ctx, "key", share, mount, func(...string) error { return nil }, "auto")
+		_, _, warm, err := acquireMacAt(ctx, "key", share, mount, func(...string) error { return nil })
 		cancel()
 		if err != nil || !warm {
 			t.Fatal(warm, err)
@@ -172,42 +172,5 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 	marker, _ := os.ReadFile(filepath.Join(share, scope, ".detached"))
 	if string(marker) != "lease" {
 		t.Fatal(string(marker))
-	}
-}
-
-func TestMacExplicitCommitRejectsLegacyHostBeforeMount(t *testing.T) {
-	for _, mode := range []string{"true", "false"} {
-		t.Run(mode, func(t *testing.T) {
-			share, mount := t.TempDir(), t.TempDir()
-			data, _ := json.Marshal(macResponse{Directory: digest("volume"), ID: "lease", Warm: true})
-			respondMac(t, share, data)
-			_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error { t.Fatal("mounted without commit acknowledgement"); return nil }, mode)
-			if !errors.Is(err, errCommitUnsupported) {
-				t.Fatal(err)
-			}
-		})
-	}
-}
-
-func TestMacExplicitCommitUsesMailboxIgnoredByLegacyHost(t *testing.T) {
-	share, mount := t.TempDir(), t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	stopped := make(chan struct{})
-	go func() {
-		defer close(stopped)
-		for ctx.Err() == nil {
-			paths, _ := filepath.Glob(filepath.Join(share, "*.request"))
-			if len(paths) > 0 {
-				t.Error("explicit request reached legacy mailbox")
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-	_, _, _, err := acquireMacAt(ctx, "key", share, mount, func(...string) error { t.Error("mounted on legacy host"); return nil }, "true")
-	<-stopped
-	if !errors.Is(err, errCommitUnsupported) {
-		t.Fatal(err)
 	}
 }

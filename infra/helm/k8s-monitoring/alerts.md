@@ -3477,24 +3477,50 @@ failing or stopped. An idle M5 Pro mini holds a 1000 rpm target and meets it,
 so the ratio sits at 1 in steady state. The `> 0` filter keeps a zero target
 from dividing.
 
+### Which rack a series belongs to
+
+The rack rules work per site, so a new rack is covered without editing them.
+A rack node's site is the `node.cluster.x-k8s.io/rack-site` label the operator
+puts on its Machine (Cluster API syncs it to the Node), read from
+`kube_node_labels`. The rules below join on it through this fragment, written
+`<node site>` where it appears:
+
+```promql
+label_replace(
+  max by (node, label_node_cluster_x_k8s_io_rack_site) (
+    kube_node_labels{cluster="tuist-production", label_node_cluster_x_k8s_io_rack_site!=""}
+  ),
+  "site", "$1", "label_node_cluster_x_k8s_io_rack_site", "(.*)"
+)
+```
+
+Host and probe series carry the node name as `instance`, so those joins wrap
+it in one more `label_replace(..., "instance", "$1", "node", "(.*)")`, written
+`<instance site>`. The rules in Grafana have the fragments expanded.
+
 ### Rack unreachable
 
 ```promql
-count(
-  up{job="integrations/node_exporter", cluster="tuist-production", instance=~"ber1-.*"} == 1
-) or vector(0)
+count by (site) (
+  label_replace(up{job="integrations/node_exporter", cluster="tuist-production"} == 1,
+    "node", "$1", "instance", "(.*)")
+  * on (node) group_left (site) <node site>
+)
+or (group by (site) (<node site>) * 0)
 ```
 
 - Threshold: `< 1`
 - Pending period: 5 minutes
 - Severity: critical
 - Already created: rule `ag1ayfrpautq8b`, folder `Alerts`, group `Rack`
-- Summary: `No BER1 rack host has reported metrics for 5 minutes`
+- Summary: `No rack host at {{ $labels.site }} has reported metrics for 5
+  minutes`
 
-The rack's Linux hosts push their metrics over the tailnet through the Cogent
+A site's Linux hosts push their metrics over the tailnet through the site's
 uplink, so losing the uplink, both edges or the rack's power silences all of
 them at once. Silence normally reads as healthy in this folder (no data is
-OK), which is why the count falls back to `vector(0)`: no reporting host is a
+OK), which is why every known site falls back to 0: the sites come from
+`kube_node_labels`, which the cluster in Hetzner reports, so a silent rack is a
 firing alert, not an absent one.
 
 Read it together with the rules that look at the rack from the cluster in
@@ -6119,13 +6145,9 @@ the series is gone rather than old.
 ### Rack node not Ready
 
 ```promql
-max by (cluster, env, node) (
-  kube_node_status_condition{
-    cluster="tuist-production",
-    condition="Ready",
-    status="true",
-    node=~"ber1-.*|.*-rack-fleet-ber1-.*"
-  }
+max by (cluster, env, node, site) (
+  kube_node_status_condition{cluster="tuist-production", condition="Ready", status="true"}
+  * on (node) group_left (site) <node site>
 )
 ```
 
@@ -6133,7 +6155,8 @@ max by (cluster, env, node) (
 - Pending period: 10 minutes
 - Severity: warning
 - Already created: rule `dg1ayg4nysge8c`, folder `Alerts`, group `Rack`
-- Summary: `Rack node {{ $labels.node }} has not been Ready for 10 minutes`
+- Summary: `Rack node {{ $labels.node }} at {{ $labels.site }} has not been
+  Ready for 10 minutes`
 
 Read from the production apiserver in Hetzner, so it keeps working when the
 rack's own metrics are gone. A mini reboots back to a heartbeat in about 35
@@ -6184,6 +6207,89 @@ While an ATS is not observed its redundancy and active-source series are
 absent, so the two power rules above cannot fire for it. The RackATS or
 RackPDU `Ready` reason says why.
 
+`capt_rackats_ready` has no rule of its own: `capt_rackats_observed` is 1 only
+while the RackATS is Ready, so the two go to 0 together.
+
+### Rack transfer switch readings stale
+
+```promql
+time() - max by (cluster, env, site, ats) (
+  capt_rackats_last_observed_timestamp_seconds{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 600`
+- Pending period: 5 minutes
+- Severity: warning
+- Already created: rule `fg1do7ejlqi9sd`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} was last read
+  {{ humanizeDuration $values.A.Value }} ago`
+
+A failed read drops the timestamp, so this does not fire for an unreachable
+card; that is [Rack power equipment not observed](#rack-power-equipment-not-observed).
+It fires when the operator keeps serving the last successful read but stops
+reading again, which freezes every other ATS series at its last value. The
+controller reads every minute, so the reading is normally under two minutes
+old; the worst over the week before the rule was created was under six. The
+series is per operator pod, so the rule takes the newest across pods.
+
+### Rack load on its alternate source
+
+```promql
+(
+  max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"})
+  != bool
+  max by (cluster, env, site, ats) (capt_rackats_preferred_source{cluster="tuist-production"})
+)
+* on (cluster, env, site, ats) (max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"}) > bool 0)
+* on (cluster, env, site, ats) (max by (cluster, env, site, ats) (capt_rackats_preferred_source{cluster="tuist-production"}) > bool 0)
+* on (cluster, env, site, ats) min by (cluster, env, site, ats) (capt_rackats_input_good{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `dg1do6r1tm7eoa`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} has run its load on the
+  alternate source for 10 minutes while both sources are good`
+
+Each ATS prefers one feed (`ber1-ats-3` prefers source 2 by design), so the
+rack's load is split across both. One that stays on its other source after the
+preferred one is good again puts more load on one feed than planned. The rule
+needs both inputs good: while the preferred source is bad,
+[Rack transfer switch lost redundancy](#rack-transfer-switch-lost-redundancy)
+is the alert. A preferred source of 0 is a card whose setting the controller
+does not recognise (`Converged=False`, `PreferredSourceUnrecognised`), not a
+load on the wrong source, so it is left out.
+
+### Rack transfer switch changed source
+
+```promql
+changes((max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"}))[15m:1m])
+* on (cluster, env, site, ats)
+max by (cluster, env, site, ats) (capt_rackats_redundant{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: none
+- Severity: warning
+- Already created: rule `eg1do73fkhwqof`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} changed the source powering
+  its load in the last 15 minutes`
+
+Fires once both sources are good again, and resolves when the change leaves the
+15-minute window. It covers a feed that dropped for less than the five minutes
+[Rack transfer switch lost redundancy](#rack-transfer-switch-lost-redundancy)
+waits for, and a load that lost power for less than a read. It also fires when
+the load moves back after a longer outage. The RackATS events (`Transferred`,
+`LoadNotPowered`, `LoadRestored`) and `status.lastTransfer` say which way it
+went. A change and its return between two reads, a minute apart, is not seen.
+
+It reads the active-source gauge rather than
+`capt_rackats_observed_transfers_total`. That counter is created at its first
+transfer, so `increase()` reads the series' first sample as no change and
+misses it, and it restarts with every operator pod.
+
 ### Rack switch telemetry stale
 
 ```promql
@@ -6204,6 +6310,93 @@ timestamp, so `rack_switch_up` is absent and
 [Rack switch disconnected](#rack-switch-disconnected) reads as no data.
 `rack_switch_telemetry_errors_total{stage}` says which read is failing. If the
 controller pod itself is gone this rule goes quiet too.
+
+### Rack uplink packet loss
+
+```promql
+1 - avg by (site, target) (avg_over_time((
+  (probe_success{job="rack-path", cluster="tuist-production", target="anycast-reference"}
+    * on (instance) group_left (site) <instance site>)
+  or
+  (label_replace(probe_success{job="rack-path", cluster="tuist-production", target="uplink-gateway"},
+     "site", "$1", "gateway_site", "(.*)")
+    and on (instance, site) <instance site>)
+)[15m:]))
+```
+
+- Threshold: `> 0.05`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `dg1c6pixwynlsd`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} is losing pings to {{ $labels.target }}`
+
+alloy-rack pings the site's uplink gateway and 1.1.1.1 every 30 seconds from
+each of the site's Linux hosts. Every rack probes every site's gateway (the
+config cannot tell which site it runs in), so the gateway half keeps only the
+probes whose `gateway_site` is the host's own site. Loss to the gateway points
+at the uplink itself, so check `wan0` errors and drops on the Racks dashboard;
+loss only to the reference points at the transit network. A link that is fully
+down does not fire this, because the probes leave over the same link: that is
+[Rack unreachable](#rack-unreachable).
+
+### Rack cannot reach a service
+
+```promql
+max by (site, target) (
+  probe_success{job="rack-path", cluster="tuist-production", target!~"uplink-gateway|anycast-reference"}
+  * on (instance) group_left (site) <instance site>
+)
+```
+
+- Threshold: `< 1`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `cg1c6pz44updsa`, folder `Alerts`, group `Rack`
+- Summary: `No host at {{ $labels.site }} can reach {{ $labels.target }}`
+
+Every one of the site's hosts failed its HTTPS probe to GitHub, ghcr.io, Tigris
+or tuist.dev, while the rack's metrics still get out. Jobs on the site that
+pull from that service fail or hang. If the rented fleet reaches it, suspect
+the uplink's route to it.
+
+### Rack uplink 95th percentile near its commit
+
+```promql
+(
+  (
+    label_replace(quantile_over_time(0.95,
+      (sum by (site) (rate(node_network_receive_bytes_total{cluster="tuist-production", device="wan0"}[5m])
+        * on (instance) group_left (site) <instance site>) * 8)[7d:5m]),
+      "direction", "download", "", "")
+    or
+    label_replace(quantile_over_time(0.95,
+      (sum by (site) (rate(node_network_transmit_bytes_total{cluster="tuist-production", device="wan0"}[5m])
+        * on (instance) group_left (site) <instance site>) * 8)[7d:5m]),
+      "direction", "upload", "", "")
+  )
+  / on (site) group_left () label_replace(vector(1e9), "site", "ber1", "", "")
+)
+and on (site) (
+  count_over_time((sum by (site) (rate(node_network_receive_bytes_total{cluster="tuist-production", device="wan0"}[5m])
+    * on (instance) group_left (site) <instance site>))[7d:5m]) >= 1008
+)
+```
+
+- Threshold: `> 0.9`
+- Pending period: 1 hour
+- Severity: warning
+- Already created: rule `fg1c6ql650pvka`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} uplink {{ $labels.direction }} 95th percentile
+  over 7 days is at {{ humanizePercentage $values.A.Value }} of its commit`
+
+Transit is billed on the 95th percentile of 5-minute samples against the
+committed rate, so a trailing 7-day 95th percentile above 90% of the commit is
+heading for an overage. The `vector(1e9)` term is the commit table, one
+`label_replace` per site in bits per second (BER1: 1 Gbps); a new site needs a
+line there, or its ratio is absent and the rule ignores it. The `count_over_time`
+gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
+in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
+5-minute windows, which alone made the 95th percentile three times the commit.
 
 ### Tuist license expires within 30 days
 
