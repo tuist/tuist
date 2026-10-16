@@ -769,13 +769,13 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         # The processor parses .xcresult bundles from *all* customer
-        # runner profiles, so the Xcode here should be at least as new
-        # as the newest active runner-image profile (xcresulttool's
-        # JSON schema changes across Xcode majors). Promotion rule:
-        # when you bump the first entry in
-        # infra/runner-image/profiles.json, bump this too.
+        # runner profiles, so the Xcode here should track the newest
+        # stable profile (xcresulttool's JSON schema changes across
+        # Xcode majors). When promoting a stable Xcode in
+        # infra/runner-image/profiles.json, bump this too. Beta and RC
+        # profiles must not move this shared service onto a prerelease.
         env:
-          XCODE_VERSION: "27.0"
+          XCODE_VERSION: "27.1"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"

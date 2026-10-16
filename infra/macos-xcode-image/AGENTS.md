@@ -23,6 +23,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 
 | `xcode_version` | Pushed tag         | Bundle path                          | Alias                          |
 |-----------------|--------------------|--------------------------------------|--------------------------------|
+| 27.1            | `:27-1`            | `/Applications/Xcode_27.1.app`       | _(none — already major-minor)_ |
 | 27.0            | `:27-0`            | `/Applications/Xcode_27.0.app`       | _(none — already major-minor)_ |
 | 26.6            | `:26-6`            | `/Applications/Xcode_26.6.app`       | _(none — already major-minor)_ |
 | 26.5            | `:26-5`            | `/Applications/Xcode_26.5.app`       | _(none — already major-minor)_ |
@@ -211,6 +212,7 @@ fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
 - `:27-2-beta` (channel `:27-2-beta`)
+- `:27-1` (stable build `27A9275`, macOS 26.6+)
 - `:27-1-rc` (channel `:27-1-rc`; RC 1 was first built as
   `:27-1-release-candidate` and copied to it, and its .xip is also
   mirrored as `xcode-xips:27.1-rc`)
@@ -221,6 +223,14 @@ The current Tahoe-era profile set is:
 - `:26-3`
 - `:26-1-1`
 - `:26-0-1`
+
+Xcode 27.1 stable and RC 1 share build `27A9275` and the catalog's
+SHA-1 `d8b1d16397e6f2faab34bd48b19692a3f7797b9d`. A cached RC
+archive matching that checksum can populate the stable `xcode-xips:27.1`
+mirror tag without another Apple download. Build the stable base with
+`xcode_version=27.1` so its bundle path and downstream tags name the
+stable version. Keep `27.1-rc` available until Runner Profiles pinned to
+it have migrated; adding stable does not change the 26.6 default.
 
 Exact tags are immutable: a patch bump from Apple (26.4.1 to
 26.4.2) republishes under a *new* tag, never over an existing one,
