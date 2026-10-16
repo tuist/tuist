@@ -715,7 +715,7 @@ func isGoldenVMName(name string) bool {
 //
 // CONTRACT: this prefix and the hash (the same 8-byte SHA-256 prefix of the
 // image ref that goldenVMName embeds) MUST match the runners-controller's
-// `podtemplate.goldenNodeLabelPrefix` / `goldenNodeAffinityKey`. They live in
+// `podtemplate.goldenNodeLabelPrefix` / `GoldenNodeAffinityKey`. They live in
 // separate Go modules, coupled by convention, not shared code.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 

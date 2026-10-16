@@ -92,7 +92,11 @@ independent workqueues:
     pool's real load, so a queued job outranks a sibling's warm floor.
   - Only warm idle runners (`isIdle` + `isWarmCapacity`, the same
     signals the node-drain reap uses) that have been warm for at least
-    `preemptionGrace` (2m) are eligible, oldest first. A runner still
+    `preemptionGrace` (2m) are eligible, oldest first, except that runners
+    on hosts already holding a starved pool's golden image
+    (`tuist.dev/golden-<hash>`) go before all others: the starved Pod takes
+    whichever seat frees, and on those hosts its job clones the image
+    instead of pulling it. A runner still
     booting, just warm and about to claim, running a job, or on a stale
     template is never chosen. Unbound idle Pods within the victim's
     surplus go too, since they would race the starved Pods for the
@@ -235,7 +239,9 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
+    the fewest running jobs and, among those, one already holding the
+    pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
