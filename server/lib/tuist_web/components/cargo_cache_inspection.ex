@@ -320,19 +320,6 @@ defmodule TuistWeb.Components.CargoCacheInspection do
             end
           }
         />
-        <.alert
-          status="information"
-          type="secondary"
-          size="large"
-          title={dgettext("dashboard_builds", "Compiler work is not wall-clock time saved")}
-          description={
-            dgettext(
-              "dashboard_builds",
-              "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap.",
-              duration: CargoCache.duration(@metrics.estimated_compiler_duration_avoided_ns)
-            )
-          }
-        />
       </.card_section>
     </.card>
     """
