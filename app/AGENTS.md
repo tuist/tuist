@@ -14,7 +14,7 @@ This node covers the Tuist companion app under `app/`. The app provides a native
 - `Sources/TuistNoora` - iOS design system components
 - `Sources/TuistErrorHandling` - Shared error handling
 - `Sources/TuistAppStorage` - Shared storage utilities
-- `Sources/TuistAuthentication` - Shared authentication and persisted server selection
+- `Sources/TuistAuthentication` - Shared authentication, system web-authentication session lifetime, and persisted server selection; see `Sources/TuistAuthentication/AGENTS.md`.
 
 ## Building and Testing
 - Generate the project: `tuist generate --no-open` (from `app/` directory)

@@ -81,8 +81,14 @@ public struct DesktopLoginView: View {
             }
             .disabled(authenticationService.isSigningIn)
             if authenticationService.isSigningIn {
-                ProgressView("Signing in…")
-                    .controlSize(.small)
+                HStack {
+                    ProgressView("Signing in…")
+                    if authenticationService.isAuthenticatingInBrowser {
+                        Button("Cancel") { authenticationService.cancelBrowserSignIn() }
+                            .keyboardShortcut(.cancelAction)
+                    }
+                }
+                .controlSize(.small)
             }
         }
         .buttonStyle(.bordered)
