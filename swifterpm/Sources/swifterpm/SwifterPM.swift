@@ -146,7 +146,11 @@ public struct SwifterPM: Sendable {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
-                    try await runResolution(request: request, preferResolvedFile: true)
+                    try await ManifestCache.withContext(
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                    ) {
+                        try await runResolution(request: request, preferResolvedFile: true)
+                    }
                 }
             }
         }
@@ -162,7 +166,11 @@ public struct SwifterPM: Sendable {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
-                    try await runResolution(request: request, preferResolvedFile: false)
+                    try await ManifestCache.withContext(
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                    ) {
+                        try await runResolution(request: request, preferResolvedFile: false)
+                    }
                 }
             }
         }
@@ -173,7 +181,11 @@ public struct SwifterPM: Sendable {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
-                try await runRestore(request)
+                try await ManifestCache.withContext(
+                    packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                ) {
+                    try await runRestore(request)
+                }
             }
         }
     }
@@ -220,7 +232,8 @@ public struct SwifterPM: Sendable {
             scratchDir: scratch,
             mirrors: mirrors,
             resolved: resolved,
-            disableSandbox: request.disableSandbox
+            disableSandbox: request.disableSandbox,
+            sourceCacheDirectory: cache.root
         )
     }
 
@@ -359,7 +372,8 @@ public struct SwifterPM: Sendable {
                 scratchDir: scratch,
                 mirrors: mirrors,
                 resolved: resolved,
-                disableSandbox: request.disableSandbox
+                disableSandbox: request.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
         }
 
@@ -378,7 +392,6 @@ public struct SwifterPM: Sendable {
                 scmToRegistryTransformation: request.scmToRegistryTransformation
             )
         }
-
         return SwifterPMResolutionResult(resolved)
     }
 
