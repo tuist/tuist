@@ -29,6 +29,39 @@ defmodule Tuist.ClickHouse.ParityTest do
       assert migrations == %{missing_on_destination: [20_260_910_150_000], only_on_destination: [20_260_912_090_000]}
     end
 
+    test "reports a table only the destination holds as drift instead of comparing it" do
+      test = self()
+
+      stub_catalogue = fn repo, tables ->
+        stub(repo, :query!, fn sql, _params, _opts ->
+          cond do
+            sql =~ "SELECT table, name, type FROM system.columns" ->
+              %{rows: Enum.map(tables, &[&1, "inserted_at", "DateTime64(6)"])}
+
+            sql =~ "test_run_enumerated_tests" ->
+              send(test, {:compared, sql})
+              %{rows: []}
+
+            true ->
+              %{rows: []}
+          end
+        end)
+      end
+
+      stub_catalogue.(Tuist.IngestRepo, ["build_runs"])
+      stub_catalogue.(Tuist.ClickHouseRepo, ["build_runs", "test_run_enumerated_tests"])
+
+      assert {:ok, %{compared: 0, differing: [], schema: %{missing_on_source: ["test_run_enumerated_tests"]}}} =
+               Parity.compare(
+                 source_repo: Tuist.IngestRepo,
+                 target_repo: Tuist.ClickHouseRepo,
+                 tables: ["test_run_enumerated_tests"],
+                 derived: []
+               )
+
+      refute_received {:compared, _}
+    end
+
     test "reports no ledger drift when both servers hold the same versions" do
       stub_ledger(Tuist.IngestRepo, [20_260_901_000_000, 20_260_910_150_000])
       stub_ledger(Tuist.ClickHouseRepo, [20_260_910_150_000, 20_260_901_000_000])

@@ -48,6 +48,33 @@ defmodule Tuist.ReleaseTest do
     end
   end
 
+  describe "check_clickhouse_parity/0 with a table only the destination holds" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    test "raises on schema drift even when every compared table agrees" do
+      # A migration dropped it on the source, and the additive reconcile never
+      # drops it on the destination.
+      stub(Parity, :compare, fn ->
+        {:ok,
+         %{
+           compared: 2,
+           skipped: [],
+           matching: ["build_runs", "test_case_runs"],
+           differing: [],
+           schema: %{missing_on_destination: [], missing_on_source: ["test_run_enumerated_tests"], differing_columns: []},
+           migrations: %{missing_on_destination: [], only_on_destination: []},
+           derived: %{compared: 0, matching: [], differing: []}
+         }}
+      end)
+
+      assert_raise RuntimeError, ~r/schema drift.*test_run_enumerated_tests/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
+
   describe "clickhouse_repair_window/3" do
     test "parses the instants as UTC, to the second" do
       assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:05:00.500Z") ==
