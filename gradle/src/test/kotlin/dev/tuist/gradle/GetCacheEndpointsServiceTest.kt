@@ -75,6 +75,7 @@ class GetCacheEndpointsServiceTest {
 
     private fun assertBoundedByTimeout(tokenProvider: TokenProvider) {
         val service = GetCacheEndpointsService(httpClients)
+        warmUp(service)
         assertTimeoutPreemptively(Duration.ofMillis(REFRESH_DELAY_MS * 2)) {
             val start = System.nanoTime()
             assertFailsWith<InterruptedIOException> {
@@ -83,6 +84,21 @@ class GetCacheEndpointsServiceTest {
             val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
             assertTrue(elapsedMs < TIMEOUT_MS + SLACK_MS, "The call took ${elapsedMs}ms with a ${TIMEOUT_MS}ms timeout")
         }
+    }
+
+    /**
+     * Loads the HTTP client classes with a successful call, so the measured call does not include
+     * the one-time class loading that runs before its timeout starts.
+     */
+    private fun warmUp(service: GetCacheEndpointsService) {
+        val credentialStore = CredentialStore(File(tempDir, "warm-up-credentials"))
+        credentialStore.write(serverURL, Credentials(jwt(expiresInSeconds = 3600)))
+        service.getCacheEndpoints(
+            serverURL,
+            "acme",
+            tokenProvider(credentialStore, File(tempDir, "warm-up.lock")),
+            timeoutMs = REFRESH_DELAY_MS
+        )
     }
 
     private fun tokenProvider(credentialStore: CredentialStore, lockFile: File?) = TokenProvider(
