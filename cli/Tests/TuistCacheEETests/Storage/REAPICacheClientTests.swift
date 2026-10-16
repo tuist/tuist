@@ -249,7 +249,8 @@ struct REAPICacheClientTests {
             #expect(await state.updateCalls > 1)
             #expect(await state.updateCalls < 20)
             #expect(await state.largestBatch <= 32 * 1024)
-            let corrupt = try #require(inputs.keys.first)
+            // Replacing an all-zero blob with zeros is not corruption.
+            let corrupt = try REAPI.digest(file: directory.appending(component: "small-0").url)
             await state.corrupt(corrupt)
             var destinations = Dictionary(uniqueKeysWithValues: inputs.keys.map {
                 ($0, directory.appending(component: "download-" + $0.hash).url)
@@ -1839,7 +1840,12 @@ private actor WireCache {
 
     func put(_ data: Data, digest: REAPI.Digest) { blobs[digest] = data; writes += 1 }
     func put(_ result: REAPI.ActionResult, digest: REAPI.Digest) { actions[digest] = result }
-    func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data(repeating: 0, count: Int(digest.sizeBytes)) }
+    func corrupt(_ digest: REAPI.Digest) {
+        guard var data = blobs[digest], !data.isEmpty else { return }
+        data[data.startIndex] ^= 0xFF
+        blobs[digest] = data
+    }
+
     func drop(_ digests: [REAPI.Digest]) { for digest in digests {
         blobs[digest] = nil
     } }
