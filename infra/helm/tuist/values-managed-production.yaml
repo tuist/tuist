@@ -1066,6 +1066,24 @@ vultrFleets:
     sshExternalSecret:
       enabled: true
       item: VULTR_FLEET_SSH
+  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
+  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
+  # kura-us-central pool, so the region schedules across both fleets; adoption
+  # matches the plan, so neither fleet claims the other's boxes. The
+  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
+  us-central-8c:
+    enabled: true
+    replicas: 2
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-8c-64gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
   # South America West (Santiago), on Vultr because no other provider in the
   # fleet sells bare metal in South America.
   #
