@@ -65,8 +65,6 @@ final class PreviewsViewModel: Sendable {
     private(set) var isLoadingMore = false
     private(set) var isLoadingPreviews = false
     private(set) var hasMorePreviews = true
-    private(set) var isRefreshingPreviews = false
-    private(set) var isRefreshingProjects = false
     private(set) var isInitialLoading = true
 
     init(
@@ -165,55 +163,12 @@ final class PreviewsViewModel: Sendable {
     }
 
     func refreshPreviews() async throws {
-        isRefreshingPreviews = true
-        let refreshStartTime = Date()
-
-        defer {
-            // If the refresh is too fast, it can make the UI feel glitchy, so we're ensuring the loading state preserved for at
-            // least 1 second
-            Task {
-                let elapsed = Date().timeIntervalSince(refreshStartTime)
-                let remainingDelay: TimeInterval = max(0, 1.0 - elapsed)
-                if remainingDelay > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(remainingDelay * 1_000_000_000))
-                }
-                isRefreshingPreviews = false
-            }
-        }
-
         guard let selectedProject else { return }
-        do {
-            try await loadPreviews(for: selectedProject, reloadTracks: true)
-        } catch {
-            isRefreshingPreviews = false
-            throw error
-        }
+        try await loadPreviews(for: selectedProject, reloadTracks: true)
     }
 
     func refreshProjects() async throws {
-        isRefreshingProjects = true
-        let refreshStartTime = Date()
-
-        defer {
-            // If the refresh is too fast, it can make the UI feel glitchy, so we're ensuring the loading state preserved for at
-            // least 1 second
-            Task {
-                let elapsed = Date().timeIntervalSince(refreshStartTime)
-                let remainingDelay: TimeInterval = max(0, 1.0 - elapsed)
-                if remainingDelay > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(remainingDelay * 1_000_000_000))
-                }
-                isRefreshingProjects = false
-            }
-        }
-
-        do {
-            try await loadProjects()
-            isRefreshingProjects = false
-        } catch {
-            isRefreshingProjects = false
-            throw error
-        }
+        try await loadProjects()
     }
 
     private func loadProjects() async throws {

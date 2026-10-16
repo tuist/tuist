@@ -99,13 +99,8 @@ public struct PreviewsView: View {
                         if viewModel.projects.isEmpty {
                             PreviewsEmptyStateView(
                                 title: "No Tuist projects found",
-                                buttonTitle: "Refresh",
-                                isLoading: viewModel.isRefreshingProjects
-                            ) {
-                                errorHandling.fireAndHandleError {
-                                    try await viewModel.refreshProjects()
-                                }
-                            }
+                                subtitle: "Pull down to refresh your projects."
+                            )
                         } else if viewModel.isLoadingPreviews, viewModel.previews.isEmpty {
                             HStack {
                                 Spacer()
@@ -116,14 +111,11 @@ public struct PreviewsView: View {
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                         } else if viewModel.previews.isEmpty {
                             PreviewsEmptyStateView(
-                                title: "No previews found",
-                                buttonTitle: "Refresh",
-                                isLoading: viewModel.isRefreshingPreviews
-                            ) {
-                                errorHandling.fireAndHandleError {
-                                    try await viewModel.refreshPreviews()
-                                }
-                            }
+                                title: hasActiveFilters ? "No previews match your filters" : "No previews found",
+                                subtitle: hasActiveFilters
+                                    ? "Try a different search or select another track."
+                                    : "Pull down to refresh your previews."
+                            )
                         } else {
                             ForEach(viewModel.previews) { preview in
                                 PreviewRowView(
@@ -165,8 +157,14 @@ public struct PreviewsView: View {
                     }
                     .listStyle(.plain)
                     .refreshable {
-                        errorHandling.fireAndHandleError {
-                            try await viewModel.refreshPreviews()
+                        do {
+                            if viewModel.projects.isEmpty {
+                                try await viewModel.refreshProjects()
+                            } else {
+                                try await viewModel.refreshPreviews()
+                            }
+                        } catch {
+                            errorHandling.handle(error: error)
                         }
                     }
                 }
@@ -212,6 +210,10 @@ public struct PreviewsView: View {
                 handleOpenURL(url)
             }
         }
+    }
+
+    private var hasActiveFilters: Bool {
+        viewModel.selectedTrack != nil || !viewModel.searchQuery.isEmpty
     }
 
     private func trackChip(_ title: String, track: String?, count: Int?) -> some View {

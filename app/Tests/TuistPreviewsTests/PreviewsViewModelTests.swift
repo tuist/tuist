@@ -36,6 +36,27 @@ import TuistSimulator
         )
     }
 
+    @Test func refreshing_an_empty_project_list_can_discover_projects_and_previews() async throws {
+        let subject = subject()
+        given(appStorage).get(.any as Parameter<SelectedProjectFullHandleKey.Type>).willReturn(nil)
+        given(projectsService).listProjects(serverURL: .any).willReturn([])
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(id: "new-preview")]))
+        try await subject.onAppear()
+        #expect(subject.projects.isEmpty)
+        projectsService.reset([.given])
+        given(projectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "team/app")])
+
+        try await subject.refreshProjects()
+
+        #expect(subject.selectedProject?.fullName == "team/app")
+        #expect(subject.previews.map(\.id) == ["new-preview"])
+    }
+
     @Test func track_filter_is_applied_to_every_page_and_reset_for_another_project() async throws {
         let subject = subject()
         given(previewsService)
@@ -300,6 +321,11 @@ import TuistSimulator
         #expect(subject.searchQuery == "BLUE")
         #expect(subject.totalPreviewCount == 6)
         #expect(subject.previewCount(for: "QA") == 4)
+        try await subject.refreshPreviews()
+        #expect(subject.previews.map(\.id) == ["page-1"])
+        #expect(subject.searchQuery == "BLUE")
+        #expect(subject.selectedTrack == "QA")
+        #expect(subject.totalPreviewCount == 6)
         try await subject.selectTrack("beta")
         #expect(subject.previews.map(\.id) == ["page-1"])
         #expect(subject.previews.first?.track == "beta")
