@@ -848,7 +848,11 @@ it for a mini (`HostDrawing`, below), and ignores one older than three resyncs
 (30 minutes). It keeps using that reading when its own read of the outlet's
 state fails (`PowerReachable=False`): on 2026-10-15 five hosts' reads failed
 for three minutes while the PDU's stayed current. Nothing names the outlets of the Linux nodes and switches yet,
-so their series are told apart by outlet number alone.
+so their series are told apart by outlet number alone. The per-site sum of
+`capt_rackpdu_outlet_active_power_watts` is what "Rack power draw near its
+contracted limit" in `infra/helm/k8s-monitoring/alerts.md` compares with the
+rack's contracted power. Loads on a transfer switch's own outlets are not in
+it.
 
 **The administrator login for people** is `admin` with the password
 `mise run rack:card-password <name>` prints ("Rack card passwords" below), or
