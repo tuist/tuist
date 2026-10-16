@@ -6,11 +6,37 @@ defmodule TuistEx.Cache.ReapiTest.ActionServer do
   def get_action_result(request, stream) do
     pid = request.instance_name |> to_charlist() |> :erlang.list_to_pid()
     capture(pid, stream)
+    hints = Map.get(request, :inline_output_files, [])
+    Agent.update(pid, &Map.update!(&1, :inline_requests, fn requests -> [hints | requests] end))
     if Agent.get(pid, &Map.get(&1, :stall, false)), do: Process.sleep(:infinity)
 
     case Agent.get(pid, &Map.get(&1.actions, request.action_digest.hash)) do
-      nil -> raise GRPC.RPCError, status: GRPC.Status.not_found(), message: "missing"
-      result -> result
+      nil ->
+        raise GRPC.RPCError, status: GRPC.Status.not_found(), message: "missing"
+
+      result ->
+        limit =
+          Enum.find_value(hints, fn hint ->
+            case String.split(hint, "tuist-inline-max-bytes:") do
+              ["", value] -> String.to_integer(value)
+              _ -> nil
+            end
+          end)
+
+        if Agent.get(pid, &Map.get(&1, :inline, false)) and "*" in hints and is_integer(limit) do
+          files =
+            Enum.map(result.output_files, fn file ->
+              if file.digest.size_bytes <= limit do
+                %{file | contents: Agent.get(pid, &Map.fetch!(&1.blobs, file.digest.hash))}
+              else
+                file
+              end
+            end)
+
+          %{result | output_files: files}
+        else
+          result
+        end
     end
   end
 
@@ -176,6 +202,7 @@ defmodule TuistEx.Cache.ReapiTest do
           blobs: %{},
           metadata: [],
           transfers: [],
+          inline_requests: [],
           compressors: if(context[:zstd], do: [1], else: []),
           capabilities_unimplemented: context[:capabilities_unimplemented] || false
         }
@@ -198,6 +225,81 @@ defmodule TuistEx.Cache.ReapiTest do
     assert Process.info(self(), :links) == links
     on_exit(fn -> Reapi.close(session) end)
     %{session: session, store: store}
+  end
+
+  test "requests bounded inlining and verifies small bundles without a ByteStream read", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:inline)
+    binary = String.duplicate("inline bundle", 2_000)
+    assert {:ok, write} = Reapi.put(session, key, :decimal, binary)
+    Agent.update(store, &Map.put(&1, :inline, true))
+
+    assert {:ok, ^binary, metrics} = Reapi.get(session, key, :decimal)
+    assert metrics.output_digest == write.output_digest
+    assert metrics.read_bytes == byte_size(binary)
+    assert metrics.read_duration_us > 0
+    assert metrics.read_source == "remote"
+    assert [["*", "tuist-inline-max-bytes:131072"]] = Agent.get(store, & &1.inline_requests)
+    assert [_write] = Agent.get(store, & &1.transfers)
+  end
+
+  test "a server ignoring inline hints retains verified ByteStream restoration", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:legacy_inline)
+    binary = "legacy bundle"
+    assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+    assert {:ok, ^binary, _} = Reapi.get(session, key, :decimal)
+    assert [["*", "tuist-inline-max-bytes:131072"]] = Agent.get(store, & &1.inline_requests)
+    assert [_read, _write] = Agent.get(store, & &1.transfers)
+  end
+
+  @tag zstd: true, skip: not Code.ensure_loaded?(:zstd)
+  test "bundles above the inline limit retain compressed ByteStream reads", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:large_inline)
+    binary = String.duplicate("x", 131_073)
+    assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+    Agent.update(store, &Map.put(&1, :inline, true))
+
+    assert {:ok, ^binary, metrics} = Reapi.get(session, key, :decimal)
+    assert metrics.read_bytes == byte_size(binary)
+    assert [{resource, size}, _write] = Agent.get(store, & &1.transfers)
+    assert resource =~ "/compressed-blobs/zstd/"
+    assert size < byte_size(binary)
+  end
+
+  for corruption <- [:truncated, :oversized, :digest_mismatch] do
+    test "rejects #{corruption} inlined bundles instead of hiding them with a second fetch", %{
+      session: session,
+      store: store
+    } do
+      key = Key.build({:inline, unquote(corruption)})
+      binary = "verified bundle"
+      assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+
+      corrupt =
+        case unquote(corruption) do
+          :truncated -> binary_part(binary, 0, byte_size(binary) - 1)
+          :oversized -> binary <> "x"
+          :digest_mismatch -> String.duplicate("x", byte_size(binary))
+        end
+
+      Agent.update(store, fn state ->
+        update_in(state, [:actions, key], fn result ->
+          %{result | output_files: Enum.map(result.output_files, &%{&1 | contents: corrupt})}
+        end)
+      end)
+
+      assert :miss = Reapi.get(session, key, :decimal)
+      assert [_write] = Agent.get(store, & &1.transfers)
+      refute Process.alive?(session.channel.adapter_payload.conn_pid)
+    end
   end
 
   test "disables Nagle buffering for separately sent HTTP/2 request frames", %{session: session} do
