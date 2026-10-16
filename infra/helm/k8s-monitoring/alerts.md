@@ -3343,6 +3343,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `dg1ew04a5qfwge`
 - Summary: `xcresult processor scrape telemetry is missing in
   {{ $labels.cluster }}`
 
