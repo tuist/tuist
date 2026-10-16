@@ -220,6 +220,11 @@ are rejected.
 tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
+The script hides the host's zlib and libxml2 `.pc` files: SwiftPM's pkg-config
+parser keeps the host's `/usr/lib/<host-triple>` from them, and a cross link
+then fails on the host's archives. Do not point SwiftPM at the SDK's own `.pc`
+files instead; SwiftPM rewrites any `-I`/`-L` path containing `.sdk`, which
+corrupts every path inside the static SDK's `musl-*.sdk/<arch>` root.
 Keep one matrix job per architecture: per-architecture compile time is
 dominated by single-threaded release modules, so a shared job serializes them.
 `.build` is a cache volume keyed by architecture and Swift version, and the
