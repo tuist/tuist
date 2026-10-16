@@ -626,12 +626,12 @@ layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
 distinct blobs; a release shares about 57% of its blobs with the one before,
 so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
 928 GB, also home to the Kura region, which takes precedence on it. So
-production's cache is 64 GiB, one image: 27.0, the version most rack jobs ran
-on in the week to 2026-10-16. The other versions come from ghcr.io, and so
-does 27.0 for about a day after a release, until the old tag ages out
-(`keepPulledWithin`) and frees the room. Prewarming 26.6 as well needs about
-160 GiB through a release change, and every image the rack runs about
-578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
+which moves to the next minor when one ships. The other versions come from
+ghcr.io, and so does 27.1 for about a day after a new image, until the old
+tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
+version beside it needs about 160 GiB through a release change, and every
+image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
 gives the site more disk.
 
 The claim is named after its size, because a claim cannot shrink: a new

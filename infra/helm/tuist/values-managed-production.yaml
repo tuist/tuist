@@ -1356,13 +1356,14 @@ rackFleet:
   # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
   #
   # Kura takes precedence on store-a's disk for now: 64 GiB holds one runner
-  # image (55 to 62 GB compressed), 27.0, which carried most rack jobs in the
-  # week to 2026-10-16 (910 against 26.6's 527), and leaves the ber1-runners
-  # Kura region room for its accounts' claims to grow. Other Xcode versions,
-  # and 27.0 itself for about a day after a release while the old tag ages
-  # out, are pulled from ghcr.io. Raise it again, and prewarm 26.6 beside
-  # 27.0 (about 160 GiB through a release change), once the site's storage
-  # nodes have more disk: a drive in store-a's spare M.2 slots, or store-b.
+  # image (55 to 62 GB compressed), the latest Xcode minor, 27.1, and leaves
+  # the ber1-runners Kura region room for its accounts' claims to grow. Other
+  # Xcode versions, and 27.1 itself for about a day after a new image while
+  # the old tag ages out, are pulled from ghcr.io. Move it to the next minor
+  # when one ships. Raise it again, and prewarm the busiest older versions
+  # beside it (about 160 GiB for two through a release change), once the
+  # site's storage nodes have more disk: a drive in store-a's spare M.2
+  # slots, or store-b.
   imageCache:
     enabled: true
     routeHosts: [ber1-runner-b01]
@@ -1370,7 +1371,7 @@ rackFleet:
       - name: ber1-store-a
         address: 10.10.0.11
     sizeGi: 64
-    prewarm: ["27.0"]
+    prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the
