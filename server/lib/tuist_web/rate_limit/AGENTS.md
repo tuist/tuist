@@ -14,9 +14,9 @@ This area owns request rate limiting helpers.
 
 ## Other responsibilities
 
-- Fixed-window limits and token buckets retain their healthy-store semantics.
+- Fixed-window limits and token buckets retain their healthy-store semantics. Each persistent limiter uses a four-client `PartitionSupervisor`, selected directly by caller PID through `RedisPool`; there is no checkout mailbox, decision cache, quota reservation or failover retry. Every request still executes Hammer's original algorithm against the same shared namespace, with the original 500 ms timeout. Fixed-window get/inc/set and token-bucket get retain their existing contracts so mixed versions share counters.
 - Installations without Valkey retain the existing approximate, eventually consistent in-memory admission. PubSub does not make that a strict shared budget.
-- Redis clients start before the endpoint, Oban and gRPC ingress, and stop after them. This is lifecycle ordering, not a backend-readiness gate.
+- Redis clients start before the endpoint, Oban and gRPC ingress, and stop after them. This is lifecycle ordering, not a backend-readiness gate. Both limiter pools together open eight backend connections per process instead of two; the unrelated general Redis client is unchanged. Missing pools and client-generation races must follow the existing unavailable policy, never become uncoordinated admissions.
 - Compute keys using trusted client addresses and authenticated subjects. Account subjects use `AuthenticatedAccount.account.id`, not a nonexistent wrapper `id`.
 
 ## Boundaries
