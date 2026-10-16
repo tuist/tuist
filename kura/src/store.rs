@@ -3705,6 +3705,43 @@ impl Store {
         .await
     }
 
+    async fn append_backfill_reader_to_segment<R>(
+        &self,
+        source: &mut R,
+        size: u64,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String>
+    where
+        R: AsyncRead + Unpin,
+    {
+        // Complete backfill spool frames retain the small-file path's bounded
+        // preload and shared positioned-write barrier. Admission is try-only:
+        // never wait while the caller owns its spool reservation.
+        if size <= SEGMENT_COPY_BUFFER_BYTES as u64
+            && let Ok(_reservation) = self.memory.try_reserve_foreground_memory(size)
+            && let Some(bytes) = try_allocate_exact_vec(size as usize)
+        {
+            let bytes = read_exact_to_vec(source, bytes, size as usize)
+                .await
+                .map_err(|error| format!("failed to preload backfill reader: {error}"))?;
+            return self
+                .append_preloaded_to_segment(
+                    &bytes,
+                    None,
+                    FileCachePolicy::Bounded,
+                    ApplyDurability::DeferredBatch,
+                )
+                .await;
+        }
+        self.append_reader_to_segment(
+            source,
+            size,
+            None,
+            FileCachePolicy::Bounded,
+            ApplyDurability::DeferredBatch,
+        )
+        .await
+    }
+
     async fn append_reader_to_segment_inner<R>(
         &self,
         source: &mut R,
@@ -6100,14 +6137,8 @@ impl Store {
                     .await?
                 }
                 BackfillSegmentSource::Reader { mut reader, .. } => {
-                    self.append_reader_to_segment(
-                        &mut reader,
-                        size,
-                        None,
-                        file_cache_policy,
-                        ApplyDurability::DeferredBatch,
-                    )
-                    .await?
+                    self.append_backfill_reader_to_segment(&mut reader, size)
+                        .await?
                 }
             }
         };
@@ -13073,16 +13104,14 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "requires /dev/shm on a distinct filesystem; run explicitly on Linux"]
     async fn complete_file_cross_filesystem_fallback_preserves_all_bytes() {
         use std::os::unix::fs::MetadataExt;
 
-        let Ok(source_directory) = tempfile::Builder::new()
+        let source_directory = tempfile::Builder::new()
             .prefix("kura-copy-range-")
             .tempdir_in("/dev/shm")
-        else {
-            eprintln!("no separate tmpfs available for cross-filesystem qualification");
-            return;
-        };
+            .expect("explicit cross-filesystem test requires /dev/shm");
         let (_temp_dir, config, store) = temp_store_with(|config| {
             config.tmp_dir = source_directory.path().to_path_buf();
         });
@@ -13091,16 +13120,15 @@ mod tests {
             .map(|i| (i % 251) as u8)
             .collect::<Vec<_>>();
         std::fs::write(&source_path, &payload).expect("source bytes");
-        if std::fs::metadata(&source_path)
-            .expect("source metadata")
-            .dev()
-            == std::fs::metadata(&config.data_dir)
+        assert_ne!(
+            std::fs::metadata(&source_path)
+                .expect("source metadata")
+                .dev(),
+            std::fs::metadata(&config.data_dir)
                 .expect("destination metadata")
-                .dev()
-        {
-            eprintln!("source and destination are not distinct filesystems");
-            return;
-        }
+                .dev(),
+            "explicit cross-filesystem test requires distinct devices"
+        );
         store
             .apply_replicated_artifact_from_path(
                 ArtifactProducer::Gradle,
@@ -13118,7 +13146,6 @@ mod tests {
             .expect("manifest lookup")
             .expect("durable manifest");
         assert_eq!(read_manifest_bytes(&store, &manifest).await, payload);
-        println!("cross_filesystem_fallback_verified_bytes={}", payload.len());
     }
 
     #[cfg(target_os = "linux")]
@@ -15466,6 +15493,56 @@ mod tests {
             "kura_file_operation_duration_seconds_count",
             "operation=\"open_persistent_append_file\"",
         )
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn small_backfill_reader_keeps_the_shared_positioned_write_path() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .append_preloaded_to_segment(
+                b"warm",
+                None,
+                FileCachePolicy::Bounded,
+                ApplyDurability::Sync,
+            )
+            .await
+            .expect("initialize the active segment writer");
+        let bytes = vec![0x73; 128 * 1024];
+        let mut source = bytes.as_slice();
+        let mut batch = BackfillApplyBatch::new();
+        let shared_barrier = store.segment_write_barrier.read().await;
+        let staged = tokio::time::timeout(
+            Duration::from_secs(5),
+            store.stage_backfill_segmented_reader(
+                &mut batch,
+                ArtifactProducer::Gradle,
+                "ios",
+                "shared-reader",
+                "application/octet-stream",
+                &mut source,
+                bytes.len() as u64,
+                100,
+                None,
+                None,
+            ),
+        )
+        .await
+        .expect("small backfill must not acquire the exclusive segment barrier")
+        .expect("stage the small reader");
+        assert_eq!(staged, BackfillStageOutcome::Staged);
+        assert!(source.is_empty());
+        assert_eq!(store.memory.transient_reserved_bytes(), 0);
+        drop(shared_barrier);
+        store
+            .commit_backfill_apply_batch(batch, |_| {})
+            .await
+            .expect("commit staged bytes before metadata");
+        let manifest = store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "shared-reader")
+            .await
+            .expect("fetch the committed record")
+            .expect("record exists");
+        assert_eq!(read_manifest_bytes(&store, &manifest).await, bytes);
     }
 
     #[tokio::test(flavor = "multi_thread")]

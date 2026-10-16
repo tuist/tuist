@@ -70,16 +70,12 @@ struct BackfillSpoolReader {
     position: u64,
 }
 
-struct CompleteSpoolBody {
-    len: u64,
-}
-
-fn complete_spool_body(
+fn validate_spool_body(
     position: u64,
     buffered: usize,
     len: u64,
     spool_len: u64,
-) -> Result<CompleteSpoolBody, PassAbort> {
+) -> Result<(), PassAbort> {
     let start = position
         .checked_sub(buffered as u64)
         .ok_or_else(|| PassAbort::Hard("backfill spool cursor precedes its buffer".to_owned()))?;
@@ -91,7 +87,7 @@ fn complete_spool_body(
             "backfill body extends beyond its complete spool".to_owned(),
         ));
     }
-    Ok(CompleteSpoolBody { len })
+    Ok(())
 }
 
 impl AsyncRead for BackfillSpoolReader {
@@ -1120,7 +1116,7 @@ async fn apply_spooled_batch(
                 prelude.record_id, item.key.record_id
             )));
         }
-        let complete_body = complete_spool_body(
+        validate_spool_body(
             reader.get_ref().position,
             reader.buffer().len(),
             prelude.body_len,
@@ -1148,7 +1144,7 @@ async fn apply_spooled_batch(
                     &prelude,
                     &mut reader,
                     Some(&mut apply_batch),
-                    Some(complete_body),
+                    true,
                 )
                 .await?
                 {
@@ -1246,7 +1242,7 @@ async fn apply_present_frame<R>(
     prelude: &BackfillBodyFramePrelude,
     reader: &mut R,
     mut deferred: Option<&mut BackfillApplyBatch>,
-    complete_body: Option<CompleteSpoolBody>,
+    from_complete_spool: bool,
 ) -> Result<PresentApply, PassAbort>
 where
     R: AsyncBufRead + Unpin + Send,
@@ -1399,47 +1395,43 @@ where
             }
         }
         BackfillRecordKind::SegmentArtifact => {
-            if let Some(complete) = complete_body {
-                if complete.len != prelude.body_len {
-                    return Err(PassAbort::Hard("backfill body extent changed".to_owned()));
-                }
-                if let Some(batch) = deferred.as_deref_mut() {
-                    let mut source = reader.take(prelude.body_len);
-                    let staged = state
-                        .store
-                        .stage_backfill_segmented_reader(
-                            batch,
-                            producer,
-                            &meta.namespace_id,
-                            &meta.key,
-                            &meta.content_type,
-                            &mut source,
-                            prelude.body_len,
-                            prelude.version_ms,
-                            meta.origin_region.as_deref(),
-                            meta.content_sha256.as_deref(),
-                        )
-                        .await
-                        .map_err(PassAbort::Hard)?;
-                    // A converged pre-check does not read input. Still consume its
-                    // exact frame before parsing another tuple; never ignore a short body.
-                    while source.limit() > 0 {
-                        let bytes = source.fill_buf().await.map_err(|error| {
-                            PassAbort::Hard(format!("failed to drain backfill body: {error}"))
-                        })?;
-                        if bytes.is_empty() {
-                            return Err(PassAbort::Hard(
-                                "short converged backfill body".to_owned(),
-                            ));
-                        }
-                        let consumed = bytes.len();
-                        source.consume(consumed);
+            // Only the batch caller has validated this frame against its
+            // complete private spool, including the BufReader's prefetched bytes.
+            // The individual network response retains temporary staging below.
+            if from_complete_spool && let Some(batch) = deferred.as_deref_mut() {
+                let mut source = reader.take(prelude.body_len);
+                let staged = state
+                    .store
+                    .stage_backfill_segmented_reader(
+                        batch,
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        &mut source,
+                        prelude.body_len,
+                        prelude.version_ms,
+                        meta.origin_region.as_deref(),
+                        meta.content_sha256.as_deref(),
+                    )
+                    .await
+                    .map_err(PassAbort::Hard)?;
+                // A converged pre-check does not read input. Still consume its
+                // exact frame before parsing another tuple; never ignore a short body.
+                while source.limit() > 0 {
+                    let bytes = source.fill_buf().await.map_err(|error| {
+                        PassAbort::Hard(format!("failed to drain backfill body: {error}"))
+                    })?;
+                    if bytes.is_empty() {
+                        return Err(PassAbort::Hard("short converged backfill body".to_owned()));
                     }
-                    return Ok(match staged {
-                        BackfillStageOutcome::Staged => PresentApply::Staged,
-                        BackfillStageOutcome::Converged => PresentApply::Applied,
-                    });
+                    let consumed = bytes.len();
+                    source.consume(consumed);
                 }
+                return Ok(match staged {
+                    BackfillStageOutcome::Staged => PresentApply::Staged,
+                    BackfillStageOutcome::Converged => PresentApply::Applied,
+                });
             }
             let reservation = state
                 .tmp_staging_budget
@@ -1672,7 +1664,7 @@ async fn apply_individual_response(
             "backfill artifact response bounced a fetch-individually frame".to_owned(),
         )),
         BackfillBodyDisposition::Present => {
-            match apply_present_frame(context, &prelude, &mut reader, None, None).await? {
+            match apply_present_frame(context, &prelude, &mut reader, None, false).await? {
                 PresentApply::Applied => {
                     context.guard.resolve_applied(key);
                     context
@@ -2084,10 +2076,10 @@ mod tests {
 
     #[test]
     fn complete_spool_extent_accounts_for_prefetch_and_rejects_invalid_ranges() {
-        assert_eq!(complete_spool_body(16, 13, 29, 32).unwrap().len, 29);
-        assert!(complete_spool_body(16, 13, 30, 32).is_err());
-        assert!(complete_spool_body(0, 1, 1, 32).is_err());
-        assert!(complete_spool_body(u64::MAX, 0, 1, u64::MAX).is_err());
+        assert!(validate_spool_body(16, 13, 29, 32).is_ok());
+        assert!(validate_spool_body(16, 13, 30, 32).is_err());
+        assert!(validate_spool_body(0, 1, 1, 32).is_err());
+        assert!(validate_spool_body(u64::MAX, 0, 1, u64::MAX).is_err());
     }
 
     #[tokio::test]

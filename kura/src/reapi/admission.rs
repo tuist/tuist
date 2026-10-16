@@ -251,6 +251,7 @@ impl GrpcWriteAdmission {
                 self.metrics.record_decode_rejected();
                 write_admission_rejected(
                     "server is limiting concurrent remote-execution writes; retry the write",
+                    crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
                 )
             })
     }
@@ -753,6 +754,54 @@ mod tests {
         drop(admission);
         drop(held);
         assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[test]
+    fn rejected_reply_reservation_keeps_owned_memory_and_encodes_idle_retry() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mib = 1024 * 1024;
+        let memory = MemoryController::with_anon_budget(
+            metrics.clone(),
+            1024 * mib,
+            256 * mib,
+            384 * mib,
+            Some(32 * mib),
+        );
+        memory.observe(mib);
+        let held = memory.try_reserve_foreground_memory(31 * mib).unwrap();
+        let admission =
+            GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics()).unwrap();
+        admission.try_grow_decode(mib / 2, 0).unwrap();
+        admission.try_grow_decode(2 * mib, 0).unwrap();
+        let floor_before = memory.transient_reserved_bytes();
+        let elastic_before = memory.elastic_transient_reserved_bytes();
+        assert_eq!(floor_before, 32 * mib);
+        assert_eq!(elastic_before, 3 * mib);
+
+        let error = admission
+            .try_reserve_reply(2 * mib)
+            .err()
+            .expect("a reply cannot borrow elastic headroom");
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let status = rpc::Status::decode(error.details()).unwrap();
+        assert_eq!(status.details.len(), 1);
+        assert_eq!(
+            status.details[0].type_url,
+            "type.googleapis.com/google.rpc.RetryInfo"
+        );
+        let retry = RetryInfo::decode(status.details[0].value.as_slice()).unwrap();
+        let delay = retry.retry_delay.unwrap();
+        assert!(
+            (1..=crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS as i64)
+                .contains(&delay.seconds)
+        );
+        assert_eq!(delay.nanos, 0);
+        assert_eq!(memory.transient_reserved_bytes(), floor_before);
+        assert_eq!(memory.elastic_transient_reserved_bytes(), elastic_before);
+        drop(admission);
+        drop(held);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+        assert_eq!(memory.elastic_transient_reserved_bytes(), 0);
     }
 
     #[test]
