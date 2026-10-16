@@ -200,7 +200,11 @@
       </.card_section>
     </.card>
 
-    <.job_volumes volumes={@volumes} account_name={@selected_account.name} />
+    <.job_volumes
+      volumes={@volumes}
+      account_name={@selected_account.name}
+      failed={@job.conclusion == "failure"}
+    />
 
     <.card
       :if={@linked_build_runs != [] or @linked_test_runs != []}

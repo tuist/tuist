@@ -3,28 +3,24 @@
 This context owns authentication flows and token handling.
 
 ## Responsibilities
-- Resolve authenticated subjects from JWTs, user tokens, and account/project tokens.
-- Refresh tokens while updating `preferred_username` claims.
-- Encode/sign tokens with recent accessible project handles.
-
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
+- Resolve subjects from verified JWTs, user tokens and account/project tokens. `authenticated_subject/1` is fresh; `authenticated_subject_snapshot/1` also exposes expiry from verified state, never unverified claims.
+- `TokenVerificationCache` stores successful immutable bcrypt proofs, keyed by the SHA-256 digest of the complete verification input and stored hash. It is independent of credential/permission freshness. Never cache failed proofs. Its one-minute TTL, per-key coordination and scheduled 10,000-entry pruning are unchanged from the merged proof-cache rollout.
+- Both authentication caches use `SingleFlight`, not Cachex's shared Courier. Warm reads access ETS directly; atomic ETS claims elect an independent coordinator/fill worker per cold key. The claims-table GenServer is lifecycle-only and receives no request messages. Monitors share results without a central dispatch/fan-out mailbox. Deadlines, failure cleanup and generation-specific data/claim-table IDs fence publication. Cache and claim ownership restart together. This removes the shared mailbox, not finite ETS/CPU capacity or a measured Courier bottleneck.
+- A proof-cache timeout, restart window or failed fill raises `UnavailableError`, never a computed mismatch. Propagate it as HTTP 503 / gRPC unavailable without direct bcrypt fallback. Waiters retry within their own original budget and finite retries; only initiating callers cancel their fill. Cancellation still discards unfinished work, and cold-work reuse is a separate measured policy decision.
+- Expired snapshots are misses in every SingleFlight read/recheck/retry, not unconditional key deletions. Refresh through per-key coordination and overwrite only from a fill; a delayed stale reader must reuse, never evict, a newer valid refill. Keep the final use-time deadline check and bounded refresh retry.
+- `SubjectCache` is a dedicated disposable node-local Cachex cache keyed by HMAC of the full credential. It coalesces fills, prunes to 10,000 entries, and uses a non-sliding deadline anchored to fill start, at most 60 seconds and capped by verified credential expiry. Check both monotonic deadline and wall-clock expiry on every hit. Do not clear either authentication cache on membership/display changes.
+- Ordinary API reads and selected ingestion/cache uploads opt into bounded snapshots. Resolve route policy before controller dispatch. Unknown routes, credential creation, privilege mutations, runner-shell upgrades and other writes remain fresh; strict authentication also bypasses resource loaders.
+- Never cache authorization booleans: same-account credentials can have different scopes/project restrictions. Evaluate permissions using the actual bounded subject. User role queries need database/pool observation.
+- Streams inherit the original snapshot deadline, not a new interval. Failed refresh is unavailable (HTTP 503 / gRPC unavailable), not invalid credentials or an indefinitely stale grant. Negative results/errors are not retained.
+- Refresh tokens while updating `preferred_username` claims; encode tokens with recent accessible project handles.
 
 ## Guardrails
-- Production-cost proof-cache coverage runs in ExUnit using an explicit rounds-12 hash and exactly one real verification for 2,000 lookups at concurrency 64. Keep shared bcrypt configuration unchanged; use `Mimic.call_original/3`, not VM-wide tracing or latency assertions.
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Production-cost proof coverage runs in ExUnit with explicit rounds 12 and one real verification for 2,000 lookups at concurrency 64 using `Mimic.call_original/3` inside the initialized counting mock. No shared bcrypt configuration mutation, VM tracing or latency assertions. Pre-mock sanity checks call Bcrypt directly.
+- Inject both clocks in snapshot tests. Cover bounded revocation/scopes/deactivation, expiry, slow fills, outages, coalescing, strict routes and stream deadline inheritance. Count real authoritative fills rather than claiming SQL capacity from correctness tests.
+- Cold-start fill admission/jitter, proof TTL changes and SQL consolidation remain separate measured improvements. Local tests do not establish production capacity.
+- Update `server/data-export.md` when stored customer data changes.
 
 ## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
+- Parent: `server/lib/tuist/AGENTS.md`
+- Web: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
-
-## Replica-safety rollout
-
-The dedicated node-local `token_verification` cache stores successful bcrypt proofs only, keyed by the full verification input and stored hash. Its one-minute TTL, per-key single-flight, failure rejection and scheduled 10,000-entry pruning must remain covered by call-count regressions. The initial proof-cache rollout deliberately keeps the HTTP subject cache unchanged; it does not yet promise immediate HTTP revocation. Authentication PromEx metrics count uncached bcrypt calls and duration per replica without credential labels. Authorization-result caching is removed in this first rollout: account-based keys can let one credential borrow another credential's scopes/project grants. Keep the same-account read/write credential regression. Subject caching still protects warm token reads; user permission checks may perform role queries and require observation.
-
-- The proof cache uses `SingleFlight`, not Cachex's shared Courier. Warm reads access ETS directly; atomic ETS claims elect an independent coordinator/fill worker per cold key. The claims-table GenServer is lifecycle-only and receives no request messages. Monitors share results without a central dispatch/fan-out mailbox. A finite fill deadline, worker/owner failure cleanup and generation-specific claim-table IDs prevent stuck or orphaned work. No failed result is retained. Cache and claim ownership restart together. Structural coverage suspends both the table owner and Courier while 64 different cold keys and warm hits complete. This removes the shared mailbox, not finite ETS/CPU capacity.
-
-- A proof-cache timeout, restart window or failed fill raises `UnavailableError`, never a computed mismatch. Propagate it as HTTP 503 / gRPC unavailable without direct bcrypt fallback. A waiter can retry another flight's failure within its own original budget, with finite retries. Publication checks the claim and deadline in the worker and writes through the captured data-table ID, not a reusable name; a stalled coordinator cannot publish across restart. Cancellation still discards unfinished work, and cold-work reuse is a separate measured policy decision.

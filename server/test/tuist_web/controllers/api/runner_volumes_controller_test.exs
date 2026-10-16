@@ -6,13 +6,14 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
 
   alias OpenApiSpex.Plug.PutApiSpec
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes.Query
   alias TuistWeb.API.RunnerVolumesController, as: Controller
 
   setup do
-    account = %{id: 1, name: "acme"}
+    account = %Account{id: 1, name: "acme", visibility: :private}
     stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
     stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
     %{account: account, id: Ecto.UUID.generate()}
@@ -27,6 +28,7 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
 
     conn
     |> assign(:current_subject, :subject)
+    |> assign(:caching, false)
     |> PutApiSpec.call(PutApiSpec.init(module: TuistWeb.API.Spec))
     |> Controller.call(action)
   end

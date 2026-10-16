@@ -84,6 +84,42 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       refute ClickHouseRepo.exists?(from(e in CacheEvent, where: e.project_id == ^other.id))
     end
 
+    test "Mix uses the same signed REAPI pipeline, but cannot attribute events to a Bazel project", %{
+      conn: conn,
+      project: bazel
+    } do
+      mix = ProjectsFixtures.project_fixture(account_id: bazel.account.id, build_system: :mix)
+
+      base = %{
+        "account_handle" => mix.account.name,
+        "project_handle" => mix.name,
+        "client_kind" => "mix",
+        "operation" => "cas",
+        "outcome" => "hit",
+        "action_digest" => String.duplicate("a", 64),
+        "size" => 512,
+        "duration_us" => 123,
+        "invocation_id" => UUIDv7.generate(),
+        "target_label" => "jason"
+      }
+
+      {body, signature} = sign_request(%{"events" => [base, %{base | "project_handle" => bazel.name}]})
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "kura.test")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(response, 202) == %{"accepted" => 1, "rejected" => 1}
+      row = ClickHouseRepo.one(from(e in CacheEvent, where: e.project_id == ^mix.id))
+      assert row.client_kind == "mix"
+      assert row.invocation_id == base["invocation_id"]
+      assert row.target_label == "jason"
+      refute ClickHouseRepo.exists?(from(e in CacheEvent, where: e.project_id == ^bazel.id))
+    end
+
     test "accepts an empty event batch", %{conn: conn} do
       {body, signature} = sign_request(%{"events" => []})
 

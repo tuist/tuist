@@ -80,16 +80,17 @@ shares the reconciler's client, so the controller sees one token and one reader.
 
 | Metric | Labels | Source |
 | --- | --- | --- |
-| `rack_switch_up` | `switch` | device list: 1 when connected |
-| `rack_switch_cpu_utilization_ratio` | `switch` | device list `cpuUtil` |
-| `rack_switch_memory_utilization_ratio` | `switch` | device list `memUtil` |
-| `rack_switch_temperature_celsius` | `switch` | `switches/{mac}/health/detail`, 10-minute average |
-| `rack_switch_optic_temperature_celsius` | `switch`, `port` | `switches/{mac}/ddm/info` |
+| `rack_switch_up` | `site`, `switch` | device list: 1 when connected |
+| `rack_switch_cpu_utilization_ratio` | `site`, `switch` | device list `cpuUtil` |
+| `rack_switch_memory_utilization_ratio` | `site`, `switch` | device list `memUtil` |
+| `rack_switch_temperature_celsius` | `site`, `switch` | `switches/{mac}/health/detail`, 10-minute average |
+| `rack_switch_optic_temperature_celsius` | `site`, `switch`, `port` | `switches/{mac}/ddm/info` |
 | `rack_switch_telemetry_last_success_timestamp_seconds` | | when a poll last completed |
 | `rack_switch_telemetry_errors_total` | `stage` | failed reads, by what was being read |
 
 `switch` is the `RackSwitch` name, not the controller's device name, which
-adoption resets to the MAC.
+adoption resets to the MAC. `site` is the `RackSwitch`'s `spec.site`, the rack
+site, not the Omada site name the controller is configured with.
 
 What gets exported, and what does not:
 

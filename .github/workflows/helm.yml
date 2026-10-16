@@ -30,6 +30,7 @@ on:
       - main
     paths:
       - infra/helm/**
+      - infra/grafana-dashboards/**
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
@@ -41,6 +42,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - infra/grafana-dashboards/**
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
@@ -117,6 +119,17 @@ jobs:
             echo "::error::helm lint failed for: ${failed[*]}"
             exit 1
           fi
+
+      - name: Start production Alloy log pipeline
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test mixed-version Kura latency query
+        run: |
+          mise use -g aqua:prometheus/prometheus@3.5.0
+          bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
+      - name: Test production metric write rules with Alloy
+        run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
 
   render:
     name: Render

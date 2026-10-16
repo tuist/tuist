@@ -10,6 +10,7 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
     field(:provider_instance, :string, default: "github.com")
     field(:scope_id, :string)
     field(:repository, :string)
+    field(:default_branch, :string)
     field(:key, :string)
     field(:builtin_name, :string)
     field(:platform, :string, default: "linux")

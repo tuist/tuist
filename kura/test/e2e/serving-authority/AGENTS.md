@@ -35,5 +35,40 @@ compares sustained replication and verifies the retained corpus after handover.
 individual inline fetches and checks the full retained barrier. Its optional
 `KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
 for sequential resource comparisons; failed runs retain measurements and logs.
+`KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
+`segmented-handover.mjs IMAGE DIR` writes a paced 1 GiB segmented corpus,
+verifies every body after handover, and captures the same four resource axes.
+Run baseline and candidate sequentially, including its settled cooldown.
+Set `KURA_E2E_SEGMENT_RECORDS=2048` for a 4 GiB full-ring qualification.
+That mode captures the entire retained source subset while both holds are active
+and checks its count against the matching fully verified receipts, then reads
+the newest retained body after promotion. Reads on a full
+serving ring can trigger eviction, so walking it after promotion is not a frozen
+corpus check. It does not require evicted uploads to survive.
+Add `KURA_E2E_RETAINED_RECENCY=1` to that full-ring workload to inject an old
+segmented record into the source through the peer protocol. Assert that ordinary
+replication leaves it absent on the full standby before requesting handover,
+then require matching full-corpus receipts and byte-exact reads of the repaired
+record after promotion. This isolates recency selection from storage admission;
+it must not change either replica's configured capacity to make repair pass.
+`resume.mjs` interrupts the local authority API, holds an admitted upload across
+expiry and supplies explicit fencing/resumption grants; it verifies drained
+publication, recovery when a replacement grant arrives after expiry, retained
+reads, persistent-channel writes and dirty-restart refusal.
+It is still a simulator. `client.mjs api-recovery` exercises the real controller
+with the isolated pod's API-partition policy, requiring the same incarnation,
+one new epoch and absence of the rejected upload after API access returns.
 Run-specific manifests, keys, logs and results belong in a temporary output
 directory, never in the repository. Remove only resources created by the fixture.
+
+The pressure case restores free space and repeats handover on the same standby
+incarnation. Preserve this no-restart check: restarting could mask missing
+retained records behind a new bootstrap rather than testing named repair.
+Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
+tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
+does not guarantee that equal-sized fragmented rings can converge; the extra
+destination capacity makes the successful recovery case explicit without
+bypassing ring capacity or quota-aware disk admission.
+Capture the expected pressure corpus only after both receipts exist, while the
+source hold prevents read-time promotion and eviction. A pre-hold walk of a full
+ring can evict records it counted earlier and is not the retained barrier.

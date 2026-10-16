@@ -244,11 +244,13 @@ defmodule Tuist.CacheTest do
 
       # When
       handles = Cache.accessible_handles(user)
-      {:ok, _token, claims} = Cache.issue_cache_token(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user, origin: "SG")
 
       # Then
       assert handles.payment_required == [user.account.name]
       assert handles.payment_failed == [user.account.name]
+      assert claims["cache_origin"] == "SG"
+      assert claims["cache_payment_required"] == [user.account.name]
       assert claims["cache_payment_failed"] == [user.account.name]
     end
 

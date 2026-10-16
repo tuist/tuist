@@ -533,6 +533,132 @@ struct XCResultParserTests {
         #expect(summary.status == .failed)
     }
 
+    /// The shape Xcode 27 writes for a parameterized Swift Testing test whose arguments failed once
+    /// and passed on retry under `-retry-tests-on-failure`: xcodebuild exits 0, but the argument and
+    /// test case nodes still say "Failed".
+    private func parameterizedTestJSON(
+        firstAttemptName: String,
+        secondAttemptName: String,
+        argumentDetails: String
+    ) -> String {
+        """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ListingTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "measurements(asset:)",
+                      "nodeIdentifier": "MeasurementsTests/measurements(asset:)",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Arguments",
+                          "name": ".shirts",
+                          "result": "Failed",
+                          "details": "\(argumentDetails)",
+                          "children": [
+                            {
+                              "nodeType": "Repetition",
+                              "name": "\(firstAttemptName)",
+                              "nodeIdentifier": "1",
+                              "result": "Failed",
+                              "children": [
+                                { "nodeType": "Failure Message", "name": "Snapshot does not match reference." }
+                              ]
+                            },
+                            {
+                              "nodeType": "Repetition",
+                              "name": "\(secondAttemptName)",
+                              "nodeIdentifier": "2",
+                              "result": "Passed"
+                            }
+                          ]
+                        },
+                        {
+                          "nodeType": "Arguments",
+                          "name": ".dresses",
+                          "result": "Passed",
+                          "children": [
+                            { "nodeType": "Repetition", "name": "\(firstAttemptName)", "nodeIdentifier": "1", "result": "Passed" }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+    }
+
+    @Test
+    func parse_passesParameterizedTestWhoseFailedArgumentPassedOnRetry() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "First Run",
+            secondAttemptName: "Retry 1",
+            argumentDetails: "Failed after 2 retry"
+        )
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let testCase = try #require(summary.testCases.first)
+        #expect(testCase.status == .passed)
+        #expect(testCase.arguments.map(\.status) == [.passed, .passed])
+        #expect(testCase.arguments.first?.failures.map(\.message) == ["Snapshot does not match reference."])
+        #expect(testCase.repetitions.map(\.status) == [.failed, .passed])
+        #expect(summary.status == .passed)
+    }
+
+    @Test
+    func parse_failsParameterizedTestWithAFailedIteration() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "Repetition 1",
+            secondAttemptName: "Repetition 2",
+            argumentDetails: "1/2 (50%) passed, 1/2 (50%) failed"
+        )
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let testCase = try #require(summary.testCases.first)
+        #expect(testCase.status == .failed)
+        #expect(testCase.arguments.map(\.status) == [.failed, .passed])
+        #expect(summary.status == .failed)
+    }
+
+    @Test
+    func parseTestStatuses_passesParameterizedTestWhoseFailedArgumentPassedOnRetry() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "First Run",
+            secondAttemptName: "Retry 1",
+            argumentDetails: "Failed after 2 retry"
+        )
+        let parser = XCResultParser(execute: XCResultToolStub(testResultsJSON: json).callAsFunction)
+
+        let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/app.xcresult"))
+
+        #expect(statuses.testCases.map(\.status) == [.passed])
+        #expect(statuses.passingModuleNames() == ["ListingTests"])
+    }
+
     /// The parser shells out through `/bin/sh -c`. Without `exec` the shell
     /// forks the tool and waits, so `Process.terminate()` on cancellation
     /// signals the shell only and the tool keeps running, reparented, holding

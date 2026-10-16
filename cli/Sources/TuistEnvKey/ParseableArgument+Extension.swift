@@ -40,6 +40,7 @@ extension Option {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,
+                name: name,
                 parsing: parsingStrategy,
                 help: help?.withEnvKey(envKey),
                 completion: completion

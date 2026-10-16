@@ -27,7 +27,7 @@ same data even if the mount path changes. Do not attach the same key twice in
 one job under different paths.
 
 PRs consume warm snapshots and write
-to their own clones; only successful default-branch push, manual, and scheduled
+to their own clones; by default only successful default-branch push, manual, and scheduled
 jobs publish. Failed jobs and disallowed writers are discarded. Publications
 use last-publication-wins. Cache data is disposable and must not contain secrets.
 
@@ -43,6 +43,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 | --- | --- |
 | `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
 | `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
+| `commit` | Optional `auto`, `'true'`, or `'false'`; save intent never overrides the server writer policy. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 
 Use `id: dependencies` to access `${{ steps.dependencies.outputs.cache-hit }}`.
@@ -54,7 +55,39 @@ additional workflow permissions are required.
 A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
+When saved contents reach 80% of capacity and a job runs out of space on them,
+the next job starts empty.
 Linux and macOS fleets must have cache volumes enabled.
+
+### Commit controls and cache saving
+
+The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
+this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
+remain subject to the runner profile's **Save cache from** list and successful job completion;
+`true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
+
+Account administrators configure **Save cache from** on each runner profile under
+**Runners → Profiles**. The list applies to every custom volume attached by
+GitHub Actions jobs that run on the profile, including volumes created later.
+Until you change it, the list follows each repository's default branch.
+
+Once you add or remove a branch, the list holds up to 20 branch names. `*`
+matches any characters, so `release/*` covers `release/1.0` and `*` covers every
+branch. Successful push, schedule and manual-dispatch jobs, and pull requests
+from the same repository, save their changes when their branch matches. On push
+and manual-dispatch runs, a tag with a matching name also matches. Removing every
+branch, or **Use default branch**, returns to following the default branch.
+
+Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
+built-in macOS volume policies are unchanged. Changing the list or deleting the
+profile revokes pending saves it no longer allows; a deleted profile falls back
+to the default branch. Additions apply to new volume attachments.
+
+Explicit `true`/`false` modes require updated runner clients, host agents and
+server. The default `auto` action invocation remains compatible with older
+clients. The transport requires explicit server/host acknowledgement of a new
+mode before exposing the mounted cache, so an older component cannot silently
+ignore `commit: 'false'`.
 
 ## Releases
 

@@ -7,9 +7,14 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
   alias Tuist.MCP.Components.Tools.GetRunnerJob
   alias Tuist.MCP.Components.Tools.GetWebhookEndpoint
   alias Tuist.MCP.Components.Tools.ListRunnerJobs
+  alias Tuist.MCP.Components.Tools.ListRunnerProfiles
   alias Tuist.MCP.Components.Tools.ListWebhookEndpoints
+  alias Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches
+  alias Tuist.Repo
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
   alias Tuist.Webhooks
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "list_runner_jobs" do
     test "uses the runner permission and account-scoped query" do
@@ -109,6 +114,66 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                GetWebhookEndpoint.call(conn, %{
                  "account_handle" => "acme",
                  "webhook_endpoint_id" => "https://tuist.dev/acme/webhooks"
+               })
+    end
+  end
+
+  describe "runner profile cache branch tools" do
+    test "list and update cache branches with the administrative account permission" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 7, memory_gb: 13})
+
+      account_id = account.id
+      stub(Tuist.Authorization, :authorize, fn :account_update, :subject, %{id: ^account_id} -> :ok end)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"text" => text}]} =
+               ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
+
+      assert %{"name" => "ci", "cache_writer_branches" => []} =
+               Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
+
+      arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfileCacheBranches.call(
+                 conn,
+                 Map.put(arguments, "cache_writer_branches", ["main", "release/*"])
+               )
+
+      assert %{"cache_writer_branches" => ["main", "release/*"]} = JSON.decode!(text)
+      assert Repo.get!(Profile, profile.id).cache_writer_branches == ["main", "release/*"]
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", []))
+
+      assert %{"cache_writer_branches" => []} = JSON.decode!(text)
+
+      assert %{"isError" => true, "content" => [%{"text" => "Use up to 20 branch names" <> _}]} =
+               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", ["a b"]))
+
+      assert %{"isError" => true, "content" => [%{"text" => "The runner profile was not found."}]} =
+               UpdateRunnerProfileCacheBranches.call(conn, %{
+                 "account_handle" => account.name,
+                 "profile_name" => "missing",
+                 "cache_writer_branches" => ["main"]
+               })
+    end
+
+    test "refuses callers without account administration" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> {:error, :forbidden} end)
+      reject(&Tuist.Runners.Profiles.update_cache_writer_branches/2)
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"isError" => true} =
+               UpdateRunnerProfileCacheBranches.call(conn, %{
+                 "account_handle" => account.name,
+                 "profile_name" => "linux",
+                 "cache_writer_branches" => ["*"]
                })
     end
   end

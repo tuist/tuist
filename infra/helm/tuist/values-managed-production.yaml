@@ -91,6 +91,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    originAppKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -677,6 +679,12 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
+      # The standalone proxy reaches the xcresult VMs only through a DERP
+      # relay, because their Mac's vmnet NAT and this cluster's NAT never agree
+      # on a direct path. The ProxyGroup's static UDP endpoints give them one.
+      # Switching needs the standalone proxy's device deleted by hand; see the
+      # runbook in #14224.
+      proxyGroup: tailnet-ingress
     backup:
       enabled: true
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
@@ -1120,12 +1128,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
   # historical pool name: live KuraInstances, local PVs and gateways still
   # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 4
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -1661,7 +1669,7 @@ macosFleet:
     cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. 10 M2-L hosts at one guest each plus
-# 2 M4-XL hosts at two = 14 concurrent customer runs.
+# 3 M4-XL hosts at two = 16 concurrent customer runs.
 #
 # Sized against measured demand, not host count. macOS job concurrency
 # over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
@@ -1739,7 +1747,7 @@ runnersFleet:
   #
   # Growing the group: order N more M4-XL minis named `tuist-pool-*`,
   # bump hostCount, and raise every `xcodeOverrides[*].maxReplicas` below
-  # by 2N. At 2 today; maxReplicas moved 11 -> 13 in the same change.
+  # by 2N. At 3 today; maxReplicas moved 14 -> 16 in the same change.
   #
   # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
   # runs — customers see an identical runner, the host just fits two.
@@ -1753,7 +1761,7 @@ runnersFleet:
   # these. Growing raw concurrency alone is still cheaper on M2-L.
   machineGroups:
     - name: m4
-      hostCount: 2
+      hostCount: 3
       machine:
         type: M4-XL
         zone: fr-par-1
@@ -1904,15 +1912,15 @@ runnersFleet:
       # five pools each allowed 2 compose to 10. The fleet-wide bound
       # comes from the runners-controller, which counts each node's own
       # min(cpu, memory) quotient for a shape and caps every pool sharing
-      # it at that sum (2 today, both on M4-XL). It has to be derived
+      # it at that sum (3 today, all on M4-XL). It has to be derived
       # there rather than written here because the byte budget cannot see
-      # it: 200704 / 28672 reads as 7, pooling memory from M2-L hosts
+      # it: 229376 / 28672 reads as 8, pooling memory from M2-L hosts
       # that cannot seat one of these Pods at all.
       #
       # Set it to the M4-XL host count regardless, as the per-pool bound
       # it is: no single Xcode version should be able to take the whole
       # shape. It moves with `machineGroups[m4].hostCount`, not with the
-      # 14-slot totals the `xcodeOverrides` below use.
+      # 16-slot totals the `xcodeOverrides` below use.
       #
       # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
       # it would halve the fleet's dual-guest capacity to keep one
@@ -1921,7 +1929,7 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 2
+        maxReplicas: 3
   # Per-env tuning for the default shape's pools lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
@@ -1929,19 +1937,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 14` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 16` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
   # advertised memory by this shape's 14336 MB, so the 10 M2-L hosts are
-  # 10 slots and the 2 M4-XL hosts are 2 each, for 14. These ceilings must
+  # 10 slots and the 3 M4-XL hosts are 2 each, for 16. These ceilings must
   # move with that number — the allocator never exceeds a pool's
   # maxReplicas, so leaving them behind would let an M4 boot but keep
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 14-slot budget; the remaining 13 slots are
+  # Floors sum to 1 of the 16-slot budget; the remaining 15 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1958,47 +1966,47 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 14
+        maxReplicas: 16
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   # One explicit pool on the BER1 rack fleet for the BER1 Smoke workflow:
@@ -2031,6 +2039,9 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 18
+        # Smoke runs are dispatched by hand, so the last hour's peak does not
+        # predict the next one.
+        holdRecentPeak: false
       pod:
         cpuMilli: 6000
         memoryMB: 14336

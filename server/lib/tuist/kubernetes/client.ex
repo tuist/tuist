@@ -50,6 +50,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
+      timeout: opts[:timeout],
       body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
@@ -323,6 +324,20 @@ defmodule Tuist.Kubernetes.Client do
   """
   def get_persistent_volume_claim(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
     get("/api/v1/namespaces/#{namespace}/persistentvolumeclaims/#{name}", opts)
+  end
+
+  @doc """
+  LISTs PersistentVolumes, which are cluster-scoped. Kura capacity reads them to
+  find node-local volumes no pod requests any more, such as a quarantined
+  replica's retained volume, whose bytes still sit on a cache node's disk. The
+  server SA is granted `persistentvolumes: [list]` by its cluster-reads
+  ClusterRole.
+  """
+  def list_persistent_volumes(opts \\ []) do
+    case request(:get, "/api/v1/persistentvolumes", timeout: opts[:timeout]) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
   end
 
   @doc """

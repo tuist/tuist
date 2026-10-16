@@ -359,7 +359,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		return err
 	}
 	for _, name := range names {
-		if !strings.HasSuffix(name, ".request") {
+		if !strings.HasSuffix(name, ".request") && !strings.HasSuffix(name, ".commit-request") {
 			continue
 		}
 		if _, err := root.Stat(name + ".response"); err == nil {
@@ -375,8 +375,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key string `json:"key"`
-			UID int    `json:"uid"`
+			Commit string `json:"commit"`
+			Key    string `json:"key"`
+			UID    int    `json:"uid"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
@@ -389,37 +390,59 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
+		operation := "authorize"
+		if cachevolumes.CommitMode(input.Commit) != "auto" {
+			operation = "authorize-commit"
+		}
+		status, err := c.request(acquireCtx, operation, map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "commit": cachevolumes.CommitMode(input.Commit)}, &identity)
 		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
 			cancel()
 			continue
 		}
 		response := map[string]any{"error": "unavailable"}
-		if err == nil {
+		if (status == http.StatusNotFound && operation == "authorize-commit") || (err == nil && !identity.AcceptsCommit(input.Commit)) {
+			response["error"] = "unsupported_commit"
+		}
+		if err == nil && identity.AcceptsCommit(input.Commit) {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
-				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm, "commit": identity.Commit, "can_publish": identity.CanPublish}
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				c.prefetch.start(identity)
 			}
 		}
 		cancel()
 		data, _ := json.Marshal(response)
-		// O_EXCL prevents following a guest-created output symlink.
-		out, err := root.OpenFile(name+".response", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-		if err != nil {
-			continue
-		}
-		_, err = out.Write(data)
-		out.Close()
-		if err != nil {
+		if published, err := publishResponse(root, name+".response", data); err != nil {
 			return err
+		} else if !published {
+			continue
 		}
 		if _, err := root.Stat(name); os.IsNotExist(err) {
 			_ = root.Remove(name + ".response")
 		}
 	}
 	return nil
+}
+
+// Guests only ever see complete responses. O_EXCL and link never follow or
+// replace a guest-created path, so an existing response is kept.
+func publishResponse(root *os.Root, name string, data []byte) (bool, error) {
+	temp := name + ".tmp"
+	_ = root.Remove(temp)
+	out, err := root.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return false, nil
+	}
+	defer root.Remove(temp)
+	_, err = out.Write(data)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return false, err
+	}
+	return root.Link(temp, name) == nil, nil
 }
 
 func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {

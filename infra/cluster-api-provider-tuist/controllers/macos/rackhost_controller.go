@@ -326,6 +326,7 @@ func (r *RackHostReconciler) nodeIsServing(ctx context.Context, host *infrav1.Ra
 func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.RackHost) {
 	driver, outlet, err := r.outletFor(ctx, host)
 	if err != nil {
+		markOutletDrawUnread(host)
 		host.Status.Power = string(power.StateUnknown)
 		reason := "PowerNotConfigured"
 		var notReady *pduNotReadyError
@@ -339,6 +340,13 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 
 	state, err := driver.State(ctx, outlet)
 	if err != nil {
+		if onRackPDU(host) {
+			// The RackPDU's reading of the outlet does not depend on this
+			// read, and it carries its own switch state.
+			r.observeDraw(ctx, host, driver, outlet, power.StateUnknown)
+		} else {
+			markOutletDrawUnread(host)
+		}
 		host.Status.Power = string(power.StateUnknown)
 		conditions.MarkFalse(host, PowerReachableCondition, "PowerUnreachable",
 			clusterv1.ConditionSeverityWarning,
@@ -355,6 +363,7 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 	}
 	host.Status.Power = string(state)
 	conditions.MarkTrue(host, PowerReachableCondition)
+	r.observeDraw(ctx, host, driver, outlet, state)
 }
 
 func (r *RackHostReconciler) outletFor(ctx context.Context, host *infrav1.RackHost) (power.Driver, power.Outlet, error) {
@@ -386,10 +395,14 @@ func recordRackHostMetrics(host *infrav1.RackHost) {
 		rackHostPowerGauge.DeletePartialMatch(prometheus.Labels{"host": host.Name})
 		rackHostPowerReachableGauge.WithLabelValues(labels...).Set(0)
 	}
+	recordRackHostDrawMetrics(host, labels)
 }
 
 func forgetRackHostMetrics(name string) {
-	for _, g := range []*prometheus.GaugeVec{rackHostPowerGauge, rackHostPowerReachableGauge, rackHostQuarantinedGauge} {
+	for _, g := range []*prometheus.GaugeVec{
+		rackHostPowerGauge, rackHostPowerReachableGauge, rackHostQuarantinedGauge,
+		rackHostOutletActivePowerGauge, rackHostOutletApparentPowerGauge, rackHostOutletCurrentGauge, rackHostPoweredOffAtOutletGauge,
+	} {
 		g.DeletePartialMatch(prometheus.Labels{"host": name})
 	}
 }

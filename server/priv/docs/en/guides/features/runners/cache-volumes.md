@@ -99,8 +99,8 @@ same key are separate.
 
 ## Saving changes {#saving-changes}
 
-Successful jobs on the default branch save their changes for future runs when
-triggered by these events:
+By default, successful jobs on the repository's default branch save their changes
+for future runs when triggered by these events:
 
 | Provider | Events that save changes |
 | --- | --- |
@@ -109,8 +109,44 @@ triggered by these events:
 | GitLab CI | Push, schedule, web |
 
 Other jobs, including pull requests, merge requests and tags, can use the cache,
-but their changes are discarded. Concurrent jobs work independently; changes
-from different jobs are not merged. Never cache credentials or irreplaceable data.
+but their changes are discarded. With GitHub Actions, you can change which
+branches save on the runner profile, for example to let pull requests or release
+branches update the cache; see [Choose which branches save](#choose-which-branches-save).
+
+Concurrent jobs work independently; changes from different jobs are not merged.
+Never cache credentials or irreplaceable data.
+
+### Choose which branches save {#choose-which-branches-save}
+
+For GitHub Actions, you can change which branches save their changes. Open
+**Runners → Profiles**, edit the profile your workflows use in `runs-on:`, and
+expand **Save cache from**. The list applies to every custom volume used by jobs
+on that profile, including volumes created later.
+
+![The runner profile form with the Save cache from section expanded, listing main and release/* as branches that save their changes](/images/guides/features/runners/save-cache-from.png)
+
+Until you change it, the list follows each repository's default branch. Add or
+remove branches to replace it with up to 20 branch names. Use `*` as a wildcard:
+`release/*` matches `release/1.0`, and `*` matches every branch. Successful push,
+schedule and manual-dispatch jobs, and pull requests from the same repository,
+save their changes when their branch matches. On push and manual-dispatch runs, a
+tag with a matching name also matches. Removing every branch, or **Use default
+branch**, returns to following the default branch.
+
+Jobs on other branches can still use the cache, but their changes are discarded.
+Fork pull requests and `pull_request_target` jobs never save. Changing the list
+or deleting the profile discards pending changes the new list no longer allows;
+a deleted profile falls back to the default branch. Buildkite and GitLab CI
+always save from the default branch.
+
+### Skip or request a save {#skip-or-request-a-save}
+
+The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
+this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
+remain subject to the profile's **Save cache from** list and successful job
+completion; `true` cannot grant a branch permission or save a failed job. If the
+job is not allowed to save when the volume is attached, the action emits a warning
+and its changes are discarded.
 
 ## Capacity and retention {#capacity-and-retention}
 
@@ -118,8 +154,10 @@ Each volume holds up to **20 GB** and expires after **7 days without a job mount
 The next job starts with an empty volume after expiry.
 
 Saved contents can accumulate across runs. Volumes do not prune old dependencies:
-use your tool's cleanup settings or clear the volume before it fills up. Writes
-to a full volume can fail the job.
+use your tool's cleanup settings to keep them small. Writes to a full volume can
+fail the job. When saved contents reach **80%** of the volume's capacity and a job
+runs out of space on them, the next job starts with an empty volume and its
+changes begin a new saved state.
 
 ## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}
 

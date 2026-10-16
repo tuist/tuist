@@ -2,8 +2,8 @@ defmodule TuistEx.Analytics.GitHistory do
   @moduledoc false
 
   # A run's Git history, collected from the checkout within the limits the
-  # server sets: the fields a coverage run reports (merge base, changed files,
-  # whether the checkout was dirty), and, once the run exists, the commits the
+  # server sets: the fields a coverage run reports (merge base, whether the
+  # checkout was dirty), and, once the run exists, the commits the
   # server's graph lacks, the branch head, and the commit's file listing when
   # the checkout is clean. Both halves are best effort: a run is never lost to
   # a history problem, and what could not be collected is reported with the
@@ -83,7 +83,6 @@ defmodule TuistEx.Analytics.GitHistory do
       pull_request_number: collected.pull_request_number,
       history_source: "none",
       history_fallback_reason: collected.fallback_reason,
-      changed_files: [],
       git_dirty: collected.dirty?
     }
     |> reject_nil()
@@ -98,7 +97,6 @@ defmodule TuistEx.Analytics.GitHistory do
       git_object_format: history.object_format,
       history_source: "client",
       history_fallback_reason: history.fallback_reason,
-      changed_files: Enum.map(history.changed_files, &reject_nil/1),
       git_dirty: collected.dirty?
     }
     |> reject_nil()

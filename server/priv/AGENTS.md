@@ -2,13 +2,20 @@
 
 This directory contains database migrations and other private assets.
 
+## Origin integration
+- `docs/en/guides/integrations/gitforge/origin.md` documents native-Origin account/project connections, reporting requirements, and user-facing permissions. Keep it focused on usage, without comparisons to other forges, token-minting internals, or managed-development infrastructure. App registration, key generation, callback/webhook settings, and environment variables belong in `docs/en/guides/server/self-host/server.md#platform-origin`, following the adjacent platform setup structure. Installation does not start CI. `origin_app_installations` stores account-owned installation/app/namespace IDs, not receipts or private keys.
+- `marketing/changelog/2026.10.15-cursor-origin-integration.md` announces native Origin reports and uses the matching WebP under `static/marketing/images/changelog/`. Keep the screenshot's synthetic-demo disclosure and the distinction between reporting results and running workflows.
+
 ## Responsibilities
+- Explicit client actor-claim configuration and privacy/legacy-server compatibility are documented in the English Xcode, Gradle, and Elixir build-insights guides. Claims are off by default; Xcode post-actions need their own environment configuration. This header does not imply report persistence, dashboard support, or new authorization; the endpoint scrubs it from Sentry contexts.
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.
 - REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
+- Xcode coverage prefix-mapping opt-ins and generated-project LLDB source namespaces are documented in `docs/en/guides/features/cache/xcode-cache.md`; keep the `xccov` compatibility warning and per-target mapping guidance aligned with the CLI.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - GitHub Enterprise split-host/proxy setup, App repository permissions, and webhook events are documented in `docs/en/guides/integrations/gitforge/github.md`. Document only the repository permissions and webhook events required for PR feedback, checking API usage in `Tuist.GitHub.Client` and event handling in `TuistWeb.Webhooks.GitHubController`; manual App setup belongs in the self-hosting guide. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
+- `mix_dependency_cache_events` retains local/remote dependency lookup and bypass observations for 90 days and deduplicates by project/build/dependency. Additive migrations store nullable successful bytes/microsecond durations and explicit local/remote I/O sources; legacy data stays null, not inferred. Remote timing measures client CAS transfers, local timing includes verification/installation; compilation is excluded. Shared Kura REAPI events supply real CAS output identities/counts and server throughput, never local-copy surrogates. Shared Elixir setup lives in `docs/en/guides/get-started/elixir-project.md`: `mix tuist.setup --project account/project` installs cold/parallel compile and test aliases and enables `cache: true` automatic structural dependency selection. Cache, build and test feature guides link back rather than duplicating installation/authentication/aliases. Retries and CI sharding remain optional. The linked `elixir-advanced.md` covers selection/exclusions, declared inputs, shared Bazel auth/ActionCache/CAS, producer-path portability, artifact-embedded values, fail-open fallback and no automatic local eviction. Structural selection must not be described as automatic hermeticity.
 - Marketing changelog entries: `server/priv/marketing/changelog`
 - Purpose-written agent marketing guides: `server/priv/marketing/agents`, see `marketing/agents/AGENTS.md` for content, discovery, and CDN rollout constraints.
 - All served raster images under `priv/static` are checked by
@@ -28,10 +35,12 @@ This directory contains database migrations and other private assets.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
+- Regenerate Gettext `.pot` templates with `mix gettext.extract` (without `--merge`) after moving translated calls as well as changing strings: CI checks source-line references too. Commit generated `.pot` changes only; never edit `.po` translations.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
-- Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- The Origin installation migration creates indexes concurrently and validates its provider constraint separately after adding it without validation, so existing connection writes are not blocked by an index build or constraint scan. The installation column keeps its UUID type when its nullability changes.
+- Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration. Mix cache creation and I/O metrics use `20261009120100` and `20261010110100`; their prototype versions `20261009120000` and `20261010110000` collided with upstream migrations. Reconcile locally applied prototype history against the actual tables/columns before migrating.
 - Runner cache migrations create indexes concurrently with DDL transactions and
   migration locks disabled; verify both forward migration and rollback.
 - Runner cache size measurements reference uses and cascade with their retention;
@@ -86,3 +95,5 @@ This directory contains database migrations and other private assets.
   legacy index. Do not roll back to pre-platform server images after enablement.
 
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
+
+- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory.

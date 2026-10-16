@@ -78,11 +78,44 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
          event when is_binary(event) <- run["event"] do
       same_repository = get_in(run, ["head_repository", "id"]) == id
       trusted = same_repository and branch == default and event in ["push", "schedule", "workflow_dispatch"]
-      {:ok, %{repository_id: id, trusted: trusted, same_repository: same_repository}}
+
+      {:ok,
+       %{
+         repository_id: id,
+         trusted: trusted,
+         same_repository: same_repository,
+         default_branch: default,
+         writer_branch: github_writer_branch(run, id, same_repository)
+       }}
     else
       _ -> {:error, :unavailable}
     end
   end
+
+  # The branch a runner profile's writer patterns are matched against. Use
+  # provider-fetched repository IDs and PR head metadata: a workflow cannot grant
+  # itself publication by supplying a branch name or commit input. Forks,
+  # pull_request_target and other events never qualify. On push and dispatch
+  # runs head_branch can also be a tag name, as for the default-branch check.
+  defp github_writer_branch(run, repository_id, true) do
+    branch = run["head_branch"]
+
+    case run["event"] do
+      "pull_request" ->
+        case run["pull_requests"] do
+          [%{"head" => %{"repo" => %{"id" => ^repository_id}, "ref" => ^branch}} | _] -> branch
+          _ -> nil
+        end
+
+      event when event in ["push", "schedule", "workflow_dispatch"] ->
+        branch
+
+      _ ->
+        nil
+    end
+  end
+
+  defp github_writer_branch(_, _, _), do: nil
 
   def buildkite_identity(assigned, %{"id" => id, "env" => env}) when is_map(env) do
     with true <- id == assigned.job_uuid,
