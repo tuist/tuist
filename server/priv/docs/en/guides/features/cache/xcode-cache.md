@@ -170,6 +170,8 @@ This also lets package targets inherit the project's CAS flags. Keep these setti
 
 This is an explicit migration: disabling mappings changes the hashes and compilation-cache keys of previously mapped CI builds, so warm the module cache again after adopting the option. Unchanged manifests retain their existing mapping settings and hashing behavior. Using this new manifest option requires a Tuist version that supports it; older released CLIs cannot compile a manifest that references the new argument.
 
+Unmapped prebuilt binaries retain the producer's absolute source paths. This option does not relocate those paths or guarantee source-level debugging or source-relative runtime file access across different checkouts. Source breakpoints may need explicit producer-to-local LLDB mappings. When switching from mapped to unmapped builds, restart Xcode and recreate affected source breakpoints so its LLDB process does not reuse mappings from previous builds.
+
 The option only controls mappings injected by Tuist; it does not force compiler prefix mapping off when explicitly enabled elsewhere. Explicit mappings in manifests, xcconfig files, build-command overrides, or the build environment remain authoritative and can still change source paths and hashes. If your own mappings reference `TUIST_PREFIX_MAPPING_ROOT_DIR`, define that setting yourself because Tuist no longer injects it when opting out. Use this option to share module hashes only when both environments actually build with unmapped paths. Do not reproduce Tuist's internal settings to force equal hashes between mapped and unmapped builds.
 
 ### Coverage with prefix mapping {#coverage-with-prefix-mapping}
