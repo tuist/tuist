@@ -16,12 +16,22 @@ func TestActivationRoutesShareGRPCIngress(t *testing.T) {
 		t.Run(env, func(t *testing.T) {
 			values := []string{"values-managed-common.yaml", "values-managed-" + env + ".yaml"}
 			templates := []string{"templates/kura-activation.yaml"}
-			if docs := renderStableChartWithValues(t, "tuist", templates, values); len(docs) != 0 {
-				t.Fatal("activation must remain disabled in managed overlays")
+			defaults := renderStableChartWithValues(t, "tuist", templates, values, "kuraController.image.tag=test")
+			if env == "production" && len(defaults) != 5 {
+				t.Fatal("production must render the gateway, service, disruption budget and both routes")
+			}
+			if env != "production" && len(defaults) != 0 {
+				t.Fatal("activation must remain disabled outside the production owner")
 			}
 			docs := renderStableChartWithValues(t, "tuist", templates, values, "kuraActivation.enabled=true", "kuraController.image.tag=test")
 			ingresses := 0
 			for _, doc := range docs {
+				if doc["kind"] == "Deployment" && env == "production" {
+					selector, _, _ := unstructured.NestedStringMap(doc, "spec", "template", "spec", "nodeSelector")
+					if selector["node.cluster.x-k8s.io/pool"] != "general" {
+						t.Fatal("production activation must stay off the processor pool")
+					}
+				}
 				if doc["kind"] != "Ingress" {
 					continue
 				}
@@ -65,6 +75,14 @@ func TestActivationRoutesShareGRPCIngress(t *testing.T) {
 				return v
 			}
 			base, overlay := readValues("values.yaml"), readValues(platformValues)
+			baseClass, _, _ := unstructured.NestedString(base, "cacheDNS", "activationIngressClass")
+			overlayClass, _, _ := unstructured.NestedString(overlay, "cacheDNS", "activationIngressClass")
+			if baseClass != "" || (env != "production" && overlayClass != "") {
+				t.Fatal("wildcard DNS must have only the production owner")
+			}
+			if env == "production" && overlayClass != "nginx-grpc" {
+				t.Fatal("production wildcard DNS must follow the validated activation ingress")
+			}
 			enabled, _, _ := unstructured.NestedBool(overlay, "grpc-ingress-nginx", "enabled")
 			if !enabled {
 				t.Fatal("managed environment has no dedicated gRPC ingress")

@@ -3,6 +3,7 @@
 
 cacheDNS:
   enabled: true
+  activationIngressClass: nginx-grpc
   hostedZoneId: Z046862130S1WUMPV7Z3P
   ownerId: tuist-production-cache
   externalSecret:
