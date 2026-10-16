@@ -202,4 +202,93 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
                "ALTER TABLE `tuist`.`order` ADD COLUMN IF NOT EXISTS `date` Date FIRST"
     end
   end
+
+  describe "missing_indices/3" do
+    test "selects source indexes the destination lacks, only on tables it has" do
+      gradle_id = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      mix_id = %{table: "mix_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      test_runs_sha = %{
+        table: "test_runs",
+        name: "idx_git_commit_sha",
+        expr: "git_commit_sha",
+        type: "bloom_filter",
+        granularity: 1
+      }
+
+      not_cloned = %{table: "not_cloned", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      target_tables = MapSet.new(["gradle_builds", "mix_builds", "test_runs"])
+
+      assert SchemaClone.missing_indices([gradle_id, mix_id, test_runs_sha, not_cloned], [mix_id], target_tables) ==
+               [gradle_id, test_runs_sha]
+    end
+
+    test "leaves an index alone when the destination defines it differently or has one the source lacks" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      differently = %{source | granularity: 4}
+      only_destination = %{source | name: "idx_extra"}
+
+      assert SchemaClone.missing_indices([source], [differently, only_destination], MapSet.new(["gradle_builds"])) == []
+    end
+  end
+
+  describe "mismatched_indices/2" do
+    test "pairs indexes both sides define differently and ignores identical or one-sided ones" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      same = %{table: "mix_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      only_source = %{source | name: "idx_only_source"}
+      differently = %{source | granularity: 4}
+      only_destination = %{same | name: "idx_only_destination"}
+
+      assert SchemaClone.mismatched_indices([source, same, only_source], [differently, same, only_destination]) == [
+               {source, differently}
+             ]
+    end
+
+    test "compares expression and type too" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      assert [_] = SchemaClone.mismatched_indices([source], [%{source | expr: "toString(id)"}])
+      assert [_] = SchemaClone.mismatched_indices([source], [%{source | type: "bloom_filter(0.01)"}])
+    end
+  end
+
+  describe "add_index_statement/2" do
+    test "adds the index as the source defines it, quoted and idempotent" do
+      index = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      assert SchemaClone.add_index_statement("tuist", index) ==
+               "ALTER TABLE `tuist`.`gradle_builds` ADD INDEX IF NOT EXISTS `idx_id` id TYPE bloom_filter GRANULARITY 1"
+    end
+
+    test "keeps a parameterized index type intact" do
+      index = %{
+        table: "test_cases",
+        name: "idx_name",
+        expr: "lower(name)",
+        type: "ngrambf_v1(3, 256, 2, 0)",
+        granularity: 4
+      }
+
+      assert SchemaClone.add_index_statement("tuist", index) =~
+               "ADD INDEX IF NOT EXISTS `idx_name` lower(name) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 4"
+    end
+  end
+
+  describe "materialize_index_statements/4" do
+    test "emits one asynchronous mutation per partition" do
+      assert SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", ["202609", "202610"]) == [
+               "ALTER TABLE `tuist`.`mix_builds` MATERIALIZE INDEX `idx_id` IN PARTITION ID '202609' SETTINGS mutations_sync = 0",
+               "ALTER TABLE `tuist`.`mix_builds` MATERIALIZE INDEX `idx_id` IN PARTITION ID '202610' SETTINGS mutations_sync = 0"
+             ]
+    end
+
+    test "emits nothing for a table without partitions and escapes partition IDs" do
+      assert SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", []) == []
+
+      assert [statement] = SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", ["a'b"])
+      assert statement =~ "IN PARTITION ID 'a\\'b'"
+    end
+  end
 end

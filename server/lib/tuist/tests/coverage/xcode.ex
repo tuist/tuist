@@ -1,11 +1,10 @@
 defmodule Tuist.Tests.Coverage.Xcode do
   @moduledoc """
   What Xcode's coverage depends on that only Xcode builds say, from the
-  targets each run's command event reported: whether a run took targets from
-  the binary cache (a cached target is a prebuilt binary without coverage
-  counters, so the code its tests executed in it is never measured:
-  `Tuist.Tests.Coverage.Instrumentation`), and the hash and hit selective
-  testing gave each test target.
+  targets each run's command event reported: which targets a run took from
+  the binary cache without coverage counters (the code its tests executed in
+  them is never measured: `Tuist.Tests.Coverage.Instrumentation`), and the
+  hash and hit selective testing gave each test target.
   """
   import Ecto.Query
 
@@ -14,15 +13,23 @@ defmodule Tuist.Tests.Coverage.Xcode do
   alias Tuist.Tests.Coverage
   alias Tuist.Xcode.XcodeTarget
 
-  @doc """
-  The runs, of the given ones, that took at least one of the repository's
-  targets from the binary cache. A remote package's targets carry its
-  revision as their `external_hash`, and no coverage is kept outside the
-  repository anyway; a local package has none, so it counts.
-  """
-  def uninstrumented_runs(_project_id, []), do: []
+  # Products with no code a test could execute: a resource bundle holds none, and
+  # a macro's runs at compile time. Taken from the cache, they hide nothing.
+  @uncounted_products ["bundle", "macro"]
 
-  def uninstrumented_runs(project_id, run_ids) do
+  @doc """
+  The repository targets each run took from the binary cache without coverage
+  counters, as `%{test_run_id => [target name]}`; a run that took none has no
+  entry. A remote package's targets carry its revision as their
+  `external_hash`, and no coverage is kept outside the repository anyway; a
+  local package has none, so it counts. Resource bundles and macros hold no
+  code a test executes and never count. A hit the client reported as
+  instrumented (`binary_cache_instrumented`) carries counters and is left out;
+  a client that reports nothing leaves its hits counting as plain.
+  """
+  def uninstrumented_targets(_project_id, []), do: %{}
+
+  def uninstrumented_targets(project_id, run_ids) do
     events = command_events(project_id, run_ids)
 
     events
@@ -31,14 +38,17 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where: t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "",
+          where:
+            t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "" and
+              fragment("ifNull(?, false) = false", t.binary_cache_instrumented) and
+              t.product not in ^@uncounted_products,
           distinct: true,
-          select: t.command_event_id
+          select: {t.command_event_id, t.name}
         )
       )
     end)
-    |> Enum.map(&events[&1])
-    |> Enum.uniq()
+    |> Enum.group_by(fn {event, _name} -> events[event] end, fn {_event, name} -> name end)
+    |> Map.new(fn {run_id, names} -> {run_id, names |> Enum.uniq() |> Enum.sort()} end)
   end
 
   @doc """

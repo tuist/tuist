@@ -12,6 +12,9 @@
   </nav>
   <div id="docs-layout" data-part="docs-layout">
     <nav id="docs-sidebar" data-part="docs-sidebar" aria-label="Documentation navigation">
+      <div data-part="mobile-category-selector">
+        <.category_selector id="docs-mobile-nav-tabs" category={@page.category} />
+      </div>
       <div data-part="sidebar-scroll">
         <div
           :for={
@@ -36,7 +39,7 @@
             >
               <.tab_menu_vertical
                 data-part="nav-tab"
-                label={page.title}
+                label={page.sidebar_title}
                 data-selected={page.slug == @slug}
               />
             </a>

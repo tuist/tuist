@@ -223,6 +223,7 @@ mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credenti
 mise run rack:write-install-usb <disk> --host <node>   # a stick that makes a rack Linux host a node (infra/rack-nodes)
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
+mise run rack:fleet-test render edge        # the files a site definition change touches
 ```
 
 The suite runs in CI on any change under `infra/rack-switch-fleet/` or
@@ -236,6 +237,17 @@ A note on reading its output: a test runner's prose is a convenience and its
 exit code is the fact. Three of these tests were red for several rounds of work
 because the tail of the `bats` output looked green.
 
+The suite is one bats file per subject under `tests/` (`render`, `edge`,
+`session`, `replace`, `recover`, `apply`, `resolve`, `save`, `omada`, `ztp`),
+sharing `tests/helpers.bash`. `rack:fleet-test` runs the files side by side and
+prints each file's output whole, with how long it took; names run a subset.
+Each file runs against its own copy of this directory and `infra/helm`, made
+in `setup_file`, and each test takes the lock in its own `FLEET_LOCK_DIR`, so a
+test may render into, edit or add to the committed files without touching the
+checkout or another file. Most of the suite's time is fake switches waiting
+out the session driver's quiet window, so a new test that drives a session
+belongs in a file of its own subject rather than in `render`.
+
 `--site` selects the rack and defaults to `ber1`.
 
 Shell and `ssh`, like `rack:prep-switch` beside it. `fleet.sh` is the
@@ -243,6 +255,18 @@ implementation and `mise/tasks/rack/fleet.sh` the operator entry point; the
 pieces worth testing on their own are in `lib/`. Rendering needs `jq`,
 normalising is `awk`, and the diff is `diff -u`, so there is no interpreter to
 install and nothing to build.
+
+A render's cost is the number of `jq` and `yq` processes it starts, so a
+function reads the fields it needs from the site in one `jq` call (joined with
+`\x1f` and split with `read`) rather than one call per field, per node or per
+port, and reads the tuist chart's values file with one `yq` call. `render`
+runs the site-wide checks once (`fleet_check_site`) and the edge checks once
+(`fleet_edge_check`), and sets `FLEET_SITE_CHECKED` and `FLEET_EDGE_CHECKED`
+to the site file so each device's and file's render skips them; when they fail
+it leaves the variables empty and every render runs and reports them as
+before. `fleet_render_k8s` takes the switch's rendered configuration as an
+optional third argument and digests it for `configRevision` instead of
+rendering it again.
 
 ## What the site definition is for
 
@@ -887,7 +911,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on

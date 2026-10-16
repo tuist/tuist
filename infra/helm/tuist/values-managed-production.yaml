@@ -91,6 +91,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    originAppKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -677,6 +679,12 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
+      # The standalone proxy reaches the xcresult VMs only through a DERP
+      # relay, because their Mac's vmnet NAT and this cluster's NAT never agree
+      # on a direct path. The ProxyGroup's static UDP endpoints give them one.
+      # Switching needs the standalone proxy's device deleted by hand; see the
+      # runbook in #14224.
+      proxyGroup: tailnet-ingress
     backup:
       enabled: true
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
@@ -1120,12 +1128,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
   # historical pool name: live KuraInstances, local PVs and gateways still
   # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 4
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -2031,6 +2039,9 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 18
+        # Smoke runs are dispatched by hand, so the last hour's peak does not
+        # predict the next one.
+        holdRecentPeak: false
       pod:
         cpuMilli: 6000
         memoryMB: 14336

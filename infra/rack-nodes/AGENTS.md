@@ -828,6 +828,13 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
+its guest slots through the runners-controller's fleet allocator. When one of
+them has queued jobs whose Pods the scheduler refuses for lack of resources,
+the others give up idle warm runners straight away instead of after their
+scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool
+preemption").
+
 The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 - **No capacity:** no Node of the rack fleet is Ready, schedulable and large

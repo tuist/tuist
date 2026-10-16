@@ -188,6 +188,18 @@ it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
+Both legs are bounded. The reconcile context has no deadline, so an unbounded
+push holds that Machine's reconcile until the operator restarts, and the host
+silently keeps its old config. `DialAuth` gives the handshake 30s after the
+TCP connect (`ClientConfig.Timeout` covers only the connect, and launchd
+accepts `:22` before sshd runs, so a wedged host completes TCP and never sends
+a banner). That failure leaves no fingerprint, so it falls back to the tailnet
+like a connect failure. `UpdateTartKubelet` gives the whole update 15 minutes
+and closes the client when it lapses, since session setup and uploads do not
+watch the context. On 2026-10-14 one production mini sat on its pre-update
+config for 1h45 behind a reconcile that never returned, until the leader was
+restarted.
+
 ### Host observability
 
 Two agents ride the operator image onto every mini, both installed by
@@ -374,6 +386,13 @@ and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
 
+**The Machine carries the host's site** as `node.cluster.x-k8s.io/rack-site`
+(`infrav1.RackSiteNodeLabel`), and so does a rack Linux host's. Cluster API
+syncs labels in that domain from a Machine to its Node, kube-state-metrics
+allowlists it, and the Racks dashboard reads a node's site from
+`kube_node_labels` rather than from its name. A host with no `location.site`
+gets no label.
+
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
 RackHost controller deletes a Machine so marked and makes a new one, which
@@ -435,14 +454,18 @@ mode behind it:
   cycle. Its outlet's meter (`power.Meter`, the G4's
   `outlets/<n>/measures`) tells it apart: an empty outlet reads exactly 0 W and
   0 VA, a mini plugged in and off about 0.1 W and 4 to 6 VA (its PSU's input
-  filter), a sleeping one 2 to 3 W, a running one 20 to 55 W. `power.Classify`
-  splits them at 1 VA and 1 W. While a host reads plugged in and off, the
+  filter), one running as an idle node 2.3 to 4 W (about what a sleeping one
+  reads), and up to about 85 W under load. `power.Classify` splits them at
+  1 VA and 1 W. The card's active and apparent power are not one sample: under
+  load it has read active power 25 W above apparent, so nothing should take a
+  power factor from them. While a host reads plugged in and off, the
   bootstrap-failure path skips its cycle with a `PowerButtonNeeded` event
   instead of cycling. It reads the outlet itself at that moment rather than
   the RackPDU's status, which can be ten minutes old. On 2026-10-14
   `ber1-runner-b04` to `b09` had sat for two and a half days in a loop of
-  five-minute SSH timeouts and cycles that could never start them. A meter that cannot be read does not withhold the cycle,
-  and Shelly reports no apparent power, so its outlets never read as off.
+  five-minute SSH timeouts and cycles that could never start them. A meter
+  that cannot be read does not withhold the cycle, and Shelly reports no
+  apparent power, so its outlets never read as off.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
   path releases the host so a *different* mini is ordered. A rack host's
   machine has no other box, so after `--bootstrap-max-attempts` the machine
@@ -573,6 +596,36 @@ inside the machines segment's prefix. They are rendered from the rack's
 inventory, so racking a mini changes them, and hand approval would be a step per
 mini per edge; scoped to the segment, the tag can put nothing else into the
 tailnet's routing table.
+
+### The console session
+
+A host is only useful with an Aqua session for the SSH user on the console:
+Virtualization.framework refuses to start a guest without one. Bootstrap writes
+`/etc/kcpassword` + `autoLoginUser` and kicks loginwindow, then
+`ensureGUISession` (`infra/macos-host-bootstrap/gui_session.go`) checks that
+`/dev/console` is owned by the user and `launchctl print gui/<uid>` reports
+`session = Aqua`. A host without it is restarted once (detached
+`shutdown -r now`, then a redial until `kern.boottime` changes), and loginwindow
+is kicked again if the restart alone does not bring the session up. A host
+that already has the session is never restarted, and one with FileVault on is
+not restarted at all: auto-login cannot work there and the restart would stop
+at the unlock screen. If the session is still missing, bootstrap fails with a
+`GUISessionError` and `Bootstrapped` goes False with reason
+`GUISessionMissing`, so the host never reports Ready while unable to start a VM.
+It then follows the usual failure ladder (outlet cycle, then quarantine), except
+that a FileVault host (`RestartUnsafe`) is never cycled or rebooted by either
+kind's recovery, for the same reason bootstrap did not restart it.
+
+A freshly ADE-enrolled mini needs the restart: Setup Assistant's first-boot
+session (`_mbsetupuser`) keeps the console, a loginwindow kick does not replace
+it, and auto-login only applies on the next boot. On 2026-10-14
+ber1-runner-b04..b07 bootstrapped into Ready Nodes in that state and failed
+every Pod with `TartCreateFailed` until restarted by hand.
+
+Once bootstrapped, the host's first tart-kubelet start registers a Node that
+stays tainted `tuist.dev/prewarming` while it pulls its fleet's in-demand
+runner images, so it takes no Pod that would wait on a download (see
+[`infra/tart-kubelet`](../tart-kubelet/AGENTS.md)).
 
 ### RackPDU
 
@@ -783,7 +836,9 @@ keeps its state and has no reading; a pass that could not read the card drops
 them all, and their series with them. The readings say nothing about what is
 on an outlet: a RackHost on the PDU takes its outlet's entry and interprets
 it for a mini (`HostDrawing`, below), and ignores one older than three resyncs
-(30 minutes). Nothing names the outlets of the Linux nodes and switches yet,
+(30 minutes). It keeps using that reading when its own read of the outlet's
+state fails (`PowerReachable=False`): on 2026-10-15 five hosts' reads failed
+for three minutes while the PDU's stayed current. Nothing names the outlets of the Linux nodes and switches yet,
 so their series are told apart by outlet number alone.
 
 **The administrator login for people** is `admin` with the password
@@ -935,18 +990,26 @@ The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. There are no alert rules yet; the ones to add:
+restarts with the operator. Its series appear at their first transfer, so
+`increase()` misses that one; alerts read changes of
+`capt_rackats_active_source` instead.
 
-| Alert | Expression |
+The ATS alerts are live in Grafana (folder `Alerts`, group `Rack`, documented
+with their exact queries in `infra/helm/k8s-monitoring/alerts.md`):
+
+| Alert | Condition |
 |---|---|
-| A transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
-| A load is on its alternate source | `capt_rackats_active_source != capt_rackats_preferred_source and capt_rackats_active_source > 0` for 10m |
-| A load is not powered | `capt_rackats_active_source == 0` for 1m |
-| A source is not good | `capt_rackats_input_good == 0` for 5m |
-| A transfer happened | `increase(capt_rackats_observed_transfers_total{from!="0",to!="0"}[15m]) > 0` |
-| A load lost or regained power | `increase(capt_rackats_observed_transfers_total{to="0"}[15m]) > 0`, and `{from="0"}` |
-| A transfer switch is not observed | `capt_rackats_observed == 0` for 10m, or `time() - capt_rackats_last_observed_timestamp_seconds > 600` |
-| A transfer switch is not Ready | `capt_rackats_ready == 0` for 15m |
+| Rack transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
+| Rack load not powered | `capt_rackats_active_source == 0` for 1m |
+| Rack power equipment not observed | `capt_rackats_observed == 0` for 15m (shared with `capt_rackpdu_ready`) |
+| Rack transfer switch readings stale | `time() - capt_rackats_last_observed_timestamp_seconds > 600` for 5m |
+| Rack load on its alternate source | active source is not the preferred one, both inputs good, for 10m |
+| Rack transfer switch changed source | `capt_rackats_active_source` changed in the last 15m and the switch is redundant again |
+
+`capt_rackats_ready` has no rule: `capt_rackats_observed` is 1 only while the
+RackATS is Ready. A standby source that is not good is lost redundancy; an
+active source that is derated without a transfer (`capt_rackats_input_good ==
+0` on the active source) has no rule.
 
 **Which card, and the unsupported case.** The controller speaks to the card
 through `atsCard` (`rackats_card.go`): `Fingerprint`, `Adopt`, `Observe`. The

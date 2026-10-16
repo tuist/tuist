@@ -27,6 +27,15 @@ struct AtlasAuthenticationTests {
         #expect(keychain.lastInsert == nil)
     }
 
+    @MainActor @Test func accountSettingsReusesSessionModelWithoutCallingASignedOutBridge() async {
+        let authentication = AtlasAuthentication()
+        let accounts = authentication.accountSettings
+        #expect(accounts === authentication.accountSettings)
+        await accounts.load()
+        #expect(accounts.errorMessage == "Sign in to Atlas again.")
+        #expect(authentication.server == nil && !authentication.busy)
+    }
+
     @Test func rustBridgeRejectsUnsafeServerWithoutNetwork() async throws {
         let result = try await AtlasAuthBridge.execute("{\"operation\":\"begin\",\"server\":\"http://atlas.example\"}")
         let response = try #require(JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any])

@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
@@ -38,6 +39,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
+     |> assign(:default_branches, CacheVolumes.default_branches(selected_account.id))
      |> assign_profiles()
      |> reset_form()}
   end
@@ -64,6 +66,10 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
+         |> assign(:form_cache_writer_branches, profile.cache_writer_branches)
+         |> assign(:form_cache_branch_value, "")
+         |> assign(:form_cache_branch_error, nil)
+         |> assign(:form_cache_saving_expanded, false)
          |> assign(:form_error, nil)
          |> push_event("open-modal", %{id: @modal_id})}
     end
@@ -84,6 +90,47 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("update_form_name", %{"value" => name}, socket) do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
+  end
+
+  def handle_event("toggle_cache_saving_section", _params, socket) do
+    {:noreply, assign(socket, :form_cache_saving_expanded, not socket.assigns.form_cache_saving_expanded)}
+  end
+
+  def handle_event("add_cache_writer_branch", %{"branch" => value}, socket) when is_binary(value) do
+    branch = String.trim(value)
+
+    cond do
+      branch == "" ->
+        {:noreply, socket}
+
+      Profile.valid_cache_writer_branch?(branch) ->
+        branches = shown_cache_writer_branches(socket.assigns)
+
+        {:noreply,
+         socket
+         |> assign(:form_cache_writer_branches, Enum.uniq(branches ++ [branch]))
+         |> update(:form_cache_branch_input, &(&1 + 1))
+         |> assign(:form_cache_branch_value, "")
+         |> assign(:form_cache_branch_error, nil)}
+
+      true ->
+        {:noreply,
+         socket
+         |> assign(:form_cache_branch_value, value)
+         |> assign(
+           :form_cache_branch_error,
+           dgettext("dashboard_runners", "Use a branch name, optionally with * to match any characters.")
+         )}
+    end
+  end
+
+  def handle_event("remove_cache_writer_branch", %{"data" => branch}, socket) do
+    branches = with [] <- List.delete(shown_cache_writer_branches(socket.assigns), branch), do: nil
+    {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_cache_branch_error, nil)}
+  end
+
+  def handle_event("use_default_cache_writer_branch", _params, socket) do
+    {:noreply, socket |> assign(:form_cache_writer_branches, nil) |> assign(:form_cache_branch_error, nil)}
   end
 
   def handle_event("select_platform", params, socket) do
@@ -132,7 +179,8 @@ defmodule TuistWeb.RunnerProfilesLive do
       "name" => assigns.form_name,
       "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
-      "memory_gb" => assigns.form_memory_gb
+      "memory_gb" => assigns.form_memory_gb,
+      "cache_writer_branches" => assigns.form_cache_writer_branches
     }
 
     attrs =
@@ -255,6 +303,11 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
+    |> assign(:form_cache_writer_branches, nil)
+    |> assign(:form_cache_branch_input, 0)
+    |> assign(:form_cache_branch_value, "")
+    |> assign(:form_cache_branch_error, nil)
+    |> assign(:form_cache_saving_expanded, false)
     |> assign(:form_error, nil)
     |> set_platform_defaults("linux")
   end
@@ -322,6 +375,38 @@ defmodule TuistWeb.RunnerProfilesLive do
     case Map.get(last_used, Profile.dispatch_label(profile)) do
       %DateTime{} = ts -> Tuist.Utilities.DateFormatter.from_now(ts)
       _ -> dgettext("dashboard_runners", "Never")
+    end
+  end
+
+  @doc """
+  Branches shown as badges. Without a custom list, the profile follows each
+  repository's default branch, shown by the names seen on the account's volumes.
+  """
+  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: []}), do: ["main"]
+  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: branches}), do: branches
+  def shown_cache_writer_branches(%{form_cache_writer_branches: branches}), do: branches
+
+  @doc """
+  Summary of the branches being edited, shown on the collapsed section. A
+  profile that follows the default branch shows the default branch names.
+  """
+  def cache_saving_summary(branches) do
+    if "*" in branches do
+      dgettext("dashboard_runners", "Any branch")
+    else
+      case Enum.split(branches, 2) do
+        {shown, []} ->
+          Enum.join(shown, ", ")
+
+        {shown, rest} ->
+          dngettext(
+            "dashboard_runners",
+            "%{branches} + %{count} more",
+            "%{branches} + %{count} more",
+            length(rest),
+            branches: Enum.join(shown, ", ")
+          )
+      end
     end
   end
 

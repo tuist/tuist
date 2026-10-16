@@ -128,6 +128,10 @@ func TestRackHostKeepsTheMachineThatMakesItANode(t *testing.T) {
 	if machine.Labels["tuist.dev/fleet"] != testFleet || machine.Labels[clusterv1.ClusterNameLabel] != testCluster || machine.Labels[RackHostLabel] != "mini-01" {
 		t.Fatalf("labels %v", machine.Labels)
 	}
+	// Cluster API syncs it to the Node, where the rack dashboards read the site.
+	if got := machine.Labels[infrav1.RackSiteNodeLabel]; got != "ber1" {
+		t.Fatalf("site label %q, want the host's site", got)
+	}
 	owner := metav1.GetControllerOf(machine)
 	if owner == nil || owner.Kind != "RackHost" || owner.Name != "mini-01" {
 		t.Fatalf("controller %+v, want the host", owner)

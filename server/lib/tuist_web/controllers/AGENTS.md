@@ -2,7 +2,11 @@
 
 This area owns Phoenix controllers for HTML and API endpoints.
 
+## Origin installation setup
+- `OriginAppSetupController` starts consent with browser-session-bound random state, account/user identity, and a ten-minute setup window. Setup requires the same signed-in administrator and validates the Cursor-signed receipt before persisting an installation. Never trust a query-supplied installation/account ID as approval. Installation receipts are filtered from Phoenix request logs.
+
 ## Responsibilities
+- `API.BuildEntityController` supplies additive native task/action/module/file controllers using shared resource descriptors and schemas. Authorize project build-read before domain queries, keep IDs scoped to project/system/kind, share bounded Params with MCP, and convert QueryLimitError to 503 rather than empty history. Existing ingestion and run-level controllers remain unchanged.
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.
 - `MarketingMarkdownController` serves landing-page guides and original legal documents at `/marketing-markdown[/<page>]`, plus full original static statements at `/marketing-markdown/source/<page>`, without sessions or language redirects. Unknown paths return uncacheable 404s; preserve on-premise forwarding and public marketing classification.
 - `ProjectSitemapController` serves a sitemap index and bounded public-project root pages. Select only public handles and disable caching to reflect visibility changes; never enumerate private records, settings, or unbounded build histories.
@@ -13,6 +17,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
 - `PreviewsController.tracks/2` serves all named tracks with preview counts and the full project total under the existing preview-read authorization. The additive list `search` parameter matches literal substrings of display names or full release notes case-insensitively; keep existing exact `display_name` filtering unchanged. Keep the static `/previews/tracks` route before `/:preview_id`; track discovery must not depend on list pagination or active filters.
 - Handle request/response flow and rendering for controller actions.
+- Mix build reports accept optional bounded dependency-cache observations. Derive project, account and environment attribution from the authorized build request; the client supplies no other project's ID. Optional local/remote I/O source claims describe client-observed operations only; they never create CAS outputs or Kura remote telemetry. Cache-only reports need no compiled files. Validate local/remote outcomes, keys, paired bytes/durations, source/outcome consistency and unique dependency names before storing a build. Shared `Webhooks.ReapiCacheController` accepts signed Bazel/Mix events only when client kind matches the resolved project's build system; it uses the same signature, bounded validation and replay-deduplication path for both.
 - GitHub Enterprise manifest registration posts and redirects the browser to `client_url`, but exchanges the code through the optional signed `api_url` override. Persist both before installation; setup callbacks and webhook identity remain keyed to the canonical browser host.
 - Open Graph project images recheck project identity and public visibility before storage reads or 304 responses. Use `no-cache` even for transient project cards; marketing/docs images remain immutable. Store project cards in their own retention prefix.
 - Google One Tap uses a same-origin start request and a CSRF-protected completion request in `AuthController`. Marketing HTML is shared-cached, so the start request cannot present the page's session-bound CSRF token; the router routes it through the `:same_origin_csrf_exemption` pipeline (`TuistWeb.Plugs.SameOriginCSRFExemptionPlug`), which accepts it when the browser-set `Sec-Fetch-Site` or `Origin` header proves same-origin, and its JSON returns a fresh `csrf_token` for the credential form alongside the nonce. Up to ten pending one-hour challenges support independent browser tabs. The submitted nonce selects and consumes only its matching session challenge before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
@@ -67,5 +72,3 @@ This area owns Phoenix controllers for HTML and API endpoints.
   `tuist-runner-host` audience, derives the node from its ServiceAccount, and
   delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
   body-supplied account/node/repository fields cannot authorize these reports.
-
-- The authorize-commit route shares cache-volume agent authentication and allocation with authorize. Its distinct path lets older servers reject explicit modes without allocating a use.
