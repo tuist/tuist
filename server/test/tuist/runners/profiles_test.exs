@@ -108,6 +108,79 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.vcpus == 1
       assert updated.memory_gb == 2
     end
+
+    test "stores the default branch toggle and an ordered, deduplicated list of additional branches", %{
+      account: account
+    } do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_default_branch
+      assert is_nil(profile.cache_writer_branches)
+
+      assert {:ok, updated} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
+
+      assert updated.cache_writer_branches == ["release/*", "main", "*"]
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
+
+      assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: nil})
+
+      assert errors[:cache_writer_default_branch]
+    end
+
+    test "rejects invalid refs and more than the branch limit", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      for value <- [
+            "main",
+            ["a b"],
+            ["a?b"],
+            ["a\nb"],
+            ["a..b"],
+            ["x.lock"],
+            [String.duplicate("a", 201)],
+            Enum.map(1..21, &"branch-#{&1}")
+          ] do
+        assert {:error, %Ecto.Changeset{errors: errors}} =
+                 Profiles.update(profile, %{"cache_writer_branches" => value})
+
+        assert errors[:cache_writer_branches]
+      end
+    end
+  end
+
+  describe "Profile.cache_writer_branch?/2" do
+    test "matches exact names and * across path segments" do
+      assert Profile.cache_writer_branch?(["main"], "main")
+      refute Profile.cache_writer_branch?(["main"], "main-2")
+      assert Profile.cache_writer_branch?(["release/*"], "release/1.0")
+      assert Profile.cache_writer_branch?(["release/*"], "release/a/b")
+      refute Profile.cache_writer_branch?(["release/*"], "releases/1.0")
+      assert Profile.cache_writer_branch?(["feature*"], "feature/x")
+      assert Profile.cache_writer_branch?(["*"], "anything/at/all")
+      refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
+      refute Profile.cache_writer_branch?([], "main")
+      refute Profile.cache_writer_branch?(["*"], nil)
+    end
+  end
+
+  describe "lock_for_dispatch_label/2" do
+    test "resolves profile labels and ignores legacy pool and other account labels", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      other = AccountsFixtures.account_fixture()
+
+      Tuist.Repo.transaction(fn ->
+        assert Profiles.lock_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+        assert is_nil(Profiles.lock_for_dispatch_label(other.id, Profile.dispatch_label(profile)))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, ""))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, nil))
+      end)
+    end
   end
 
   describe "match_for_dispatch/2" do

@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import TuistKit
@@ -42,6 +44,61 @@ struct CoverageMappingTests {
                 + little(CoverageMapping.reference(of: Data(filenames))) + mapping
         )
         return (Data(covmap), Data(covfun))
+    }
+
+    /// A 64-bit Mach-O image with one `__DATA` segment holding the named section and `payload`.
+    private func image(section: String, payload: [UInt8]) -> Data {
+        func name(_ value: String) -> [UInt8] { Array(value.utf8) + Array(repeating: 0, count: 16 - value.utf8.count) }
+        let headerSize = 32, segmentSize = 72 + 80
+        let offset = headerSize + segmentSize
+        var bytes: [UInt8] = []
+        bytes += little(UInt32(0xFEED_FACF)) + little(UInt32(0x0100_000C)) + little(UInt32(0)) + little(UInt32(6))
+        bytes += little(UInt32(1)) + little(UInt32(segmentSize)) + little(UInt32(0)) + little(UInt32(0))
+        bytes += little(UInt32(0x19)) + little(UInt32(segmentSize)) + name("__DATA")
+        bytes += little(UInt64(0)) + little(UInt64(payload.count)) + little(UInt64(offset)) + little(UInt64(payload.count))
+        bytes += little(UInt32(3)) + little(UInt32(3)) + little(UInt32(1)) + little(UInt32(0))
+        bytes += name(section) + name("__DATA") + little(UInt64(0)) + little(UInt64(payload.count))
+        bytes += little(UInt32(offset)) + little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0))
+        bytes += little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0))
+        precondition(bytes.count == offset)
+        return Data(bytes + payload)
+    }
+
+    /// A BSD `ar` archive of `members`, each header a fixed 60 bytes and each member padded to an even size.
+    private func archive(members: [Data]) -> Data {
+        func field(_ value: String, _ width: Int) -> [UInt8] {
+            Array(value.utf8) + Array(repeating: UInt8(ascii: " "), count: width - value.utf8.count)
+        }
+        var bytes = Array("!<arch>\n".utf8)
+        for member in members {
+            bytes += field("member.o/", 16) + field("0", 12) + field("0", 6) + field("0", 6) + field("644", 8)
+            bytes += field(String(member.count), 10) + [UInt8(ascii: "`"), UInt8(ascii: "\n")]
+            bytes += Array(member)
+            if member.count % 2 == 1 { bytes.append(UInt8(ascii: "\n")) }
+        }
+        return Data(bytes)
+    }
+
+    @Test(.inTemporaryDirectory) func tellsWhetherAProductCarriesACoverageMapping() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let instrumented = directory.appending(component: "Instrumented")
+        let plain = directory.appending(component: "Plain")
+        let instrumentedArchive = directory.appending(component: "libInstrumented.a")
+        let plainArchive = directory.appending(component: "libPlain.a")
+        let text = directory.appending(component: "text")
+        try image(section: "__llvm_covmap", payload: [1, 2, 3, 4]).write(to: URL(fileURLWithPath: instrumented.pathString))
+        try image(section: "__const", payload: [1, 2, 3, 4]).write(to: URL(fileURLWithPath: plain.pathString))
+        try archive(members: [image(section: "__const", payload: [1]), image(section: "__llvm_covmap", payload: [1, 2])])
+            .write(to: URL(fileURLWithPath: instrumentedArchive.pathString))
+        try archive(members: [image(section: "__const", payload: [1])]).write(to: URL(fileURLWithPath: plainArchive.pathString))
+        try Data("not a binary at all, just some text".utf8).write(to: URL(fileURLWithPath: text.pathString))
+
+        #expect(CoverageMapping.carriesMapping(path: instrumented.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: plain.pathString))
+        #expect(CoverageMapping.carriesMapping(path: instrumentedArchive.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: plainArchive.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: text.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: directory.appending(component: "missing").pathString))
     }
 
     @Test func decodesFilesFunctionsAndRegions() throws {

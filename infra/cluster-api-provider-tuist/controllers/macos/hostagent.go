@@ -521,3 +521,13 @@ func reconcileRackEgressService(
 	})
 	return err
 }
+
+// bootstrapFailureReason is the Bootstrapped condition's reason for a failed
+// bootstrap. A host that ends without a GUI session gets its own: it would run
+// tart-kubelet and register a Node, and fail every VM it is given.
+func bootstrapFailureReason(err error) string {
+	if bootstrap.IsGUISessionError(err) {
+		return "GUISessionMissing"
+	}
+	return "BootstrapFailed"
+}

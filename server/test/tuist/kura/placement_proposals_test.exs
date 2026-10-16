@@ -558,6 +558,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       end
     end)
 
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
+
     stub(Client, :list_pods_on_node, fn name, _opts ->
       if Map.fetch!(rooms, name), do: {:ok, []}, else: {:ok, [pod_holding_disk("800Gi")]}
     end)

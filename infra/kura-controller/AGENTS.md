@@ -8,7 +8,14 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   detection never resets an activated StatefulSet. Legacy instances keep their
   existing automatic stale-storage recreation, including colocated host loss.
   Missing authority probes never renew or revoke a still-valid grant; expiry
-  or explicit refusal requires fencing. Same-process resumption needs the exact
+  or explicit refusal requires fencing. During a transport-only observation gap,
+  retain the primary Service's existing pod-name selection only when it matches
+  the valid grant's live, Ready holder within its existing deadline. Other
+  configured endpoints may converge to that same holder, never a different writer.
+  HTTP errors, malformed status, identity changes and restarts must not use the
+  fallback. Runtime admission and publication remain the authority, not the selector.
+  An unqualified requested image holds the template at the explicit runtime pin
+  and reports Pending without stopping unrelated workload reconciliation. Same-process resumption needs the exact
   holder's fresh Fencing
   observation, publication-fencing epoch and zero mutations; issue a new epoch
   only to that holder. Never infer acknowledgment from expiry, readiness or a

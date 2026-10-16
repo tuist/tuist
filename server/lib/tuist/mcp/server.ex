@@ -36,6 +36,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerJobLogs,
     Tools.ListRunnerWorkflows,
     Tools.ListRunnerProfiles,
+    Tools.UpdateRunnerProfileCacheBranches,
     Tools.ListRunnerVolumes,
     Tools.GetRunnerVolume,
     Tools.ListRunnerVolumeJobs,
@@ -68,6 +69,9 @@ defmodule Tuist.MCP.Server do
     Tools.GetBazelInvocationLog,
     Tools.ListBazelCacheEvents,
     Tools.GetBazelCacheEvent,
+    Tools.ListBuildEntities,
+    Tools.GetBuildEntity,
+    Tools.ListBuildEntityHistory,
     Tools.ListTestRuns,
     Tools.ListTestModuleRuns,
     Tools.ListTestSuiteRuns,
@@ -131,7 +135,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.35.0",
+      version: "1.37.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

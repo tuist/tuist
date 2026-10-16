@@ -2,11 +2,13 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistNooraExtension
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
@@ -45,6 +47,15 @@ struct InspectDependenciesCommandServiceTests {
         let command = try InspectDependenciesCommand.parse(arguments)
 
         #expect((command.json ? DependencyInspectionOutputFormat.json : command.output) == expectedOutput)
+    }
+
+    @Test
+    func jsonOutputGoesThroughNoora() throws {
+        let command = try InspectCommand.parseAsRoot(["dependencies", "--json"])
+
+        let nooraReadyCommand = try #require(command as? NooraReadyCommand)
+        #expect(nooraReadyCommand.jsonThroughNoora)
+        #expect((command as? InspectDependenciesCommand)?.json == true)
     }
 
     private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
@@ -329,6 +340,31 @@ struct InspectDependenciesCommandServiceTests {
 
         // Then
         #expect(ui().contains("No dependency issues found."))
+    }
+
+    @Test
+    func runWithNoIssuesReportsSuccessAlertInTextMode() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .text)
+        }
+
+        // Then
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain() == "We did not find any dependency issues in your project (checked: implicit).")
     }
 
     @Test

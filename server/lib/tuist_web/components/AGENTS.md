@@ -3,6 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- `Runs.RanByBadge.run_ran_by_badge_cell/1` is shared by command/run tables and persistent build-entity activity. Render CI with the shared settings badge, known local reporting accounts with the user badge, and missing environment/attribution as Unknown. Nullable environment must not become local or expose an inferred actor.
 - `LayoutComponents.head_canonical_link` shares canonical URLs across marketing, docs, and app layouts. Project descriptions fall back to page and project identity; preserve explicit descriptions and keep social URL metadata aligned with the canonical URL.
 - `LayoutComponents.head_analytics_scripts` loads Glossia independently with `async` on hosted production marketing, documentation and dashboard pages. Use `https://glossia.ai/assets/glossia-web.js` with the `tuist.dev` domain and keep the `https://glossia.ai` script and collection origin aligned with the shared content security policy, and honor `analytics_disabled?` for embedded visualizations.
 - `GoogleOneTap` shares the protected credential form and configuration gates between marketing pages and login/sign-up LiveViews. It supports static mounting and LiveView lifecycle hooks.
@@ -12,6 +13,8 @@ This area owns shared UI components for LiveView and templates.
 - Pass the build source to the shared timeline. Bazel uses a full-width CPU chart above memory and network; Xcode and Gradle retain the four-chart grid.
 - Render source-specific legend labels: Bazel has File preparation, Fetching and Analysis/setup; Gradle has Testing, Packaging, Configuration and Artifact transforms. Their legend buttons expose the selected group via `aria-pressed`, with filtering handled locally by the hook. Xcode keeps its passive legend.
 - Provide reusable UI components (navigation, auth components, forms).
+- Mix projects expose a Mix Cache sidebar item at `/mix-cache`, alongside the other build systems' cache pages.
+- `ReapiCacheOutputs` presents real successful CAS transfers from the same analytics queries as Bazel: download/upload count graph, time-weighted Kura throughput and a digest/operation-filtered, searchable, sortable, paginated table. The caller scopes project, invocation and client kind. Never synthesize content hashes from action keys, compressed sizes or remote rows from local copies. Reset pagination after search, filter, key drill-down/clearing and sorting. Legacy/absent measurements remain honestly unavailable.
 - Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.
 - `BuildTimeline` uses Noora cards, search and empty states around the Xcode build timeline hook, without embedding step payloads in HTML, with translated controls and accessible step details in a resizable right-hand inspector shown only when a step is selected, including its recorded log loaded on demand. Project and target are separate fields; type and outcome use Noora badges, and duration uses the standard history icon.
 - Keep rendering logic here; avoid domain logic.
@@ -38,6 +41,7 @@ This area owns shared UI components for LiveView and templates.
 
 - Do not render fallback coverage or internal clock-origin banners. Pages hide Timeline when the required recorded data is unavailable; Bazel requires a published profile, not retained build-summary spans. Preserve coverage and clock-origin metadata in the API.
 
+- Xcode and Mix cache analytics opt into `chart_frame="cache"` and matching `data-chart-frame="cache"` sections. Its minimum fits the 200px plot plus card padding; controls add natural height. Use it for loading and failures too. Other dashboards retain their existing frame geometry.
 - `AsyncCard` coordinates required analytics results through a readiness flag while preserving each card’s existing loading markup. Guard required result reads with that flag, keep optional results independently guarded, and leave header actions available. Use `async_section` around analytics inside a card with synchronous table content. Failed required loads render the shared error section; successful content stays mounted during refresh. Scatter charts retain points during refresh and show an explicit failure within the chart area. Their requested period can update before the points finish refreshing, so keep the pending state visible.
 
 

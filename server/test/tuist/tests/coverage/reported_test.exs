@@ -10,6 +10,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.History
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -259,11 +260,72 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
   end
 
+  test "a run whose product code all came from the binary cache without counters is partial", %{
+    project: project,
+    account: account
+  } do
+    # Every product target was a plain hit, so the run measured no product line
+    # and lists only its test files; what it took from the cache is still the
+    # commit's to judge, rather than a run that never gathered coverage.
+    head =
+      CoverageFixtures.run_with_coverage(project, account, [file("Tests/AppTests.swift", [1, 0], is_test: true)], %{
+        git_commit_sha: "head"
+      })
+
+    binary_cache(project, head, ["Core", "Text"])
+
+    assert %{kind: "partial", covered_lines: 0, executable_lines: 0} = reported = Reported.compute(project, "head")
+    assert :uninstrumented_code in reasons(reported)
+
+    assert Instrumentation.incomplete_targets(project.id, Commits.runs(project.id, "head")) == %{
+             "App" => ["Core", "Text"]
+           }
+  end
+
+  test "a run that reported no file at all is no run of the commit", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [], %{git_commit_sha: "head"})
+
+    assert Commits.runs(project.id, "head") == []
+  end
+
+  test "a run that took only resource bundles and macros from the binary cache is measured", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["CoreResources"], product: "bundle")
+    binary_cache(project, head, ["CoreMacros"], product: "macro")
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
   test "a run that took only remote packages from the binary cache is measured", %{project: project, account: account} do
     head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
     binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")
 
     assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a scheme whose runs took binaries built with coverage counters from the cache is measured", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Core"], binary_cache_instrumented: true)
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a target a full run of the scheme built from source is measured, one every run took without counters is a gap",
+       %{project: project, account: account} do
+    cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
+    binary_cache(project, cached, ["Core", "Net"])
+    full = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, full, ["Net"])
+
+    assert Instrumentation.incomplete_targets(project.id, Commits.runs(project.id, "head")) == %{"App" => ["Net"]}
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert :uninstrumented_code in reasons(reported)
   end
 
   test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
@@ -475,6 +537,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     case Keyword.get(opts, :head, :measured) do
       :measured -> target_only_head(project, account, opts)
       :skipped -> skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}])
+      :none -> :ok
     end
   end
 
@@ -510,24 +573,29 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   # The scheme skipped whole at the head: its run measured nothing and listed
   # no candidates, and only its targets' hits say what it skipped.
-  defp skipped_head(project, account, hits) do
+  defp skipped_head(project, account, hits, attrs \\ %{}) do
     CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
 
     {:ok, head} =
-      Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: account.id,
-        duration: 1,
-        status: "success",
-        scheme: "App",
-        git_branch: "feature/skipped",
-        git_remote_url_origin: CoverageFixtures.remote_url(),
-        git_commit_sha: "head",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: []
-      })
+      Tests.create_test(
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1,
+            status: "success",
+            scheme: "App",
+            git_branch: "feature/skipped",
+            git_remote_url_origin: CoverageFixtures.remote_url(),
+            git_commit_sha: "head",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: []
+          },
+          attrs
+        )
+      )
 
     selective_testing(project, head, hits)
   end
@@ -1595,6 +1663,63 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:target_without_history]
+  end
+
+  test "ignores what selective testing skipped in a run not set up to collect coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    # Another pipeline's test job on the same commit, without coverage.
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance", coverage_enabled: false})
+
+    assert %{kind: "measured", gap_reasons: 0, skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "still reads what selective testing skipped in a run that didn't say whether it collected coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance"})
+
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:target_without_history]
+  end
+
+  test "carries a scheme skipped whole in a run set up to collect coverage", %{project: project, account: account} do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: true
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2} = Reported.compute(project, "head")
+  end
+
+  test "has no coverage for a commit whose only runs weren't set up to collect it", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: false
+    })
+
+    assert Reported.compute(project, "head") == nil
   end
 
   test "takes a skipped target's tests from the run recorded under the hash it was skipped with", %{

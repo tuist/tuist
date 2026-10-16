@@ -41,7 +41,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
         storage: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}],
-        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]}
+        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
+        previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
       history: []
     }
@@ -194,10 +195,12 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert options.xAxis.axisLabel.color == "var:noora-surface-label-secondary"
   end
 
-  test "hit rate trends use percentage points and distinguish unavailable comparisons" do
-    assert %{value: 25.0, value_label: "+25.0 pp"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
-    assert %{value: -25.0, value_label: "-25.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
-    assert %{value: 50.0, value_label: "+50.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+  test "hit rate trends are relative changes and distinguish unavailable comparisons" do
+    assert %{value: 50.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
+    assert %{value: -33.3, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
+    assert %{value: -100.0} = RunnerVolumesLive.hit_rate_trend(0.0, 50.0)
+    assert %{value: no_base, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+    assert no_base == 0.0
     assert %{value: unchanged_rate, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 50.0)
     assert unchanged_rate == 0.0
     assert %{value: 0, value_label: "No previous data"} = RunnerVolumesLive.hit_rate_trend(75.0, nil)
@@ -205,7 +208,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     period = {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]}
     assert RunnerVolumesLive.previous_period(period) == {~U[2026-09-08 10:00:00.000000Z], ~U[2026-09-15 09:59:59.999999Z]}
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
-    assert html =~ "+25.0 pp"
+    assert html =~ "+50.0%"
+    refute html =~ " pp"
   end
 
   test "inventory hit rate charts work without storage measurements and preserve unknown results" do
@@ -420,6 +424,76 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.selected_tab("invalid") == "overview"
   end
 
+  test "detail widgets compare with the previous period" do
+    assigns = assigns(true)
+    data = assigns.data.result
+
+    analytics =
+      Map.merge(data.analytics, %{
+        storage: [
+          %{at: ~U[2026-09-15 10:00:00Z], used_bytes: 512, capacity_bytes: 4096},
+          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}
+        ],
+        previous_activity: %{uses: 2, hit_rate: 50.0, points: []}
+      })
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | analytics: analytics})})
+
+    document = Floki.parse_document!(html)
+    widget = &(document |> Floki.find("##{&1}") |> Floki.text())
+
+    assert widget.("volume-used") =~ "+100.0%"
+    assert widget.("volume-used") =~ "since last period"
+    assert widget.("volume-hit-rate") =~ "+50.0%"
+    assert widget.("volume-uses") =~ "+100.0%"
+  end
+
+  test "each widget has its own legend color, matching its chart series" do
+    legend = fn html, id ->
+      html |> Floki.parse_document!() |> Floki.find(~s(##{id} [data-part="legend"])) |> Floki.attribute("data-color")
+    end
+
+    detail = render_component(&RunnerVolumesLive.render/1, assigns(true))
+    assert legend.(detail, "volume-used") == ["secondary"]
+    assert legend.(detail, "volume-hit-rate") == ["tertiary"]
+    assert legend.(detail, "volume-uses") == ["p50"]
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
+    assert legend.(inventory, "storage-volumes") == ["primary"]
+    assert legend.(inventory, "storage-used") == ["secondary"]
+    assert legend.(inventory, "storage-hit-rate") == ["tertiary"]
+
+    analytics = assigns(true).data.result.analytics
+    assert [%{color: "var:noora-chart-secondary"}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
+    assert [%{color: "var:noora-chart-tertiary"}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
+    assert [%{color: "var:noora-chart-p50"}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
+    point = %{at: ~U[2026-09-22 10:00:00Z], volumes: 1, used_bytes: 1024, capacity_bytes: 4096}
+    assert [%{color: "var:noora-chart-primary"}] = RunnerVolumesLive.storage_chart_series([point], "volumes")
+  end
+
+  test "job run trends show absolute growth from zero and fall back without a previous count" do
+    assert %{value: 100.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.uses_trend(4, 2)
+    assert %{value: -50.0} = RunnerVolumesLive.uses_trend(1, 2)
+    assert %{value: 7, value_label: "+7"} = RunnerVolumesLive.uses_trend(7, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(0, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
+  end
+
+  test "detail warns when the saved snapshot is too full to reuse" do
+    assigns = assigns(true)
+    data = assigns.data.result
+    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+
+    assert html =~ ~s(id="volume-full-alert")
+    assert html =~ "This volume is almost full"
+
+    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
   test "reader sees metrics but no mutation controls" do
     html = render_component(&RunnerVolumesLive.render/1, assigns(false))
     assert html =~ "Hit rate"
@@ -454,69 +528,5 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     expect(CacheVolumes, :get, fn 1, ^id -> nil end)
     socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, can_manage: true}}
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
-  end
-
-  test "only managers can edit GitHub custom-volume writer branches" do
-    assert render_component(&RunnerVolumesLive.render/1, assigns(true)) =~ "volume-writer-policy"
-    refute render_component(&RunnerVolumesLive.render/1, assigns(false)) =~ "volume-writer-policy"
-
-    for changes <- [%{builtin_name: "tuist-cache"}, %{provider: "gitlab"}] do
-      values = assigns(true)
-      volume = struct!(values.selected, changes)
-      refute render_component(&RunnerVolumesLive.render/1, %{values | selected: volume}) =~ "volume-writer-policy"
-    end
-  end
-
-  test "writer policy errors distinguish invalid names from missing access" do
-    values = assigns(true)
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    stub(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    for {reason, message} <- [
-          {:invalid_parameters, "Use up to 20 exact branch names."},
-          {:not_found, "You do not have access to update this volume."}
-        ] do
-      expect(CacheVolumes, :update_writer_branches, fn 1, _, _ -> {:error, reason} end)
-
-      assert {:noreply, result} =
-               RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "feature"}, socket)
-
-      assert result.assigns.flash["error"] =~ message
-    end
-
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, result} =
-             RunnerVolumesLive.handle_event(
-               "save_writer_branches",
-               %{"writer_branches" => "feature"},
-               put_in(socket.assigns.selected, nil)
-             )
-
-    assert result.assigns.flash["error"] == "You do not have access to update this volume."
-  end
-
-  test "writer policy save reauthorizes and scopes the selected volume" do
-    values = assigns(true)
-    id = values.selected.id
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    expect(CacheVolumes, :update_writer_branches, fn 1, ^id, ["codex/test"] ->
-      {:ok, %{values.selected | writer_branches: ["codex/test"]}}
-    end)
-
-    assert {:noreply, updated} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "  codex/test\n\n"}, socket)
-
-    assert updated.assigns.selected.writer_branches == ["codex/test"]
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, rejected} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "other"}, updated)
-
-    assert rejected.assigns.selected.writer_branches == ["codex/test"]
-    assert rejected.assigns.flash["error"] == "You do not have access to update this volume."
   end
 end

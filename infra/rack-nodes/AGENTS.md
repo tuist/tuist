@@ -821,10 +821,41 @@ fleet, with the same image as the rented fleet's pool for that Xcode. The
 server learns them through `TUIST_RUNNERS_SITE_POOLS`. An account on the
 `runner_site` flag (`https://tuist.dev/ops/flags`) has its macOS profiles
 (`tuist-macos` and the rest) routed to the rack's pool for the profile's Xcode
-and shape, and to the rented fleet when the rack has none. The rented fleet is
-the rack's backup: a job no rack runner has claimed after two minutes moves to
-the rented pool for the same Xcode and shape (`SiteSpilloverWorker`), so a
-rack that is dark, full or slow to boot delays jobs rather than holding them.
+and shape, and to the rented fleet when the rack has none. While the rack is
+up, the account's jobs run only there: they queue for as long as the rack is
+busy, and no rented runner is minted for them, so none can pick one up. GitHub
+hands a queued job to any idle runner of the org that carries its labels, and
+a rack runner carries the same label as a rented one, so keeping rented
+runners from being minted is what keeps the jobs on the rack.
+
+A catalog shape can run a bigger guest on the rack than on the rented fleet
+(`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
+8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
+hosts' 16 CPU / 48 GB sizing fits two and one of. The pool keeps the shape's
+name, so a job is still recorded, billed and counted against the account's
+concurrency limit at the shape its profile names, and one that spills over to
+the rented fleet runs at that shape.
+
+The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
+its guest slots through the runners-controller's fleet allocator. When one of
+them has queued jobs whose Pods the scheduler refuses for lack of resources,
+the others give up idle warm runners straight away instead of after their
+scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool
+preemption").
+
+The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
+
+- **No capacity:** no Node of the rack fleet is Ready, schedulable and large
+  enough for the pool's guest. Power, the uplink and a drain all show up this
+  way within the node-monitor grace period.
+- **Stalled:** a pool's oldest queued job has waited 10 minutes and nothing at
+  the rack held or took a claim in that time; 30 minutes while no eligible
+  Node holds the pool's golden image, so a cold pull is not an outage.
+
+While a pool is down, dispatch routes new jobs to the rented pool for the same
+Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
+minute. A cluster the server cannot read leaves the rack up.
+
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a

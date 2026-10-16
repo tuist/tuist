@@ -168,6 +168,77 @@ extension FileSystem {
         }
     }
 
+    private func movePreservingSymbolicLink(from source: URL, to destination: URL) async throws {
+        try Task.checkCancellation()
+        if isSymlink(source) {
+            try moveSymbolicLink(from: source, to: destination)
+        } else {
+            try await move(from: source.absolutePath, to: destination.absolutePath)
+        }
+    }
+
+    /// Keep the previous directory entry recoverable until its staged replacement is installed.
+    /// Rollback must run independently of cancellation of a sibling package's restoration.
+    func replaceWithStagedItem(
+        source: URL, destination: URL,
+        install: (@Sendable (URL, URL) async throws -> Void)? = nil
+    ) async throws {
+        try Task.checkCancellation()
+        guard existsIncludingSymlinks(destination) else {
+            try await movePreservingSymbolicLink(from: source, to: destination)
+            return
+        }
+        let backupDirectory = try await temporaryDirectory(in: destination.deletingLastPathComponent())
+        let backup = backupDirectory.appendingPathComponent("previous")
+        do {
+            try await movePreservingSymbolicLink(from: destination, to: backup)
+        } catch {
+            try? await removePath(backupDirectory)
+            throw error
+        }
+        do {
+            if let install {
+                try await install(source, destination)
+            } else {
+                try await movePreservingSymbolicLink(from: source, to: destination)
+            }
+        } catch {
+            let replacementError = error
+            do {
+                try await Task.detached {
+                    try await fileSystem.movePreservingSymbolicLink(from: backup, to: destination)
+                    try? await fileSystem.removePath(backupDirectory)
+                }.value
+            } catch {
+                throw ToolError
+                    .message(
+                        "could not restore checkout at \(destination.path); previous data is preserved at \(backup.path): \(error)"
+                    )
+            }
+            throw replacementError
+        }
+        await Task.detached { try? await fileSystem.removePath(backupDirectory) }.value
+    }
+
+    /// A private directory with independent inodes. APFS shares data blocks until written;
+    /// other filesystems safely fall back to a copy, never hard links or source-cache aliases.
+    func copyPrivately(source: URL, destination: URL, preferClone: Bool = true) async throws {
+        #if canImport(Darwin)
+            if preferClone {
+                let result = source.path.withCString { sourcePath in
+                    destination.path.withCString { destinationPath in
+                        clonefile(sourcePath, destinationPath, UInt32(CLONE_NOFOLLOW | CLONE_NOOWNERCOPY))
+                    }
+                }
+                if result == 0 { return }
+                if existsIncludingSymlinks(destination) {
+                    try await removePath(destination)
+                }
+            }
+        #endif
+        try await copy(source.absolutePath, to: destination.absolutePath)
+    }
+
     /// Materialise `source` at `destination`, removing any existing item first. By default,
     /// continuous integration runners copy cached directories; other environments symlink so the
     /// cached payload stays shared.

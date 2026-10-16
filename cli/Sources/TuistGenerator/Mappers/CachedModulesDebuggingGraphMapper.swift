@@ -281,6 +281,13 @@ private struct CacheDebuggerSettingsRenderer {
         var lines: [String] = []
         if let originalLLDBInitFile {
             lines.append("command source -s 0 \(lldbQuoted(originalLLDBInitFile.pathString))")
+        } else {
+            // Xcode skips its user initializer when a scheme supplies a custom one.
+            // Check at debugger startup, not generation, since this file can be shared.
+            lines.append(
+                #"script import os; p = os.path.expanduser("~/.lldbinit-Xcode"); p = p if os.path.isfile(p) else os.path.expanduser("~/.lldbinit"); "# +
+                    homeInitializerScript
+            )
         }
         if !frameworkSearchPaths.isEmpty || !moduleSearchPaths.isEmpty {
             lines.append(lldbSetting("target.swift-framework-search-paths", values: frameworkSearchPaths.map(\.pathString)))
@@ -288,6 +295,21 @@ private struct CacheDebuggerSettingsRenderer {
             lines.append("settings set symbols.use-swift-explicit-module-loader false")
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private var homeInitializerScript: String {
+        [
+            "_tuist_init_options = lldb.SBCommandInterpreterRunOptions();",
+            "_tuist_init_options.SetEchoCommands(False);",
+            "_tuist_init_options.SetPrintResults(True);",
+            "_tuist_init_options.SetPrintErrors(True);",
+            "_tuist_init_options.SetStopOnError(False);",
+            "_tuist_init_options.SetStopOnContinue(True);",
+            "_tuist_init_options.SetAddToHistory(False);",
+            "lldb.debugger.GetCommandInterpreter().HandleCommandsFromFile("
+                + "lldb.SBFileSpec(p), lldb.SBExecutionContext(), _tuist_init_options, lldb.SBCommandReturnObject()) "
+                + "if os.path.isfile(p) else None",
+        ].joined(separator: " ")
     }
 
     private func lldbSetting(_ setting: String, values: [String]) -> String {
@@ -325,10 +347,18 @@ private struct CacheDebuggerSettingsRenderer {
         let sourceOriginal = originalLLDBInitFile.map {
             "lldb_setting command-source \(shellQuoted($0.pathString))"
         } ?? ""
+        let sourceHome = originalLLDBInitFile == nil ? """
+        if [ -n "${HOME:-}" ]; then
+          if [ -f "$HOME/.lldbinit-Xcode" ]; then
+            lldb_setting command-source-home "$HOME/.lldbinit-Xcode"
+          elif [ -f "$HOME/.lldbinit" ]; then
+            lldb_setting command-source-home "$HOME/.lldbinit"
+          fi
+        fi
+        """ : ""
 
-        // The source map is written first because it replaces the setting, so the original initializer can still
-        // extend or override it. It is resolved into a separate file so that, when the prefix map cannot be read,
-        // the initializer still sources the original one.
+        // Replace home-file and stale source maps, but let an explicit initializer extend or override the map.
+        // Resolve it separately so an unreadable prefix map still leaves the user initializer sourced.
         return """
         set -eu
 
@@ -345,6 +375,10 @@ private struct CacheDebuggerSettingsRenderer {
           shift
           if [ "$setting" = "command-source" ]; then
             printf 'command source -s 0 "%s"\\n' "$(lldb_escape "$1")"
+            return
+          fi
+          if [ "$setting" = "command-source-home" ]; then
+            printf 'script import os; p = "%s"; \(homeInitializerScript)\\n' "$(lldb_escape "$1")"
             return
           fi
           printf 'settings set %s' "$setting"
@@ -364,11 +398,50 @@ private struct CacheDebuggerSettingsRenderer {
         \(sourceMappingScript)
 
         {
+          \(sourceHome)
           cat "$source_map_file"
           \(sourceOriginal)
+          \(compilationCacheUpdateScript)
           \(moduleSettings)
         } > "$lldb_init_file"
         exit "$source_map_status"
+        """
+    }
+
+    /// Without the CAS, LLDB cannot load the modules that cached compilations reference by CAS ID, so it cannot
+    /// reconstruct Swift types and expressions fail. Xcode does not configure it.
+    ///
+    /// Xcode does not export the default `COMPILATION_CACHE_CAS_PATH`, `$(DERIVED_DATA_DIR)/CompilationCache.noindex`,
+    /// to scheme actions. `-derivedDataPath` builds keep the cache next to `Build`.
+    private var compilationCacheUpdateScript: String {
+        """
+        if [ "${COMPILATION_CACHE_ENABLE_CACHING:-NO}" = "YES" ]; then
+          cas_root="${COMPILATION_CACHE_CAS_PATH:-${DERIVED_DATA_DIR:-${BUILD_DIR%%/Build/*}}/CompilationCache.noindex}"
+          if [ "${COMPILATION_CACHE_ENABLE_PLUGIN:-NO}" = "YES" ]; then
+            lldb_setting symbols.cas-path "$cas_root/plugin"
+            lldb_setting symbols.cas-plugin-path "${COMPILATION_CACHE_PLUGIN_PATH:-${DEVELOPER_DIR:-}/usr/lib/libToolchainCASPlugin.dylib}"
+
+            set --
+            if [ -n "${COMPILATION_CACHE_REMOTE_SERVICE_PATH:-}" ]; then
+              set -- "$@" "remote-service-path=$COMPILATION_CACHE_REMOTE_SERVICE_PATH"
+            fi
+            expects_plugin_option=NO
+            for flag in ${OTHER_SWIFT_FLAGS:-}; do
+              if [ "$expects_plugin_option" = "YES" ]; then
+                set -- "$@" "$flag"
+                expects_plugin_option=NO
+              elif [ "$flag" = "-cas-plugin-option" ]; then
+                expects_plugin_option=YES
+              fi
+            done
+            if [ "$#" -gt 0 ]; then
+              lldb_setting symbols.cas-plugin-options "$@"
+            fi
+          else
+            lldb_setting symbols.cas-path "$cas_root/builtin"
+            lldb_setting symbols.cas-plugin-path ""
+          fi
+        fi
         """
     }
 
@@ -386,33 +459,6 @@ private struct CacheDebuggerSettingsRenderer {
         printf 'settings set symbols.use-swift-explicit-module-loader false\n'
 
         if [ "${COMPILATION_CACHE_ENABLE_CACHING:-NO}" = "YES" ]; then
-          derived_data_dir="${BUILD_DIR%%/Build/*}"
-          cache_kind=builtin
-          if [ "${COMPILATION_CACHE_ENABLE_PLUGIN:-NO}" = "YES" ]; then
-            cache_kind=plugin
-          fi
-          cas_path="$derived_data_dir/CompilationCache.noindex/$cache_kind"
-          plugin_path="${COMPILATION_CACHE_PLUGIN_PATH:-${DEVELOPER_DIR:-}/usr/lib/libToolchainCASPlugin.dylib}"
-          lldb_setting symbols.cas-path "$cas_path"
-          lldb_setting symbols.cas-plugin-path "$plugin_path"
-
-          set --
-          if [ -n "${COMPILATION_CACHE_REMOTE_SERVICE_PATH:-}" ]; then
-            set -- "$@" "remote-service-path=$COMPILATION_CACHE_REMOTE_SERVICE_PATH"
-          fi
-          expects_plugin_option=NO
-          for flag in ${OTHER_SWIFT_FLAGS:-}; do
-            if [ "$expects_plugin_option" = "YES" ]; then
-              set -- "$@" "$flag"
-              expects_plugin_option=NO
-            elif [ "$flag" = "-cas-plugin-option" ]; then
-              expects_plugin_option=YES
-            fi
-          done
-          if [ "$#" -gt 0 ]; then
-            lldb_setting symbols.cas-plugin-options "$@"
-          fi
-
           sdk_path="${SDKROOT:-}"
           developer_path="${DEVELOPER_DIR:-}"
           toolchain_path="${DT_TOOLCHAIN_DIR:-$developer_path/Toolchains/XcodeDefault.xctoolchain}"

@@ -457,6 +457,8 @@ tuist test \
 
 When `--shard-archive-path` is set, Tuist skips remote test-products transfer and uses the local archive instead. If you also pass `--shard-skip-upload`, the archive path takes precedence.
 
+When there are no tests to run, for example because selective testing skipped every test target, the build phase outputs an empty shard matrix and writes no archive. Run the upload step only when the matrix has shards.
+
 > [!IMPORTANT]
 > Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the shard archive after sharding completes to avoid accumulating stale data on the runner.
 
@@ -483,7 +485,8 @@ jobs:
       - run: tuist auth login
       - id: build
         run: tuist test --build-only --shard-total 5
-      - uses: actions/upload-artifact@v4
+      - if: toJSON(fromJSON(steps.build.outputs.matrix).shard) != '[]'
+        uses: actions/upload-artifact@v4
         with:
           name: test-shard-archive
           path: ${{ env.TUIST_TEST_SHARD_ARCHIVE_PATH }}

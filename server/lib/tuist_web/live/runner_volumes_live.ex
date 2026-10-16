@@ -115,36 +115,6 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:noreply, assign(socket, :detail_metric, metric)}
   end
 
-  def handle_event("save_writer_branches", %{"writer_branches" => value}, socket) do
-    account = socket.assigns.selected_account
-
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
-         %{id: id} <- socket.assigns.selected,
-         true <- is_binary(value) and byte_size(value) <= 4200,
-         branches = value |> String.split("\n", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")),
-         {:ok, volume} <- CacheVolumes.update_writer_branches(account.id, id, branches) do
-      {:noreply,
-       socket
-       |> assign(:selected, volume)
-       |> put_flash(
-         :info,
-         dgettext("dashboard_runners", "Writer branches updated. Changes apply to new volume attachments.")
-       )}
-    else
-      failure when failure in [false, {:error, :invalid_parameters}] ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "Could not update writer branches. Use up to 20 exact branch names.")
-         )}
-
-      _ ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("dashboard_runners", "You do not have access to update this volume."))}
-    end
-  end
-
   def handle_event("request_delete", %{"id" => id}, socket), do: request_action(socket, id, :delete)
 
   def handle_event("cancel", _, %{assigns: %{pending_action: nil}} = socket), do: {:noreply, socket}
@@ -217,7 +187,8 @@ defmodule TuistWeb.RunnerVolumesLive do
               if tab == "overview" do
                 %{
                   storage: CacheVolumes.storage_history(account.id, period, selected.id),
-                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period)
+                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
+                  previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
                 }
               end
           }
@@ -326,14 +297,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def hit_rate_trend(current, previous) when is_number(current) and is_number(previous) do
-    difference = Float.round((current - previous) * 1.0, 1)
-
     %{
-      value: difference,
-      value_label:
-        if(difference != 0,
-          do: dgettext("dashboard_runners", "%{change} pp", change: "#{if difference > 0, do: "+"}#{difference}")
-        ),
+      value: if(previous == 0, do: 0.0, else: Float.round(current / previous * 100 - 100, 1)),
+      value_label: nil,
       label: dgettext("dashboard_runners", "since last period")
     }
   end
@@ -342,6 +308,19 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def hit_rate_trend(_current, nil),
     do: %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
+
+  def uses_trend(current, previous) when is_integer(current) and is_integer(previous) do
+    label = dgettext("dashboard_runners", "since last period")
+
+    cond do
+      previous == 0 and current != 0 -> %{value: current, value_label: "+" <> count(current), label: label}
+      previous == 0 -> %{value: 0, value_label: nil, label: label}
+      true -> %{value: (current - previous) / previous * 100, value_label: nil, label: label}
+    end
+  end
+
+  def uses_trend(_current, _previous),
+    do: %{value: 0, value_label: nil, label: dgettext("dashboard_runners", "since last period")}
 
   def inventory_chart_data?(data, "hit_rate"), do: not is_nil(data.activity.hit_rate)
   def inventory_chart_data?(data, _metric), do: data.storage_history != []
@@ -366,7 +345,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       %{
         name: label,
         type: if(metric == "uses", do: "bar", else: "line"),
-        color: "var:noora-chart-primary",
+        color: "var:noora-chart-" <> metric_color(metric),
         showSymbol: true,
         connectNulls: false,
         data: Enum.map(analytics.activity.points, &[DateTime.to_iso8601(&1.at), Map.fetch!(&1, field)])
@@ -398,6 +377,20 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
 
+  def full_snapshot?(%{builtin_name: nil}, stats),
+    do: CacheVolumes.full?(stats[:saved_bytes], stats[:saved_capacity_bytes])
+
+  def full_snapshot?(_volume, _stats), do: false
+
+  def full_snapshot_description(stats) do
+    dgettext(
+      "dashboard_runners",
+      "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot.",
+      used: bytes(stats[:saved_bytes]),
+      capacity: bytes(stats[:saved_capacity_bytes])
+    )
+  end
+
   def volume_name(key) do
     if String.length(key) > @volume_name_max_length,
       do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",
@@ -426,11 +419,16 @@ defmodule TuistWeb.RunnerVolumesLive do
     dngettext("dashboard_runners", "%{count} copy unmeasured", "%{count} copies unmeasured", count)
   end
 
+  def metric_color("volumes"), do: "primary"
+  def metric_color("used_bytes"), do: "secondary"
+  def metric_color("hit_rate"), do: "tertiary"
+  def metric_color("uses"), do: "p50"
+
   def storage_chart_series(points, metric \\ nil) do
     for {field, label, color} <- [
-          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-primary"},
-          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-primary"},
-          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-secondary"}
+          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-" <> metric_color("volumes")},
+          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-" <> metric_color("used_bytes")},
+          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-quaternary"}
         ],
         is_nil(metric) or Atom.to_string(field) == metric do
       %{
@@ -452,7 +450,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       if period, do: %{min: DateTime.to_iso8601(elem(period, 0)), max: DateTime.to_iso8601(elem(period, 1))}, else: %{}
 
     %{
-      grid: %{left: 12, right: 24, top: 20, bottom: 36, containLabel: true},
+      grid: %{left: 12, right: 24, top: 20, bottom: 4, containLabel: true},
       xAxis:
         Map.merge(
           %{

@@ -15,3 +15,5 @@ This package is a stateless HTTP/gRPC streaming proxy for the wildcard DNS fallb
 - Hosted custom-account conflicts direct clients to `TUIST_CACHE_ENDPOINT`: known hosted URLs bypass discovery. Self-hosted servers discover their main endpoint separately.
 
 - Canonicalize request authorities before environment selection and control-plane resolution: lowercase, remove the optional HTTPS port and one trailing DNS dot. Invalid authorities never reach the control plane.
+
+- Both activation ingress routes use the platform nginx-grpc class and its single load balancer. Keep upstream keepalive enabled there: main nginx emits Connection: close, which the Go HTTP/2 listener must reject. Run the real nginx regression with TUIST_TEST_NGINX=/path/to/nginx GOWORK=off go test -race ./internal/activation -run TestNGINXGRPCConnectionHeader; it reproduces the rejection and checks the working stream/trailers.

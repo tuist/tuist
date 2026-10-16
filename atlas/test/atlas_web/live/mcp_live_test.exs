@@ -82,8 +82,22 @@ defmodule AtlasWeb.MCPLiveTest do
 
     document = render_page([entry])
 
-    assert exists?(document, "#mcp-session-shared")
+    assert exists?(document, "#mcp-session-shared[data-color=neutral]")
+    assert document |> LazyHTML.query("#mcp-session-shared") |> LazyHTML.text() |> String.trim() == "Key configured"
     refute exists?(document, "#mcp-actions-shared")
+  end
+
+  test "bearer forms require a key instead of OAuth endpoints and never prefill the saved key" do
+    server = %ServerConfiguration{auth_type: "bearer_token", bearer_token: "stored-secret"}
+    form = Phoenix.Component.to_form(MCP.change_server_configuration(server), as: :server)
+    document = render_page([], server_form: form)
+
+    assert exists?(document, "#mcp-server-auth-type select option[value=bearer_token][selected]")
+    assert exists?(document, "#mcp-server-bearer-token[type=password][value='']")
+    assert exists?(document, "#mcp-server-edit-bearer-token[type=password][value='']")
+    refute exists?(document, "#mcp-server-authorization-url")
+    refute exists?(document, "#mcp-server-token-url")
+    refute exists?(document, "input[value=stored-secret]")
   end
 
   defp oauth_entry do

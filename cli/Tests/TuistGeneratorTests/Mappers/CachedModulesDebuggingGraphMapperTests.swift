@@ -103,7 +103,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         let testContents = try #require(String(data: testData, encoding: .utf8))
         #expect(testContents.contains(cachedFrameworkPath.parentDirectory.pathString))
         #expect(testContents.contains(cachedUIFrameworkPath.parentDirectory.pathString))
-        #expect(!testContents.contains("command source"))
+        #expect(testContents.contains("~/.lldbinit-Xcode"))
 
         let script = try #require(runAction.preActions.first?.scriptText)
         #expect(script.contains("symbols.cas-path"))
@@ -475,6 +475,100 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(sideEffects.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory, arguments: [false, true], ["none", "generic", "xcode", "both", "broken", "results"])
+    func generatedScript_sourcesUserInitializerOnlyWithoutCustomInit(
+        customLLDBInitFiles: Bool,
+        homeFiles: String
+    ) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let home = projectPath.appending(component: #"home "quoted" café"#)
+        let xcodeInitExists = ["xcode", "both", "broken", "results"].contains(homeFiles)
+        if homeFiles != "none" {
+            try await FileSystem().makeDirectory(at: home)
+        }
+        if xcodeInitExists {
+            let diagnosticCommand: String
+            switch homeFiles {
+            case "broken": diagnosticCommand = "tuist-command-that-does-not-exist\n"
+            case "results": diagnosticCommand = "settings show target.max-children-count\n"
+            default: diagnosticCommand = ""
+            }
+            try await FileSystem().writeText(
+                "settings set target.max-children-count 77\n" + diagnosticCommand
+                    + "settings set target.source-map /user \"\(projectPath.pathString)\"\n",
+                at: home.appending(component: ".lldbinit-Xcode")
+            )
+        }
+        if ["generic", "both"].contains(homeFiles) {
+            try await FileSystem().writeText(
+                "settings set target.max-children-count 88\nsettings set target.source-map /generic \"\(projectPath.pathString)\"\n",
+                at: home.appending(component: ".lldbinit")
+            )
+        }
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: customLLDBInitFiles)
+        let (mapped, sideEffects, _) = try await CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+            .map(graph: graph, environment: MapperEnvironment())
+        let scheme = try #require(mapped.projects[projectPath]?.schemes.first)
+        let actions = [
+            (script: scheme.runAction?.preActions.first?.scriptText, initPath: scheme.runAction?.customLLDBInitFile),
+            (script: scheme.testAction?.preActions.first?.scriptText, initPath: scheme.testAction?.customLLDBInitFile),
+        ]
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+
+        for (index, action) in actions.enumerated() {
+            let initial = try #require(fileDescriptor(at: action.initPath, in: sideEffects))
+            let initialData = try #require(initial.contents)
+            #expect(String(decoding: initialData, as: UTF8.self).contains("~/.lldbinit-Xcode") == !customLLDBInitFiles)
+            let initPath = try #require(action.initPath)
+            if !customLLDBInitFiles {
+                try await FileSystem().makeDirectory(at: initPath.parentDirectory)
+                try await FileSystem().writeText(String(decoding: initialData, as: UTF8.self), at: initPath)
+                let output = try runProcess("/usr/bin/xcrun", arguments: [
+                    "lldb", "--no-lldbinit", "--batch", "--source", initPath.pathString,
+                    "-o", "settings show target.source-map",
+                ], environment: ["PATH": "/usr/bin:/bin", "HOME": home.pathString], includeStandardError: true)
+                #expect(output.contains("\"/user\" -> \"\(projectPath.pathString)\"") == xcodeInitExists)
+                #expect(output.contains("\"/generic\" -> \"\(projectPath.pathString)\"") == (homeFiles == "generic"))
+                #expect(output.contains("error: 'tuist-command-that-does-not-exist'") == (homeFiles == "broken"))
+                #expect(!output.contains("(lldb) settings set target.source-map /user"))
+                #expect(output.contains("target.max-children-count (unsigned) = ") == (homeFiles == "results"))
+            }
+            let scriptPath = projectPath.appending(component: "debugger-\(index).sh")
+            try await FileSystem().writeText(#require(action.script), at: scriptPath)
+            _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: [
+                "PATH": "/usr/bin:/bin",
+                "HOME": home.pathString,
+                "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+                "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+                "TARGET_TEMP_DIR": projectPath.pathString,
+            ])
+            let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+            #expect(contents.contains(".lldbinit-Xcode") == (!customLLDBInitFiles && xcodeInitExists))
+            #expect(contents.contains("custom ") == customLLDBInitFiles)
+            #expect(contents.contains("settings set target.source-map"))
+            if !customLLDBInitFiles, homeFiles != "none" {
+                #expect(contents.hasPrefix("script import os; p = "))
+                #expect(contents.contains(#"home \"quoted\" café/.lldbinit"#))
+            }
+            if !customLLDBInitFiles {
+                let output = try runProcess("/usr/bin/xcrun", arguments: [
+                    "lldb", "--no-lldbinit", "--batch", "--source", initPath.pathString,
+                    "-o", "settings show target.source-map",
+                    "-o", "settings show target.max-children-count",
+                ], environment: ["PATH": "/usr/bin:/bin", "HOME": home.pathString], includeStandardError: true)
+                #expect(!output.contains("\"/user\" -> "))
+                #expect(!output.contains("\"/generic\" -> "))
+                #expect(output.contains("\"/^root\" -> \"\(projectPath.pathString)\""))
+                #expect(output.contains("target.max-children-count (unsigned) = 77") == xcodeInitExists)
+                #expect(output.contains("target.max-children-count (unsigned) = 88") == (homeFiles == "generic"))
+                #expect(output.contains("error: 'tuist-command-that-does-not-exist'") == (homeFiles == "broken"))
+                #expect(!output.contains("(lldb) settings set target.source-map /user"))
+                let resultLines = output.split(separator: "\n").filter { $0.hasPrefix("target.max-children-count (unsigned) = ") }
+                #expect(resultLines.count == (homeFiles == "results" ? 2 : 1))
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func generatedScript_readsEvaluatedMappingsWithoutChangingTheModuleLoader() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
@@ -526,6 +620,7 @@ struct CachedModulesDebuggingGraphMapperTests {
             "PROJECT_DIR": projectPath.pathString,
             "PROJECT_TEMP_DIR": projectPath.appending(component: "intermediates").pathString,
             "BUILT_PRODUCTS_DIR": projectPath.appending(component: "products").pathString,
+            "COMPILATION_CACHE_CAS_PATH": projectPath.appending(component: "Compilation cache").pathString,
         ]
 
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
@@ -547,7 +642,8 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(pairs.map(\.0).filter(projectAliases.contains) == ["/^spm", "/^root", "/^custom", "/^toolchain"])
         #expect(contents.hasPrefix("settings set target.source-map "))
         #expect(contents.contains("\ncommand source -s 0 "))
-        #expect(!contents.contains("symbols.cas-"))
+        #expect(contents.contains("\nsettings set symbols.cas-path \"\(projectPath.pathString)/Compilation cache/builtin\"\n"))
+        #expect(contents.contains("\nsettings set symbols.cas-plugin-path \"\"\n"))
         #expect(!contents.contains("symbols.use-swift-explicit-module-loader"))
         #expect(!contents.contains("target.swift-framework-search-paths"))
         #expect(!contents.contains("target.swift-module-search-paths"))
@@ -604,9 +700,10 @@ struct CachedModulesDebuggingGraphMapperTests {
             _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
             let initPath = try #require(action.initPath)
             let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+            let sourceMap = try #require(contents.split(separator: "\n").first)
             let parsed = try runProcess(
                 "/usr/bin/python3",
-                arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", contents],
+                arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", String(sourceMap)],
                 environment: environment
             )
             let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
@@ -631,6 +728,7 @@ struct CachedModulesDebuggingGraphMapperTests {
             "COMPILATION_CACHE_ENABLE_CACHING": "YES",
             "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
             "TARGET_TEMP_DIR": projectPath.pathString,
+            "COMPILATION_CACHE_CAS_PATH": projectPath.appending(component: "cas").pathString,
         ]
 
         for (index, action) in actions.enumerated() {
@@ -646,8 +744,11 @@ struct CachedModulesDebuggingGraphMapperTests {
                 workingDirectory: projectPath
             )
             let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
-            #expect(contents.hasPrefix("settings set target.source-map \"/^root\" \"\(projectPath.pathString)\""))
-            #expect(contents.split(separator: "\n").count == 1)
+            #expect(contents.split(separator: "\n").map(String.init) == [
+                "settings set target.source-map \"/^root\" \"\(projectPath.pathString)\"",
+                "settings set symbols.cas-path \"\(projectPath.pathString)/cas/builtin\"",
+                "settings set symbols.cas-plugin-path \"\"",
+            ])
 
             environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
             _ = try runProcess(
@@ -693,9 +794,10 @@ struct CachedModulesDebuggingGraphMapperTests {
 
         let initPath = try #require(runAction.customLLDBInitFile)
         let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        let sourceMap = try #require(contents.split(separator: "\n").first)
         let parsed = try runProcess(
             "/usr/bin/python3",
-            arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", contents],
+            arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", String(sourceMap)],
             environment: environment
         )
         let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
@@ -703,6 +805,56 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(stride(from: 3, to: arguments.count, by: 2).map { arguments[$0] } == [
             "/^derived", "/^built", "/^intermediates", "/^products", "/^spm", "/^root", "/^workspace", "/^src",
         ])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_pointsLLDBAtTheCompilationCache() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let derivedData = projectPath.appending(component: "DerivedData")
+        let projectDerivedData = derivedData.appending(component: "App-abc")
+        // The script runs `/usr/bin/python3`, an `xcrun` shim that fails when `DEVELOPER_DIR` does not exist.
+        let developer = try runProcess("/usr/bin/xcode-select", arguments: ["-p"], environment: ["PATH": "/usr/bin:/bin"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "COMPILATION_CACHE_ENABLE_PLUGIN": "YES",
+            "COMPILATION_CACHE_CAS_PATH": projectPath.appending(component: "Shared cache").pathString,
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH": "/tmp/cas.sock",
+            "OTHER_SWIFT_FLAGS": "-cas-plugin-option upload=NO",
+            "DERIVED_DATA_DIR": derivedData.pathString,
+            "BUILD_DIR": projectDerivedData.appending(components: "Build", "Products").pathString,
+            "DEVELOPER_DIR": developer,
+        ]
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        let withCASPath = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withCASPath.split(separator: "\n").map(String.init) == [
+            "settings set symbols.cas-path \"\(projectPath.pathString)/Shared cache/plugin\"",
+            "settings set symbols.cas-plugin-path \"\(developer)/usr/lib/libToolchainCASPlugin.dylib\"",
+            "settings set symbols.cas-plugin-options \"remote-service-path=/tmp/cas.sock\" \"upload=NO\"",
+        ])
+
+        environment["COMPILATION_CACHE_CAS_PATH"] = nil
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        let withDerivedDataDirectory = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withDerivedDataDirectory.hasPrefix(
+            "settings set symbols.cas-path \"\(derivedData.pathString)/CompilationCache.noindex/plugin\"\n"
+        ))
+
+        environment["DERIVED_DATA_DIR"] = nil
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        let withBuildDirectory = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withBuildDirectory.hasPrefix(
+            "settings set symbols.cas-path \"\(projectDerivedData.pathString)/CompilationCache.noindex/plugin\"\n"
+        ))
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])
@@ -754,6 +906,49 @@ struct CachedModulesDebuggingGraphMapperTests {
         let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
         #expect(contents.hasPrefix("command source -s 0 "))
         #expect(!contents.contains("target.source-map"))
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["set", "append"])
+    func generatedScript_preservesExplicitInitializerSourceMapOverrides(command: String) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let originalScheme = try #require(graph.projects[projectPath]?.schemes.first)
+        let (mapped, _, _) = try await CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+            .map(graph: graph, environment: MapperEnvironment())
+        let scheme = try #require(mapped.projects[projectPath]?.schemes.first)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+        let actions = [
+            (
+                originalScheme.runAction?.customLLDBInitFile,
+                scheme.runAction?.customLLDBInitFile,
+                scheme.runAction?.preActions.first
+            ),
+            (
+                originalScheme.testAction?.customLLDBInitFile,
+                scheme.testAction?.customLLDBInitFile,
+                scheme.testAction?.preActions.first
+            ),
+        ]
+        for (originalPath, generatedPath, preAction) in actions {
+            try await FileSystem().writeText(
+                "settings \(command) target.source-map /custom \"\(projectPath.pathString)\"\n",
+                at: #require(originalPath)
+            )
+            let scriptPath = projectPath.appending(component: "debugger.sh")
+            try await FileSystem().writeText(#require(preAction?.scriptText), at: scriptPath)
+            _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: [
+                "PATH": "/usr/bin:/bin",
+                "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+                "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+                "TARGET_TEMP_DIR": projectPath.pathString,
+            ])
+            let output = try runProcess("/usr/bin/xcrun", arguments: [
+                "lldb", "--no-lldbinit", "--batch", "--source", #require(generatedPath).pathString,
+                "-o", "settings show target.source-map",
+            ], environment: ["PATH": "/usr/bin:/bin", "HOME": projectPath.pathString], includeStandardError: true)
+            #expect(output.contains("\"/custom\" -> \"\(projectPath.pathString)\""))
+            #expect(output.contains("\"/^root\" -> \"\(projectPath.pathString)\"") == (command == "append"))
+        }
     }
 
     private func compilationCacheGraph(
@@ -821,6 +1016,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         _ executable: String,
         arguments: [String],
         environment: [String: String],
+        includeStandardError: Bool = false,
         workingDirectory: AbsolutePath? = nil,
         expectedStatus: Int32 = 0
     ) throws -> String {
@@ -838,8 +1034,9 @@ struct CachedModulesDebuggingGraphMapperTests {
         let errorData = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         let text = String(decoding: data, as: UTF8.self)
-        #expect(process.terminationStatus == expectedStatus, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
-        return text
+        let errorText = String(decoding: errorData, as: UTF8.self)
+        #expect(process.terminationStatus == expectedStatus, Comment(rawValue: text + errorText))
+        return includeStandardError ? text + errorText : text
     }
 
     private func fileDescriptor(

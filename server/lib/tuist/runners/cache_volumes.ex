@@ -18,27 +18,28 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
-  @commit_modes ~w(auto true false)
 
-  def allocate(
-        %{
-          "pod_name" => pod,
-          "pod_uid" => uid,
-          "node_name" => node,
-          "key" => key,
-          "architecture" => arch,
-          "uid" => user_id
-        } = params
-      ) do
-    commit_mode = Map.get(params, "commit", "auto")
+  # A saved snapshot at or above @full_percent of its capacity, which a clone filled
+  # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
+  @full_percent 80
+  @out_of_space_percent 99
 
-    with true <- commit_mode in @commit_modes,
-         true <- valid_key?(key),
+  def allocate(%{
+        "pod_name" => pod,
+        "pod_uid" => uid,
+        "node_name" => node,
+        "key" => key,
+        "architecture" => arch,
+        "uid" => user_id
+      }) do
+    with true <- valid_key?(key),
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
@@ -49,7 +50,6 @@ defmodule Tuist.Runners.CacheVolumes do
         pod_uid: uid,
         node_name: node,
         key: key,
-        commit_mode: commit_mode,
         architecture: arch,
         platform: to_string(platform),
         uid: user_id
@@ -109,15 +109,17 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
-    attrs = attrs |> Map.put_new(:platform, "linux") |> Map.put_new(:commit_mode, "auto")
+    attrs = Map.put_new(attrs, :platform, "linux")
 
     Repo.transaction(fn ->
-      if attrs.commit_mode not in @commit_modes, do: Repo.rollback(:unavailable)
       # One admission lock per pod also bounds concurrent requests for new keys.
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
       ])
 
+      # Lock the profile before the volume, in the same order as policy changes,
+      # so their revocation sees every use granted under the previous policy.
+      grant = writer_grant(identity, writer_profile(job, identity))
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
@@ -132,6 +134,7 @@ defmodule Tuist.Runners.CacheVolumes do
           provider_instance: identity.provider_instance,
           scope_id: identity.scope_id,
           repository: job.repository,
+          default_branch: Map.get(identity, :default_branch),
           inserted_at: timestamp,
           updated_at: timestamp
         })
@@ -144,12 +147,14 @@ defmodule Tuist.Runners.CacheVolumes do
       volume =
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
-      volume = expire_locked(volume, now)
+      volume = volume |> expire_locked(now) |> reset_full_locked()
 
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
 
       use_attrs =
-        Map.merge(Map.take(attrs, [:pod_name, :pod_uid, :node_name]), %{
+        attrs
+        |> Map.take([:pod_name, :pod_uid, :node_name])
+        |> Map.merge(%{
           id: Ecto.UUID.generate(),
           volume_id: volume.id,
           generation: volume.generation,
@@ -159,12 +164,10 @@ defmodule Tuist.Runners.CacheVolumes do
           content_digest: head && head.content_digest,
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
-          commit_mode: attrs.commit_mode,
-          writer_branch: if(identity.trusted, do: nil, else: Map.get(identity, :writer_branch)),
-          can_publish: attrs.commit_mode != "false" and writer_allowed?(volume, identity),
           inserted_at: timestamp,
           updated_at: timestamp
         })
+        |> Map.merge(writer_fields(identity, grant))
 
       Repo.insert_all(Usage, [use_attrs],
         on_conflict: :nothing,
@@ -179,7 +182,8 @@ defmodule Tuist.Runners.CacheVolumes do
         Ecto.Changeset.change(volume,
           last_used_at: if(volume.deleted_at, do: nil, else: volume.last_used_at),
           deleted_at: nil,
-          repository: job.repository
+          repository: job.repository,
+          default_branch: Map.get(identity, :default_branch, volume.default_branch)
         )
       )
 
@@ -192,67 +196,112 @@ defmodule Tuist.Runners.CacheVolumes do
         image_digest: usage.image_digest,
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
-        commit: usage.commit_mode,
         uid: volume.uid
       }
     end)
   end
 
   defp ensure_allocation_matches!(usage, job, attrs) do
-    if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id or
-         usage.commit_mode != attrs.commit_mode do
+    if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id do
       Repo.rollback(:unavailable)
     end
   end
 
-  defp writer_allowed?(volume, identity) do
-    identity.trusted or
-      (identity.provider == "github" and Map.get(identity, :same_repository, false) and
-         is_binary(Map.get(identity, :writer_branch)) and identity.writer_branch in volume.writer_branches)
+  # The job's runner profile decides which GitHub branches save. Without a
+  # profile, the repository's default branch saves, as it does for the other
+  # providers.
+  defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
+    if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
+      do: {:ok, profile.id},
+      else: :denied
   end
 
-  def update_writer_branches(account_id, id, branches) do
-    Repo.transaction(fn ->
-      volume = Repo.one(from(v in Volume, where: v.account_id == ^account_id and v.id == ^id, lock: "FOR UPDATE"))
+  defp writer_grant(%{trusted: true}, _profile), do: {:ok, nil}
+  defp writer_grant(_identity, _profile), do: :denied
 
-      if is_nil(volume) or not is_nil(volume.builtin_name) or volume.provider != "github",
-        do: Repo.rollback(:not_found)
+  defp writer_fields(identity, grant) do
+    %{
+      writer_branch: Map.get(identity, :writer_branch),
+      writer_default_branch: identity.trusted,
+      writer_profile_id:
+        case grant do
+          {:ok, id} -> id
+          _ -> nil
+        end,
+      can_publish: grant != :denied
+    }
+  end
 
-      if not valid_writer_branches?(branches), do: Repo.rollback(:invalid_parameters)
+  defp writer_profile(job, %{provider: "github"}),
+    do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
 
-      branches = branches |> Enum.uniq() |> Enum.sort()
+  defp writer_profile(_job, _identity), do: nil
 
-      if Enum.sort(volume.writer_branches) == branches do
-        volume
-      else
-        # Only removed additional grants are revoked. Default-branch writers
-        # have no writer_branch; additions never upgrade existing private clones.
-        removed_branches = volume.writer_branches -- branches
+  @doc """
+  Revokes pending saves granted under a runner profile's previous policy that
+  its current policy no longer allows. A deleted profile falls back to the
+  default branch. Call inside the transaction that updated or deleted the
+  profile row, after the row was written. Additions only affect new attachments.
+  """
+  def revoke_profile_writers({:deleted, %Profile{} = profile}),
+    do: revoke_profile_writers(%{profile | cache_writer_default_branch: true, cache_writer_branches: nil})
 
-        Repo.update_all(
-          from(u in Usage,
-            where:
-              u.volume_id == ^id and u.status not in ["published", "discarded"] and
-                u.writer_branch in ^removed_branches
-          ),
-          set: [can_publish: false]
+  def revoke_profile_writers(%Profile{id: id} = profile) do
+    revoked =
+      from(u in Usage,
+        where: u.writer_profile_id == ^id and u.can_publish and u.status not in ["published", "discarded"]
+      )
+      |> Repo.all()
+      |> Enum.reject(&writer_allowed?(profile, &1.writer_default_branch, &1.writer_branch))
+      |> Enum.map(& &1.id)
+      |> Enum.concat(unrecorded_profile_writers(profile))
+
+    if revoked != [] do
+      # Publication reads can_publish under the volume lock.
+      Repo.all(
+        from(v in Volume,
+          where: v.id in subquery(from(u in Usage, where: u.id in ^revoked, select: u.volume_id)),
+          order_by: v.id,
+          lock: "FOR UPDATE",
+          select: v.id
         )
+      )
 
-        Repo.update!(Ecto.Changeset.change(volume, writer_branches: branches))
-      end
-    end)
+      Repo.update_all(
+        from(u in Usage, where: u.id in ^revoked and u.status not in ["published", "discarded"]),
+        set: [can_publish: false]
+      )
+    end
+
+    :ok
   end
 
-  defp valid_writer_branches?(branches) when is_list(branches) do
-    length(branches) <= 20 and
-      Enum.all?(branches, fn branch ->
-        is_binary(branch) and byte_size(branch) in 1..200 and
-          Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.\/-]*\z/, branch) and
-          not String.contains?(branch, ["..", "//"]) and not String.ends_with?(branch, ["/", ".", ".lock"])
-      end)
+  # Uses allocated before uses recorded their profile, including by older pods
+  # during a rollout, were default-branch grants without a recorded branch.
+  defp unrecorded_profile_writers(%Profile{cache_writer_default_branch: true}), do: []
+
+  defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
+    label = Profile.dispatch_label(profile)
+
+    Repo.all(
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        join: j in WorkflowJob,
+        on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+        where:
+          is_nil(u.writer_profile_id) and u.can_publish and u.status not in ["published", "discarded"] and
+            v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
+            j.requested_dispatch_label == ^label,
+        select: u.id
+      )
+    )
   end
 
-  defp valid_writer_branches?(_), do: false
+  defp writer_allowed?(%Profile{} = profile, default_branch?, branch) do
+    (default_branch? and profile.cache_writer_default_branch) or
+      Profile.cache_writer_branch?(profile.cache_writer_branches || [], branch)
+  end
 
   defp ensure_job_capacity!(job, identity, attrs) do
     count =
@@ -325,6 +374,39 @@ defmodule Tuist.Runners.CacheVolumes do
     else
       volume
     end
+  end
+
+  def full?(size, capacity) when is_integer(size) and is_integer(capacity) and capacity > 0,
+    do: size * 100 >= capacity * @full_percent
+
+  def full?(_size, _capacity), do: false
+
+  def out_of_space?(size, capacity) when is_integer(size) and is_integer(capacity) and capacity > 0,
+    do: size * 100 >= capacity * @out_of_space_percent
+
+  def out_of_space?(_size, _capacity), do: false
+
+  defp reset_full_locked(%Volume{head_id: nil} = volume), do: volume
+
+  defp reset_full_locked(volume) do
+    head = Repo.get(Usage, volume.head_id)
+
+    if head && full?(head.size_bytes, head.capacity_bytes) && clone_ran_out_of_space?(head.id) do
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
+      Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil))
+    else
+      volume
+    end
+  end
+
+  defp clone_ran_out_of_space?(head_id) do
+    Repo.exists?(
+      from(u in Usage,
+        where:
+          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+            u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
+      )
+    )
   end
 
   def scope(volume) do
@@ -736,11 +818,15 @@ defmodule Tuist.Runners.CacheVolumes do
     since = DateTime.add(DateTime.utc_now(), -30 * 24 * 60 * 60)
 
     from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
       where: u.volume_id in ^ids,
       group_by: u.volume_id,
       select:
         {u.volume_id,
          %{
+           saved_bytes: type(filter(max(u.size_bytes), u.id == v.head_id), :integer),
+           saved_capacity_bytes: type(filter(max(u.capacity_bytes), u.id == v.head_id), :integer),
            uses: filter(count(u.id), not is_nil(u.attached_at) and u.inserted_at >= ^since),
            hits: filter(count(u.id), u.warm == true and u.inserted_at >= ^since),
            active: filter(count(u.id), is_nil(u.finished_at) and is_nil(coalesce(u.deleted_at, u.superseded_at))),

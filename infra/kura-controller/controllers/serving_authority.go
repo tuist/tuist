@@ -153,9 +153,10 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			defer probes.Done()
 			probeCtx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			if sample, err := statusClient.Status(probeCtx, pod); err == nil {
+			sample, err := statusClient.Status(probeCtx, pod)
+			if observation, observed := observedRuntimeStatus(sample, err); observed {
 				samplesMu.Lock()
-				samples[pod.Name] = sample
+				samples[pod.Name] = observation
 				samplesMu.Unlock()
 			}
 		}(pod)
@@ -356,29 +357,6 @@ func (r *ServingAuthorityReconciler) ensureIdentity(ctx context.Context, instanc
 		}
 	}
 	return nil
-}
-
-func (r *KuraInstanceReconciler) fencedPrimary(ctx context.Context, instance *kurav1alpha1.KuraInstance, samples map[string]runtimeStatus) (string, error) {
-	cm := &corev1.ConfigMap{}
-	reader := r.APIReader
-	if reader == nil {
-		reader = r.Client
-	}
-	if err := reader.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-serving"}, cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			return "fenced-unavailable", nil
-		}
-		return "", err
-	}
-	var grant servingGrant
-	if err := json.Unmarshal([]byte(cm.Data["grant"]), &grant); err != nil {
-		return "", err
-	}
-	sample, fresh := samples[grant.PodName]
-	if (grant.Phase != "Serving" && grant.Phase != "Quiescing") || grant.Holder.InstanceUID != string(instance.UID) || grant.ExpiresMS <= time.Now().UnixMilli()+2000 || !fresh || !sample.ServingAuthority.Valid || sample.ServingAuthority.Epoch != grant.Epoch || sample.ServingAuthority.Identity != grant.Holder {
-		return "fenced-unavailable", nil
-	}
-	return grant.PodName, nil
 }
 
 type handoverIntent struct {
