@@ -129,7 +129,7 @@ operations; retain them until an administrator removes them.
 - Cacheable tasks (Xcode cache analytics: type, status, keys)
 
 ### App Previews & Builds
-- Preview metadata (versions, platforms, git info)
+- Preview metadata (versions, platforms, git info, tracks, and optional plain-text release notes in `previews.release_notes`). Release notes belong to the project's preview, follow its existing retention/deletion policy, and can be exported with the other preview columns from PostgreSQL.
 - App build information
 
 ### Alerts & Monitoring

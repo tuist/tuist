@@ -3187,6 +3187,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        release_notes:
+          description: Optional plain-text release notes describing this preview build
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         supported_platforms:
           items:
             $ref: '#/components/schemas/PreviewSupportedPlatform'
@@ -3579,6 +3585,42 @@ components:
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
+      x-validate:
+    PreviewTracks:
+      properties:
+        total_count:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        tracks:
+          items:
+            properties:
+              count:
+                minimum: 0
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - count
+            title: PreviewTrack
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - total_count
+        - tracks
+      title: PreviewTracks
+      type: object
+      x-struct:
       x-validate:
     MixCompiledFile:
       properties:
@@ -4895,6 +4937,24 @@ components:
       required:
         - test_run_id
       title: CoverageUploadRequest
+      type: object
+      x-struct:
+      x-validate:
+    PreviewTrack:
+      properties:
+        count:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - count
+      title: PreviewTrack
       type: object
       x-struct:
       x-validate:
@@ -15918,6 +15978,22 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
+          in: query
+          name: track
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
           in: query
           name: specifier
@@ -25982,6 +26058,13 @@ paths:
                   x-validate:
                 git_ref:
                   description: The git ref associated with the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
+                release_notes:
+                  description: Optional plain-text release notes describing this preview build.
+                  maxLength: 10000
+                  nullable: true
                   type: string
                   x-struct:
                   x-validate:
@@ -36190,6 +36273,105 @@ paths:
       summary: List generations associated with a given project.
       tags:
         - Generations
+  /api/projects/{account_handle}/{project_handle}/previews/tracks:
+    get:
+      callbacks: {}
+      description: Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.
+      operationId: listPreviewTracks
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  total_count:
+                    minimum: 0
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tracks:
+                    items:
+                      properties:
+                        count:
+                          minimum: 0
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - count
+                      title: PreviewTrack
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - total_count
+                  - tracks
+                title: PreviewTracks
+                type: object
+                x-struct:
+                x-validate:
+          description: Available preview tracks.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Authentication is required.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject cannot read this project's previews.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the available preview tracks for a project.
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps:
     get:
       callbacks: {}

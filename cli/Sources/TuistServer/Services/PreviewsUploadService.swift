@@ -56,6 +56,7 @@ public protocol PreviewsUploadServicing {
         gitCommitSHA: String?,
         gitRef: String?,
         track: String?,
+        releaseNotes: String?,
         updateProgress: @escaping (Double) -> Void
     ) async throws -> Components.Schemas.Preview
 }
@@ -160,6 +161,7 @@ public protocol PreviewsUploadServicing {
             gitCommitSHA: String?,
             gitRef: String?,
             track: String?,
+            releaseNotes: String? = nil,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
@@ -182,6 +184,7 @@ public protocol PreviewsUploadServicing {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     track: track,
+                    releaseNotes: releaseNotes,
                     updateProgress: updateProgress
                 )
 
@@ -222,6 +225,7 @@ public protocol PreviewsUploadServicing {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         track: track,
+                        releaseNotes: releaseNotes,
                         updateProgress: updateProgress
                     )
 
@@ -267,6 +271,7 @@ public protocol PreviewsUploadServicing {
                             fullHandle: fullHandle,
                             serverURL: serverURL,
                             track: track,
+                            releaseNotes: releaseNotes,
                             updateProgress: { progress in
                                 updateProgress(progressOffset + progress * progressScale)
                             }
@@ -315,6 +320,7 @@ public protocol PreviewsUploadServicing {
             fullHandle: String,
             serverURL: URL,
             track: String?,
+            releaseNotes: String?,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Components.Schemas.Preview {
             updateProgress(0.1)
@@ -333,7 +339,8 @@ public protocol PreviewsUploadServicing {
                     binaryId: binaryId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
 
             updateProgress(0.2)

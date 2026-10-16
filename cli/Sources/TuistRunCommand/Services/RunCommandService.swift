@@ -295,6 +295,7 @@ struct RunCommandService {
                 guard let preview = try await listPreviewsService.listPreviews(
                     displayName: displayName,
                     specifier: specifier,
+                    track: nil,
                     supportedPlatforms: Platform.allCases.map(DestinationType.simulator),
                     page: 1,
                     pageSize: 1,
