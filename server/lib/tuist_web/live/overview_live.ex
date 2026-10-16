@@ -110,30 +110,32 @@ defmodule TuistWeb.OverviewLive do
         is_nil(socket.assigns[:current_user]) and PublicOverviewCache.public_root?(project, request_uri)
       )
 
-    socket =
-      cond do
-        Project.cargo_project?(project) ->
-          TuistWeb.CargoOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        Project.once_project?(project) ->
-          TuistWeb.OnceOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        Project.gradle_project?(project) ->
-          TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        Project.xcode_project?(project) ->
-          TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        Project.bazel_project?(project) ->
-          TuistWeb.BazelOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        Project.mix_project?(project) ->
-          TuistWeb.MixOverviewLive.assign_handle_params(socket, params, full_uri.path)
-
-        true ->
-          socket
-      end
-
+    socket = assign_overview(socket, project, params, full_uri.path)
     {:noreply, PublicOverviewCache.resolve_pending(socket)}
+  end
+
+  defp assign_overview(socket, project, params, path) do
+    cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.once_project?(project) ->
+        TuistWeb.OnceOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.gradle_project?(project) ->
+        TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.xcode_project?(project) ->
+        TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.bazel_project?(project) ->
+        TuistWeb.BazelOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.mix_project?(project) ->
+        TuistWeb.MixOverviewLive.assign_handle_params(socket, params, path)
+
+      true ->
+        socket
+    end
   end
 end

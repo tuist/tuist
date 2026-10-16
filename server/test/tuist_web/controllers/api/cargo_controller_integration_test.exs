@@ -85,7 +85,8 @@ defmodule TuistWeb.API.CargoControllerIntegrationTest do
     assert metrics.hits == 12
     assert metrics.downloaded_bytes == 4096
     assert metrics.unconsulted == 3
-    assert CacheMetrics.hit_rate(metrics) == 85.7
+    assert CacheMetrics.task_misses(metrics) == 5
+    assert CacheMetrics.hit_rate(metrics) == 70.6
     refute Map.has_key?(metrics, :remote_hits)
     assert {:error, :not_found} = Cargo.get_build(payload.id, project.id + 1)
   end
