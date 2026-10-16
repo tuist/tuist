@@ -2,6 +2,11 @@ name: Xcode 27.1 staging validation
 
 on:
   workflow_dispatch:
+    inputs:
+      reuse_additive:
+        description: Validate the already-deployed additive rollout without upgrading it again
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,7 +45,19 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-staging" --vault tuist-k8s-staging --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Verify an already-deployed additive rollout
+        if: inputs.reuse_additive
+        run: |
+          set -euo pipefail
+          helm status tuist -n tuist-staging -o json | jq -e '.info.status == "deployed"'
+          helm status tuist-xcresult-processor -n tuist-staging -o json | jq -e '.info.status == "deployed"'
+          kubectl rollout status deployment/tuist-tuist-server -n tuist-staging --timeout=120s
+          kubectl rollout status deployment/tuist-tuist-xcresult-processor -n tuist-staging --timeout=120s
+          kubectl get runnerpools -n tuist-runners tuist-tuist-runner-pool-macos-27-1 tuist-tuist-runner-pool-macos-ber1-27-1 -o json | jq -e '.items | length == 2 and all(.[]; .spec.image == "ghcr.io/tuist/tuist-runner:macos-27-1-0.36.0" and .status.observedImage == .spec.image)'
+          kubectl get deployment tuist-tuist-xcresult-processor -n tuist-staging -o json | jq -e '.spec.template.spec.containers | any(.[]; .image == "ghcr.io/tuist/tuist-xcresult-processor:0.206.0")'
+          helm get values tuist -n tuist-staging -o json | jq -e '.runnersFleet.xcodeVersions | any(.[]; .xcodeVersion == "27.1") and any(.[]; .xcodeVersion == "27.1-rc") and any(.[]; .xcodeVersion == "26.6" and .default == true)'
       - name: Preflight exact additive changes against the installed chart
+        if: ${{ !inputs.reuse_additive }}
         run: |
           set -euo pipefail
           umask 077
@@ -104,6 +121,7 @@ jobs:
           console.log('Preflight passed: exactly two new stable pools, catalog environment, and processor image; nothing else changes.');
           JS
       - name: Apply additive stable pools without changing the experimental chart
+        if: ${{ !inputs.reuse_additive }}
         run: |
           set -euo pipefail
           helm upgrade tuist infra/helm/tuist -n tuist-staging --reuse-values --no-hooks --rollback-on-failure --wait --timeout 10m -f stable-overlay.json
@@ -197,7 +215,7 @@ jobs:
           fixture="$RUNNER_TEMP/xcode271-smoke"
           "$TUIST_BIN" auth login --url https://staging.tuist.dev
           "$TUIST_BIN" inspect test "$fixture/Smoke.xcresult" --path "$fixture" --mode remote 2>&1 | tee "$RUNNER_TEMP/xcresult-upload.log"
-          id=$(grep -Eo 'https://staging.tuist.dev/tuist/tuist/tests/[0-9a-f-]{36}' "$RUNNER_TEMP/xcresult-upload.log" | tail -1 | awk -F/ '{print $NF}')
+          id=$(grep -Eo 'https://staging.tuist.dev/tuist/tuist/tests/test-runs/[0-9a-f-]{36}' "$RUNNER_TEMP/xcresult-upload.log" | tail -1 | awk -F/ '{print $NF}')
           [ -n "$id" ]
           echo "test_run_id=$id" >> "$GITHUB_OUTPUT"
 
