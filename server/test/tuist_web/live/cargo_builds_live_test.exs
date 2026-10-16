@@ -469,7 +469,10 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute html =~ "Estimated compiler work avoided"
 
     html =
-      render_patch(view, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}?tab=cache&cache-tab=cas-outputs")
+      render_patch(
+        view,
+        "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}?tab=cache&cache-tab=cas-outputs"
+      )
 
     assert has_element?(view, "#cas-outputs-table")
     assert has_element?(view, "#widget-cargo-download-throughput")
