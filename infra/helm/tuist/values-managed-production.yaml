@@ -437,6 +437,12 @@ capi:
     vrackID: pn-2024093
     cidr: 172.30.243.0/24
 
+# Global cold-cache gateway. Publish wildcard DNS only after pinned validation.
+kuraActivation:
+  enabled: true
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
 kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
