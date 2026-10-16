@@ -192,16 +192,16 @@
   </div>
   <.async_result :let={result} :if={@selected_tab != "cache"} assign={@compilations}>
     <:loading>
-      <.card title={dgettext("dashboard_builds", "Compilations")} icon="versions">
+      <.card title={dgettext("dashboard_builds", "Compiler jobs")} icon="versions">
         <.card_section><.skeleton_chart /></.card_section>
       </.card>
     </:loading>
     <:failed>
-      <.card title={dgettext("dashboard_builds", "Compilations")} icon="versions">
+      <.card title={dgettext("dashboard_builds", "Compiler jobs")} icon="versions">
         <.card_section>
           <.alert
             status="error"
-            title={dgettext("dashboard_builds", "Compilations could not be loaded.")}
+            title={dgettext("dashboard_builds", "Compiler jobs could not be loaded.")}
           />
         </.card_section>
       </.card>
@@ -210,11 +210,11 @@
       :if={result.truncated}
       status="information"
       type="secondary"
-      title={dgettext("dashboard_builds", "Showing the first 500 compilations")}
+      title={dgettext("dashboard_builds", "Showing the first 500 compiler jobs")}
       description={
         dgettext(
           "dashboard_builds",
-          "Compilation and diagnostic results below cover only these displayed invocations."
+          "Compiler jobs and diagnostics below cover only these displayed invocations."
         )
       }
     />
@@ -222,7 +222,7 @@
       <% page =
         compilation_page(result.rows, @compilation_search, @compilation_sort, @compilation_page) %>
       <.card
-        title={dgettext("dashboard_builds", "Compilations")}
+        title={dgettext("dashboard_builds", "Compiler jobs")}
         icon="versions"
         data-part="file-breakdown-card"
       >
@@ -230,11 +230,11 @@
           <.tooltip
             id="cargo-compilation-timings"
             size="large"
-            title={dgettext("dashboard_builds", "Compiler-invocation timings")}
+            title={dgettext("dashboard_builds", "About compiler jobs")}
             description={
               dgettext(
                 "dashboard_builds",
-                "Each row is one rustc invocation. Durations can overlap and are not per-file timings."
+                "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
               )
             }
           >
@@ -242,7 +242,7 @@
               <.neutral_button
                 variant="secondary"
                 size="medium"
-                aria-label={dgettext("dashboard_builds", "About compilation timings")}
+                aria-label={dgettext("dashboard_builds", "About compiler jobs")}
                 {attrs}
               >
                 <.info_circle />
@@ -285,7 +285,13 @@
           </div>
           <.table id="cargo-compilations" rows={page.rows}>
             <:col :let={row} label={dgettext("dashboard_builds", "Crate")}>
-              <.text_and_description_cell label={row.name} description={row.source} />
+              <.text_and_description_cell
+                label={row.name}
+                description={
+                  if row.source not in [nil, ""],
+                    do: dgettext("dashboard_builds", "Crate root: %{path}", path: row.source)
+                }
+              />
             </:col>
             <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
               <.badge_cell
@@ -298,10 +304,7 @@
                 style="light-fill"
               />
             </:col>
-            <:col :let={row} label={dgettext("dashboard_builds", "Kind")}>
-              <.text_cell label={row.kind} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_builds", "Start")}>
+            <:col :let={row} label={dgettext("dashboard_builds", "Started after")}>
               <.text_cell label={
                 DateFormatter.format_duration_from_milliseconds(row.start_offset_ms)
               } />
@@ -312,24 +315,12 @@
                 icon="history"
               />
             </:col>
-            <:col :let={row} label={dgettext("dashboard_builds", "Dependencies")}>
-              <.text_cell label={
-                if row.dependencies == [], do: "–", else: Enum.join(row.dependencies, ", ")
-              } />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_builds", "Diagnostics")}>
-              <.text_cell label={
-                if row.diagnostics == [],
-                  do: "–",
-                  else: Enum.map_join(row.diagnostics, " • ", & &1["message"])
-              } />
-            </:col>
           </.table>
           <.alert
             :if={page.rows == []}
             status="information"
             type="secondary"
-            title={dgettext("dashboard_builds", "No compilations found")}
+            title={dgettext("dashboard_builds", "No compiler jobs found")}
             description={
               dgettext(
                 "dashboard_builds",

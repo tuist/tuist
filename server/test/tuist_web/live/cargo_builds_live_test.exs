@@ -57,6 +57,42 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute has_element?(runs, "#widget-total-builds")
   end
 
+  test "configuration insights reserve axis space independently of the category rows", %{conn: conn, user: user} do
+    for count <- [1, 2, 6] do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
+
+      for index <- 1..count do
+        build(project, user, rust_version: "rustc 1.#{90 + index}.0", is_ci: rem(index, 2) == 0)
+      end
+
+      base = "/#{user.account.name}/#{project.name}/builds"
+      {:ok, view, _} = live(conn, base)
+      render_async(view, 5000)
+      assert has_element?(view, "#cargo-configuration-insights-chart[style='height: #{count * 32 + 48}px']")
+
+      options =
+        view
+        |> element("#cargo-configuration-insights-chart [data-part=data]")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.text()
+        |> JSON.decode!()
+
+      assert length(options["yAxis"]["data"]) == count
+      assert options["yAxis"]["axisLabel"]["interval"] == 0
+      assert options["yAxis"]["axisLabel"]["width"] == 160
+      assert options["yAxis"]["axisLabel"]["overflow"] == "truncate"
+      assert options["xAxis"]["axisLabel"]["hideOverlap"] == true
+      assert options["grid"]["top"] == 8
+      assert options["grid"]["bottom"] == 32
+      assert options["series"] |> hd() |> Map.fetch!("barWidth") == 8
+
+      render_patch(view, base <> "?configuration-insights-type=environment")
+      render_async(view, 5000)
+      assert has_element?(view, "#cargo-configuration-insights-chart[style='height: #{min(count, 2) * 32 + 48}px']")
+    end
+  end
+
   test "all home metrics and charts use the same project, environment and Rust version cohort without nextest", %{
     conn: conn,
     user: user,
@@ -194,7 +230,12 @@ defmodule TuistWeb.CargoBuildsLiveTest do
         ]
       })
 
-    {:ok, view, _html} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
+    base = "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}"
+    {:ok, view, _html} = live(conn, base)
+    html = render_async(view, 5000)
+    refute html =~ "unsafe &lt;script&gt;"
+    assert has_element?(view, "#cargo-compilations [data-color=destructive]", "Failed")
+    render_patch(view, base <> "?tab=errors")
     html = render_async(view, 5000)
     assert html =~ "unsafe &lt;script&gt;"
     other = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
@@ -204,7 +245,7 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     end
   end
 
-  test "detail uses shared build styling, metadata, diagnostic tabs and paginated compilations", %{
+  test "detail shows focused compiler jobs with crate roots and separate diagnostic tabs", %{
     conn: conn,
     user: user,
     project: project
@@ -215,7 +256,7 @@ defmodule TuistWeb.CargoBuildsLiveTest do
           name: "crate-#{index}",
           source: "src/crate_#{index}.rs",
           kind: "lib",
-          dependencies: [],
+          dependencies: Enum.map(1..50, &"dependency_#{&1}"),
           start_offset_ms: index * 100,
           duration_ms: index * 1000,
           status: "success",
@@ -244,7 +285,14 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     assert html =~ "12.0s"
     assert html =~ "01234567"
     assert html =~ "rustc 1.97.1"
-    assert html =~ "unused &lt;script&gt;"
+    assert html =~ "Compiler jobs"
+    assert html =~ "Crate root: src/crate_1.rs"
+    assert has_element?(view, "#cargo-compilations-sort-label-portal", "Started after")
+
+    columns = html |> Floki.parse_fragment!() |> Floki.find("#cargo-compilations th") |> Enum.map(&Floki.text/1)
+    assert Enum.map(columns, &String.trim/1) == ["Crate", "Status", "Started after", "Duration"]
+    refute html =~ "unused &lt;script&gt;"
+    refute html =~ "dependency_"
     assert length(Floki.find(Floki.parse_fragment!(html), "#cargo-compilations tbody tr")) == 20
     render_patch(view, base <> "?compilations-page=2")
     html = render_async(view, 5000)

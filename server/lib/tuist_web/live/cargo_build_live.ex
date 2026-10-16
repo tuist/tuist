@@ -127,9 +127,9 @@ defmodule TuistWeb.CargoBuildLive do
   defp available(""), do: dgettext("dashboard_builds", "Unknown")
   defp available(nil), do: dgettext("dashboard_builds", "Unknown")
   defp available(value), do: value
-  defp sort_label("duration"), do: dgettext("dashboard_builds", "Compilation duration")
+  defp sort_label("duration"), do: dgettext("dashboard_builds", "Duration")
   defp sort_label("name"), do: dgettext("dashboard_builds", "Name")
-  defp sort_label(_), do: dgettext("dashboard_builds", "Start")
+  defp sort_label(_), do: dgettext("dashboard_builds", "Started after")
 
   defp diagnostics(rows, severity) do
     rows

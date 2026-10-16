@@ -28,9 +28,9 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds.
 
-The **Overview** tab lists the crates compiled in the build. Sort by duration to find expensive compiler jobs, or search for a crate you're working on. The **Warnings** and **Errors** tabs list its compiler diagnostics.
+On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 
-Each compiler row is one call to `rustc`, not a source-file timing. A crate can appear more than once when Cargo builds it for different targets or configurations.
+Each row is one `rustc` invocation for a crate, which can contain many source files. **Crate root** identifies its root source file; the duration is for the whole compiler job, not that file alone. A crate can appear more than once for different targets or configurations. Compiler messages are grouped in **Warnings** and **Errors**.
 
 ## Read the timings {#timing-boundaries}
 
@@ -38,7 +38,7 @@ The build duration is how long the whole Cargo command took. Compiler jobs can r
 
 Cargo only compiles crates that need rebuilding. Crates that are already up to date won't appear in the compiler list. With Tuist's compilation cache, restored jobs appear in the cache measurements, not as compiler executions.
 
-Tuist doesn't measure build scripts separately or show a build Timeline. The dependency names in the compiler list come from rustc's `--extern` arguments; they aren't a complete Cargo dependency graph. A large build shows the first 500 compiler jobs, with a notice if more were recorded.
+Tuist doesn't measure build scripts separately or show a build Timeline. A large build shows the first 500 compiler jobs, with a notice if more were recorded.
 
 ## Read cache measurements {#cache-measurements}
 

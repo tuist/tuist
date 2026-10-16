@@ -313,14 +313,24 @@
       <.chart
         id="cargo-configuration-insights-chart"
         type="bar"
-        style={"height: #{max(60, length(@cargo_build_configuration.result) * 28)}px"}
+        style={"height: #{length(@cargo_build_configuration.result) * 32 + 48}px"}
         extra_options={
           %{
             legend: %{show: false},
-            grid: %{left: 0, right: 20, top: 0, bottom: 25, containLabel: true},
-            xAxis: %{type: "value", axisLabel: %{formatter: "fn:formatMilliseconds"}},
+            grid: %{left: 0, right: 20, top: 8, bottom: 32, containLabel: true},
+            xAxis: %{
+              type: "value",
+              axisLabel: %{formatter: "fn:formatMilliseconds", hideOverlap: true}
+            },
             yAxis: %{
               type: "category",
+              axisLabel: %{
+                interval: 0,
+                width: 160,
+                overflow: "truncate",
+                fontFamily: "Geist Mono, monospace",
+                color: "var:noora-surface-label-secondary"
+              },
               data: Enum.map(@cargo_build_configuration.result, &category_label(&1.category))
             },
             tooltip: %{valueFormat: "fn:formatMilliseconds"}

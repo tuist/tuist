@@ -343,6 +343,17 @@
     }
   }
 
+  &[data-build-system="cargo"] [data-part="file-breakdown-card-section"] {
+    & > [data-part="filters"] {
+      flex-wrap: wrap;
+      align-items: center;
+
+      & > .noora-dropdown {
+        flex-shrink: 0;
+      }
+    }
+  }
+
   &[data-build-system="mix"] > [data-part="cache"] {
     & [data-part="pagination"] {
       display: flex;
