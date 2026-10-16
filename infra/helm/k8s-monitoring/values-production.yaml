@@ -5,6 +5,13 @@
 #     -n observability --create-namespace \
 #     -f infra/helm/k8s-monitoring/values-production.yaml
 
+# The receiver's tailnet name below is served by the `tailnet-ingress`
+# ProxyGroup rather than a standalone proxy, which the macOS VMs only reached
+# through a DERP relay. Switching needs the standalone proxy's device deleted
+# by hand; see the runbook in the PR that set this.
+alloyReceiverTailnet:
+  proxyGroup: tailnet-ingress
+
 k8s-monitoring:
   cluster:
     name: tuist-production
@@ -51,11 +58,14 @@ k8s-monitoring:
   # Linux workloads keep using the in-cluster address; only the Tart VMs are
   # pointed at this hostname (see xcresultProcessor.extraEnv in the tuist
   # chart's production values).
+  #
+  # No `tailscale.com/expose` here: `alloyReceiverTailnet` above serves this
+  # name from a ProxyGroup instead, and reads the name and tags from these
+  # annotations, as alloy-rack's config does.
   collectors:
     alloy-receiver:
       service:
         annotations:
-          tailscale.com/expose: "true"
           tailscale.com/hostname: tuist-alloy-receiver-production
           tailscale.com/tags: tag:tuist-k8s-production
 
