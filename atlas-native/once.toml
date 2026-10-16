@@ -227,7 +227,7 @@ swift_testing = true
 [[target]]
 name = "AtlasSettingsIOSPreview"
 kind = "apple_application"
-srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift"]
+srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasWorkspaceView.swift"]
 deps = ["./AtlasAuthIOS", "./AtlasAuthFFI", "./AtlasCore", "./AtlasCoreFFI"]
 
 [target.attrs]
@@ -256,7 +256,7 @@ ui_testing = true
 [[target]]
 name = "AtlasSettingsAndroidPreview"
 kind = "android_binary"
-srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt"]
+srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt"]
 deps = ["./AtlasAuthAndroid", "./AtlasCore"]
 
 [target.attrs]

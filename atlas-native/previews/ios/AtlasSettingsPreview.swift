@@ -31,14 +31,22 @@ struct AtlasSettingsPreview: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                if ProcessInfo.processInfo.arguments.contains("--time-off") {
-                    AtlasTimeOffView(
-                        title: AtlasCore.sections().first(where: { $0.screen == "time-off" })!.title,
-                        request: holidays.request
-                    )
+            Group {
+                if ProcessInfo.processInfo.arguments.contains("--workspace") {
+                    AtlasWorkspaceView(server: URL(string: "https://atlas.example.org")!, holidayRequest: holidays.request) {
+                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                    }
                 } else {
-                    AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                    NavigationStack {
+                        if ProcessInfo.processInfo.arguments.contains("--time-off") {
+                            AtlasTimeOffView(
+                                title: AtlasCore.sections().first(where: { $0.screen == "time-off" })!.title,
+                                request: holidays.request
+                            )
+                        } else {
+                            AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                        }
+                    }
                 }
             }
             .environment(\.openURL, OpenURLAction { url in
