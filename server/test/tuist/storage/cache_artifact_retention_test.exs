@@ -10,6 +10,35 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
   alias Tuist.Storage.CacheArtifactRetention
 
   describe "delete_expired/2" do
+    test "applies each account's ceiling within a shared bucket page" do
+      expired_key = "short/app/xcode/AB/CD/ABCD"
+      default_key = "default/app/xcode/EF/GH/EFGH"
+      recent_key = "short/app/xcode/IJ/KL/IJKL"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket", _opts ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_key, last_modified: DateTime.add(DateTime.utc_now(), -8, :day)},
+               %{key: default_key, last_modified: DateTime.add(DateTime.utc_now(), -8, :day)},
+               %{key: recent_key, last_modified: DateTime.add(DateTime.utc_now(), -6, :day)}
+             ]
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([
+        %Account{id: 1, name: "short", artifact_retention_days: 7},
+        %Account{id: 2, name: "default"}
+      ])
+
+      expect_delete_objects([expired_key], "xcode-cache-bucket")
+      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
+    end
+
     test "deletes objects using an explicit retention window" do
       expired_xcode_key = "tuist/app/xcode/AB/CD/ABCD"
       recent_xcode_key = "tuist/app/xcode/EF/GH/EFGH"

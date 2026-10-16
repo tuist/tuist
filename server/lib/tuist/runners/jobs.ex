@@ -458,7 +458,8 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Lists jobs whose log archive has aged past `threshold`. Drives the
   daily prune that keeps the S3 archive at parity with the 90-day TTL
-  on `runner_job_logs`.
+  on `runner_job_logs`. With `:account_id`, `:limit` and an optional
+  `:after_workflow_job_id`, returns one bounded page for an account override.
 
   Uses the `argMax(col, updated_at) GROUP BY workflow_job_id`
   pattern documented in this module's `@moduledoc` rather than
@@ -466,8 +467,8 @@ defmodule Tuist.Runners.Jobs do
   scope, `FINAL`'s merge would span every part in `runner_jobs`,
   which scales poorly as the table grows.
   """
-  def list_expired_archives(%DateTime{} = threshold) do
-    ClickHouseRepo.all(
+  def list_expired_archives(%DateTime{} = threshold, opts \\ []) do
+    query =
       from(j in Job,
         group_by: j.workflow_job_id,
         having:
@@ -475,7 +476,21 @@ defmodule Tuist.Runners.Jobs do
             fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
         select: %{workflow_job_id: j.workflow_job_id, account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)}
       )
-    )
+
+    query =
+      case Keyword.get(opts, :account_id) do
+        nil ->
+          query
+
+        account_id ->
+          query
+          |> where([j], j.account_id == ^account_id)
+          |> where([j], j.workflow_job_id > ^Keyword.get(opts, :after_workflow_job_id, 0))
+          |> order_by([j], asc: j.workflow_job_id)
+          |> limit(^Keyword.fetch!(opts, :limit))
+      end
+
+    ClickHouseRepo.all(query)
   end
 
   @doc """

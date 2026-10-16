@@ -462,6 +462,56 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Retention")} icon="clock_hour_4">
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard",
+          "Leave blank to keep the existing defaults. Overrides only shorten retention and apply to every project in this account, including local and CI uploads. Cleanup runs daily; deleted data cannot be recovered by clearing an override."
+        )}
+      </p>
+      <.form for={@retention_form} id="retention-form" phx-submit="update_retention">
+        <.text_input
+          field={@retention_form[:artifact_retention_days]}
+          error={List.first(translate_errors(@retention_form.errors, :artifact_retention_days))}
+          input_type="number"
+          min={1}
+          max={30}
+          label={dgettext("dashboard", "Artifact retention ceiling (days)")}
+          placeholder={dgettext("dashboard", "Plan default, up to 30 days")}
+        />
+        <.text_input
+          field={@retention_form[:runner_log_retention_days]}
+          error={List.first(translate_errors(@retention_form.errors, :runner_log_retention_days))}
+          input_type="number"
+          min={1}
+          max={90}
+          label={dgettext("dashboard", "Runner logs and machine metrics retention (days)")}
+          placeholder={dgettext("dashboard", "Default: 90 days")}
+        />
+        <p>
+          {dgettext(
+            "dashboard",
+            "Artifact overrides cover object-storage cleanup, not Kura's capacity-based cache eviction. Build and test analytics, backups, and runner cache volumes keep their separate policies."
+          )}
+        </p>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save retention overrides")}
+            data-confirm={
+              dgettext(
+                "dashboard",
+                "Shortening retention permanently deletes older data during cleanup. Continue?"
+              )
+            }
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Free tier")} icon="reload">
     <.card_section>
       <p data-part="free-tier-description">

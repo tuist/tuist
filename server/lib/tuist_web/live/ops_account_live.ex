@@ -11,6 +11,7 @@ defmodule TuistWeb.OpsAccountLive do
   import TuistWeb.OpsAccountHelpers
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
@@ -35,6 +36,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:retention_form, to_form(Account.retention_changeset(account, %{}), as: "account"))
          |> assign(:prepaid_balance, balance)
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
@@ -81,6 +83,21 @@ defmodule TuistWeb.OpsAccountLive do
       {n, ""} -> n
       {_n, _rest} -> 0
       :error -> 0
+    end
+  end
+
+  @impl true
+  def handle_event("update_retention", %{"account" => params}, socket) do
+    case Accounts.update_account_retention(socket.assigns.account, params) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:retention_form, to_form(Account.retention_changeset(account, %{}), as: "account"))
+         |> put_flash(:info, dgettext("dashboard", "Retention overrides updated."))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :retention_form, to_form(changeset, as: "account"))}
     end
   end
 

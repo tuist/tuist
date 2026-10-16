@@ -4,6 +4,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
@@ -39,6 +40,40 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
   end
 
   describe "perform/1" do
+    test "an account override prunes only that account's expired archives" do
+      account = account_fixture()
+      other = account_fixture()
+      {:ok, _} = Accounts.update_account_retention(account, %{runner_log_retention_days: 14})
+      old = DateTime.add(DateTime.utc_now(), -21, :day)
+      recent = DateTime.add(DateTime.utc_now(), -7, :day)
+      seed_completed_job(account, 8_500_010, old)
+      seed_completed_job(account, 8_500_011, recent)
+      seed_completed_job(other, 8_500_012, old)
+      key = ArchiveLogsWorker.archive_key(account.id, 8_500_010)
+
+      expect(Storage, :delete_object, fn ^key, %{id: id} ->
+        assert id == account.id
+        :ok
+      end)
+
+      assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{"account_id" => account.id}})
+      flush!()
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 8_500_010)
+      assert {:ok, %{log_archived_at: ^recent}} = Jobs.get_for_account(account.id, 8_500_011)
+      assert {:ok, %{log_archived_at: ^old}} = Jobs.get_for_account(other.id, 8_500_012)
+    end
+
+    test "an archive continuation stops after the override is cleared" do
+      account = account_fixture()
+      reject(&Storage.delete_object/2)
+      reject(&Jobs.list_expired_archives/2)
+
+      assert :ok =
+               PruneArchivedLogsWorker.perform(%Oban.Job{
+                 args: %{"account_id" => account.id, "after_workflow_job_id" => 1}
+               })
+    end
+
     test "deletes the S3 object and clears the timestamp for archives older than 90 days" do
       account = account_fixture()
       old = DateTime.add(DateTime.utc_now(), -100 * 24 * 60 * 60, :second)

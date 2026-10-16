@@ -397,10 +397,33 @@ plan:
 | --- | --- | --- | --- |
 | Cache artifacts (Xcode compilation, legacy CAS, module, Gradle, GitLab CI runner caches) | 14 | 30 | 30 |
 | App preview builds and icons | 30 | 30 | 30 |
-| Build archives | 30 | 30 | 30 |
-| Run artifacts | 30 | 30 | 30 |
+| Build archives | 7 | 30 | 30 |
+| Run artifacts | 7 | 30 | 30 |
 | Test run attachments | 30 | 30 | 30 |
 | Shard bundles | 7 | 14 | 30 |
+
+Operators can shorten object-storage artifact cleanup per account in `/ops/accounts/:id`.
+The nullable PostgreSQL `accounts.artifact_retention_days` field accepts 1–30 days;
+cleanup uses the smaller of this ceiling and the plan's existing window. Nil
+preserves the default. This applies account-wide to CI and local uploads, not
+only uploads marked as CI. The policy is reloaded on each cleanup batch and
+bucket page. Explicit self-hosted artifact windows retain precedence.
+
+The nullable `accounts.runner_log_retention_days` field independently accepts
+1–90 days and shortens runner log, gzipped log archive, and runner machine metric
+retention; nil preserves 90 days. A daily, account-paginated worker issues
+account-scoped ClickHouse deletion mutations against `runner_job_logs` and
+`runner_job_machine_metrics`, using `inserted_at`. Archive cleanup uses
+`runner_jobs.log_archived_at`, deletes the S3 archive and clears its stamp only
+after successful deletion. Pending account jobs and archive continuation pages
+reload the override. ClickHouse mutations finish asynchronously, so neither
+setting is an exact-time erasure deadline. Both fields are account configuration
+and must be included with the account row in an export. Clearing an override
+cannot restore deleted data.
+
+These overrides do not govern Kura's capacity-based cache eviction, runner
+cache volumes, other build/test analytics, or disaster-recovery backups. They
+are not a blanket contractual erasure guarantee for all CI data.
 
 Self-hosted artifact cleanup is configured independently for each artifact
 family:
@@ -450,7 +473,7 @@ instance-managed artifact bucket, including archives written before an account
 configured custom storage. Package registry mirror
 objects and runner log archives are not covered by these configurable
 self-hosted retention variables. Runner log archives retain their separate
-90-day policy.
+90-day default, subject to the account's shorter runner-log override described above.
 
 Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without

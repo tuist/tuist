@@ -2103,6 +2103,13 @@ defmodule Tuist.Accounts do
     |> Repo.update()
   end
 
+  @doc "Updates operator-only retention ceilings, without changing the defaults for other accounts."
+  def update_account_retention(%Account{} = account, attrs) do
+    account
+    |> Account.retention_changeset(attrs)
+    |> Repo.update()
+  end
+
   @doc """
   Marks the account's non-admin dashboards as readable by signed-out
   visitors, or takes them back private. Operator-only.

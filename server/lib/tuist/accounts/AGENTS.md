@@ -7,6 +7,7 @@ This context owns business logic and data related to accounts, users, organizati
 - Sign-up reporting queries use explicit inclusive-start/exclusive-end creation periods and deterministic ordering, so adjacent hourly reports do not overlap.
 - Issue and validate account/user tokens, device codes, and invitations.
 - Resolve organization membership and role assignments.
+- Own nullable operator-only `artifact_retention_days` (1–30) and `runner_log_retention_days` (1–90) ceilings. Keep them out of ordinary account update/create changesets; nil preserves defaults. Storage and runner workers enforce them, not account APIs.
 - Own the WorkOS auth.md registration state machine, including service-signed identity assertions, browser claims, scheduled registration expiry, exchanged access-token records, audit events, and provider security events.
 - The account usage worker refreshes remote cache hits and metered cache egress and requests, then queues Air limit notifications through `Tuist.Billing.AirUsageNotifications` for the execution time, so delayed jobs cannot overwrite current-month counts with the previous month. `UserNotifier.air_usage_email/3` builds the HTML and plain-text email in the recipient’s preferred locale for delivery and previews.
 

@@ -42,6 +42,34 @@ defmodule Tuist.Storage.RetentionPolicyTest do
     end
   end
 
+  describe "account policies" do
+    test "resolves account ceilings together with the current plan" do
+      account = %Account{id: 1, artifact_retention_days: 7}
+      expect(Billing, :get_current_active_subscription, fn ^account -> %{plan: :enterprise} end)
+      assert RetentionPolicy.current_policy(account) == {:enterprise, 7}
+    end
+
+    test "batch resolution retains each account's ceiling without per-account queries" do
+      accounts = [%Account{id: 1, artifact_retention_days: 7}, %Account{id: 2}]
+      expect(Repo, :all, fn %Ecto.Query{from: %{source: {"subscriptions", Subscription}}} -> [{1, :enterprise}] end)
+      assert RetentionPolicy.current_policies(accounts) == %{1 => {:enterprise, 7}, 2 => {:air, nil}}
+    end
+
+    test "shortens windows without extending a shorter plan default" do
+      assert RetentionPolicy.retention_days(:build_archive, {:enterprise, 7}) == 7
+      assert RetentionPolicy.retention_days(:test_attachment, {:enterprise, 7}) == 7
+      assert RetentionPolicy.retention_days(:cache_artifact, {:enterprise, 7}) == 7
+      assert RetentionPolicy.retention_days(:preview_app_build, {:enterprise, 7}) == 7
+      assert RetentionPolicy.retention_days(:shard_bundle, {:pro, 7}) == 7
+      assert RetentionPolicy.retention_days(:run_session, {:air, 14}) == 7
+      assert RetentionPolicy.retention_days(:build_archive, {:enterprise, nil}) == 30
+    end
+
+    test "explicit self-hosted configuration keeps precedence" do
+      assert RetentionPolicy.retention_days(:build_archive, {:enterprise, 7}, 60) == 60
+    end
+  end
+
   describe "retention_days/2" do
     test "uses an explicit retention window without the hosted maximum" do
       assert RetentionPolicy.retention_days(:cache_artifact, :air, 120) == 120

@@ -24,7 +24,11 @@ These windows define how long artifact files remain available on the hosted Tuis
 | Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
-The active account plan determines the hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
+The active account plan determines the default hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
+
+Tuist operators can configure a shorter object-storage artifact retention ceiling for an account, from 1 to 30 days. Cleanup uses the smaller of that ceiling and the plan's window, so a 14-day ceiling does not extend a 7-day default. Leave the override blank to keep the defaults. Contact Tuist to arrange an account-specific policy.
+
+The ceiling applies to all projects and uploads in the account, including CI and local uploads. It covers the object-storage cleanup described here, not Kura's capacity-based cache eviction or runner cache volumes. Cleanup is daily rather than an exact-time erasure deadline; clearing an override does not restore deleted files.
 
 Test attachments created before Tuist recorded a test-run identifier are excluded from automated deletion. Their files remain available while Tuist avoids an unbounded historical ownership lookup during retention cleanup.
 
@@ -43,5 +47,7 @@ These windows define how long selected dashboard and activity data remains avail
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
+
+Tuist operators can independently shorten runner job logs, archived runner logs, and runner job machine metrics to 1–90 days per account. The default remains 90 days when no override is set. Daily cleanup deletes account-scoped ClickHouse rows by insertion time and log archives by their archive timestamp. ClickHouse deletion completes asynchronously. This setting does not change retention for other build or test analytics, cache volumes, or backups.
 
 ClickHouse's internal `system.*` operational log tables are configured at the ClickHouse layer rather than by Tuist's product data-retention policy. They are unbounded by default; the bundled self-hosted Docker Compose and embedded Helm ClickHouse configurations can cap them, as described under <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.

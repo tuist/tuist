@@ -67,6 +67,9 @@ defmodule Tuist.Accounts.Account do
     field :s3_region, :string
     field :s3_endpoint, :string
 
+    field :artifact_retention_days, :integer
+    field :runner_log_retention_days, :integer
+
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
@@ -169,6 +172,16 @@ defmodule Tuist.Accounts.Account do
     |> cast(attrs, [:visibility])
     |> validate_required([:visibility])
     |> validate_inclusion(:visibility, [:private, :public])
+  end
+
+  @doc "Operator-only retention ceilings. Nil preserves the existing policy."
+  def retention_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:artifact_retention_days, :runner_log_retention_days])
+    |> validate_number(:artifact_retention_days, greater_than: 0, less_than_or_equal_to: 30)
+    |> validate_number(:runner_log_retention_days, greater_than: 0, less_than_or_equal_to: 90)
+    |> check_constraint(:artifact_retention_days, name: :accounts_artifact_retention_days_range)
+    |> check_constraint(:runner_log_retention_days, name: :accounts_runner_log_retention_days_range)
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

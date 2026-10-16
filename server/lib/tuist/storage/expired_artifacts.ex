@@ -36,7 +36,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   alias Tuist.Tests.TestCaseRunAttachment
 
   def delete_previews(%Account{} = account, batch_size, opts \\ []) do
-    plan = RetentionPolicy.current_plan(account)
+    plan = RetentionPolicy.current_policy(account)
     cutoff = RetentionPolicy.cutoff(:preview_app_build, plan, Keyword.get(opts, :retention_days))
     cursor = initial_cursor(account, :preview_app_build, opts, :utc)
 
@@ -80,7 +80,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   end
 
   def delete_build_archives(%Account{} = account, batch_size, opts \\ []) do
-    plan = RetentionPolicy.current_plan(account)
+    plan = RetentionPolicy.current_policy(account)
     cutoff = :build_archive |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
@@ -111,7 +111,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   end
 
   def delete_run_artifacts(%Account{} = account, batch_size, opts \\ []) do
-    plan = RetentionPolicy.current_plan(account)
+    plan = RetentionPolicy.current_policy(account)
     cutoff = :run_session |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
@@ -150,7 +150,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   end
 
   def delete_test_attachments(%Account{} = account, batch_size, opts \\ []) do
-    plan = RetentionPolicy.current_plan(account)
+    plan = RetentionPolicy.current_policy(account)
 
     cutoff =
       :test_attachment
@@ -210,7 +210,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   end
 
   def delete_shard_bundles(%Account{} = account, batch_size, opts \\ []) do
-    plan = RetentionPolicy.current_plan(account)
+    plan = RetentionPolicy.current_policy(account)
     cutoff = :shard_bundle |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)

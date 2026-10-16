@@ -5,7 +5,7 @@ This context owns object storage access (S3-compatible and Azure Blob).
 ## Responsibilities
 - Generate presigned URLs for upload/download (including multipart uploads).
 - Stream and upload objects, check existence, and delete by prefix.
-- Enforce Tuist Cloud and opt-in self-hosted artifact-retention windows without deleting analytics metadata.
+- Enforce Tuist Cloud and opt-in self-hosted artifact-retention windows without deleting analytics metadata. Hosted account `artifact_retention_days` is a ceiling over existing plan windows, resolved fresh per database batch and in bulk per bucket page (including retained account-handle reservations); explicit self-hosted windows keep precedence. This object-storage policy does not govern Kura ring eviction.
 - Expire run artifacts (`<account>/<project>/runs/<id>/`) by object age with a bucket sweep: their id can be a command event, a test run, or a legacy integer, so no single table lists them all.
 - Expire a shard plan by deleting its whole `shards/<plan_id>/` prefix, which holds the bundle and the per-module archives.
 - Emit telemetry for storage operations.
