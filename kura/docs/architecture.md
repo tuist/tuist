@@ -24,6 +24,12 @@ they cannot guarantee convergence for every fragmented or undersized ring.
 Full verification still rejects any remaining retained holes. Ordinary backward
 catch-up and forward pages retain their recency policies. Concurrent begin
 requests cannot duplicate repair, and a retry after the hold never reopens it.
+Preparation runs in an owned task so a source's shorter request timeout does not
+discard the walk or interrupt its body transfers. A retry observes preparation
+in progress until the same task finishes. Authoritative intent replacement or
+abort, the original intent deadline, and runtime drain still cancel the repair;
+request retries cannot extend its lifetime. Record verification remains scoped
+to its request and completion of repair alone grants no serving authority.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
