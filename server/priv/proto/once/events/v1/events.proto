@@ -332,7 +332,7 @@ message TargetRetried {
 
 // Exactly one declared action outcome. Identity within a run is the tuple
 // (target_execution_id, capability, action_index). The index is zero-based
-// declaration order, never completion order; identifier is a display label.
+// declaration order, never completion order; identifier is a diagnostic label.
 // A new target attempt must use a new target_execution_id. Cached target
 // reuse emits the retained actions with current-run timing, not old spans.
 message ActionCompleted {
@@ -370,6 +370,11 @@ message ActionCompleted {
   // Zero means no attempt executed in this run, as with retained target reuse.
   // Otherwise this selects one attempt from the matching tuple below.
   uint32 selected_attempt = 14;
+  // Presentation only; does not replace identifier or affect cache identity.
+  optional string display_name = 15;
+  // Repository-relative file paths using forward slashes, never host paths
+  // or generated outputs. Servers may link these at RunStarted.git_rev.
+  repeated string source_files = 16;
 }
 
 // The tuple (target_execution_id, capability, action_index, attempt) is a

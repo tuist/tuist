@@ -18,6 +18,9 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:pod_name, :string)
     field(:pod_uid, :string)
     field(:node_name, :string)
+    field(:writer_branch, :string)
+    field(:writer_profile_id, :integer)
+    field(:writer_default_branch, :boolean, default: false)
     field(:can_publish, :boolean)
     field(:status, :string, default: "allocated")
     field(:warm, :boolean)
@@ -28,6 +31,7 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:attached_at, :utc_datetime_usec)
     field(:finished_at, :utc_datetime_usec)
     field(:deleted_at, :utc_datetime_usec)
+    field(:superseded_at, :utc_datetime_usec)
     timestamps(type: :utc_datetime)
   end
 end

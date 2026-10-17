@@ -6,6 +6,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   all_projects access. The scopes from the OAuth grant determine what
   operations the token can perform. A `user_id` claim is included so
   that cross-organization project listing can resolve the originating user.
+  A `client_id` claim lets persistent event subscriptions recheck the grant.
   """
 
   @behaviour Boruta.Oauth.TokenGenerator
@@ -61,6 +62,7 @@ defmodule Tuist.OAuth.TokenGenerator do
         "scopes" => scopes,
         "all_projects" => true,
         "user_id" => user.id,
+        "client_id" => client_id,
         "preferred_username" => user.account.name,
         "email" => user.email
       }

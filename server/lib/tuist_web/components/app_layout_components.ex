@@ -11,6 +11,8 @@ defmodule TuistWeb.AppLayoutComponents do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
+  alias TuistWeb.API.BuildEntityResources
+  alias TuistWeb.Helpers.BuildEntityLabels
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
@@ -22,6 +24,7 @@ defmodule TuistWeb.AppLayoutComponents do
     ~H"""
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
+      <% entity_resources = BuildEntityResources.for_project(@selected_project) %>
       <.sidebar_item
         label={dgettext("dashboard", "Overview")}
         icon="smart_home"
@@ -48,6 +51,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project) or Project.cargo_project?(@selected_project) or
             once?
         }
         id="sidebar-builds"
@@ -55,7 +59,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="versions"
         navigate={builds_root}
         selected={@current_path == builds_root}
-        default_open={String.starts_with?(@current_path, builds_root)}
+        default_open={
+          String.starts_with?(@current_path, builds_root) or
+            Enum.any?(entity_resources, &String.starts_with?(@current_path, overview_path <> &1.path))
+        }
         phx-update="ignore"
       >
         <.sidebar_item
@@ -64,16 +71,29 @@ defmodule TuistWeb.AppLayoutComponents do
           navigate={build_runs_path}
           selected={
             String.starts_with?(@current_path, build_runs_path) or
+              (Project.cargo_project?(@selected_project) and
+                 String.starts_with?(
+                   @current_path,
+                   "/#{@selected_account.name}/#{@selected_project.name}/builds/cargo-builds/"
+                 )) or
               String.starts_with?(
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
               )
           }
         />
+        <.sidebar_item
+          :for={resource <- entity_resources}
+          label={BuildEntityLabels.plural(resource.system, resource.kind)}
+          icon="subtask"
+          navigate={overview_path <> resource.path}
+          selected={String.starts_with?(@current_path, overview_path <> resource.path)}
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project) or Project.cargo_project?(@selected_project) or
             once?
         }
         id="sidebar-tests"
@@ -112,6 +132,21 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={
+            (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
+              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
+          }
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="umbrella"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -134,7 +169,10 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
+          :if={
+            Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project) or
+              Project.cargo_project?(@selected_project)
+          }
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
@@ -169,6 +207,13 @@ defmodule TuistWeb.AppLayoutComponents do
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
         }
+      />
+      <.sidebar_item
+        :if={Project.mix_project?(@selected_project)}
+        label={dgettext("dashboard", "Mix Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
       />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
@@ -265,12 +310,16 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           label={dgettext("dashboard", "Tasks")}
           icon="subtask"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          navigate={
+            if Enum.any?(entity_resources, &(&1.key == :gradle_tasks)),
+              do: overview_path <> "/builds/gradle/tasks",
+              else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+          }
           selected={
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
-            )
+            ) or String.starts_with?(@current_path, overview_path <> "/builds/gradle/tasks")
           }
         />
       </.sidebar_group>

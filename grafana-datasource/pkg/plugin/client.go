@@ -112,6 +112,9 @@ func (c *tuistClient) dimensionValues(ctx context.Context, entity, dimension, pr
 		Values []string `json:"values"`
 	}
 	path := fmt.Sprintf("/api/projects/%s/%s/metrics/dimensions/%s/values", projectHandle, entity, dimension)
+	if entity == "build-health" {
+		path = fmt.Sprintf("/api/projects/%s/builds/metrics/health/dimensions/%s/values", projectHandle, dimension)
+	}
 	if err := c.get(ctx, path, nil, &out); err != nil {
 		return nil, err
 	}
@@ -131,4 +134,29 @@ func setIfNotEmpty(q url.Values, key, value string) {
 	if strings.TrimSpace(value) != "" {
 		q.Set(key, value)
 	}
+}
+
+func (c *tuistClient) buildHealthMetrics(ctx context.Context, qm queryModel, from, to int64, view string) (*buildHealthMetrics, error) {
+	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}, "view": {view}}
+	switch qm.Environment {
+	case "ci":
+		q.Set("is_ci", "true")
+	case "local":
+		q.Set("is_ci", "false")
+	}
+	setIfNotEmpty(q, "git_branch", qm.GitBranch)
+	setIfNotEmpty(q, "workload", qm.Workload)
+	setIfNotEmpty(q, "status", qm.Status)
+	if qm.SlowBuildThresholdMS != nil {
+		q.Set("slow_build_threshold_ms", strconv.FormatInt(*qm.SlowBuildThresholdMS, 10))
+	}
+	var out buildHealthMetrics
+	path := fmt.Sprintf("/api/projects/%s/gradle/builds/metrics", qm.ProjectHandle)
+	if !strings.HasPrefix(qm.QueryType, "gradle") {
+		path = fmt.Sprintf("/api/projects/%s/builds/metrics/health", qm.ProjectHandle)
+	}
+	if err := c.get(ctx, path, q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

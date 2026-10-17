@@ -12,6 +12,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
+  alias Tuist.Marketing.Stats
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
@@ -45,7 +46,130 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:home_testimonials, get_home_testimonials())
+    # The hero eyebrow's live count: the cache globe's cached snapshot (a
+    # GenServer read, no ClickHouse query on the request path).
+    |> assign(:cache_globe, home_cache_globe())
+    |> assign(:customer_slides, customer_slides())
     |> render(:home, layout: false)
+  end
+
+  # The home customers carousel: OpenAI's quote first, then one slide per
+  # case study with a headline result, each with a colour for the dot field:
+  # the Noora hue nearest the company's brand colour, so the dots keep the
+  # palette's contrast against the page surface in both themes, with a headline
+  # result, in its brand colour (taken from each company's logo or brand
+  # palette), linking to the case study. `figure` names the dot graph the
+  # card morphs into for that story (see customers-dots-morph.js): bars or
+  # a falling line for a time cut, a build-time histogram for more builds
+  # finishing within a minute, steps for a staged drop, pairs for
+  # before/after, and a rising line for a quote without a single metric. The logos come from
+  # priv/marketing/customers/logos, recoloured white by the template.
+  defp customer_slides do
+    [openai_slide() | case_study_slides()]
+  end
+
+  # OpenAI leads the carousel: a quote rather than a case study, so it shows
+  # its author instead of a link. Its "brand" ink for the dots is the page's
+  # text colour (OpenAI's black would vanish in dark mode).
+  defp openai_slide do
+    openai = get_openai_testimonial()
+
+    %{
+      slug: "openai",
+      company: "OpenAI",
+      color: "var(--noora-surface-label-primary)",
+      figure: "rise",
+      statement: openai.quote,
+      href: nil,
+      author: openai.name,
+      role: openai.role
+    }
+  end
+
+  defp case_study_slides do
+    locale = Gettext.get_locale()
+
+    Enum.flat_map(
+      [
+        {"monzo", "bars", noora_hue("red"),
+         dgettext(
+           "marketing",
+           "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
+         )},
+        {"toss", "histogram", noora_hue("blue"),
+         dgettext(
+           "marketing",
+           "Toss, Korea's leading financial super-app, more than tripled the share of local builds that finish within a minute using Tuist's binary cache. Across close to 1,000 modules, product developers now build only the modules they own, with most of the graph served from cache."
+         )},
+        {"trendyol", "fall", noora_hue("orange"),
+         dgettext(
+           "marketing",
+           "Trendyol reduced build times by 65% with Tuist's caching, cutting CI builds to 10 minutes and local UI test setup to 30 seconds. Running a self-hosted Tuist instance, it keeps feedback loops fast for 170+ developers across more than 10 domain teams."
+         )},
+        {"monday", "steps", noora_hue("purple"),
+         dgettext(
+           "marketing",
+           "monday.com's CI merge workflow dropped from more than 20 minutes to about 9, with Tuist's module cache playing a significant role. Its team of almost 20 iOS engineers now maintains around 200 modules, and creating a new one is simple enough for anyone on the team."
+         )},
+        {"delivery-hero", "pairs", noora_hue("red"),
+         dgettext(
+           "marketing",
+           "Delivery Hero scaled its iOS rider app to around 115 modules with Tuist, cutting clean builds from 2.5 to 0.5 minutes and CI build and test time by 2.5x. Its Logistics team uses Tuist to keep modularization manageable and local builds fast."
+         )}
+      ],
+      fn {slug, figure, color, statement} ->
+        case Customers.get_case_study("/customers/#{slug}", locale) do
+          nil ->
+            []
+
+          case_study ->
+            [
+              %{
+                slug: slug,
+                company: case_study.company,
+                color: color,
+                figure: figure,
+                statement: statement,
+                href: case_study_link(case_study),
+                author: nil,
+                role: nil
+              }
+            ]
+        end
+      end
+    )
+  end
+
+  # A Noora palette hue as the dot field's ink: the 500 shade on the light
+  # surface, the lighter 400 shade on the dark one.
+  defp noora_hue(hue), do: "light-dark(var(--noora-#{hue}-500), var(--noora-#{hue}-400))"
+
+  defp case_study_link(case_study) do
+    if Customers.external_case_study?(case_study),
+      do: Customers.case_study_href(case_study),
+      else: Localization.localized_href(Customers.case_study_href(case_study))
+  end
+
+  # Local development has no Kura usage data, so the eyebrow would never
+  # render there. In dev only, and only while the globe has no measured count,
+  # preview it with an illustrative snapshot; every other environment shows
+  # measured data or nothing.
+  defp home_cache_globe do
+    snapshot = Stats.get_globe()
+
+    if Tuist.Environment.dev?() and is_nil(snapshot.downloads) do
+      now = DateTime.utc_now()
+
+      Map.merge(snapshot, %{
+        downloads: 658_422,
+        recent_downloads: 1_200,
+        status: :available,
+        updated_at: DateTime.to_iso8601(now),
+        observed_at: now |> DateTime.add(-60, :second) |> DateTime.to_iso8601()
+      })
+    else
+      snapshot
+    end
   end
 
   # The new home's testimonial marquee: two rows in the design's order,
@@ -696,7 +820,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     page_entries =
       Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
 
-    post_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+    post_entries = post_sitemap_entries()
 
     case_study_entries =
       for locale <- Localization.all_locales(),
@@ -1073,5 +1197,18 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp put_resp_header_server(conn, _opts) do
     put_resp_header(conn, "server", "Bandit")
+  end
+
+  defp post_sitemap_entries do
+    blog_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+
+    changelog_entries =
+      for locale <- Localization.all_locales(), entry <- Changelog.get_entries() do
+        "/changelog/#{entry.id}"
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(entry.date)
+      end
+
+    blog_entries ++ changelog_entries
   end
 end

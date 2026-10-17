@@ -1,4 +1,4 @@
-# Linux cache volume metadata
+# Runner cache volume metadata
 
 `../cache_volumes.ex` owns allocation, publication, invalidation and analytics;
 these schemas persist volume identities and per-job uses.
@@ -9,7 +9,7 @@ these schemas persist volume identities and per-job uses.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
   and trust for GitHub, Buildkite and GitLab. Never authorize from job variables.
-  Provider/instance/immutable scope join account/key/architecture/UID in identity.
+  Provider/instance/immutable scope join account/key/platform/architecture/UID in identity.
   PRs can read private clones; publication requires a successful eligible job
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
@@ -21,7 +21,7 @@ these schemas persist volume identities and per-job uses.
 - GitLab's verified job response supplies trigger type in `pipeline.source`.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
-- An open Linux session awaiting its verified execution binding returns pending
+- An open Linux or macOS session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;
   unknown/closed sessions and denied provider identities remain unavailable.
 - Logical invalidation and acknowledged physical deletion are distinct states.
@@ -36,6 +36,12 @@ these schemas persist volume identities and per-job uses.
 
 - Storage history is an account-scoped hourly rollup of per-copy measurement deltas for the selected date range (seven days by default). Seed it with earlier reports, carry unchanged sizes forward, preserve unknown fields, and subtract confirmed deletions. Do not sum repeated reports as new storage or present this series as billable usage.
 
+- Allocation clears a custom volume whose saved head measured at 80% or more of
+  its capacity (`full?/2`) once a use cloned from that head reached 99% of its own
+  (`out_of_space?/2`), under the same row lock and with the same generation
+  bump as deletion, so the use starts a fresh lineage. Unknown sizes never clear.
+  The dashboard warns on such heads and on failed jobs whose copy reached 99%.
+
 - Evict cache data after seven days without a mount. Refresh last_used_at only
   on the first valid attachment report for a use, never allocation, heartbeats
   or publication. A five-minute sweep and allocation/report paths invalidate
@@ -44,7 +50,7 @@ these schemas persist volume identities and per-job uses.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 
-- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
+- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Detail widgets compare with the previous period like the account widgets: used space through the same boundary-baseline rule, hit rate as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
 
 - Job detail references require account, workflow run and job IDs. Return only attached uses, keeping the latest mount per volume; acknowledged deletion does not remove the historical reference before normal history retention.
 
@@ -63,15 +69,16 @@ these schemas persist volume identities and per-job uses.
 - Public inventory filters use exact name (key) and repository equality, combined
   with AND before counting and paginating. The dashboard retains its free-text search.
 
-- Linux image publication reuses `VolumeHeads` and `Runners`' immutable master
+- Custom image publication reuses `VolumeHeads` and `Runners`' immutable master
   URLs, checksum signing, compare-and-swap and delayed object reclamation.
   `base_generation` is the shared HEAD version; `generation` is the independent
   custom-volume clear/expiry epoch. Lock the custom volume through publication
   and clearing so a cleared lineage cannot be resurrected. Publication is
   idempotent by usage ID and both digests. A sealed report alone never publishes.
-- `linux-<scope>` names are valid for storage only. Keep macOS dispatch validation
-  restricted to built-in repository/account caches; this does not enable custom
-  volumes on macOS. Export includes the new image digests/generation fields.
+- `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
+  Keep macOS dispatch validation restricted to built-in repository/account caches;
+  custom attachment uses the separate authenticated host agent. Export includes
+  image digests/generation fields.
 - `Schemas` owns the shared OpenAPI/MCP contracts inside the Tuist boundary.
   Keep `CacheVolumes`, `Query` and `Schemas` exported from `Tuist`; MCP must not
   depend on `TuistWeb`. Validate with the Boundary compiler, which dev skips.
@@ -79,3 +86,24 @@ these schemas persist volume identities and per-job uses.
 - Public byte sums are integers, never Decimal strings. Serialize timestamps at
   whole-second precision for the generated Swift client's default ISO8601 decoder.
   Test measured PostgreSQL rows through JSON schema validation, not only empty fixtures.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
+  host-audience endpoint. Resolve job/account/repository from the executed session
+  on the authenticated node. `builtin_name` selects the existing storage identity;
+  never run the custom allocation, image, clear or seven-day expiry protocol on it.
+  Rows use the same inventory, job history and analytics without a UI type label.
+- Built-in measurements describe mounted images and the current canonical saved
+  image. `superseded_at` / measurement `retired` withdraw an older canonical
+  observation; they are not physical deletion acknowledgements. Keep them distinct
+  from `deleted_at` / `deleted`. Superseded telemetry expires after 90 days.
+
+- Allocation resolves execution binding and platform in one session query. Apply
+  the platform rollout flag to that same result, including pending (425) sessions.
+
+- The GitHub writer policy is the job's runner profile, resolved from `requested_dispatch_label`. A missing profile or a legacy pool label means the repository's default branch saves (`trusted`). On a profile, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to the default branch) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Other provider and built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
+
+- There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.

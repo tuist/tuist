@@ -105,7 +105,6 @@ jobs:
             --include-path "cli/**/*"
             --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
-            --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
             --include-path ".github/workflows/cli-build-publish.yml"
             --include-path ".github/workflows/cli-rc.yml"
@@ -134,7 +133,6 @@ jobs:
             --include-path "cli/**/*"
             --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
-            --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
             --include-path ".github/workflows/cli-build-publish.yml"
             --include-path ".github/workflows/cli-rc.yml"
@@ -214,23 +212,22 @@ jobs:
           exit 1
       - name: Point SwiftPM at the proxy
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
-      - name: Bundle CLI
+      - name: Resolve dependencies
         run: |
           for attempt in 1 2 3; do
-            if ./mise/tasks/cli/bundle-linux.sh; then
+            if swift package resolve --replace-scm-with-registry; then
               exit 0
             fi
 
             if [ "$attempt" -eq 3 ]; then
-              echo "::error::Linux CLI bundle failed after ${attempt} attempts."
+              echo "::error::Linux CLI dependency resolution failed after ${attempt} attempts."
               exit 1
             fi
 
-            echo "::warning::Linux CLI bundle attempt ${attempt} failed; clearing SwiftPM state before retrying."
+            echo "::warning::Linux CLI dependency resolution attempt ${attempt} failed; clearing SwiftPM state before retrying."
             ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
             rm -rf \
               "${BUILD_PATH:-.build}" \
-              build \
               "$HOME/.cache/org.swift.swiftpm" \
               "$HOME/.swiftpm" \
               "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
@@ -242,6 +239,8 @@ jobs:
           # per CPU concurrently, which can trigger FoundationNetworking's
           # redirect handling crash before the CLI starts compiling.
           SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
+      - name: Bundle CLI
+        run: ./mise/tasks/cli/bundle-linux.sh
 
       - name: Upload CLI Linux artifacts
         id: upload

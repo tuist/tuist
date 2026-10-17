@@ -27,7 +27,7 @@ same data even if the mount path changes. Do not attach the same key twice in
 one job under different paths.
 
 PRs consume warm snapshots and write
-to their own clones; only successful default-branch push, manual, and scheduled
+to their own clones; by default only successful default-branch push, manual, and scheduled
 jobs publish. Failed jobs and disallowed writers are discarded. Publications
 use last-publication-wins. Cache data is disposable and must not contain secrets.
 
@@ -51,10 +51,32 @@ dependency required by the current commit. The action attaches the volume;
 the service saves eligible successful jobs after teardown. No post action or
 additional workflow permissions are required.
 
-A missing client fails with a Tuist Linux runner requirement. Unavailable
+A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
-Linux only; the fleet must have cache volumes enabled.
+When saved contents reach 80% of capacity and a job runs out of space on them,
+the next job starts empty.
+Linux and macOS fleets must have cache volumes enabled.
+
+### Choosing which branches save
+
+Account administrators configure **Save cache from** on each runner profile under
+**Runners → Profiles**. The settings apply to every custom volume attached by
+GitHub Actions jobs that run on the profile, including volumes created later.
+
+**Default branch** is on by default, so jobs on each repository's default branch
+save their changes. Turn it off to save only from the additional branches.
+
+**Additional branches** holds up to 20 branch names that also save. `*` matches
+any characters, so `release/*` covers `release/1.0` and `*` covers every branch.
+Successful push, schedule and manual-dispatch jobs, and pull requests from the
+same repository, save their changes when their branch matches. On push and
+manual-dispatch runs, a tag with a matching name also matches.
+
+Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
+built-in macOS volume policies are unchanged. Narrowing these settings or deleting
+the profile revokes pending saves they no longer allow; a deleted profile falls
+back to the default branch. Additions apply to new volume attachments.
 
 ## Releases
 
@@ -77,6 +99,18 @@ Distribution repositories need a `main` branch and write access for
 `TUIST_RELEASE_GITHUB_TOKEN` as a one-time setup. Publishing the wrappers does
 not enable cache volumes on the fleet; storage rollout is independent.
 
-Paths are mounted as ordinary directories, so tools can use their usual locations
+On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
 Each action call attaches one directory; use a different key for each directory.
+
+On macOS, targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.
+
+On macOS, use a macOS runner profile. Native jobs are supported; Linux container
+examples do not apply to macOS. Volumes mount in the macOS guest, so a separate
+Docker VM does not inherit them. Built-in Tuist and Xcode caches stay automatic;
+custom volumes use separate empty directories and platform-specific identities.

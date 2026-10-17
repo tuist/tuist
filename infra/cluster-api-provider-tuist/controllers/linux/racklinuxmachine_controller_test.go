@@ -598,6 +598,7 @@ func TestRackLinuxMachineWithNoHostWaits(t *testing.T) {
 func TestRackLinuxMachineHoldsANewInstallToTheHostKeyItWasGiven(t *testing.T) {
 	host := claimedEdgeHost("dev-2")
 	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{KeyID: "kMINT1CNTRL", PreviousDeviceID: "dev-1", HostKeyFingerprint: "SHA256:given"}
+	handedOut(host, time.Now())
 	machine := edgeMachine()
 	machine.Status.TailnetDeviceID = "dev-1"
 	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, machine)...)
@@ -606,5 +607,24 @@ func TestRackLinuxMachineHoldsANewInstallToTheHostKeyItWasGiven(t *testing.T) {
 
 	if len(h.applier.applies) != 1 || h.applier.applies[0].pinned != "SHA256:given" {
 		t.Fatalf("applies %+v; the new install is held to the key it was given", h.applier.applies)
+	}
+}
+
+// A host its own stick installed while an install is published for it, whose
+// seed the boot server never handed out, is trusted on first use even before
+// the host controller withdraws the install: it does not carry the install's
+// host key.
+func TestRackLinuxMachineTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T) {
+	host := claimedEdgeHost("dev-2")
+	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{KeyID: "kMINT1CNTRL", PreviousDeviceID: "dev-1", HostKeyFingerprint: "SHA256:given"}
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kMINT1CNTRL"}
+	machine := edgeMachine()
+	machine.Status.TailnetDeviceID = "dev-1"
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, machine)...)
+
+	h.reconcile(t)
+
+	if len(h.applier.applies) != 1 || h.applier.applies[0].pinned != "" {
+		t.Fatalf("applies %+v; the stick's install is trusted on first use", h.applier.applies)
 	}
 }

@@ -53,4 +53,19 @@ defmodule Tuist.Application.RuntimeChildrenTest do
       end
     end
   end
+
+  describe "readiness_server/1" do
+    test ":xcresult_processor serves Tuist.Readiness.Plug on the readiness port" do
+      assert [{Plug.Cowboy, opts}] = RuntimeChildren.readiness_server(:xcresult_processor)
+      assert Keyword.fetch!(opts, :plug) == Tuist.Readiness.Plug
+      assert opts |> Keyword.fetch!(:options) |> Keyword.fetch!(:port) == Tuist.Readiness.port()
+    end
+
+    test "every other mode returns no children" do
+      for mode <- Environment.modes(), mode != :xcresult_processor do
+        assert RuntimeChildren.readiness_server(mode) == [],
+               "expected no readiness listener for #{inspect(mode)}; only the xcresult processor is probed through it"
+      end
+    end
+  end
 end

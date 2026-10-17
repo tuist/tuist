@@ -50,28 +50,111 @@ each one with a check that asserts the behaviour rather than the
 ingredient — every gap so far was found by a release failing, not
 by the image build.
 
-TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
-anything driving Finder through `osascript`) needs a standing
-`kTCCServiceAppleEvents` approval, or the first send waits on a
-consent prompt nobody can answer and fails as `AppleEvent timed out
-(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
-at boot. Three details decide whether a row matches, and earlier
-attempts got each one wrong:
+TCC is one of those gaps. Two standing approvals live in `runner`'s own
+`~/Library/Application Support/com.apple.TCC/TCC.db`, the same rows
+GitHub-hosted images ship:
 
-- **Database.** Only the session user's
-  `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
-  A row in the system database is ignored. The user database only
-  exists once `runner` has logged in, which is why this runs at boot
-  and not in the Packer template.
-- **Client.** TCC charges the event to the responsible process, not
-  to `osascript`. For GitHub jobs that is
-  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
-  and GitLab agents are started directly by `dispatch-poll.sh`, so
-  theirs is expected to be its `/bin/bash`. `log stream --predicate
-  'subsystem == "com.apple.TCC"'` names it (`Prompting for access to
-  indirect object Finder by …`).
-- **Target.** `indirect_object_code_identity` must hold Finder's
-  code requirement. A row with it NULL is ignored.
+- **Scripting Finder.** `create-dmg`, or anything driving Finder through
+  `osascript`, needs `kTCCServiceAppleEvents` approved, or the first send
+  waits on a consent prompt nobody can answer and fails as `AppleEvent
+  timed out (-1712)`.
+- **The iOS Simulator's microphone.** A simulator app that records audio
+  (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s input node, a
+  video-call SDK) reaches the host microphone through coreaudiod, and TCC
+  charges it to `com.apple.CoreSimulator.SimulatorTrampoline`. Without a
+  row the app's audio call never returns, its main thread stalls, and
+  XCUITest fails with `Failed to get matching snapshots: Timed out while
+  evaluating UI query` or `Unable to monitor event loop`. The iOS-level
+  permission inside the simulator (`simctl privacy`, the in-app alert) is
+  separate and stays the job's responsibility. Simulators have no camera,
+  so `AVCaptureDevice.default(for: .video)` is nil there on any host.
+
+`tcc-approvals.sh` writes them at image build. The Packer template reboots
+the build VM so `runner` auto-logs in, waits for the TCC.db that login
+makes runner's tccd create, seeds the rows into it as `runner`, then
+reboots once more and fails the build unless every row is still there.
+At boot, `dispatch-poll.sh` (`check_tcc_approvals`) only reads them and
+logs `tcc-approvals: all approvals present` or `WARNING tcc-approvals:
+missing …`; for VMs whose log tail reaches Loki, search the
+`tuist-macos-tart-kubelet` `runner log` lines for it.
+
+What decides whether a row matches:
+
+- **Database.** Only the session user's database is consulted, for both
+  services. A row in the system database is ignored: coreaudiod asks the
+  system tccd, which forwards to the user tccd, and the user tccd decides.
+  PPPC configuration profiles cannot grant Microphone or Camera (deny
+  only), so MDM is not a route.
+- **Client.** TCC charges an AppleEvent to the responsible process, not to
+  `osascript`. For GitHub jobs that is
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite and
+  GitLab agents are started directly by `dispatch-poll.sh`, so theirs is
+  expected to be its `/bin/bash`. The microphone row is a bundle-ID client
+  (`client_type` 0). `log stream --predicate 'subsystem == "com.apple.TCC"'`
+  names the charged process (`Prompting for access to indirect object
+  Finder by …`, `AttributionChain: responsible=…`).
+- **Target.** The Finder rows' `indirect_object_code_identity` must hold
+  Finder's code requirement. A row with it NULL is ignored.
+
+Why the rows are written at build and not at boot: the database only
+exists once `runner` has logged in, and before the template rebooted into
+`runner`'s session nothing in the build did, so the image shipped with no
+user TCC.db at all. tccd then created one about 8 s after every VM boot,
+which looked like tccd recreating a database seeded at build. It was not:
+a database tccd created in the build session keeps its inode and birth
+time through `tart push`, the clone, and boot on a cluster node, and tccd
+honours its rows. Writing at boot instead raced tccd, which is still
+writing the database right after login (`database is locked` without a
+busy timeout, then `-1712` or `-1743`), and a microphone row written after
+a prompt is already pending does not unblock coreaudiod.
+
+An earlier attempt (the build-account rename in
+[#13597](https://github.com/tuist/tuist/pull/13597)) wrote rows into `admin`'s database during
+the build and then moved `admin`'s home to `/Users/runner`. That file was
+gone at boot. The system tccd keeps a registry of user databases in
+`/Library/Application Support/com.apple.TCC/REG.db` (table `registry`:
+`abs_path`, `first_seen`, `last_seen`, `trusted`), and the user tccd calls
+`TCCCheckIfDatabaseIsRegistered` when it starts. That database had only
+ever been registered at `/Users/admin`. This is the likely reason, not a
+confirmed one. Seed the database tccd created for `runner` at
+`/Users/runner`, and do not move or copy a TCC.db into place.
+
+macOS 27 moves the user database to
+`/private/var/containers/Data/ProtectedSystem/<id>/Data/Library/Application Support/com.apple.TCC/TCC.db`.
+`tcc-approvals.sh` only knows the Tahoe path, and its `wait` step fails the
+image build when the database does not appear there, so a macOS 27 base
+breaks the build instead of shipping without approvals. The build-time
+approach should carry over, because the container lives on the image's
+disk, but resolve the path from runner's tccd (`lsof -p <pid>`) and verify
+it on a macOS 27 guest first.
+
+Some jobs on images that wrote the Finder approval at boot failed with an
+immediate `-1743` although boot logged approval. `dispatch-poll.sh`
+streams TCC at Info level as newline-delimited JSON, so multiline request
+bodies retain their service and target fields. At exit it appends
+`dispatch-poll: tcc:` lines after the job output: Finder grant rows,
+database inode/birth time, tccd start times, and AppleEvents request summaries.
+Requests are keyed by daemon PID and message ID; no-ID attribution/decision
+events use the most recent request on the same daemon thread. This is
+best-effort adjacency, not a proven cause or perfect correlation after dropped
+events. Other explicit services are excluded. Parse only the latest MiB;
+retain the last observed `authValue=0` denial and nine recent requests, capped
+below the host's 200-line/64-KiB tail. An `authValue=1` undetermined state is a
+fallback only when no explicit denial is captured. Older requests can fall
+outside this window.
+
+Stream shutdown has a one-second kill grace; report work has a five-second
+deadline and one-second grace, so diagnostics do not indefinitely delay normal
+VM teardown. Only still-running shell-owned stream jobs are signalled, and the
+saved PID is cleared. Capture failure must not change the job's exit code.
+The raw stream is temporary inside the guest and grows for the job lifetime;
+only the bounded report is exported. No grants, probes, or daemon reloads are
+introduced. Remove the capture when the failure is understood.
+
+Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. It also
+covers `tcc-approvals.sh`. Tests use synthetic JSON and temporary
+SQLite/processes, never host privacy APIs. The existing release workflow
+runs them on PRs and before releases with a separate read-only test job; PR events never plan, build, publish, or deploy images.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
@@ -122,6 +205,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   branch skips the idle watchdog entirely — an acquisition token names
   one job UUID, so there is no window in which a registered agent waits
   to be handed work, which is the whole hazard that watchdog bounds.
+  For a GitHub job it writes the response's `setup_info` to the
+  runner's `.setup_info`, which the runner prints in the job's "Set up
+  job" step as a "Tuist Runner" group linking to the job's dashboard
+  page (`/<account>/runners/by-runner/<runner name>`, resolved
+  server-side because GitHub picks the job after the file is read).
   Captures
   the rc and `sudo shutdown -h now`s the VM via an `EXIT` trap so
   `tart run` returns and tart-kubelet flips the Pod to
@@ -475,6 +563,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   additions for the cirruslabs base's pre-installed tools), so
   step shells see the same environment an interactive SSH
   session on the same VM would.
+  `dispatch-poll.sh` also exports `ImageOS` (e.g. `macos26`, from
+  `sw_vers`) before starting the runner, as GitHub-hosted runners
+  do; setup actions such as `erlef/setup-beam` read it to pick a
+  prebuilt binary.
 - `/etc/kcpassword` + `autoLoginUser=runner` — macOS auto-login
   config so the desktop session exists at boot and loginwindow
   loads the LaunchAgent. Without this the VM boots to a login
@@ -564,14 +656,25 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
 mirror + base image tags `xcode-xips:27.2-beta`,
 `macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
 resolves to a runner pool sized by
-`runnersFleet.xcodeOverrides["27.2-beta"]`.
+`runnersFleet.xcodeOverrides["27.2-beta"]`. Release candidates use
+`rc` (`27.1 Release Candidate` → `27.1-rc`), which is also the
+channel a later `Release Candidate 2` moves. The longer
+`release-candidate` would push the 12 vCPU shape pool's
+`tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
+
+Xcode 27.1 promotion is additive first: retain RC builds and pools while
+stable uses the prepublished `macos-27-1-e99ae738` bootstrap image. After
+this chart has deployed successfully and a versioned runner-image release
+includes stable, a second PR can migrate RC profiles, remove RC pools and
+builds, and remove the bootstrap pin. The previous chart then supports
+stable profiles if retirement rolls back. The default stays 26.6.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -757,3 +860,14 @@ semantics; this doc is just about the VM image.
 `/opt/tuist/tuist-gitlab-runner` executes a server-acquired GitLab job with the upstream shell executor. Its source is in `infra/linux-runner-image/gitlab-runner/` and the shared `build-runner-image-binaries` action builds its darwin/arm64 binary for Packer. Dispatch stages the assignment as private JSON and reuses the normal VM lifecycle. Reusable GitLab runner tokens never enter the VM.
 
 - GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
+  size, mount time/duration and host-staged warm/cold source. Stage once at attach
+  and again before detach; never estimate sparse-image filesystem usage from the
+  image file's host size. The host adds scope/outcome and authenticates reporting.
+- Failed custom-volume detach must emit a warning that publication is skipped;
+  preserve the job's exit status and never force-detach a publishable image.

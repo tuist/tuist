@@ -11,12 +11,13 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 - `Sources/TuistNoora` - iOS design system components
 - `Sources/TuistErrorHandling` - Shared error handling
 - `Sources/TuistAppStorage` - Shared storage utilities
-- `Sources/TuistAuthentication` - Shared authentication
+- `Sources/TuistAuthentication` - Shared authentication and persisted server selection
 
 ## Building and Testing
 - Generate the project: `tuist generate --no-open` (from `app/` directory)
 - Build: `xcodebuild build -workspace TuistApp.xcworkspace -scheme TuistApp`
 - Test: `xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp`
+- iOS preview tests: use the `TuistPreviews` scheme with an iOS Simulator destination; sources live in `Tests/TuistPreviewsTests`.
 
 ## Dependencies
 The app depends on several CLI modules:
@@ -45,6 +46,18 @@ The app depends on several CLI modules:
 - `Resources/TuistApp/AppIcon.icon` is an Icon Composer bundle (layers in `Assets/`, composition in `icon.json`). It needs Xcode 26 or later to compile; `xcode-select` pointing at an older Xcode fails on the asset catalog. Every layer must carry an explicit `"glass"` value: Icon Composer omits the key at its default (`true`), so a re-exported layer without it renders as Liquid Glass, and faint textures such as the grid turn into bright ridges at Dock and Finder sizes while looking fine at 1024px. Preview at ~95pt, not at full size.
 - `Resources/TuistApp/Assets.xcassets/TuistIcon` (macOS sign-in view) and `TuistRoundedIcon` (iOS sign-in and launch screen) are flat renders derived from the compiled `AppIcon.icon`; regenerate them when the icon changes. `MenuBarIcon` (status item) and `TuistLogo` (iOS sign-in button) are the monochrome mark rasterised at 16pt and 20pt.
 - `assets/dmg-background.tiff` is a HiDPI TIFF (660x400 at 1x plus 1320x800 at 2x, built with `tiffutil -cathidpicheck`). Keep it light and fully opaque: Finder draws the icon labels black in both light and dark appearance whenever a picture background is set, and dmgbuild has no label colour setting. The icon coordinates in `app/dmg-settings.py` are tied to the arrow drawn in the image.
+
+## Self-Hosted Login
+Both login screens always show the same Tuist-hosted sign-in buttons, with a "Self-hosted server" option below them that asks for an HTTPS server URL and goes straight to that server's login page. Closing that page returns to the same screen. The Tuist-hosted buttons clear any saved selection before signing in; a saved self-hosted URL only prefills the address prompt. The selected URL and OAuth client ID are persisted together in `AppServerConfigurationKey`, and signing in copies that server into the persisted `AuthenticationState.loggedIn(account:server:)`, so a session always knows which server it belongs to. While signed in, `AppServerEnvironmentService` resolves the server from the session; the selection only applies while signed out. Use `AppServerEnvironmentService` for all app API requests and credential cleanup, not the CLI's `ServerEnvironmentService` directly. Signing out retains the selection, so the address prompt is prefilled next time.
+
+Saving a self-hosted URL reads `registration_endpoint` from `/.well-known/oauth-authorization-server` and registers the app as a public PKCE client (RFC 7591) with the `tuist://oauth-callback` redirect, so no client ID is hardcoded or advertised per deployment. The registration endpoint must be on the selected server's origin. Servers without dynamic registration show an update error instead of attempting login with the hosted client ID. Custom URLs require HTTPS with a certificate trusted by the device; do not bypass TLS verification or add broad App Transport Security exceptions.
+
+OAuth credentials retain their issuing client ID through storage and refresh in `TuistServer`. Keep this metadata when rotating tokens so an on-premise session never refreshes with the hosted client ID.
+
+## Preview Browsing
+The macOS menu lists previews across all branches and all result pages. Do not use the `latest` API specifier for discovery: it restricts results to the project's default branch. Launching a tile must match its bundle identifier, not simply use the project's newest build. Search distinct compatible apps first; only fall back to full history for older servers that apply supported-platform filtering after distinct selection. Reject repeated or empty nonterminal pages instead of silently capping the search.
+
+The shared `ServerPreview` preserves optional tracks and release notes, including compatibility with older responses that omit either field. iOS uses native search across display names and full release notes and horizontally scrolling Tracks pills below the rounded project selector. The selected pill is purple; All resets the filter without a separate Clear button, menu, or alert. Load complete project-scoped names and counts from the authorized `/previews/tracks` summary, never from a downloaded preview page. Counts are full-project totals, stable across search and track filters; All includes untracked previews. Search runs server-side before pagination, combines with the selected track, and resets on project changes. Debounce input and suppress cancelled or superseded results/errors. Keep browsing available on older servers without discovery, without inventing partial track choices or counts. Filter by whole track name on the server before pagination, reset track and choices when changing projects (including project-list refresh fallback), and ignore both results and errors from superseded list and track-discovery requests. Track storage is case-insensitive (`citext`), so unsupported-filter detection must accept case-only differences while rejecting missing or genuinely different tracks. Release notes are plain text, not Markdown or HTML. Show only the first nonblank line in preview list rows, truncated to one line, and keep full notes on preview detail pages. Never interpret snippets as Markdown or HTML. Keep the track tag beside the commit hash. Empty states use native pull-to-refresh, not a redundant Refresh button. Filtered empty results explain how to adjust search or track selection; unfiltered empty states explain pulling down. Await the refresh operation so the native indicator follows the request, and refresh projects when no projects are loaded.
 
 ## Environment Configuration
 The app supports multiple environments via `TUIST_ENV`:

@@ -28,6 +28,7 @@ defmodule TuistWeb.Components.ScatterChart do
 
   def scatter_chart(assigns) do
     ~H"""
+    <TuistWeb.Components.ErrorCardSection.error_state :if={@chart.failed} />
     <.chart
       :if={scatter?(@chart)}
       id={@id}
@@ -59,10 +60,10 @@ defmodule TuistWeb.Components.ScatterChart do
 
   def scatter_oldest_entry_formatted(_), do: ""
 
-  defp scatter?(%{result: {:scatter, _}, loading: loading}), do: !loading
+  defp scatter?(%{ok?: true, failed: nil, result: {:scatter, _}}), do: true
   defp scatter?(_), do: false
 
-  defp truncated?(%{result: {:scatter, %{truncated: true}}, loading: loading}), do: !loading
+  defp truncated?(%{ok?: true, failed: nil, result: {:scatter, %{truncated: true}}}), do: true
   defp truncated?(_), do: false
 
   defp series(%{result: {:scatter, data}}, url_fn) do

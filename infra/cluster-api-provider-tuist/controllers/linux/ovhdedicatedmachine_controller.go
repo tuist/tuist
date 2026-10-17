@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -98,8 +99,10 @@ type OVHDedicatedMachineReconciler struct {
 	KubernetesMinor string
 
 	// DefaultDatacenter / DefaultOS fill a spec that left them empty.
-	DefaultDatacenter string
-	DefaultOS         string
+	DefaultDatacenter        string
+	DefaultOS                string
+	PrivateNetworkConfigName string
+	PrivateNetworkNamespace  string
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines,verbs=get;list;watch;create;update;patch;delete
@@ -349,6 +352,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
+		networkErr := r.reconcilePrivateNetwork(ctx, machine, node)
+		if networkErr != nil {
+			logger.Error(networkErr, "private network repair failed; will retry")
+		}
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
 			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, node); driftErr != nil {
@@ -369,6 +376,9 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+		}
+		if networkErr != nil {
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
@@ -571,7 +581,7 @@ func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachi
 
 func (r *OVHDedicatedMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.OVHDedicatedMachine{}).
+		For(&infrav1.OVHDedicatedMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }
 

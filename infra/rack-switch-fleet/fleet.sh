@@ -62,6 +62,10 @@ cmd_render() {
   rendered="$(mktemp)"
   local object
   object="$(mktemp)"
+  # The site-wide checks run once here rather than in every device's render.
+  # A site that fails them is left to the renders, which report why.
+  local FLEET_SITE_CHECKED=""
+  fleet_check_site "$(site_file)" 2>/dev/null && FLEET_SITE_CHECKED="$(site_file)"
   for device in $(devices "$name"); do
     target="$(config_path "$device")"
     mkdir -p "$(dirname "$target")"
@@ -72,7 +76,7 @@ cmd_render() {
     local object_target
     object_target="$(k8s_path "$device")"
     mkdir -p "$(dirname "$object_target")"
-    fleet_render_k8s "$(site_file)" "$device" > "$object"
+    fleet_render_k8s "$(site_file)" "$device" "$rendered" > "$object"
     if (( check )); then
       if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
         echo "stale: ${target#"$FLEET_ROOT"/}" >&2
@@ -89,6 +93,8 @@ cmd_render() {
     fi
   done
   rm -f "$rendered" "$object"
+  render_power "$check" || stale=1
+  render_site "$check" || stale=1
   render_edge "$check" || stale=1
   render_cables "$check" || stale=1
   if (( stale )); then
@@ -97,6 +103,71 @@ cmd_render() {
   fi
   (( check )) && echo "rendered configs are up to date with the site definition"
   return 0
+}
+
+# The site's RackPDU and RackATS objects, from the same site definition. An
+# object of a device the site no longer has (renamed or removed) is stale: the
+# workflow applies the whole directory, so leaving it would keep a second
+# object driving the same card.
+render_power() {
+  local check="$1" device kind target rendered file status=0 expected=()
+  rendered="$(mktemp)"
+  local devices
+  devices="$(fleet_pdus "$(site_file)" | sed 's/$/:pdu/'; fleet_atses "$(site_file)" | sed 's/$/:ats/')"
+  for device in $devices; do expected+=("$(basename "$(k8s_path "${device%:*}")")"); done
+  for file in "$FLEET_ROOT/k8s/$SITE"/*.yaml; do
+    [ -e "$file" ] || continue
+    grep -qE '^kind: (RackPDU|RackATS)$' "$file" || continue
+    case " ${expected[*]} " in *" $(basename "$file") "*) continue;; esac
+    if (( check )); then
+      echo "stale: ${file#"$FLEET_ROOT"/} belongs to a power device the site no longer has" >&2
+      status=1
+    else
+      rm -f "$file"
+      echo "removed ${file#"$FLEET_ROOT"/}"
+    fi
+  done
+  for device in $devices; do
+    kind="${device##*:}"
+    device="${device%:*}"
+    target="$(k8s_path "$device")"
+    "fleet_render_$kind" "$(site_file)" "$device" > "$rendered"
+    if (( check )); then
+      if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+        echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+        status=1
+      fi
+    else
+      mkdir -p "$(dirname "$target")"
+      cp "$rendered" "$target"
+      echo "rendered ${target#"$FLEET_ROOT"/}"
+    fi
+  done
+  rm -f "$rendered"
+  return "$status"
+}
+
+# The site's RackSite object, from the same site definition.
+render_site() {
+  local check="$1" target rendered status=0
+  target="$(k8s_path "$SITE")"
+  rendered="$(mktemp)"
+  if ! fleet_render_site "$(site_file)" > "$rendered"; then
+    rm -f "$rendered"
+    return 1
+  fi
+  if (( check )); then
+    if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+      echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$(dirname "$target")"
+    cp "$rendered" "$target"
+    echo "rendered ${target#"$FLEET_ROOT"/}"
+  fi
+  rm -f "$rendered"
+  return "$status"
 }
 
 # The site's cable schedule, from the same site definition.
@@ -126,7 +197,11 @@ render_edge() {
   [ -n "$dir" ] || return 0
   rendered="$(mktemp)"
   mkdir -p "$dir"
-  local -a files=(mgmt-path.sh dnsmasq.conf dnsmasq-machines.conf tailnet-routes.sh)
+  # The edge checks run once here rather than in every file's render. A site
+  # that fails them is left to the renders, which report why.
+  local FLEET_EDGE_CHECKED=""
+  fleet_edge_check "$(site_file)" 2>/dev/null && FLEET_EDGE_CHECKED="$(site_file)"
+  local -a files=(mgmt-path.sh dnsmasq.conf dhcp.sh dnsmasq-machines.conf tailnet-routes.sh)
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
   for file in "$dir"/keepalived-*.conf; do
@@ -144,6 +219,7 @@ render_edge() {
     case "$file" in
       mgmt-path.sh) fleet_edge_path "$(site_file)" > "$rendered";;
       dnsmasq.conf) fleet_edge_dhcp "$(site_file)" > "$rendered";;
+      dhcp.sh) fleet_edge_dhcp_run "$(site_file)" > "$rendered";;
       dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
       tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
       keepalived-*.conf)
@@ -160,6 +236,19 @@ render_edge() {
       echo "rendered ${dir#"$FLEET_ROOT"/}/$file"
     fi
   done
+  # What an edge's install needs, for the tuist chart's RackLinuxHosts.
+  file="$FLEET_RACK_SITES/$(basename "$(site_file)" .json).yaml"
+  fleet_edge_install "$(site_file)" > "$rendered"
+  if (( check )); then
+    if ! diff -q "$rendered" "$file" >/dev/null 2>&1; then
+      echo "stale: ${file#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$FLEET_RACK_SITES"
+    cp "$rendered" "$file"
+    echo "rendered ${file#"$FLEET_ROOT"/}"
+  fi
   rm -f "$rendered"
   return "$status"
 }
@@ -1313,7 +1402,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp|env|helm-values>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   RACK="$(jq -r '.site // empty' "$(site_file)")"
@@ -1335,6 +1424,13 @@ main() {
     replace)    refuse_adopted "$@" && cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
+    env)        fleet_site_env "$(site_file)";;
+    helm-values)
+      case "${1:-}" in
+        rack-switch-controller) fleet_controller_values "$(site_file)";;
+        rack-edge) fleet_edge_values "$(site_file)";;
+        *) echo "usage: rack:fleet helm-values <rack-switch-controller|rack-edge>" >&2; return 2;;
+      esac;;
     *) echo "unknown command: $command" >&2; return 2;;
   esac
 }

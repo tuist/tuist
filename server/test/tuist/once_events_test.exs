@@ -29,6 +29,7 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.OnceEvents.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -60,6 +61,74 @@ defmodule Tuist.OnceEventsTest do
     assert %{total_actions: 3, cached_actions: 1, executed_actions: 2} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
+  test "action presentation survives wire decoding without changing identity or replay counters", %{run: run} do
+    action = %ActionCompleted{
+      target_execution_id: "app",
+      capability: "build",
+      identifier: "diagnostic:compile",
+      display_name: "Compile main.c",
+      source_files: ["src/main.c", "include/api.h"],
+      duration_ms: 12,
+      was_cached: true
+    }
+
+    decoded = action |> ActionCompleted.encode() |> ActionCompleted.decode()
+    project(run, decoded)
+    project(run, %{decoded | display_name: "A different label", source_files: []})
+
+    assert [stored] = OnceEvents.list_actions(run)
+    assert stored.identifier == "diagnostic:compile"
+    assert stored.display_name == "Compile main.c"
+    assert stored.source_files == ["src/main.c", "include/api.h"]
+    assert %{total_actions: 1, cached_actions: 1} = OnceEvents.get_run(run.project_id, run.run_id)
+
+    assert [%{action_display_name: "Compile main.c", source_files: ["src/main.c", "include/api.h"]}] =
+             OnceEvents.list_cache_events(run, view: "actions")
+  end
+
+  test "legacy action messages default to no presentation metadata", %{run: run} do
+    # Tags 1 and 4 only, encoded before presentation fields existed.
+    decoded = ActionCompleted.decode(<<10, 3, "app", 34, 7, "compile">>)
+    assert decoded.display_name == nil
+    assert decoded.source_files == []
+    project(run, decoded)
+    project(run, %{decoded | action_index: 1, display_name: ""})
+
+    assert [first, second] = OnceEvents.list_actions(run)
+    assert first.identifier == "compile"
+    assert first.display_name == nil
+    assert first.source_files == []
+    assert second.display_name == nil
+  end
+
+  test "action names and source files are searchable and display names determine sorting", %{run: run} do
+    project(run, %ActionCompleted{
+      target_execution_id: "app",
+      identifier: "z-diagnostic",
+      display_name: "Alpha compile",
+      source_files: ["src/main.c"]
+    })
+
+    project(run, %ActionCompleted{target_execution_id: "legacy", identifier: "beta"})
+
+    for opts <- [[search: "ALPHA"], [search: "src/main.c"], [search: "z-diagnostic"]] do
+      assert OnceEvents.count_actions(run, opts) == 1
+      assert [%{target_execution_id: "app"}] = OnceEvents.list_actions(run, opts)
+      assert OnceEvents.count_cache_events(run, opts ++ [view: "actions"]) == 1
+      assert [%{target_execution_id: "app"}] = OnceEvents.list_cache_events(run, opts ++ [view: "actions"])
+    end
+
+    assert Enum.map(OnceEvents.list_actions(run, sort_by: "action"), & &1.target_execution_id) == ["app", "legacy"]
+
+    assert Enum.map(OnceEvents.list_actions(run, sort_by: "action", sort_order: "desc"), & &1.target_execution_id) ==
+             ["legacy", "app"]
+
+    assert Enum.map(
+             OnceEvents.list_cache_events(run, view: "actions", sort_by: "action", sort_order: "asc"),
+             & &1.target_execution_id
+           ) == ["app", "legacy"]
+  end
+
   test "replayed actions do not inflate counters and capabilities remain distinct", %{run: run} do
     action = %ActionCompleted{
       target_execution_id: "mise",
@@ -81,7 +150,22 @@ defmodule Tuist.OnceEventsTest do
 
   test "decoded failed run result remains failed", %{run: run} do
     project(run, %RunCompleted{result: :RUN_RESULT_FAILED, wall_ms: 123})
-    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized"} = OnceEvents.get_run(run.project_id, run.run_id)
+
+    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized", cancellation_reason: nil} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run keeps why it was cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, cancellation_reason: "SIGTERM", wall_ms: 40})
+
+    assert %{exit_status: 1, cancellation_reason: "SIGTERM", finalization: "finalized"} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run without a reason is still recorded as cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, wall_ms: 40})
+
+    assert %{cancellation_reason: "cancelled"} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
   test "search and filters apply before pagination and remain run scoped", %{run: run} do
@@ -274,6 +358,25 @@ defmodule Tuist.OnceEventsTest do
       assert ack.dashboard_url =~ "/#{project.account.name}/#{project.name}/once/runs/"
     end
 
+    test "a new run records its authenticated actor and replay cannot replace it", %{
+      project: project,
+      member: member,
+      handle: handle
+    } do
+      run_id = UUIDv7.generate()
+
+      event = %RunEvent{
+        epoch_ms: System.system_time(:millisecond),
+        payload: {:run_started, %RunStarted{once_version: "0.60.0"}}
+      }
+
+      batch = %RunEventBatch{run_id: run_id, batch_id: "actor", seq_from: 1, events: [event]}
+      RunEventService.publish_run_events([batch], user_stream(member, %{"once-project-id" => handle}))
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
+      Projector.project(event, project.id, run_id, nil)
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
+    end
+
     test "publishing without naming a project is rejected", %{member: member, run: run} do
       error =
         assert_raise GRPC.RPCError, fn ->
@@ -292,6 +395,19 @@ defmodule Tuist.OnceEventsTest do
         end
 
       assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "a refused call is counted with the call and the stage that refused it", %{handle: handle, run: run} do
+      event_name = Tuist.Telemetry.event_name_once_events_refused()
+      event_ref = TelemetryCapture.attach_event_handlers([event_name])
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      assert_raise GRPC.RPCError, fn ->
+        RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"once-project-id" => handle}))
+      end
+
+      assert_received {^event_name, ^event_ref, %{count: 1},
+                       %{rpc: :publish_run_events, stage: :admission, status: :unauthenticated}}
     end
 
     test "naming a project that does not exist is rejected", %{member: member, run: run} do
@@ -483,7 +599,63 @@ defmodule Tuist.OnceEventsTest do
       refute_received {:ack, %BatchAck{batch_id: "after"}}
     end
 
-    test "within the check interval the open stream keeps going", %{
+    test "opening a stream from an old snapshot does not start a new minute", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      shift = :atomics.new(1, [])
+
+      stub(System, :monotonic_time, fn unit ->
+        now = Mimic.call_original(System, :monotonic_time, [unit])
+        if unit == :millisecond, do: now + :atomics.get(shift, 1), else: now
+      end)
+
+      stream = stream_with(login_session(member), %{"once-project-id" => handle})
+      RunEventService.get_argv_hash_key(%GetArgvHashKeyRequest{}, stream)
+      :atomics.put(shift, 1, 50_000)
+
+      between = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(shift, 1, 60_001)
+      end
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(removing_between_batches(run, between), stream)
+             end)
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      refute_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+
+    test "a refusal on the periodic check of an open stream is counted as such", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      event_name = Tuist.Telemetry.event_name_once_events_refused()
+      event_ref = TelemetryCapture.attach_event_handlers([event_name])
+      flag = clock_that_jumps_when_flagged(minutes: 6)
+
+      removing = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(flag, 1, 1)
+      end
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 removing_between_batches(run, removing),
+                 stream_with(login_session(member), %{"once-project-id" => handle})
+               )
+             end)
+
+      assert_received {^event_name, ^event_ref, %{count: 1},
+                       %{rpc: :publish_run_events, stage: :recheck, status: :unauthenticated}}
+    end
+
+    test "an open stream may continue inside its bounded freshness window", %{
       organization: organization,
       member: member,
       handle: handle,
@@ -507,15 +679,15 @@ defmodule Tuist.OnceEventsTest do
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
     end
 
-    test "the same credential is resolved once and then served from the cache", %{
+    test "calls and batches share the same bounded identity snapshot", %{
       member: member,
       handle: handle,
       run: run
     } do
       session = login_session(member)
 
-      expect(Authentication, :authenticated_subject, 1, fn token ->
-        Mimic.call_original(Authentication, :authenticated_subject, [token])
+      expect(Authentication, :authenticated_subject_snapshot, 1, fn token ->
+        Mimic.call_original(Authentication, :authenticated_subject_snapshot, [token])
       end)
 
       for _ <- 1..3, do: publish(session, %{"once-project-id" => handle}, run)
@@ -830,7 +1002,14 @@ defmodule Tuist.OnceEventsTest do
       |> where([r], r.id == ^run.id)
       |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
+    OnceEvents.subscribe_run(run.project_id, run.run_id)
+
     assert {:ok, 1} = OnceEvents.expire_stale_runs()
+
+    # Open run pages refresh on this, otherwise they keep rendering the run as
+    # in progress until someone reloads.
+    run_id = run.run_id
+    assert_receive {:run_updated, ^run_id}
 
     reloaded = OnceEvents.get_run(run.project_id, run.run_id)
     assert reloaded.finalization == "lost"

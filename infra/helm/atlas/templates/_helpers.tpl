@@ -33,7 +33,7 @@ app.kubernetes.io/component: web
 {{- end -}}
 
 {{- define "atlas.appSecretName" -}}
-{{ include "atlas.fullname" . }}-app
+{{ default (printf "%s-app" (include "atlas.fullname" .)) .Values.appSecretName }}
 {{- end -}}
 
 {{- define "atlas.postgresClusterName" -}}

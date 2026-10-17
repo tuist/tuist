@@ -163,6 +163,22 @@ test("overlapping work gets separate lanes, touching intervals reuse a lane", ()
   assert.equal(events[2].y, events[0].y);
 });
 
+test("Mix maps the kinds of work its compiler reports onto the legend", () => {
+  const categories = ["compile", "type_check", "write", "compiler", "other"];
+  const events = normalizeEvents(
+    categories.map((category, index) => ({ ...event(index, index, 1), category })),
+    "mix",
+  );
+  const kinds = Object.fromEntries(events.map((item) => [item.category, item.kind]));
+  assert.deepEqual(kinds, {
+    compile: "compile",
+    type_check: "setup",
+    write: "resource",
+    compiler: "script",
+    other: "other",
+  });
+});
+
 test("execution lanes reuse space across targets without losing project identity", () => {
   const events = normalizeEvents([event(1, 0, 10), event(2, 10, 10, "Tools")]);
   const layout = layoutEvents(events);

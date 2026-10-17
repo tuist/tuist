@@ -7,15 +7,18 @@
 # The host has to be declared in rackLinuxFleet.hosts of the env's values.
 #
 # Usage:
-#   mise run rack:write-install-usb <disk> --host <name> [--env staging] [--key-hours 24] [--ssh-key <pubkey>]
+#   mise run rack:write-install-usb <disk> --host <name> [--env <env>] [--key-hours 24] [--ssh-key <pubkey>]
 #   mise run rack:write-install-usb --host <name> --output <iso>
-#   mise run rack:write-install-usb <disk> --any-host [--env staging]
+#   mise run rack:write-install-usb <disk> --any-host [--env <env>]
 #
 # Run it with no disk and no --output to list the external disks attached.
 # Writing asks for confirmation, then for sudo. A stick installs a machine once:
 # booted again, it hands over to the system it installed. Until the install has
 # used it, the stick is a credential: a lost one is revoked by deleting its key
 # (the ID is printed below) in the Tailscale admin console.
+#
+# --env defaults to the env the rack is in: the namespace its site definition
+# (infra/rack-switch-fleet/sites/<site>.json, --site, default ber1) names.
 #
 # --any-host writes the stick that stays in every rack host instead: it carries
 # no host's install and no credential, and installs whatever the env's boot
@@ -29,7 +32,8 @@ root="$(git rev-parse --show-toplevel)"
 disk=""
 host=""
 any_host=""
-env="staging"
+env=""
+site="${RACK_SITE:-ber1}"
 key_hours=24
 output=""
 ssh_key="$HOME/.ssh/id_ed25519.pub"
@@ -39,6 +43,7 @@ while (( $# )); do
     --host) host="${2:-}"; shift 2;;
     --any-host) any_host=1; shift;;
     --env) env="${2:-}"; shift 2;;
+    --site) site="${2:-}"; shift 2;;
     --key-hours) key_hours="${2:-}"; shift 2;;
     --output) output="${2:-}"; shift 2;;
     --ssh-key) ssh_key="${2:-}"; shift 2;;
@@ -48,7 +53,7 @@ while (( $# )); do
 done
 
 if [ -z "$disk" ] && [ -z "$output" ]; then
-  echo "usage: mise run rack:write-install-usb <disk> (--host <name> | --any-host) [--env staging]" >&2
+  echo "usage: mise run rack:write-install-usb <disk> (--host <name> | --any-host) [--env <env>]" >&2
   echo >&2
   echo "external disks attached:" >&2
   diskutil list external physical >&2 || echo "  none" >&2
@@ -85,6 +90,15 @@ source "$root/infra/rack-nodes/render-autoinstall.sh"
 source "$root/infra/rack-nodes/build-autoinstall-iso.sh"
 # shellcheck source=/dev/null
 source "$root/infra/rack-nodes/ubuntu-iso.sh"
+# shellcheck source=/dev/null
+source "$root/infra/rack-switch-fleet/lib/config.sh"
+
+if [ -z "$env" ]; then
+  site_file="$(fleet_site_file "$site")"
+  [ -f "$site_file" ] || { echo "error: no site definition at $site_file" >&2; exit 2; }
+  env="$(fleet_site_env "$site_file")" || exit 2
+  echo "the rack $site is in $env; writing a stick for $env"
+fi
 
 confirm_erase() {
   [ -n "$disk" ] || return 0

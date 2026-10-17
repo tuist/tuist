@@ -351,7 +351,7 @@ func (s *OSUpdateSession) StopJob(ctx context.Context, id, job string) error {
 }
 
 func (s *OSUpdateSession) Serial(ctx context.Context) (string, error) {
-	out, err := RunCommandOutput(ctx, s.client, "ioreg -rd1 -c IOPlatformExpertDevice", nil)
+	out, err := RunCommandOutput(ctx, s.client, ioregPlatformCommand, nil)
 	if err != nil {
 		return "", err
 	}

@@ -84,6 +84,42 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       refute ClickHouseRepo.exists?(from(e in CacheEvent, where: e.project_id == ^other.id))
     end
 
+    test "Mix uses the same signed REAPI pipeline, but cannot attribute events to a Bazel project", %{
+      conn: conn,
+      project: bazel
+    } do
+      mix = ProjectsFixtures.project_fixture(account_id: bazel.account.id, build_system: :mix)
+
+      base = %{
+        "account_handle" => mix.account.name,
+        "project_handle" => mix.name,
+        "client_kind" => "mix",
+        "operation" => "cas",
+        "outcome" => "hit",
+        "action_digest" => String.duplicate("a", 64),
+        "size" => 512,
+        "duration_us" => 123,
+        "invocation_id" => UUIDv7.generate(),
+        "target_label" => "jason"
+      }
+
+      {body, signature} = sign_request(%{"events" => [base, %{base | "project_handle" => bazel.name}]})
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "kura.test")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(response, 202) == %{"accepted" => 1, "rejected" => 1}
+      row = ClickHouseRepo.one(from(e in CacheEvent, where: e.project_id == ^mix.id))
+      assert row.client_kind == "mix"
+      assert row.invocation_id == base["invocation_id"]
+      assert row.target_label == "jason"
+      refute ClickHouseRepo.exists?(from(e in CacheEvent, where: e.project_id == ^bazel.id))
+    end
+
     test "accepts an empty event batch", %{conn: conn} do
       {body, signature} = sign_request(%{"events" => []})
 
@@ -116,7 +152,8 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
             "invocation_id" => "invocation-1",
             "action_mnemonic" => "SwiftCompile",
             "target_label" => "//App:App",
-            "configuration_id" => "config-1"
+            "configuration_id" => "config-1",
+            "output_path" => "bazel-out/bin/App/main.o"
           },
           %{
             "account_handle" => project.account.name,
@@ -161,6 +198,9 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       assert content.outcome == "hit"
       assert content.action_digest == "content-digest"
       assert content.size == 512
+      assert content.output_path == ""
+      assert write.output_path == ""
+      assert hit.output_path == "bazel-out/bin/App/main.o"
       assert write.outcome == "write"
       assert write.size == 1_024
       assert write.invocation_id == ""
@@ -173,6 +213,37 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       assert hit.invocation_id == "invocation-1"
       assert hit.target_label == "//App:App"
       assert hit.cache_endpoint == "cache.tuist.dev"
+    end
+
+    test "invalid optional output hints do not reject otherwise valid legacy telemetry", %{conn: conn, project: project} do
+      events =
+        Enum.map([nil, 42, String.duplicate("x", 1025)], fn path ->
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "client_kind" => "bazel",
+            "operation" => "action_cache",
+            "outcome" => "hit",
+            "action_digest" => "digest",
+            "size" => 42,
+            "duration_ms" => 1,
+            "output_path" => path
+          }
+        end)
+
+      {body, signature} = sign_request(%{"events" => events})
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(response, 202) == %{"accepted" => 3, "rejected" => 0}
+      rows = ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id))
+      assert length(rows) == 3
+      assert Enum.all?(rows, &(&1.output_path == ""))
     end
 
     # A newer Kura node sends event_id alongside the fields the current

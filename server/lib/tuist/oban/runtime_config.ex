@@ -15,6 +15,9 @@ defmodule Tuist.Oban.RuntimeConfig do
   """
 
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
+  alias Tuist.MCP.Events.Workers.PruneJobKeysWorker
+  alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
@@ -35,9 +38,12 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
-    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
+    {"@daily", PruneExpiredSubscriptionsWorker},
+    {"@hourly", PruneJobKeysWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -53,6 +59,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"30 3 * * *", Tuist.Billing.Workers.SwitchUsageBasedPricingWorker},
+    {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
@@ -65,6 +72,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
+    {"* * * * *", Tuist.Runners.Workers.SiteSpilloverWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},

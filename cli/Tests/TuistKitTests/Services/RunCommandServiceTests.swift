@@ -512,6 +512,7 @@ struct RunCommandServiceTests {
             .listPreviews(
                 displayName: .value("App"),
                 specifier: .value("latest"),
+                track: .value(nil),
                 supportedPlatforms: .any,
                 page: .value(1),
                 pageSize: .value(1),
@@ -564,6 +565,7 @@ struct RunCommandServiceTests {
             .listPreviews(
                 displayName: .value("App"),
                 specifier: .value("latest"),
+                track: .value(nil),
                 supportedPlatforms: .any,
                 page: .value(1),
                 pageSize: .value(1),

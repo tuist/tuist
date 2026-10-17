@@ -101,7 +101,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     else
       now = DateTime.utc_now()
 
-      insert_queued_rows([queued_row(attrs, now)], now)
+      insert_queued_rows([queued_row(attrs, now)])
     end
   end
 
@@ -131,7 +131,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     attrs_list
     |> Enum.reject(&MapSet.member?(settled, Map.fetch!(&1, :workflow_job_id)))
     |> Enum.map(&queued_row(&1, now))
-    |> insert_queued_rows(now)
+    |> insert_queued_rows()
   end
 
   defp queued_row(attrs, now) do
@@ -145,14 +145,14 @@ defmodule Tuist.Runners.WorkflowJobs do
     })
   end
 
-  defp insert_queued_rows([], _now), do: :ok
+  defp insert_queued_rows([]), do: :ok
 
-  defp insert_queued_rows(rows, now) do
+  defp insert_queued_rows(rows) do
     {:ok, _} =
       Repo.transaction(fn ->
         {_count, inserted} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing, returning: true)
 
-        emit_transition_events(inserted, now)
+        emit_transition_events(inserted)
       end)
 
     :ok
@@ -299,7 +299,7 @@ defmodule Tuist.Runners.WorkflowJobs do
             {_count, rows} = Repo.update_all(start_executing_query(workflow_job_ids, now), [])
             rows = rows || []
 
-            emit_transition_events(rows, now)
+            emit_transition_events(rows)
             broadcast_running(rows)
 
             rows
@@ -476,7 +476,7 @@ defmodule Tuist.Runners.WorkflowJobs do
           )
 
         case {count, rows} do
-          {1, [applied]} -> emit_transition_event(applied, now)
+          {1, [applied]} -> emit_transition_events([applied])
           {0, _} -> :ok
         end
       end)
@@ -564,6 +564,27 @@ defmodule Tuist.Runners.WorkflowJobs do
       [] -> {:error, :empty}
       candidates -> {:ok, candidates}
     end
+  end
+
+  @doc """
+  Moves `from_fleet`'s rows that are still `queued` and were enqueued
+  before `enqueued_before` onto `to_fleet`, where that fleet's runners
+  claim them and its autoscaler counts them. A row a runner claims first
+  is no longer `queued` and stays put. No outbox event: the move is not a
+  status change, and the row's next transition carries its new fleet to
+  ClickHouse. Returns the number of rows moved.
+  """
+  def move_queued(from_fleet, to_fleet, %DateTime{} = enqueued_before)
+      when is_binary(from_fleet) and is_binary(to_fleet) do
+    {moved, _} =
+      Repo.update_all(
+        from(j in WorkflowJob,
+          where: j.fleet_name == ^from_fleet and j.status == "queued" and j.enqueued_at < ^enqueued_before
+        ),
+        set: [fleet_name: to_fleet, updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+      )
+
+    moved
   end
 
   @doc """
@@ -801,7 +822,7 @@ defmodule Tuist.Runners.WorkflowJobs do
 
         case {count, rows} do
           {1, [row]} ->
-            emit_transition_event(row, now)
+            emit_transition_events([row])
             :ok
 
           {0, _} ->
@@ -854,7 +875,7 @@ defmodule Tuist.Runners.WorkflowJobs do
 
         case {count, rows} do
           {1, [row]} ->
-            emit_transition_event(row, now)
+            emit_transition_events([row])
             {:applied, row}
 
           {0, _} ->
@@ -874,9 +895,18 @@ defmodule Tuist.Runners.WorkflowJobs do
   # One statement for the batch: emitting these per row was what still
   # made a large poll scale with the number of jobs after the inserts
   # themselves were batched.
-  defp emit_transition_events([], _transition_at), do: :ok
+  #
+  # Must run inside the transaction that wrote `rows`, after the write:
+  # the replica version is read from the database clock at that point.
+  # The write holds the rows' locks until commit, so any later writer to
+  # the same job waits for that commit and reads a later clock. A clock
+  # read before the write would not be: a completion that read its clock
+  # and then waited on a claim's row lock would commit after the claim
+  # with the older version, and the replica would keep the claim forever.
+  defp emit_transition_events([]), do: :ok
 
-  defp emit_transition_events(rows, %DateTime{} = transition_at) do
+  defp emit_transition_events(rows) do
+    transition_at = replica_version()
     inserted_at = DateTime.truncate(transition_at, :second)
 
     Repo.insert_all(
@@ -894,24 +924,15 @@ defmodule Tuist.Runners.WorkflowJobs do
     :ok
   end
 
-  defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do
-    Repo.insert_all(WorkflowJobTransitionEvent, [
-      %{
-        workflow_job_id: row.workflow_job_id,
-        account_id: row.account_id,
-        payload: ch_row(row, transition_at),
-        inserted_at: DateTime.truncate(transition_at, :second)
-      }
-    ])
-
-    :ok
+  defp replica_version do
+    %{rows: [[%DateTime{} = now]]} = Repo.query!("SELECT clock_timestamp()")
+    now
   end
 
   # The ClickHouse `runner_jobs` insert shape for this row's current
   # state. `updated_at` is the transition timestamp at microsecond
   # precision (the RMT version column is DateTime64(6); the row's own
-  # `updated_at` is second-truncated), so replayed rows sort correctly
-  # against the direct CH writes that remain on during rollout. Status
+  # `updated_at` is second-truncated). Status
   # `cancelled` maps back to CH's `completed` + conclusion convention.
   defp ch_row(%WorkflowJob{} = row, %DateTime{} = transition_at) do
     %{

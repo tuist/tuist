@@ -1,0 +1,789 @@
+<div id="build-run" data-build-system="mix">
+  <.button
+    label={dgettext("dashboard_builds", "Builds")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@run.status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
+        </div>
+        <div :if={@run.status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
+        <h1 data-part="label">
+          {if(@run.elixir_version == "",
+            do: dgettext("dashboard_builds", "mix compile"),
+            else: "mix compile · Elixir #{@run.elixir_version}"
+          )}
+        </h1>
+        <.run_tags tags={@run.custom_tags || []} />
+      </div>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={@run.ci_run_id != ""}
+        label={dgettext("dashboard_builds", "CI Run")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
+    </div>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
+      :if={@timeline_available}
+      label={dgettext("dashboard_builds", "Timeline")}
+      selected={@selected_tab == "timeline"}
+      patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Mix cache")}
+      selected={@selected_tab == "cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "cache")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Warnings")}
+      selected={@selected_tab == "warnings"}
+      patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Errors")}
+      selected={@selected_tab == "errors"}
+      patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
+    />
+  </.tab_menu_horizontal>
+  <%= if @selected_tab == "cache" do %>
+    <div data-part="cache">
+      <.async_card
+        :let={ready?}
+        results={[@cache_summary]}
+        title={dgettext("dashboard_builds", "Cache Summary")}
+        icon="chart_arcs"
+        data-part="cache-summary-card"
+      >
+        <.card_section data-part="widgets-card-section">
+          <.widget
+            :for={metric <- ~w(hits misses hit_rate read_bytes write_bytes)}
+            id={"mix-build-cache-widget-#{metric}"}
+            title={cache_title(metric)}
+            description={cache_description(metric)}
+            loading={!ready?}
+            value={
+              if ready?,
+                do:
+                  cache_value(
+                    Map.fetch!(@cache_summary.result, String.to_existing_atom(metric)),
+                    metric
+                  )
+            }
+          />
+        </.card_section>
+      </.async_card>
+      <.tab_menu_horizontal>
+        <.tab_menu_horizontal_item
+          :for={
+            {tab, label} <- [
+              {"cacheable-tasks", dgettext("dashboard_builds", "Cacheable Tasks")},
+              {"cas-outputs", dgettext("dashboard_builds", "CAS Outputs")}
+            ]
+          }
+          label={label}
+          selected={@selected_cache_tab == tab}
+          patch={"?#{@uri.query |> Query.put("cache-tab", tab) |> Query.drop("cache-output-key") |> Query.put("cache-output-page", "1")}"}
+        />
+      </.tab_menu_horizontal>
+      <.async_card
+        :let={ready?}
+        :if={@selected_cache_tab == "cacheable-tasks"}
+        results={[@cache_summary, @cache_events]}
+        title={dgettext("dashboard_builds", "Mix cache")}
+        icon="database"
+        data-part="mix-cache-card"
+      >
+        <.card_section data-part="mix-cache-card-section">
+          <.card_section
+            :if={ready? and @cache_summary.result.hits + @cache_summary.result.misses > 0}
+            data-part="cacheable-tasks-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">{dgettext("dashboard_builds", "Cacheable tasks:")}</span>
+              <span data-part="value">{format_number(
+                @cache_summary.result.hits + @cache_summary.result.misses
+              )}</span>
+            </div>
+            <.chart
+              id="mix-build-cache-breakdown-chart"
+              type="bar"
+              series={cache_breakdown_series(@cache_summary.result)}
+              extra_options={
+                %{
+                  grid: %{width: "99%", left: "0%", height: "60%", top: "0%"},
+                  legend: %{
+                    show: true,
+                    left: "-0.3%",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-primary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.895431 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
+                  },
+                  tooltip: %{trigger: "axis", axisPointer: %{type: "none"}},
+                  xAxis: %{type: "value", axisLabel: %{show: false}, splitLine: %{show: false}},
+                  yAxis: %{
+                    type: "category",
+                    data: [dgettext("dashboard_builds", "Cacheable tasks")],
+                    axisLabel: %{show: false}
+                  }
+                }
+              }
+              x_axis_min={0}
+              x_axis_max={@cache_summary.result.hits + @cache_summary.result.misses}
+            />
+          </.card_section>
+          <div data-part="latency-widgets">
+            <.percentile_dropdown_widget
+              :for={
+                {operation, type} <- [
+                  {"read", @cache_read_latency_type},
+                  {"write", @cache_write_latency_type}
+                ]
+              }
+              id={"mix-build-cache-#{operation}-latency"}
+              title={cache_latency_title(type, operation)}
+              description={
+                dgettext(
+                  "dashboard",
+                  "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
+                )
+              }
+              loading={!ready?}
+              value={
+                if ready?,
+                  do: cache_latency_value(cache_latency(@cache_summary.result, operation, type))
+              }
+              metrics={if ready?, do: cache_latency_metrics(@cache_summary.result, operation)}
+              selected_type={type}
+              event_name={"select_cache_#{operation}_latency"}
+              empty={ready? and cache_latency(@cache_summary.result, operation, "avg") == nil}
+              empty_label={dgettext("dashboard_builds", "No data")}
+            />
+          </div>
+          <div data-part="filters">
+            <.form
+              id="mix-build-cache-search-form"
+              for={to_form(%{"search" => @cache_search})}
+              phx-change="search-cache"
+              phx-submit="search-cache"
+            >
+              <.text_input
+                name="search"
+                value={@cache_search}
+                placeholder={dgettext("dashboard_builds", "Search...")}
+                type="search"
+                show_suffix={false}
+                data-part="search"
+                phx-debounce="200"
+              />
+            </.form>
+            <.dropdown
+              id="mix-build-cache-outcome"
+              label={dgettext("dashboard_builds", "Filter")}
+            >
+              <:icon><.filter /></:icon>
+              <.dropdown_item
+                :for={outcome <- ~w(all local_hit remote_hit miss bypass)}
+                value={outcome}
+                label={cache_outcome_label(outcome)}
+                patch={"?#{@uri.query |> Query.put("cache-outcome", outcome) |> Query.put("cache-page", "1")}"}
+                data-selected={@cache_outcome == outcome}
+              />
+            </.dropdown>
+          </div>
+          <.skeleton_chart :if={!ready?} />
+          <.table
+            :if={ready?}
+            id="mix-build-cache-entries"
+            rows={@cache_events.result.rows}
+            row_key={&cache_entry_id(&1.dependency)}
+            row_expandable={fn _entry -> true end}
+            row_toggle={
+              fn entry ->
+                JS.push("toggle-cache-entry", value: %{dependency: entry.dependency})
+              end
+            }
+            expanded_rows={Enum.map(@cache_expanded_entries, &cache_entry_id/1)}
+          >
+            <:col
+              :let={entry}
+              label={dgettext("dashboard_builds", "Task")}
+              patch={"?#{@uri.query |> Query.put("cache-sort-order", if(@cache_sort_order == :asc, do: "desc", else: "asc")) |> Query.put("cache-page", "1")}"}
+              sort_order={@cache_sort_order}
+            >
+              <.text_cell label={entry.dependency} />
+            </:col>
+            <:col :let={entry} label={dgettext("dashboard_builds", "Hit")}>
+              <.badge_cell
+                label={cache_hit_label(entry.outcome)}
+                color={cache_outcome_color(entry.outcome)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={_entry} label={dgettext("dashboard_builds", "Type")}>
+              <.text_cell label={dgettext("dashboard_builds", "Dependency compilation")} />
+            </:col>
+            <:col :let={entry} label={dgettext("dashboard_builds", "Cache key")}>
+              <.text_cell label={
+                if entry.key == "", do: "–", else: String.slice(entry.key, 0, 30) <> "..."
+              } />
+            </:col>
+            <:col :let={entry}>
+              <.button_cell>
+                <:button>
+                  <.button
+                    :if={entry.key != ""}
+                    id={"#{cache_entry_id(entry.dependency)}-copy"}
+                    variant="secondary"
+                    size="small"
+                    icon_only
+                    phx-hook="Clipboard"
+                    data-clipboard-value={entry.key}
+                  >
+                    <.copy />
+                  </.button>
+                </:button>
+              </.button_cell>
+            </:col>
+            <:expanded_content :let={entry}>
+              <div data-part="cache-entry-outputs">
+                <div
+                  :if={@cache_task_outputs.loading && !@cache_task_outputs.failed}
+                  data-part="task-cas-loading"
+                >
+                  <.skeleton_box width="100%" height="40px" />
+                </div>
+                <.error_state :if={@cache_task_outputs.failed} data-part="task-cas-error" />
+                <div
+                  :if={
+                    @cache_task_outputs.ok? and !@cache_task_outputs.failed and
+                      !@cache_task_outputs.loading
+                  }
+                  data-part="cas-outputs-list"
+                >
+                  <div
+                    :for={
+                      output <-
+                        @cache_task_outputs.result
+                        |> Enum.filter(&(&1.target_label == entry.dependency))
+                        |> Enum.uniq_by(& &1.action_digest)
+                    }
+                    data-part="cas-output-item"
+                  >
+                    <span data-part="cas-output-text">
+                      <span data-part="cas-output-label">
+                        {dgettext("dashboard_builds", "CAS output")} {dgettext(
+                          "dashboard_builds",
+                          "Dependency bundle"
+                        )}:
+                      </span>
+                      <.link
+                        data-part="trigger"
+                        patch={"?#{ReapiCacheOutputs.output_link(@uri.query, output.action_digest)}"}
+                      >
+                        {String.slice(output.action_digest, 0, 30)}...
+                      </.link>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </:expanded_content>
+            <:empty_state>
+              <.table_empty_state title={
+                if @cache_search != "" or @cache_outcome != "all",
+                  do: dgettext("dashboard", "No matching cache entries"),
+                  else: dgettext("dashboard_builds", "No cacheable tasks found")
+              } />
+            </:empty_state>
+          </.table>
+          <div :if={ready? and @cache_events.result.total > 20} data-part="pagination">
+            <.button
+              label={dgettext("dashboard", "Previous")}
+              variant="secondary"
+              disabled={@cache_page <= 1}
+              patch={"?#{Query.put(@uri.query, "cache-page", to_string(max(@cache_page - 1, 1)))}"}
+            />
+            <.button
+              label={dgettext("dashboard", "Next")}
+              variant="secondary"
+              disabled={@cache_page * 20 >= @cache_events.result.total}
+              patch={"?#{Query.put(@uri.query, "cache-page", to_string(@cache_page + 1))}"}
+            />
+          </div>
+        </.card_section>
+      </.async_card>
+      <ReapiCacheOutputs.card
+        :if={@selected_cache_tab == "cas-outputs"}
+        metrics={@cache_transport}
+        outputs={@cache_outputs}
+        uri={@uri}
+        title={dgettext("dashboard_builds", "Mix cache")}
+        artifact_type={dgettext("dashboard_builds", "Dependency bundle")}
+        id="mix-build-cas-outputs"
+      />
+    </div>
+  <% end %>
+  <section :if={@selected_tab == "timeline"}>
+    <.build_timeline_section
+      timeline={@timeline}
+      duration={@run.duration_ms}
+      version={@timeline_version}
+      source="mix"
+      url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
+      }
+    />
+  </section>
+  <%= if @selected_tab == "overview" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Build Details")}
+      icon="chart_arcs"
+      data-part="build-details"
+    >
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+              <span data-part="command-label">
+                mix compile
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+              <.badge
+                :if={@run.status == "success"}
+                label={dgettext("dashboard_builds", "Passed")}
+                color="success"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@run.status == "failure"}
+                label={dgettext("dashboard_builds", "Failed")}
+                color="destructive"
+                style="fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
+              <.build_ran_by_badge_cell build={@run} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
+              <span data-part="label">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration_ms)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
+              <span data-part="label">
+                {Tuist.Utilities.DateFormatter.format_with_timezone(
+                  @run.inserted_at,
+                  @user_timezone
+                )}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {if(@run.git_branch == "",
+                  do: dgettext("dashboard_builds", "None"),
+                  else: @run.git_branch
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
+              <span data-part="label">
+                {if(@run.elixir_version == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.elixir_version
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
+              <span data-part="label">
+                {if(@run.otp_version == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.otp_version
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
+              <span data-part="label">
+                {if(@run.mix_env == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.mix_env
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_builds", "Custom metadata")}
+          </span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@run.custom_values)}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+              <a
+                :if={url?(value)}
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-part="custom-metadata-link"
+              >
+                {value}
+              </a>
+              <.text_cell :if={not url?(value)} label={value} />
+            </:col>
+          </.table>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
+      title={dgettext("dashboard_builds", "Errors and Warnings")}
+      icon="alert_triangle"
+      data-part="errors-and-warnings-card"
+    >
+      <.card_section
+        :if={not Enum.empty?(@errors_grouped_by_path)}
+        data-part="errors-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Errors")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@errors)}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@errors_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="error"
+          />
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
+        </div>
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@warnings_grouped_by_path)}
+        data-part="warnings-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Warnings")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@warnings)}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_builds", "View more")}
+            size="medium"
+            patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+          />
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@warnings_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="warning"
+          />
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.tab_menu_horizontal :if={@files?}>
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "File Breakdown")}
+        selected={@selected_breakdown_tab == "file"}
+        patch={"?#{@uri.query |> Query.put("breakdown-tab", "file") |> Query.put("breakdown-page", "1")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "Module Breakdown")}
+        selected={@selected_breakdown_tab == "module"}
+        patch={"?#{@uri.query |> Query.put("breakdown-tab", "module") |> Query.put("breakdown-page", "1")}"}
+      />
+    </.tab_menu_horizontal>
+    <.card
+      :if={@files?}
+      title={
+        if @selected_breakdown_tab == "module",
+          do: dgettext("dashboard_builds", "Module Breakdown"),
+          else: dgettext("dashboard_builds", "File Breakdown")
+      }
+      icon={if @selected_breakdown_tab == "module", do: "apps", else: "file"}
+      data-part="file-breakdown-card"
+    >
+      <.card_section data-part="file-breakdown-card-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="breakdown-search-form"
+            phx-change="search-breakdown"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-breakdown"
+              name="search"
+              placeholder={dgettext("dashboard_builds", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@breakdown_search}
+            />
+          </.form>
+          <.dropdown
+            id="breakdown-sort-by"
+            label={TuistWeb.MixBuildLive.breakdown_sort_label(@breakdown_sort_by)}
+            secondary_text={dgettext("dashboard_builds", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={sort_by <- ["compile-duration", "dependents", "dependencies", "name"]}
+              value={sort_by}
+              label={TuistWeb.MixBuildLive.breakdown_sort_label(sort_by)}
+              patch={TuistWeb.MixBuildLive.breakdown_sort_patch(@uri, sort_by)}
+              data-selected={@breakdown_sort_by == sort_by}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <.table
+          id="mix-breakdown-table"
+          rows={@breakdown_rows}
+          row_key={fn row -> "#{row.path}-#{row.name}" end}
+        >
+          <:col
+            :let={row}
+            label={
+              if @selected_breakdown_tab == "module",
+                do: dgettext("dashboard_builds", "Module"),
+                else: dgettext("dashboard_builds", "File")
+            }
+          >
+            <.text_and_description_cell
+              label={row.name}
+              description={if @selected_breakdown_tab == "module", do: row.path}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compilation duration")}>
+            <.text_cell
+              label={TuistWeb.MixBuildLive.format_ms(row.compile_duration_ms)}
+              icon="history"
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compile-time dependencies")}>
+            <.text_cell label={TuistWeb.MixBuildLive.files_label(row.compile_dependencies_count)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compile-time dependents")}>
+            <.text_cell label={TuistWeb.MixBuildLive.files_label(row.compile_dependents_count)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@breakdown_page_count > 1}
+          current_page={@breakdown_page}
+          number_of_pages={@breakdown_page_count}
+          page_patch={
+            fn page -> "?#{Query.put(@uri.query, "breakdown-page", to_string(page))}" end
+          }
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "warnings" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Warnings")}
+      icon="alert_hexagon"
+      data-part="warnings-card"
+    >
+      <.card_section data-part="warnings-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Warnings")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@warnings)}
+          </span>
+        </div>
+        <.issue_card
+          :for={{path, issues} <- @warnings_grouped_by_path}
+          issues={issues}
+          path={path}
+          run={@run}
+          project={@selected_project}
+          type="warning"
+        />
+        <div :if={Enum.empty?(@warnings_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img
+              src={~p"/images/empty_warnings_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_warnings_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "errors" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Errors")}
+      icon="alert_circle"
+      data-part="errors-card"
+    >
+      <.card_section data-part="errors-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Errors")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@errors)}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- @errors_grouped_by_path}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="error"
+          />
+        </div>
+        <div :if={Enum.empty?(@errors_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img
+              src={~p"/images/empty_errors_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_errors_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

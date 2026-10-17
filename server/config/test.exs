@@ -14,6 +14,8 @@ config :ex_aws,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+config :open_api_spex, :cache_adapter, TuistTestSupport.OpenApiSpexCache
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 
@@ -89,6 +91,7 @@ config :tuist, Tuist.Repo,
   password: "postgres",
   hostname: "localhost",
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  parameters: [timezone: "UTC"],
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,

@@ -221,7 +221,7 @@ jobs:
           # slug already IS the channel and the second tag is
           # skipped rather than pushed twice.
           #   27.0-beta-6              is 27-0-beta
-          #   27.0-release-candidate-2 is 27-0-release-candidate
+          #   27.1-rc-2                is 27-1-rc
           #   26.4.1                   has none; stable
           CHANNEL_TAG=""
           if [[ "$TAG" =~ ^(.+-(beta|rc|release-candidate))-[0-9]+$ ]]; then

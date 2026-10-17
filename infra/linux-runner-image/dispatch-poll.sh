@@ -102,6 +102,20 @@ stage_cache_endpoint() {
   fi
 }
 
+stage_setup_info() {
+  # The server's "Set up job" groups for the runner's `.setup_info`,
+  # linking the job to its Tuist dashboard page. run-job.sh copies the
+  # staged file into the runner directory. Best-effort, like the cache
+  # endpoint: a staging failure only drops the link.
+  jq -e '.setup_info | type == "array"' /tmp/dispatch.json >/dev/null 2>&1 || return 0
+  setup_info_path="${JIT_OUTPUT_PATH}.setup-info"
+  setup_info_tmp="${setup_info_path}.tmp"
+  if ! { jq '.setup_info' /tmp/dispatch.json >"${setup_info_tmp}" && chmod 0644 "${setup_info_tmp}" && mv -f "${setup_info_tmp}" "${setup_info_path}"; }; then
+    rm -f "${setup_info_tmp}" 2>/dev/null || true
+    echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage setup info; the job will run without the Tuist link"
+  fi
+}
+
 while true; do
   attempt=$((attempt + 1))
   # `-f` intentionally omitted so 4xx/5xx land in $http instead of
@@ -204,6 +218,7 @@ while true; do
           exit 1
         fi
         stage_cache_endpoint
+        stage_setup_info
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0
       fi

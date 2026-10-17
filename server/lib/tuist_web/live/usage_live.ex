@@ -651,7 +651,12 @@ defmodule TuistWeb.UsageLive do
 
   def usage_empty_state(assigns) do
     ~H"""
-    <.empty_card_section title={@title} get_started_href={@get_started_href} {@rest}>
+    <.empty_card_section
+      title={@title}
+      get_started_href={@get_started_href}
+      data-chart-frame="standard"
+      {@rest}
+    >
       <:image>
         <img
           src={~p"/images/empty_bar_chart_light.png"}

@@ -19,6 +19,7 @@ defmodule TuistWeb.OnceOverviewLive do
   alias Tuist.OnceEvents.CacheAnalytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   @build_commands ["build"]
@@ -54,10 +55,10 @@ defmodule TuistWeb.OnceOverviewLive do
       builds_period: builds_period,
       builds_granularity: time_series_granularity(builds_period)
     )
-    |> assign_async(:cache_summary, fn ->
+    |> PublicOverviewCache.assign_async(:cache_summary, fn ->
       {:ok, %{cache_summary: cache_summary_with_trend(project.id, analytics_period, analytics_environment)}}
     end)
-    |> assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
+    |> PublicOverviewCache.assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
       analytics =
         CacheAnalytics.analytics(
           project.id,
@@ -70,13 +71,13 @@ defmodule TuistWeb.OnceOverviewLive do
          has_any_cache_observations: Enum.any?(analytics.lookup_values, &(&1 > 0))
        }}
     end)
-    |> assign_async(:build_summary, fn ->
+    |> PublicOverviewCache.assign_async(:build_summary, fn ->
       {:ok,
        %{
          build_summary: summary_with_trends(project.id, analytics_period, @build_commands, analytics_environment)
        }}
     end)
-    |> assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
+    |> PublicOverviewCache.assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
       {:ok,
        %{
          recent_builds: recent_runs(project, builds_opts),
@@ -84,7 +85,7 @@ defmodule TuistWeb.OnceOverviewLive do
          builds_summary: Analytics.summary(project.id, builds_opts)
        }}
     end)
-    |> assign_async([:test_summary, :recent_test_runs], fn ->
+    |> PublicOverviewCache.assign_async([:test_summary, :recent_test_runs], fn ->
       {:ok,
        %{
          test_summary: summary_with_trends(project.id, analytics_period, @test_commands, analytics_environment),
@@ -96,7 +97,15 @@ defmodule TuistWeb.OnceOverviewLive do
   def render(assigns) do
     ~H"""
     <div id="once-overview" class="overview">
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[
+          @build_summary,
+          @cache_hit_rate_analytics,
+          @cache_summary,
+          @has_any_cache_observations,
+          @test_summary
+        ]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="analytics"
@@ -151,7 +160,7 @@ defmodule TuistWeb.OnceOverviewLive do
           <div data-part="widgets">
             <.widget
               id="once-cache-hit-rate"
-              loading={!@cache_summary.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_projects", "Cache effectiveness")}
               description={
                 dgettext(
@@ -160,52 +169,53 @@ defmodule TuistWeb.OnceOverviewLive do
                 )
               }
               value={
-                if @cache_summary.ok? and @cache_summary.result.hit_rate,
+                if ready? and @cache_summary.result.hit_rate,
                   do: "#{@cache_summary.result.hit_rate}%"
               }
-              trend_value={if @cache_summary.ok?, do: @cache_summary.result.hit_rate_trend, else: 0}
+              trend_value={if ready?, do: @cache_summary.result.hit_rate_trend, else: 0}
               trend_label={@analytics_trend_label}
-              empty={@cache_summary.ok? && is_nil(@cache_summary.result.hit_rate)}
+              empty={ready? && is_nil(@cache_summary.result.hit_rate)}
             />
             <.widget
               id="once-average-build-time"
-              loading={!@build_summary.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_projects", "Average build time")}
               description={dgettext("dashboard_projects", "The average duration of Once build runs.")}
               value={
-                if @build_summary.ok?,
+                if ready?,
                   do:
                     DateFormatter.format_duration_from_milliseconds(
                       @build_summary.result.average_duration_ms
                     )
               }
-              trend_value={if @build_summary.ok?, do: @build_summary.result.duration_trend, else: 0}
+              trend_value={if ready?, do: @build_summary.result.duration_trend, else: 0}
               trend_label={@analytics_trend_label}
               trend_type={:inverse}
-              empty={@build_summary.ok? && @build_summary.result.average_duration_ms == 0}
+              empty={ready? && @build_summary.result.average_duration_ms == 0}
             />
             <.widget
               id="once-average-test-run-time"
-              loading={!@test_summary.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_tests", "Avg. test run duration")}
               description={dgettext("dashboard_projects", "The average duration of Once test runs.")}
               value={
-                if @test_summary.ok?,
+                if ready?,
                   do:
                     DateFormatter.format_duration_from_milliseconds(
                       @test_summary.result.average_duration_ms
                     )
               }
-              trend_value={if @test_summary.ok?, do: @test_summary.result.duration_trend, else: 0}
+              trend_value={if ready?, do: @test_summary.result.duration_trend, else: 0}
               trend_label={@analytics_trend_label}
               trend_type={:inverse}
-              empty={@test_summary.ok? && @test_summary.result.average_duration_ms == 0}
+              empty={ready? && @test_summary.result.average_duration_ms == 0}
             />
           </div>
 
           <.card_section
-            :if={!@cache_hit_rate_analytics.ok?}
+            :if={!ready?}
             data-part="cache-effectiveness-card-chart-section"
+            data-chart-frame="standard"
           >
             <div data-part="effectiveness-chart">
               <div data-part="legends"><.skeleton_legend /></div>
@@ -214,17 +224,18 @@ defmodule TuistWeb.OnceOverviewLive do
           </.card_section>
           <.card_section
             :if={
-              @cache_hit_rate_analytics.ok? && @has_any_cache_observations.ok? &&
+              ready? &&
                 @has_any_cache_observations.result
             }
             data-part="cache-effectiveness-card-chart-section"
+            data-chart-frame="standard"
           >
             <div data-part="effectiveness-chart">
               <div data-part="legends">
                 <.legend
                   title={dgettext("dashboard_projects", "Cache effectiveness")}
                   value={
-                    if @cache_summary.ok? and @cache_summary.result.hit_rate,
+                    if @cache_summary.result.hit_rate,
                       do: "#{@cache_summary.result.hit_rate}%"
                   }
                   style="primary"
@@ -281,18 +292,19 @@ defmodule TuistWeb.OnceOverviewLive do
           </.card_section>
           <.empty_card_section
             :if={
-              @cache_hit_rate_analytics.ok? && @has_any_cache_observations.ok? &&
+              ready? &&
                 !@has_any_cache_observations.result
             }
             title={dgettext("dashboard_projects", "No cache activity yet")}
+            data-chart-frame="standard"
           >
             <:image>
-              <img src={~p"/images/empty_chart_light.png"} data-theme="light" loading="lazy" />
-              <img src={~p"/images/empty_chart_dark.png"} data-theme="dark" loading="lazy" />
+              <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+              <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
             </:image>
           </.empty_card_section>
         </div>
-      </.card>
+      </.async_card>
 
       <.runs_card
         id="once-overview-tests"
@@ -305,7 +317,9 @@ defmodule TuistWeb.OnceOverviewLive do
         empty_title={dgettext("dashboard_projects", "No test runs yet")}
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests"}
       />
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[@builds_duration_analytics, @builds_summary, @recent_builds]}
         title={dgettext("dashboard_projects", "Builds")}
         icon="subtask"
         data-part="builds-card-section"
@@ -368,13 +382,16 @@ defmodule TuistWeb.OnceOverviewLive do
           </.date_picker>
         </:actions>
         <div data-part="builds-card-sections">
-          <.card_section :if={!@recent_builds.ok?}>
+          <.card_section :if={!ready?} data-chart-frame="large">
             <div data-part="build-runs-chart">
               <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
               <.skeleton_chart />
             </div>
           </.card_section>
-          <.card_section :if={@recent_builds.ok? && not Enum.empty?(@recent_builds.result)}>
+          <.card_section
+            :if={ready? && not Enum.empty?(@recent_builds.result)}
+            data-chart-frame="large"
+          >
             <div data-part="build-runs-chart">
               <div data-part="legends">
                 <.legend
@@ -403,8 +420,9 @@ defmodule TuistWeb.OnceOverviewLive do
             </div>
           </.card_section>
           <.empty_card_section
-            :if={@recent_builds.ok? && Enum.empty?(@recent_builds.result)}
+            :if={ready? && Enum.empty?(@recent_builds.result)}
             title={dgettext("dashboard_projects", "No recent builds yet")}
+            data-chart-frame="large"
           >
             <:image>
               <img src={~p"/images/empty_bar_chart_light.png"} data-theme="light" loading="lazy" />
@@ -413,8 +431,9 @@ defmodule TuistWeb.OnceOverviewLive do
           </.empty_card_section>
 
           <.card_section
-            :if={!@builds_duration_analytics.ok?}
+            :if={!ready?}
             data-part="average-build-time-card-section"
+            data-chart-frame="large"
           >
             <div data-part="average-build-time-chart">
               <div data-part="legends"><.skeleton_legend /></div>
@@ -422,8 +441,9 @@ defmodule TuistWeb.OnceOverviewLive do
             </div>
           </.card_section>
           <.card_section
-            :if={@builds_duration_analytics.ok? && @builds_summary.ok?}
+            :if={ready?}
             data-part="average-build-time-card-section"
+            data-chart-frame="large"
           >
             <div data-part="average-build-time-chart">
               <.button
@@ -494,24 +514,24 @@ defmodule TuistWeb.OnceOverviewLive do
             </div>
           </.card_section>
         </div>
-      </.card>
+      </.async_card>
     </div>
     """
   end
 
-  attr :id, :string, required: true
-  attr :title, :string, required: true
-  attr :summary, :map, required: true
-  attr :runs, :map, required: true
-  attr :passed_label, :string, required: true
-  attr :failed_label, :string, required: true
-  attr :empty_title, :string, required: true
-  attr :navigate, :string, required: true
-  attr :chart_part, :string, required: true
+  attr(:id, :string, required: true)
+  attr(:title, :string, required: true)
+  attr(:summary, :map, required: true)
+  attr(:runs, :map, required: true)
+  attr(:passed_label, :string, required: true)
+  attr(:failed_label, :string, required: true)
+  attr(:empty_title, :string, required: true)
+  attr(:navigate, :string, required: true)
+  attr(:chart_part, :string, required: true)
 
   defp runs_card(assigns) do
     ~H"""
-    <.card title={@title} icon="subtask">
+    <.async_card :let={ready?} results={[@runs]} title={@title} icon="subtask">
       <:actions>
         <.button
           variant="secondary"
@@ -521,13 +541,13 @@ defmodule TuistWeb.OnceOverviewLive do
           disabled={@runs.ok? && Enum.empty?(@runs.result)}
         />
       </:actions>
-      <.card_section :if={!@runs.ok?}>
+      <.card_section :if={!ready?} data-chart-frame="standard">
         <div data-part={@chart_part}>
           <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={@runs.ok? && Enum.any?(@runs.result)}>
+      <.card_section :if={ready? && Enum.any?(@runs.result)} data-chart-frame="standard">
         <div data-part={@chart_part}>
           <div data-part="legends">
             <.legend
@@ -555,13 +575,17 @@ defmodule TuistWeb.OnceOverviewLive do
           <span data-part="label">{dgettext("dashboard_projects", "Last 30 runs")}</span>
         </div>
       </.card_section>
-      <.empty_card_section :if={@runs.ok? && Enum.empty?(@runs.result)} title={@empty_title}>
+      <.empty_card_section
+        :if={ready? && Enum.empty?(@runs.result)}
+        title={@empty_title}
+        data-chart-frame="standard"
+      >
         <:image>
-          <img src={~p"/images/empty_chart_light.png"} data-theme="light" loading="lazy" />
-          <img src={~p"/images/empty_chart_dark.png"} data-theme="dark" loading="lazy" />
+          <img src={~p"/images/empty_bar_chart_light.png"} data-theme="light" loading="lazy" />
+          <img src={~p"/images/empty_bar_chart_dark.png"} data-theme="dark" loading="lazy" />
         </:image>
       </.empty_card_section>
-    </.card>
+    </.async_card>
     """
   end
 
@@ -595,7 +619,7 @@ defmodule TuistWeb.OnceOverviewLive do
 
   defp recent_runs_chart_options(runs) do
     %{
-      grid: %{width: "100%", left: "0.4%", height: "88%", top: "5%"},
+      grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
       tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
       xAxis: %{axisLabel: %{show: false}, data: Enum.map(runs, & &1.date)},
       yAxis: %{

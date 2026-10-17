@@ -3,6 +3,20 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "parse_runners_site_pools/1" do
+    test "reads each pool's site and platform" do
+      assert Environment.parse_runners_site_pools("tuist-runner-pool-ber1=ber1:macos, pool-x=ams1:linux") == %{
+               "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos},
+               "pool-x" => %{site: "ams1", platform: :linux}
+             }
+    end
+
+    test "leaves out entries it cannot read rather than guessing" do
+      assert Environment.parse_runners_site_pools("") == %{}
+      assert Environment.parse_runners_site_pools("pool=ber1:windows,pool-y=ber1,=ber1:macos,pool-z=:macos") == %{}
+    end
+  end
+
   describe "atlas_token_issuer/1" do
     test "has no default, so Atlas tokens do not verify until it is configured" do
       assert Environment.atlas_token_issuer(%{}) == nil
@@ -357,6 +371,39 @@ defmodule Tuist.EnvironmentTest do
                    fn ->
                      Environment.database_schema("1tuist")
                    end
+    end
+  end
+
+  describe "coverage_inline_threshold_bytes/1" do
+    test "defaults to 5 MB and reads the environment" do
+      assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
+      assert Environment.coverage_inline_threshold_bytes(%{"TUIST_COVERAGE_INLINE_THRESHOLD_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_max_inflated_bytes/1" do
+    test "defaults to 2 GB and reads the environment" do
+      assert Environment.coverage_max_inflated_bytes(%{}) == 2_000_000_000
+      assert Environment.coverage_max_inflated_bytes(%{"TUIST_COVERAGE_MAX_INFLATED_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_retention_days/1" do
+    test "keeps file detail for 90 days and run totals for a year by default" do
+      assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}
+    end
+
+    test "reads each period from its environment variable" do
+      assert Environment.coverage_retention_days(%{
+               "TUIST_COVERAGE_FILE_RETENTION_DAYS" => "30",
+               "TUIST_COVERAGE_RUN_RETENTION_DAYS" => " 730 "
+             }) == %{files: 30, runs: 730}
+    end
+
+    test "rejects a period that is not a positive number of days" do
+      assert_raise RuntimeError, ~r/TUIST_COVERAGE_FILE_RETENTION_DAYS must be a positive integer/, fn ->
+        Environment.coverage_retention_days(%{"TUIST_COVERAGE_FILE_RETENTION_DAYS" => "0"})
+      end
     end
   end
 

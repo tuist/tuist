@@ -20,6 +20,7 @@ alias Atlas.Finance.Workers.CategorizeTransactions
 alias Atlas.Finance.Workers.ScheduleSourceSyncs
 alias Atlas.Granola.Workers.SyncNotes
 alias Atlas.GTM.Workers.ResumeStalledDeliveries
+alias Atlas.Letters.Workers.ScheduleDeliveryChecks
 alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
@@ -31,11 +32,14 @@ alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsS
 alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
+alias Atlas.OAuth.NoCache
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
+alias Atlas.TimeOff.SyncPublicHolidays
+alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 
@@ -82,11 +86,14 @@ config :atlas, AtlasWeb.Endpoint,
 # Configure Oban
 config :atlas, Oban,
   repo: Atlas.Repo,
-  notifier: Oban.Notifiers.PG,
+  notifier: Oban.Notifiers.Postgres,
+  peer: Oban.Peers.Database,
   queues: [default: 10, briefs: 2, mailing: 5],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
+       {"@reboot", SyncPublicHolidays},
+       {"0 2 * * *", SyncPublicHolidays},
        {"0 3 * * *", ScheduleOverviewSummaries},
        {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
        {"45 3 * * *", RefreshNudgeFeatureFirstSeen},
@@ -98,6 +105,7 @@ config :atlas, Oban,
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
        {"35 */6 * * *", EnsureDocumentClassifications},
        {"*/10 * * * *", RefreshOAuthSessions},
+       {"*/5 * * * *", ScheduleDeliveryChecks},
        {"*/30 * * * *", ScheduleSourceSyncs},
        {"20 4 * * *", CategorizeTransactions},
        {"40 4 * * *", BackfillQontoInvoices},
@@ -114,6 +122,7 @@ config :atlas, Oban,
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
+       {"*/5 * * * *", PruneRateLimits},
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
@@ -128,8 +137,7 @@ config :atlas, Oban,
 
 config :atlas, RateLimiter,
   max_attempts: 60,
-  window_milliseconds: :timer.minutes(1),
-  max_buckets: 10_000
+  window_milliseconds: :timer.minutes(1)
 
 config :atlas, :allowed_email_domain, "tuist.dev"
 config :atlas, :brave_search, api_key: nil
@@ -198,6 +206,7 @@ config :atlas,
 
 config :boruta, Boruta.Oauth,
   repo: Atlas.Repo,
+  cache_backend: NoCache,
   contexts: [
     resource_owners: ResourceOwners,
     clients: Clients,

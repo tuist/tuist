@@ -119,16 +119,21 @@ defmodule TuistWeb.Helpers.VCSLinks do
       |> assign(:github_base_url, GitHubHost.base_url(assigns.project))
       |> assign(:source_ref, source_ref)
       |> assign(:valid_source_ref, valid_repository_ref?(source_ref))
+      |> assign(:encoded_source_ref, encode_repository_path(source_ref))
+      |> assign(:encoded_path, encode_repository_path(assigns.path))
 
     ~H"""
     <%= if has_github_vcs?(@project) and valid_repository_path?(@path) and @valid_source_ref do %>
-      <a
-        href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/blob/#{@source_ref}/#{@path}"}
+      <.link_button
+        href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/blob/#{@encoded_source_ref}/#{@encoded_path}"}
+        label={@path}
+        variant="primary"
+        size="medium"
+        underline
         target="_blank"
+        rel="noopener noreferrer"
         {@rest}
-      >
-        {@path}
-      </a>
+      />
     <% else %>
       <span {@rest}>{@path}</span>
     <% end %>
@@ -138,9 +143,19 @@ defmodule TuistWeb.Helpers.VCSLinks do
   defp has_github_vcs?(%{vcs_connection: %{provider: :github}}), do: true
   defp has_github_vcs?(_project), do: false
 
-  defp valid_repository_path?(path) do
-    String.match?(path, ~r/^(?:[A-Za-z0-9][A-Za-z0-9_.-]*\/)*[A-Za-z0-9][A-Za-z0-9_.-]*$/)
+  defp valid_repository_path?(path) when is_binary(path) do
+    not String.match?(path, ~r/^[A-Za-z]:/) and
+      not String.contains?(path, "\\") and not String.match?(path, ~r/[\x00-\x1F\x7F]/) and
+      Enum.all?(String.split(path, "/"), &(&1 not in ["", ".", ".."]))
   end
+
+  defp valid_repository_path?(_path), do: false
+
+  defp encode_repository_path(path) when is_binary(path) do
+    path |> String.split("/") |> Enum.map_join("/", &URI.encode(&1, fn char -> URI.char_unreserved?(char) end))
+  end
+
+  defp encode_repository_path(_path), do: nil
 
   defp valid_repository_ref?(source_ref) when is_binary(source_ref) do
     source_ref != "" and

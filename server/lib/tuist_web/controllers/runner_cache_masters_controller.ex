@@ -13,7 +13,22 @@ defmodule TuistWeb.RunnerCacheMastersController do
   use TuistWeb, :controller
 
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.CacheVolumes.Builtin
   alias Tuist.Runners.VolumePrefetch
+
+  def report_usage(conn, params) do
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: namespace, name: name}} <- K8sClient.create_runner_host_token_review(token),
+         {:ok, node} <- VolumePrefetch.node_for_service_account(namespace, name) do
+      case Builtin.report(node, params) do
+        {:ok, result} -> json(conn, result)
+        {:error, :pending} -> conn |> put_status(425) |> json(%{error: "execution pending"})
+        _ -> conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid report"})
+      end
+    else
+      _ -> send_resp(conn, :unauthorized, "")
+    end
+  end
 
   def index(conn, _params) do
     with {:ok, token} <- bearer_token(conn),

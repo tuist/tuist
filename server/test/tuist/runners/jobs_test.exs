@@ -5,6 +5,8 @@ defmodule Tuist.Runners.JobsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Subscription
+  alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Job
@@ -1477,6 +1479,32 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
     end
 
+    test "ignores a long-running job whose completion is still waiting for the flush" do
+      account = account_fixture()
+      started_at = DateTime.add(DateTime.utc_now(), -1, :hour)
+      :ok = WorkflowJobs.upsert_queued(%{workflow_job_id: 7364, account_id: account.id, fleet_name: "fleet-div5"})
+      Repo.delete_all(Tuist.Runners.WorkflowJobTransitionEvent)
+
+      {1, _} =
+        IngestRepo.insert_all(Job, [
+          %{
+            workflow_job_id: 7364,
+            account_id: account.id,
+            fleet_name: "fleet-div5",
+            repository: "acme/cli",
+            status: "running",
+            enqueued_at: started_at,
+            started_at: started_at,
+            updated_at: started_at
+          }
+        ])
+
+      {:ok, _} = Jobs.complete(7364, "success")
+      settled_before = DateTime.add(DateTime.utc_now(), -5, :minute)
+
+      assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
+    end
+
     test "ignores a job still genuinely running in both stores" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 7363, fleet: "fleet-div4")
@@ -1490,6 +1518,41 @@ defmodule Tuist.Runners.JobsTest do
   end
 
   describe "complete/2" do
+    test "queues a failed runner job event after completion" do
+      account = account_fixture()
+      token = account_token_fixture(account: account, scopes: ["mcp"])
+
+      %Subscription{}
+      |> Subscription.changeset(%{
+        id: "sub_runner_failure",
+        user_id: account.user_id,
+        account_token_id: token.id,
+        account_id: account.id,
+        event_name: "ci_job.failed",
+        callback_url: "https://example.com/events",
+        signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+        refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      })
+      |> Repo.insert!()
+
+      :ok = enqueue_fixture(account, 7_099, fleet: "fleet-failure")
+      {:ok, candidate} = Jobs.pick_queued("fleet-failure", [])
+      claim!(account, candidate.workflow_job_id, "fleet-failure", "pod-1")
+      :ok = mark_running!(7_099, "runner-x")
+
+      assert {:ok, %{conclusion: "failure"}} = Jobs.complete(7_099, "failure")
+
+      assert_enqueued(
+        worker: FanoutWorker,
+        args: %{
+          "event_name" => "ci_job.failed",
+          "account_id" => account.id,
+          "workflow_job_id" => 7_099,
+          "workflow_run_id" => 70_990
+        }
+      )
+    end
+
     test "transitions to completed with the conclusion" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 7001, fleet: "fleet-c")

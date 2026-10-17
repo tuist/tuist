@@ -144,6 +144,9 @@ pub enum PassSource {
     /// Walk the peer's index newest-first within the window (a backward
     /// pass).
     PeerIndex,
+    /// Repair the named source's retained index without the recency cutoff.
+    /// Store capacity and the subsequent full-corpus barrier still apply.
+    RetainedIndex,
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
     /// decision D-9).
@@ -306,11 +309,22 @@ struct PassContext<'a> {
 }
 
 impl PassContext<'_> {
-    fn arrival_ordered(&self) -> bool {
-        matches!(&self.tuning.source, PassSource::Entries(_))
+    fn capacity_is_per_entry(&self) -> bool {
+        matches!(
+            &self.tuning.source,
+            PassSource::Entries(_) | PassSource::RetainedIndex
+        )
     }
 
     fn capacity_declines(&self, version_ms: u64) -> bool {
+        // Recency is a cache-selection policy, not a storage admission limit.
+        // A named handover must attempt older missing records too: they may
+        // fit in the active segment, or replace data the source already evicted.
+        // Normal ring rotation/disk admission still bound every apply, and the
+        // frozen full-corpus verification rejects any holes caused by rotation.
+        if matches!(self.tuning.source, PassSource::RetainedIndex) {
+            return false;
+        }
         let inputs = self.state.store.backfill_capacity_inputs();
         capacity_complete(
             inputs.segment_count,
@@ -450,11 +464,14 @@ async fn list_entry(
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
     if kind == BackfillRecordKind::SegmentArtifact {
-        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(entry.version_ms) {
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(entry.version_ms)
+        {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -563,11 +580,16 @@ async fn fetch_listing_page(
             url.push_str(&url_encode(after));
         }
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill entries request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill entries request failed: {error:?}")))?;
         match classify_backfill_response(response, "backfill entries")
             .await
             .map_err(PassAbort::Hard)?
@@ -716,12 +738,15 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(item.key.version_ms) {
             context.guard.resolve_capacity_declined(&item.key);
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(item.key.version_ms)
+        {
             context.guard.mark_capacity_complete();
             context.capacity_fired.store(true, Ordering::Relaxed);
             tracing::info!(
@@ -846,8 +871,8 @@ async fn send_bodies_request(
             context,
             context
                 .state
-                .client()
-                .post(&url)
+                .peer_request(reqwest::Method::POST, context.peer, &url)
+                .map_err(PassAbort::Hard)?
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(body.clone())
                 .send(),
@@ -1263,7 +1288,12 @@ where
                 None => {
                     state
                         .store
-                        .apply_replicated_inline_artifact_from_bytes(
+                        .apply_replicated_inline_artifact_from_bytes_with(
+                            ApplyProvenance {
+                                origin_region: meta.origin_region.as_deref(),
+                                content_sha256: meta.content_sha256.as_deref(),
+                                sync_feed_row: context.tuning.feed_rows,
+                            },
                             producer,
                             &meta.namespace_id,
                             &meta.key,
@@ -1371,11 +1401,16 @@ async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill artifact request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill artifact request failed: {error:?}")))?;
         // Unlike the listing/bodies routes, a 404 here is the record being
         // gone, not a pre-AB peer: the pass only reaches this endpoint after
         // the same peer served backfill listings.
@@ -2170,6 +2205,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn individual_inline_fetch_preserves_provenance_without_echoing_feed_rows() {
+        let peer = test_context(|_| {}).await;
+        let body = vec![0xAB; 4096];
+        peer.state
+            .store
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: Some("source-region"),
+                    content_sha256: Some("source-checksum"),
+                    sync_feed_row: true,
+                },
+                ArtifactProducer::Xcode,
+                "ios",
+                "individual-inline",
+                "application/octet-stream",
+                &body,
+                1000,
+                Some("main"),
+                None,
+            )
+            .await
+            .unwrap();
+        build_index(&peer);
+        let (peer_url, server) = spawn_server(router(peer.state.clone())).await;
+        let local = test_context(|_| {}).await;
+        local.state.store.sync_feed_activate().await.unwrap();
+        let before = local.state.store.sync_feed().head();
+        let mut individual = tuning();
+        individual.batch_bytes = 1024;
+        individual.feed_rows = false;
+        let (outcome, claims) = run_pass(&local, &peer_url, individual).await;
+        server.abort();
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.individual_fetches, 1);
+        assert!(claims.is_empty());
+        let applied = fetch_manifest(&local, ArtifactProducer::Xcode, "individual-inline")
+            .await
+            .unwrap();
+        assert_eq!(read_body(&local, &applied).await, body);
+        assert_eq!(applied.origin_region.as_deref(), Some("source-region"));
+        assert_eq!(applied.content_sha256.as_deref(), Some("source-checksum"));
+        assert_eq!(applied.branch.as_deref(), Some("main"));
+        assert_eq!(local.state.store.sync_feed().head(), before);
+    }
+
+    #[tokio::test]
     async fn oversized_entries_route_to_the_per_artifact_endpoint_up_front() {
         let peer = test_context(|_| {}).await;
         let big_body = vec![0xAB_u8; 4_096];
@@ -2373,6 +2456,90 @@ mod tests {
                 .is_none()
         );
         // Non-ring kinds continued past capacity completion to the bound.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
+                .await
+                .is_some()
+        );
+        assert!(
+            local
+                .state
+                .store
+                .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "dead-ns", 250)
+                .expect("tombstone check should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_index_repairs_both_sides_of_the_recency_cutoff() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_inline(&peer, "inl", b"inline-body", 300).await;
+        seed_tombstone(&peer, "dead-ns", 250).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // A tiny configured capacity resolves to the legacy 1:2:2 floor of 5
+        // segments; fabricate a full ring whose next evictee holds data newer
+        // than the older peer entry, so the marginal trade fires mid-pass.
+        let local = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut paced = tuning();
+        paced.source = PassSource::RetainedIndex;
+        paced.flush_interval = Duration::from_secs(10);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, paced).await;
+
+        let BackfillPassOutcome::Completed {
+            end,
+            capacity_completed,
+            stats,
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::PeerExhausted);
+        assert!(!capacity_completed);
+        assert_eq!(stats.tuples_capacity_skipped, 0);
+        assert!(claim_set.is_empty());
+
+        // Both the older and newer missing bodies are required by handover.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_some()
+        );
+        // Non-ring kinds still use the same complete retained-index walk.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
                 .await
@@ -2646,12 +2813,28 @@ mod tests {
     async fn index_building_peer_is_retried_without_failing_the_pass() {
         let peer = test_context(|_| {}).await;
         seed_inline(&peer, "inl-a", b"inline-body", 900).await;
-        // No index build yet: the listing endpoint answers 503 index_building
-        // until the delayed build lands.
-        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        // Observe an actual retryable response before building the index; a
+        // timer can elapse while the local store is still initializing.
+        let index_building = Arc::new(tokio::sync::Notify::new());
+        let observed = index_building.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let observed = observed.clone();
+                async move {
+                    let response = next.run(request).await;
+                    if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        observed.notify_one();
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
         let peer_state = peer.state.clone();
         let builder = tokio::spawn(async move {
-            sleep(Duration::from_millis(150)).await;
+            tokio::time::timeout(Duration::from_secs(30), index_building.notified())
+                .await
+                .expect("listing should produce an index-building response");
             peer_state
                 .store
                 .run_backfill_index_build()

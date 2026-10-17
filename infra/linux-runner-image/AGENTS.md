@@ -79,6 +79,9 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
+- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
+  such as `erlef/setup-beam` read it to pick a prebuilt binary and
+  fail without it. Change it together with the `ubuntu:22.04` base.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -228,7 +231,9 @@ before promoting it, then against the production runner profile.
 3. The `poller` init container runs `dispatch-poll.sh`, exchanging
    the projected SA token for a JIT config (200 with the JIT when
    a queue row is claimed, 204 while idle), then stages the JIT
-   and exits. The `runner` main container starts, runs the GitHub
+   (plus `<jit>.setup-info`, the "Set up job" group linking the job
+   to its dashboard page, which `run-job.sh` copies to the runner's
+   `.setup_info`) and exits. The `runner` main container starts, runs the GitHub
    Actions runner single-shot under that JIT (no token), and
    exits. The runner-container exit is what kubelet observes for
    billing + reaping; the rest is identical to the macOS path
@@ -282,3 +287,11 @@ cache subtree. The broker bounds source resolution with os.Root and creates each
 mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
 in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
 PID/mount namespaces. Roll out controller and runner image together on idle pods.
+
+- The shared cache client also supports macOS: use unique mailbox requests per
+  attempt, remove completed request/response files, and retry busy clean detaches
+  five times. Sample filesystem usage before detach, bind it to the lease, and
+  write the detach proof only after both clean detach and the usage report succeed.
+  Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
+  kill the image helper before dispatch detaches it. Keep job process tracking
+  intact for all other commands and preserve the clean-detach publication gate.

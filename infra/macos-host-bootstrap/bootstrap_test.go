@@ -496,6 +496,84 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	}
 }
 
+// The hash is stamped on Machine status, which the read-only tier can read,
+// and SHA-256 is cheap to brute-force. No credential may reach what it
+// digests, and rotating one must not move it.
+func TestHostConfigHash_KeepsCredentialsOutOfTheHashedMaterial(t *testing.T) {
+	fleet := Config{
+		TartKubeletBinary:    []byte("kubelet-v1"),
+		TailscaleBinaries:    []byte("ts-v1"),
+		LogShipperBinary:     []byte("shipper"),
+		LogShipURL:           "http://receiver:3100/loki/api/v1/push",
+		TailscaleTags:        []string{"tag:tuist-macmini"},
+		VMKuraEgressCIDR:     "10.96.0.0/12",
+		SSHIngressAllowCIDRs: []string{"10.0.0.0/8"},
+	}
+	credentials := func(suffix string) PerHost {
+		return PerHost{
+			UserPassword:     "sudo-password-" + suffix,
+			SSHPrivateKey:    []byte("ssh-private-key-" + suffix),
+			Kubeconfig:       "kubeconfig-token-" + suffix,
+			TailscaleAuthKey: "tskey-auth-" + suffix,
+			TailscaleState:   []byte("tailscaled-state-" + suffix),
+			GHActionsRunner: &GHActionsRunnerConfig{
+				GHOrg:                     "tuist",
+				GHRunnerRegistrationToken: "runner-registration-token-" + suffix,
+			},
+		}
+	}
+
+	first := fleet.WithPerHost(credentials("first"))
+	rotated := fleet.WithPerHost(credentials("rotated"))
+	if HostConfigHash(first) != HostConfigHash(fleet) || HostConfigHash(rotated) != HostConfigHash(fleet) {
+		t.Fatal("HostConfigHash must not depend on per-host credentials")
+	}
+
+	material := hostConfigMaterial(first)
+	for _, secret := range []string{
+		"sudo-password-first",
+		"ssh-private-key-first",
+		"kubeconfig-token-first",
+		"tskey-auth-first",
+		"tailscaled-state-first",
+		"runner-registration-token-first",
+	} {
+		if strings.Contains(material, secret) {
+			t.Errorf("hashed material contains the credential %q", secret)
+		}
+	}
+}
+
+// A render that fails is folded in as the inputs it rejected, not as the
+// error's text: the hashed material is built from Config values alone, so
+// nothing an error message carries can reach the digest on Machine status.
+func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
+	for name, broken := range map[string]Config{
+		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
+		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
+		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			material := hostConfigMaterial(broken)
+			if strings.Contains(material, "not an IPv4") {
+				t.Fatalf("hashed material carries the render error's text:\n%q", material)
+			}
+			if !strings.Contains(material, "10.0.0.0/99") && !strings.Contains(material, "10.96.0.0/99") {
+				t.Fatalf("hashed material must carry the rejected input:\n%q", material)
+			}
+		})
+	}
+
+	// A second broken value is still a different config, so it must still
+	// lift a FailedHostConfigHash pinned on the first.
+	if HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/99"}) == HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/98"}) {
+		t.Fatal("two different rejected firewall inputs must hash differently")
+	}
+	if HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}}) == HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/98"}}) {
+		t.Fatal("two different rejected ssh ingress inputs must hash differently")
+	}
+}
+
 func TestHostConfigHash_ChangesWhenFleetConfigChanges(t *testing.T) {
 	base := Config{
 		TartKubeletBinary: []byte("kubelet-v1"),
@@ -1292,6 +1370,7 @@ var hashPartInstaller = map[string]string{
 	"software-update-policy":  "installSoftwareUpdatePolicy",
 	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
+	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
@@ -1300,6 +1379,7 @@ var hashPartInstaller = map[string]string{
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",
+	"host-sensors-binary":  "installHostSensors",
 }
 
 // Reads the source rather than the behaviour because the invariant is
@@ -1343,12 +1423,12 @@ func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
 }
 
 // hashedPartNames returns the `name` field of every element of the
-// `[]struct{ name, script string }` table HostConfigHash iterates.
+// `[]struct{ name, script string }` table hostConfigMaterial iterates.
 func hashedPartNames(t *testing.T, file *ast.File) []string {
 	t.Helper()
 
 	var names []string
-	ast.Inspect(findFunc(t, file, "HostConfigHash"), func(n ast.Node) bool {
+	ast.Inspect(findFunc(t, file, "hostConfigMaterial"), func(n ast.Node) bool {
 		lit, ok := n.(*ast.CompositeLit)
 		if !ok {
 			return true
@@ -1524,6 +1604,353 @@ func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
 	for _, forbidden := range []string{"python3", "xcrun", "xcode-select"} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32", "10.10.0.12/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	block := strings.Index(script, "block drop out quick from <vm_sources> to <blocked_dst>")
+	for _, want := range []string{
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.12/32 port 443 keep state",
+	} {
+		pass := strings.Index(script, want)
+		if pass < 0 {
+			t.Fatalf("missing %q in rendered script\n%s", want, script)
+		}
+		if block < 0 || pass > block {
+			t.Fatalf("%q must render before the blocked_dst drop (first quick match wins)\n%s", want, script)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(script, "port 443") || strings.Contains(script, "gateway carve-out") {
+		t.Fatalf("a fleet without cache gateways must not pass 443\n%s", script)
+	}
+}
+
+func TestRenderVMEgressFirewallScript_RejectsMalformedCacheGatewayCIDR(t *testing.T) {
+	for _, bad := range []string{"10.10.0.11", "10.10.0.11/33", "fd00::1/128", "10.10.0.11/32 port 22"} {
+		if _, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{bad}}); err == nil {
+			t.Fatalf("expected %q to be rejected", bad)
+		}
+	}
+}
+
+func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
+	base := Config{VMKuraEgressCIDR: "10.128.0.0/12"}
+	gateway := base
+	gateway.VMCacheGatewayCIDRs = []string{"10.10.0.11/32"}
+	if HostConfigHash(base) == HostConfigHash(gateway) {
+		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
+	}
+}
+
+func vmGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no tuist.vmguard anchor in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated tuist.vmguard heredoc\n%s", script)
+	}
+	return anchor[:end+1]
+}
+
+// The `tuist.runners` rules are `out` rules keyed on the guest's source, which
+// the host has already translated to its own address on the default-route
+// interface by the time pf filters there. The guard filters the guest where
+// its address is still its own: inbound on the vmnet bridge, in a com.apple/
+// sub-anchor that is live as soon as it loads.
+func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(script, `pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard`) {
+		t.Fatal("the guard is not loaded into a com.apple/ sub-anchor; a top-level anchor is only evaluated after a full ruleset load at boot")
+	}
+	if !strings.Contains(script, "<string>dev.tuist.pfctl-vmguard</string>") || !strings.Contains(script, "<key>StartInterval</key>") {
+		t.Fatal("no re-arm for the guard; a reboot or flush would leave guests unfiltered")
+	}
+
+	anchor := vmGuardAnchor(t, script)
+	for _, line := range strings.Split(anchor, "\n") {
+		rule := strings.TrimSpace(line)
+		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") || strings.HasPrefix(rule, "vm_bridges =") || rule == vmGuardHostToGuestPass {
+			continue
+		}
+		if !strings.Contains(rule, " in quick ") {
+			t.Errorf("guard rule is not inbound, so NAT has rewritten the guest's address before it matches: %q", rule)
+		}
+		if strings.Contains(rule, "(self)") {
+			t.Errorf("guard uses the dynamic (self), which macOS pf resolves to an empty table: %q", rule)
+		}
+	}
+
+	privateBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to <vm_private_dst>")
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	if privateBlock < 0 || selfBlock < 0 {
+		t.Fatalf("guard does not drop private destinations and the host's own addresses\n%s", anchor)
+	}
+	for _, private := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"} {
+		if !strings.Contains(anchor, private) {
+			t.Errorf("guard does not cover %s", private)
+		}
+	}
+	for _, pass := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state",
+	} {
+		at := strings.Index(anchor, pass)
+		if at < 0 || at > privateBlock {
+			t.Errorf("%q must render before the private drop (first quick match wins)\n%s", pass, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "pass out quick from <vm_sources> to <vm_sources> flags any keep state") {
+		t.Errorf("pfctl did not keep the host-to-guest pass\n%s", parsed)
+	}
+	if !strings.Contains(parsed, "from <vm_sources> to 127.0.0.1") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// A rack guest leaves through the same public address the storage node uses
+// as its cluster InternalIP, so every Cilium node would take its packets for
+// the storage node's. The guard drops the cluster's node ports to every
+// destination.
+func TestRenderVMEgressFirewallScript_GuardDropsClusterNodePorts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, drop := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }",
+	} {
+		at := strings.Index(anchor, drop)
+		if at < 0 {
+			t.Fatalf("guard does not drop %q\n%s", drop, anchor)
+		}
+		if carveOut := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to 10.10.0.11/32"); carveOut >= 0 && at > carveOut {
+			t.Errorf("%q renders after a carve-out pass (first quick match wins)\n%s", drop, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, rule := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port = 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port = 4240",
+		"block drop in quick proto tcp from <vm_sources> to any port = 10250",
+	} {
+		if !strings.Contains(parsed, rule) {
+			t.Errorf("pfctl did not load %q\n%s", rule, parsed)
+		}
+	}
+}
+
+// The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
+// relays connect from the bridge address. A guest's reply arrives inbound to a
+// host address, so without a state from the host's side it hits the drop.
+const vmGuardHostToGuestPass = "pass out quick from <vm_sources> to <vm_sources> flags any keep state"
+
+func TestRenderVMEgressFirewallScript_GuardAdmitsGuestRepliesToTheHost(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	pass := strings.Index(anchor, vmGuardHostToGuestPass)
+	if pass < 0 {
+		t.Fatalf("no stateful pass for host-to-guest connections, so a guest's replies to them are dropped\n%s", anchor)
+	}
+	if block := strings.Index(anchor, "block drop in quick from <vm_sources> to self"); pass > block {
+		t.Errorf("host-to-guest pass renders after the drop\n%s", anchor)
+	}
+}
+
+// vmnet gives every guest a link-local and a ULA IPv6 address, which the IPv4
+// guest range does not cover, and the host's listeners bind both families. The
+// IPv6 rules key on the vmnet bridges instead, since pf cannot tell a guest's
+// IPv6 source from the host's own.
+func TestRenderVMEgressFirewallScript_GuardCoversGuestIPv6(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	dns := strings.Index(anchor, "pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state")
+	selfBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self\n")
+	privateBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }")
+	if dns < 0 || selfBlock < 0 || privateBlock < 0 {
+		t.Fatalf("guard does not cover guest IPv6 to the host and private ranges\n%s", anchor)
+	}
+	if dns > selfBlock {
+		t.Error("the DNS pass renders after the drop, so the guest's IPv6 resolver (the host's link-local) times out on every lookup")
+	}
+	if strings.Contains(anchor, "bridge0,") || strings.Contains(anchor, "bridge0 ") {
+		t.Error("bridge0 is Thunderbolt Bridge, not a vmnet bridge")
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, bridge := range []string{"bridge100", "bridge101", "bridge102", "bridge103"} {
+		if !strings.Contains(parsed, "block drop in quick on "+bridge+" inet6 proto udp from any to ") {
+			t.Errorf("pfctl did not expand the IPv6 drop for %s\n%s", bridge, parsed)
+		}
+	}
+}
+
+// Every carve-out a guest needs must survive the move inbound, or turning the
+// guard on cuts a fleet off from its cache.
+func TestRenderVMEgressFirewallScript_GuardKeepsEveryCarveOut(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR: "10.128.0.0/12",
+		VMClusterDNSIP:   "10.128.0.10",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, want := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.128.0.0/12 port 4000 keep state",
+		"pass in quick proto { tcp, udp } from <vm_sources> to 10.128.0.10 port 53 keep state",
+		"pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state",
+	} {
+		if !strings.Contains(anchor, want) {
+			t.Errorf("guard is missing %q\n%s", want, anchor)
+		}
+	}
+	if _, ok := pfctlParse(t, anchor); !ok {
+		return
+	}
+}
+
+// The SSH guard's VM pass is quick, so a guest's :22 to a private network must
+// be dropped there too, whichever com.apple/ sub-anchor pf evaluates first.
+func TestRenderSSHIngressGuardScript_DeniesVMsPrivateNetworks(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const block = "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22"
+	at := strings.Index(s, block)
+	if at < 0 {
+		t.Fatalf("missing %q", block)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < at {
+		t.Error("VM pass renders before the private-network block")
+	}
+	if !strings.Contains(s, "table <vm_ssh_private> persist { "+vmPrivateDestinations+" }") {
+		t.Error("the SSH guard's private table is not the VM egress guard's")
+	}
+}
+
+// The fr-par runner cache is a private gateway: dispatch hands the VM an HTTPS
+// hostname that resolves to the gateway's Private Network address, so the PN
+// carve-out admits 443 beside the NodePorts older jobs were handed.
+func TestRenderVMEgressFirewallScript_PNCarveOutAdmitsPrivateGatewayHTTPS(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(vmGuardAnchor(t, script), "pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state") {
+		t.Fatalf("the guard drops the PN cache gateway's HTTPS\n%s", script)
+	}
+}
+
+// A carve-out names a whole range, and the host's own address can sit in it
+// (its PN address is in the PN CIDR), so the drop to the host comes first.
+func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCachePNCIDR:       "172.16.0.0/22",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	gatewayDNS := strings.Index(anchor, "pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state")
+	for _, carveOut := range []string{"to 10.128.0.0/12 port 4000", "to 172.16.0.0/22 port", "to 10.10.0.11/32 port 443"} {
+		at := strings.Index(anchor, carveOut)
+		if at < 0 || at < selfBlock {
+			t.Errorf("carve-out %q renders before the drop to the host's own addresses\n%s", carveOut, anchor)
+		}
+	}
+	if gatewayDNS < 0 || gatewayDNS > selfBlock {
+		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
+	}
+}
+
+// A rack host pulls its golden bases through the rack's image caches, in the
+// order the fleet lists them. A host with none renders the plist it rendered
+// before mirrors existed, so the rented fleets do not drift.
+func TestRenderLaunchdPlist_RendersImageMirrorsInOrder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		ImageMirrors: []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=http://10.10.0.12:5000"},
+	})
+	first := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.11:5000</string>")
+	second := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.12:5000</string>")
+	if first < 0 || second < 0 || second < first {
+		t.Fatalf("expected both mirrors in order\n%s", out)
+	}
+	if bare := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"}); strings.Contains(bare, "--image-mirror") {
+		t.Fatalf("expected no --image-mirror without mirrors\n%s", bare)
+	}
+}
+
+// The mirrors reach a running host through the drift loop only if they move
+// the fleet fingerprint.
+func TestHostConfigHash_ChangesWithImageMirrors(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.ImageMirrors = []string{"ghcr.io=http://10.10.0.11:5000"}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when ImageMirrors does")
+	}
+}
+
+func TestValidateImageMirror(t *testing.T) {
+	for _, ok := range []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=https://images.example.com/"} {
+		if err := ValidateImageMirror(ok); err != nil {
+			t.Errorf("ValidateImageMirror(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ghcr.io", "=http://x", "ghcr.io=", "ghcr.io=10.10.0.11:5000", "ghcr.io=http://x/v2", "ghcr.io/x=http://x"} {
+		if err := ValidateImageMirror(bad); err == nil {
+			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
 		}
 	}
 }

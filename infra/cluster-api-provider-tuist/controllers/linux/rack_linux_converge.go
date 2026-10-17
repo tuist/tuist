@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -28,12 +30,24 @@ const (
 	rackBootstrapKubeconfigPath = "/var/lib/kubelet/bootstrap-kubeconfig"
 
 	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
+
+	rackKubernetesServicePath = "/etc/tuist/kubernetes-service.nft"
+
+	// rackStaticPodPath is where the kubelet runs static pods from: what a
+	// node runs before it reaches the API server, such as an edge's rack-edge
+	// after a cold boot.
+	rackStaticPodPath = "/etc/kubernetes/manifests"
 )
 
 // rackConvergeOptions is everything a rack node's configuration renders
 // from.
 type rackConvergeOptions struct {
-	NodeName   string
+	NodeName string
+	// Role is the host's spec.role. An edge routes the rack to the internet
+	// over uplinks that carry no address of the host's (rackEdgeFiles).
+	Role string
+	// Edge is an edge's spec.edge, the VRRP VLAN its install builds.
+	Edge       *infrav1.RackLinuxHostEdge
 	NodeIP     string
 	ProviderID string
 	// KubeletVersion is the exact kubelet release to run, without the `v`.
@@ -54,20 +68,35 @@ type rackConvergeOptions struct {
 	// node reaches no Service address.
 	KubernetesAPI string
 
+	// KubernetesServiceIP is the kubernetes Service's ClusterIP, the API
+	// address in-cluster clients are given. The node translates it to
+	// KubernetesAPI, so those clients work on it unchanged.
+	KubernetesServiceIP string
+
 	// APIServerURL is what a join's bootstrap kubeconfig points the kubelet
 	// at. Rejoin drops the kubelet's identity first, for a host joining again
 	// under a new name. Neither is part of the configuration.
 	APIServerURL string
 	Rejoin       bool
+
+	// ClusterNetwork is the host's spec.clusterNetwork: it runs Cilium instead
+	// of the rack-local bridge, at its site's public address.
+	ClusterNetwork *infrav1.RackLinuxHostClusterNetwork
+
+	// Forwards are the cluster-network hosts of an edge's site, whose cluster
+	// ports the edge forwards from its public address.
+	Forwards []infrav1.RackLinuxHostClusterNetwork
 }
 
-// rackNodeLabels are the labels a rack Linux node registers with. Every rack
-// node carries the Cilium exclusion: the rack's networks overlap the cluster's
-// pod CIDR, so it runs the local CNI instead.
-func rackNodeLabels(extra map[string]string) map[string]string {
+// rackNodeLabels are the labels a rack Linux node registers with. A rack node
+// runs the rack-local CNI and carries the Cilium exclusion, unless it is on the
+// cluster network.
+func rackNodeLabels(extra map[string]string, clusterNetwork bool) map[string]string {
 	labels := map[string]string{
 		"node.cluster.x-k8s.io/instance-type": rackInstanceType,
-		ciliumNoScheduleLabel:                 "true",
+	}
+	if !clusterNetwork {
+		labels[ciliumNoScheduleLabel] = "true"
 	}
 	for k, v := range extra {
 		labels[k] = v
@@ -97,7 +126,7 @@ func rackKubeletUnit(o rackConvergeOptions) string {
 		"--container-runtime-endpoint=unix:///run/containerd/containerd.sock",
 		"--hostname-override=" + o.NodeName,
 		"--node-ip=" + o.NodeIP,
-		"--node-labels=" + sortedLabels(rackNodeLabels(o.NodeLabels)),
+		"--node-labels=" + sortedLabels(rackNodeLabels(o.NodeLabels, o.ClusterNetwork != nil)),
 		// The operator owns the node's addresses and adds one the control
 		// plane can reach (rack_kubelet_address.go).
 		"--cloud-provider=external",
@@ -123,16 +152,20 @@ WantedBy=multi-user.target
 // rackKubeletConfig is the fleet's self-join kubelet configuration plus what a
 // kubelet with a certificate identity needs: rotation and its providerID.
 // resolvConf is systemd-resolved's stub, the resolver that answers tailnet
-// names for host-network pods.
+// names for host-network pods. Static pods run from rackStaticPodPath.
 func rackKubeletConfig(o rackConvergeOptions) string {
 	return kubeletConfigContent(o.ClusterDNS, kubeletClientCAPath) + fmt.Sprintf(`providerID: %s
 rotateCertificates: true
 resolvConf: /etc/resolv.conf
-`, o.ProviderID)
+staticPodPath: %s
+`, o.ProviderID, rackStaticPodPath)
 }
 
+// rackLocalCNIConfig is the node-local pod network. The bridge is the pods'
+// default gateway and masquerades them behind the node, so a pod off the host
+// network reaches what the node reaches.
 func rackLocalCNIConfig() string {
-	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
+	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]],"routes":[{"dst":"0.0.0.0/0"}]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
 `, rackLocalCNIRange)
 }
 
@@ -164,7 +197,8 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 		return infrav1.RackNodeFile{Path: path, Mode: "0644", Group: group, Content: ensureTrailingNewline(content)}
 	}
 	cfg := infrav1.RackNodeConfig{
-		Hostname: o.NodeName,
+		Hostname:    o.NodeName,
+		Directories: []string{rackStaticPodPath},
 		Files: []infrav1.RackNodeFile{
 			file("/etc/modules-load.d/tuist-k8s.conf", "modules", modulesLoadContent),
 			file(rackinstall.ModprobePath, "modules", rackinstall.ModprobeConf),
@@ -172,7 +206,6 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 			file("/etc/sysctl.d/99-tuist-hardening.conf", "sysctl", kernelHardeningSysctlContent),
 			file("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "systemd", watchdogDropInContent),
 			file("/etc/containerd/certs.d/docker.io/hosts.toml", "containerd", dockerHubMirrorHostsContent),
-			file("/etc/cni/net.d/10-tuist-rack-local.conflist", "cni", rackLocalCNIConfig()),
 			file(kubeletClientCAPath, "kubelet", string(o.ClusterCAPEM)),
 			file("/var/lib/kubelet/config.yaml", "kubelet", rackKubeletConfig(o)),
 			file("/etc/systemd/system/kubelet.service", "kubelet", rackKubeletUnit(o)),
@@ -186,15 +219,171 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 		Containerd: infrav1.RackNodeContainerd{ConfigPath: "/etc/containerd/config.toml"},
 		Kubelet:    infrav1.RackNodeKubelet{Channel: o.K8sMinor, Version: o.KubeletVersion},
 	}
+	// Cilium writes its own CNI configuration on a cluster-network node, and
+	// the bridge's would shadow it.
+	if o.ClusterNetwork == nil {
+		cfg.Files = append(cfg.Files, file(rackLocalCNIPath, "cni", rackLocalCNIConfig()))
+	} else {
+		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackLocalCNIPath, Group: "cni"})
+	}
+	if rules := rackKubernetesServiceRules(o); rules != "" {
+		cfg.Files = append(cfg.Files, file(rackKubernetesServicePath, "none", rules))
+		cfg.Nftables = []string{rackKubernetesServicePath}
+	} else {
+		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackKubernetesServicePath, Group: "none"})
+	}
+	if cn := o.ClusterNetwork; cn != nil {
+		cfg.Files = append(cfg.Files,
+			file(rackClusterAddressNetdevPath, "networkd", rackClusterAddressNetdev),
+			file(rackClusterAddressNetworkPath, "networkd", rackClusterAddressNetwork(cn.PublicAddress)),
+			file(rackClusterHealthPath, "none", rackClusterHealthRules(*cn)),
+			file(rackCiliumSysctlPath, "sysctl", rackCiliumSysctl),
+		)
+		cfg.Nftables = append(cfg.Nftables, rackClusterHealthPath)
+		cfg.Sysctl = append(cfg.Sysctl, infrav1.RackNodeSysctl{Path: rackCiliumSysctlPath})
+	}
+	if o.Role == "edge" {
+		cfg.Files = append(cfg.Files, file(rackClusterForwardsPath, "none", rackClusterForwardsRules(o.Forwards)))
+		cfg.Nftables = append(cfg.Nftables, rackClusterForwardsPath)
+		cfg.ClusterNodeSets = []infrav1.RackNodeNftSet{{Family: "ip", Table: rackClusterForwardsTable, Name: rackClusterForwardsSet}}
+	}
 	if o.ManagementMAC != "" {
 		cfg.Files = append(cfg.Files, file(rackManagementNetworkPath, "network", rackManagementNetwork(o.ManagementMAC)))
 	} else {
 		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackManagementNetworkPath, Group: "network"})
 	}
+	edgeFiles, edgeAbsent := rackEdgeFiles(o)
+	for _, f := range edgeFiles {
+		cfg.Files = append(cfg.Files, file(f.Path, f.Group, f.Content))
+	}
+	cfg.Absent = append(cfg.Absent, edgeAbsent...)
+	if o.Role == "edge" {
+		cfg.Sysctl = append(cfg.Sysctl, infrav1.RackNodeSysctl{Path: rackEdgeSysctlPath})
+	}
 	body, _ := json.Marshal(cfg)
 	sum := sha256.Sum256(body)
 	cfg.Hash = hex.EncodeToString(sum[:])
 	return cfg
+}
+
+// rackKubernetesServiceRules translates the kubernetes Service's address to
+// the API server the node joined through, for pods on the node's own network
+// and on the host's. It needs both as IP addresses, and is empty otherwise:
+// nftables translates to an address, not a name.
+func rackKubernetesServiceRules(o rackConvergeOptions) string {
+	service := net.ParseIP(o.KubernetesServiceIP)
+	api, err := url.Parse(o.KubernetesAPI)
+	if service.To4() == nil || err != nil {
+		return ""
+	}
+	host, port := api.Hostname(), api.Port()
+	if port == "" {
+		port = "443"
+	}
+	if net.ParseIP(host).To4() == nil {
+		return ""
+	}
+	rule := fmt.Sprintf("ip daddr %s tcp dport 443 dnat to %s:%s", service, host, port)
+	return fmt.Sprintf(`table ip tuist_kubernetes_service
+delete table ip tuist_kubernetes_service
+table ip tuist_kubernetes_service {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    %[1]s
+  }
+  chain output {
+    type nat hook output priority dstnat; policy accept;
+    %[1]s
+  }
+}
+`, rule)
+}
+
+const (
+	rackLocalCNIPath = "/etc/cni/net.d/10-tuist-rack-local.conflist"
+
+	rackClusterAddressNetdevPath  = "/etc/systemd/network/20-tuist-cluster-address.netdev"
+	rackClusterAddressNetworkPath = "/etc/systemd/network/20-tuist-cluster-address.network"
+	// rackClusterAddressDevice holds a cluster-network host's public address.
+	// Cilium would take it for a device to attach to, so the rack nodes'
+	// CiliumNodeConfig names their uplinks instead (rack-linux-fleet.yaml).
+	rackClusterAddressDevice = "tuist-cluster"
+	rackClusterHealthPath    = "/etc/tuist/cluster-health.nft"
+	rackCiliumSysctlPath     = "/etc/sysctl.d/99-cilium.conf"
+
+	rackClusterForwardsPath  = "/etc/tuist/cluster-forwards.nft"
+	rackClusterForwardsTable = "tuist_cluster_forwards"
+	rackClusterForwardsSet   = "nodes"
+
+	// The ports every Cilium node is reached on at its InternalIP: the
+	// VXLAN tunnel, Cilium's node health probe and the kubelet.
+	ciliumTunnelPort = 8472
+	ciliumHealthPort = 4240
+	kubeletPort      = 10250
+)
+
+// rackClusterAddressNetdev is the dummy interface a cluster-network host holds
+// its public address on. The address belongs to the site's edge, which
+// forwards the cluster's ports on it here, but the kubelet only takes a
+// --node-ip the host holds, and Cilium binds its health responder to the
+// node's InternalIP.
+const rackClusterAddressNetdev = `[NetDev]
+Name=` + rackClusterAddressDevice + `
+Kind=dummy
+`
+
+func rackClusterAddressNetwork(publicAddress string) string {
+	return fmt.Sprintf(`[Match]
+Name=%s
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+Address=%s/32
+`, rackClusterAddressDevice, publicAddress)
+}
+
+// rackCiliumSysctl is what the cluster's own nodes set for Cilium
+// (clusterclass-tuist.yaml): strict reverse-path filtering on the pods'
+// interfaces drops their traffic.
+const rackCiliumSysctl = `net.ipv4.conf.lxc*.rp_filter = 0
+`
+
+// rackClusterHealthRules hands Cilium's health probe to the public address.
+// The edge forwards it to the host's own address, and the responder listens
+// on the public one only.
+func rackClusterHealthRules(cn infrav1.RackLinuxHostClusterNetwork) string {
+	return fmt.Sprintf(`table ip tuist_cluster_health
+delete table ip tuist_cluster_health
+table ip tuist_cluster_health {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    ip daddr %s tcp dport %d dnat to %s
+  }
+}
+`, cn.Address, ciliumHealthPort, cn.PublicAddress)
+}
+
+// rackClusterForwardsRules forwards the cluster's ports on the site's public
+// address to its cluster-network hosts, from the cluster's nodes only: the
+// node agent keeps the set equal to their addresses (ClusterNodeSets), so the
+// set is declared, never flushed, and only the chain is rewritten. Cilium
+// decapsulates a VXLAN packet from any source, so the tunnel must not be open
+// to the internet. The WAN filter lets what this translates through
+// (infra/rack-switch-fleet, `ct status dnat`).
+func rackClusterForwardsRules(forwards []infrav1.RackLinuxHostClusterNetwork) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "add table ip %s\n", rackClusterForwardsTable)
+	fmt.Fprintf(&b, "add set ip %s %s { type ipv4_addr; }\n", rackClusterForwardsTable, rackClusterForwardsSet)
+	fmt.Fprintf(&b, "add chain ip %s prerouting { type nat hook prerouting priority dstnat; policy accept; }\n", rackClusterForwardsTable)
+	fmt.Fprintf(&b, "flush chain ip %s prerouting\n", rackClusterForwardsTable)
+	for _, f := range forwards {
+		match := fmt.Sprintf(`add rule ip %s prerouting iifname "wan0" ip daddr %s ip saddr @%s`, rackClusterForwardsTable, f.PublicAddress, rackClusterForwardsSet)
+		fmt.Fprintf(&b, "%s udp dport %d dnat to %s\n", match, ciliumTunnelPort, f.Address)
+		fmt.Fprintf(&b, "%s tcp dport { %d, %d } dnat to %s\n", match, ciliumHealthPort, kubeletPort, f.Address)
+	}
+	return b.String()
 }
 
 const rackManagementNetworkPath = "/etc/systemd/network/10-tuist-management.network"
@@ -216,4 +405,91 @@ RequiredForOnline=no
 LinkLocalAddressing=no
 IPv6AcceptRA=no
 `, mac)
+}
+
+const (
+	rackEdgeUplinksNetworkPath = "/etc/systemd/network/05-tuist-edge-uplinks.network"
+	rackEdgeNetworkdPath       = "/etc/systemd/networkd.conf.d/10-tuist-edge.conf"
+	rackEdgeSysctlPath         = "/etc/sysctl.d/99-tuist-edge.conf"
+	// rackEdgeMaxUplinks is how many uplinks an edge's spec.edge may name,
+	// and so how many per-uplink files a role change has to remove.
+	rackEdgeMaxUplinks = 2
+)
+
+// rackEdgeUplinkNetworkPath is the file for an edge's n-th uplink (from 1).
+// It sorts before rackEdgeUplinksNetworkPath.
+func rackEdgeUplinkNetworkPath(n int) string {
+	return fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n)
+}
+
+const rackEdgeUplinkNetwork = `[Link]
+ActivationPolicy=always-up
+RequiredForOnline=no
+
+[Network]
+DHCP=no
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+ConfigureWithoutCarrier=yes
+`
+
+// rackEdgeFiles are an edge's host networking, and the files a host that is
+// not one, or names fewer uplinks, removes. The rack-edge pod puts the WAN on
+// a VLAN interface of its own (wan0) and routes over the X710 uplinks (driver
+// i40e) itself, with `ip route` and keepalived, so the uplinks carry no
+// address of the host's.
+//
+// The uplinks' files sort before netplan's 10-netplan-*.network, which the
+// install leaves on them, and networkd applies the first file that matches a
+// link. They keep them up with no address, no DHCP, no IPv6 link-local and no
+// router advertisements, configured without carrier, and boot does not wait
+// for them. An edge whose spec.edge names its uplinks gets one file per
+// uplink that also stacks vrrp0-<n> on the n-th, the VLAN interface its
+// install defines (rackinstall.EdgeNetwork), so networkd keeps building the
+// VRRP bond across reboots before the rack-edge pod runs. On a host installed
+// without it, networkd finds no such interface defined and ignores the line,
+// and the pod builds the bond as before. Any other X710 port, and every
+// uplink of an edge whose spec.edge is unset, takes the driver's file.
+//
+// networkd leaves routes and routing policy rules it did not configure alone,
+// as keepalived's and the pod's on the uplinks. With no address on the
+// uplinks, systemd-resolved learns no resolver from them, so the edge
+// resolves through global ones.
+//
+// A nexthop on an uplink whose link is down is skipped, since the pod's
+// routes to the ToRs are multipath over both uplinks. No interface takes
+// router advertisements by default, so wan0, which the pod creates, never
+// takes one from upstream.
+func rackEdgeFiles(o rackConvergeOptions) (files, absent []infrav1.RackNodeFile) {
+	var uplinks []string
+	if o.Edge != nil {
+		uplinks = o.Edge.Uplinks
+	}
+	all := []infrav1.RackNodeFile{
+		{Path: rackEdgeUplinksNetworkPath, Group: "network", Content: "[Match]\nDriver=i40e\n\n" + rackEdgeUplinkNetwork},
+		{Path: rackEdgeNetworkdPath, Group: "networkd", Content: `[Network]
+ManageForeignRoutes=no
+ManageForeignRoutingPolicyRules=no
+`},
+		{Path: rackinstall.EdgeResolvedPath, Group: "resolved", Content: rackinstall.EdgeResolvedConf},
+		{Path: rackEdgeSysctlPath, Group: "sysctl", Content: `net.ipv4.conf.all.ignore_routes_with_linkdown = 1
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+`},
+	}
+	for n := 1; n <= rackEdgeMaxUplinks; n++ {
+		f := infrav1.RackNodeFile{Path: rackEdgeUplinkNetworkPath(n), Group: "network"}
+		if n <= len(uplinks) {
+			f.Content = fmt.Sprintf("[Match]\nName=%s\n\n%sVLAN=%s\n", uplinks[n-1], rackEdgeUplinkNetwork, rackinstall.EdgeUplinkMember(rackinstall.EdgeVRRPBond, n))
+		}
+		all = append(all, f)
+	}
+	for _, f := range all {
+		if o.Role == "edge" && f.Content != "" {
+			files = append(files, f)
+		} else {
+			absent = append(absent, infrav1.RackNodeFile{Path: f.Path, Group: f.Group})
+		}
+	}
+	return files, absent
 }

@@ -19,6 +19,17 @@ struct GitHubTests {
         #expect(repo.repo == "swifterpm")
     }
 
+    @Test(arguments: [
+        "HTTPS://GitHub.com/tuist/swifterpm.git",
+        "git@GitHub.com:tuist/swifterpm.git",
+    ])
+    func parsesGitHubLocationsWithMixedCaseHosts(location: String) throws {
+        let repo = try GitHubRepo(location: location)
+
+        #expect(repo.owner == "tuist")
+        #expect(repo.repo == "swifterpm")
+    }
+
     @Test
     func rejectsNonGitHubLocations() {
         #expect(throws: (any Error).self) {
@@ -26,111 +37,56 @@ struct GitHubTests {
         }
     }
 
-    @Test
-    func sourceControlFetchLocationsPreferOriginalThenProviderAlternatives() {
-        #expect(
-            SourceControlLocations.fetchCandidates("https://github.com/tuist/swifterpm") == [
-                "https://github.com/tuist/swifterpm",
-                "https://github.com/tuist/swifterpm.git",
-                "git@github.com:tuist/swifterpm.git",
-            ]
-        )
-        #expect(
-            SourceControlLocations.fetchCandidates("git@github.com:tuist/swifterpm.git") == [
-                "git@github.com:tuist/swifterpm.git",
-                "https://github.com/tuist/swifterpm.git",
-            ]
-        )
-        #expect(
-            SourceControlLocations.fetchCandidates("https://gitlab.com/tuist/swifterpm") == [
-                "https://gitlab.com/tuist/swifterpm",
-                "https://gitlab.com/tuist/swifterpm.git",
-                "git@gitlab.com:tuist/swifterpm.git",
-            ]
-        )
+    @Test(arguments: [
+        "https://github.com/tuist/swifterpm", "git@github.com:acme/private-lib",
+        "https://gitlab.com/tuist/swifterpm", "git@gitlab.com:acme/private-lib.git",
+        "https://mirror.example.com/swifterpm.git",
+    ])
+    func sourceControlFetchPreservesTheDeclaredTransport(location: String) {
+        #expect(SourceControlLocations.fetchCandidates(location) == [location])
     }
 
     @Test
-    func sourceControlFetchLocationsAddHTTPSFallbackForSSHOrigin() {
-        #expect(
-            SourceControlLocations.fetchCandidates(
-                "git@github.com:acme/private-lib"
-            ) == [
-                "git@github.com:acme/private-lib",
-                "https://github.com/acme/private-lib.git",
-                "git@github.com:acme/private-lib.git",
-            ]
-        )
+    func githubAPIRequiresAnExplicitProviderToken() async {
+        #expect(GitHubAuth.envToken(from: ["GITHUB_TOKEN": "ambient", "GH_TOKEN": "ambient"]) == nil)
+        #expect(GitHubAuth.envToken(from: ["SWIFTERPM_GITHUB_TOKEN": " ", "GITHUB_TOKEN": "ambient"]) == nil)
+        #expect(GitHubAuth.envToken(from: ["SWIFTERPM_GITHUB_TOKEN": " explicit "]) == "explicit")
+        await Environment.$values.withValue(["SWIFTERPM_GITHUB_TOKEN": "scoped-token"]) {
+            #expect(await GitHubAuth.token() == "scoped-token")
+        }
+        await Environment.$values.withValue([:]) {
+            #expect(await GitHubAuth.token() == nil)
+        }
     }
 
     @Test
-    func gitHubTransportAuthInjectsBearerTokenAsBasicExtraHeader() {
-        let encoded = Data("x-access-token:ghp_secret".utf8).base64EncodedString()
+    func canonicalLocationsStabilizeProviderLocations() {
         #expect(
-            GitTransportAuth.gitHubArguments(token: "ghp_secret") == [
-                "-c", "http.https://github.com/.extraheader=Authorization: Basic \(encoded)",
-            ]
-        )
-    }
-
-    @Test
-    func gitLabTransportAuthMapsTokenKindsToGitHTTPCredentials() {
-        let privateEncoded = Data("oauth2:glpat_secret".utf8).base64EncodedString()
-        #expect(
-            GitTransportAuth.gitLabArguments(
-                host: "gitlab.com", token: .privateToken("glpat_secret")
-            ) == [
-                "-c", "http.https://gitlab.com/.extraheader=Authorization: Basic \(privateEncoded)",
-            ]
-        )
-
-        let jobEncoded = Data("gitlab-ci-token:job_secret".utf8).base64EncodedString()
-        #expect(
-            GitTransportAuth.gitLabArguments(host: "gitlab.com", token: .jobToken("job_secret")) == [
-                "-c", "http.https://gitlab.com/.extraheader=Authorization: Basic \(jobEncoded)",
-            ]
-        )
-
-        #expect(
-            GitTransportAuth.gitLabArguments(host: "gitlab.com", token: .bearer("oauth_secret")) == [
-                "-c", "http.https://gitlab.com/.extraheader=Authorization: Bearer oauth_secret",
-            ]
-        )
-    }
-
-    @Test
-    func gitTransportAuthAddsNoArgumentsForSSHLocations() async {
-        #expect(await GitTransportAuth.configArguments(for: "git@github.com:acme/private-lib.git") == [])
-    }
-
-    @Test
-    func canonicalResolvedFileLocationsStabilizeProviderLocations() {
-        #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/CombineCommunity/CombineExt.git"
             )
                 == "https://github.com/CombineCommunity/CombineExt"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "git@github.com:DataDog/dd-sdk-ios.git"
             )
                 == "git@github.com:DataDog/dd-sdk-ios"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://gitlab.com/Tuist/SwifterPM.git"
             )
                 == "https://gitlab.com/Tuist/SwifterPM"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "HTTPS://Source.Example.com/Tuist/SwifterPM.git"
             )
                 == "https://source.example.com/Tuist/SwifterPM.git"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "git@Source.Example.com:Tuist/SwifterPM.git"
             )
                 == "git@source.example.com:Tuist/SwifterPM.git"
@@ -138,18 +94,18 @@ struct GitHubTests {
     }
 
     @Test
-    func canonicalResolvedFileLocationsPreserveMixedCaseGitHubOrg() {
+    func canonicalLocationsPreserveMixedCaseGitHubOrg() {
         // Git's url.*.insteadOf rules match case-sensitively, so lowercasing
         // the path breaks CI setups that inject credentials per-org. Only the
         // scheme and host are lowercased; the path keeps its declared casing.
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/Fourthline-com/FourthlineSDK-iOS.git"
             )
                 == "https://github.com/Fourthline-com/FourthlineSDK-iOS"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/Fourthline-com/FourthlineSDK-iOS"
             )
                 == "https://github.com/Fourthline-com/FourthlineSDK-iOS"

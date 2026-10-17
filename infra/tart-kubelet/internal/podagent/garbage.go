@@ -58,6 +58,10 @@ type Collector struct {
 	// ignores it.
 	GoldenRetention time.Duration
 
+	// Images, when set, names the rack image caches pulls may come from, so
+	// an OCI entry pulled through one counts as its upstream repository.
+	Images *ImageSources
+
 	// HostDiskFreeFloor is the root-volume free-space percentage below
 	// which the collector reclaims golden bases even when a Pod still
 	// references their digest. This is the only bound on golden
@@ -511,7 +515,11 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			continue
 		}
 		out.vms[VMNameForPod(pod)] = struct{}{}
-		out.imageRepos[ociRepository(pod.Spec.Containers[0].Image)] = struct{}{}
+		repository := ociRepository(pod.Spec.Containers[0].Image)
+		out.imageRepos[repository] = struct{}{}
+		for _, mirrored := range c.Images.mirroredRepositories(repository) {
+			out.imageRepos[mirrored] = struct{}{}
+		}
 		// Keep the golden base this image clones from. Without this the
 		// "local" GC branch would see the golden VM, find no Pod named
 		// after it, and reap it as an orphan clone — forcing the next

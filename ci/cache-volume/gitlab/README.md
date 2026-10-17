@@ -51,7 +51,8 @@ integration remains independent.
 Volumes are scoped by Tuist account, GitLab instance, immutable project ID, key,
 architecture and UID. Project renames retain data; another instance with the
 same project ID cannot reuse it. Each job receives a private copy, with 20 GB
-capacity and seven-day idle expiration. The client logs warm/cold reuse and the
+capacity and seven-day idle expiration; when saved contents reach 80% of
+capacity and a job runs out of space on them, the next job starts empty. The client logs warm/cold reuse and the
 Tuist dashboard records it. Unavailable storage falls back to an empty directory;
 invalid inputs and nonempty targets fail the step.
 
@@ -65,14 +66,21 @@ used to grant permission. Successful default-branch push, schedule and web
 pipelines can save; tags, merge requests, child and other pipelines cannot.
 Saved changes become available only after the job and local writers are gone.
 
-Tuist embeds GitLab Runner's shell executor in the isolated Linux runner.
+Tuist embeds GitLab Runner's shell executor in the isolated Linux or macOS runner.
 A job's `image:` does not select a Docker executor. Docker child containers
 need explicit private-root mounts and separate validation. macOS support is
 not included. Caches must not contain secrets or irreplaceable data.
 
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
+Linux targets are bind-mounted as ordinary directories. On macOS, targets are
+attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected on macOS because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible on macOS.
+For a macOS
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
 not `.gradle/`, in `.gitignore`). Paths must be a single line without control
 characters; use a plain YAML string instead of `path: |`.
+
+On macOS, use a macOS runner profile. Native jobs are supported; Linux container
+examples do not apply to macOS. Volumes mount in the macOS guest, so a separate
+Docker VM does not inherit them. Built-in Tuist and Xcode caches stay automatic;
+custom volumes use separate empty directories and platform-specific identities.

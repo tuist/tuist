@@ -837,7 +837,7 @@ struct ServerAuthenticationControllerTests {
             type: "account"
         )
         let credentialsBox = TestStore<ServerCredentials?>(
-            .test(accessToken: accessToken.token, refreshToken: refreshToken.token)
+            .test(accessToken: accessToken.token, refreshToken: refreshToken.token, oauthClientID: "self-hosted-client")
         )
         given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in credentialsBox.value }
         given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
@@ -862,6 +862,7 @@ struct ServerAuthenticationControllerTests {
         }
 
         #expect(tokens == [expected, expected])
+        #expect(credentialsBox.value?.oauthClientID == "self-hosted-client")
         verify(refreshOAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(1)
         verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
     }

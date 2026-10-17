@@ -13,7 +13,6 @@ defmodule TuistWeb.TestsLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
-  alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -27,7 +26,12 @@ defmodule TuistWeb.TestsLive do
         :head_title,
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("tests"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Tests"),
+          fallback: "tests"
+        )
+      )
       |> assign_slowest_test_cases()
       |> assign_most_flaky_test_cases()
 
@@ -90,8 +94,7 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -123,8 +126,7 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -207,14 +209,10 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_test_scheme = params["analytics-test-scheme"] || "any"
-    coverage_enabled = FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account)
-
-    analytics_selected_widget = selected_analytics_widget(params["analytics-selected-widget"], coverage_enabled)
-
+    {analytics_test_scheme, duration_scatter_group_by, test_schemes} = test_scheme_options(project, params)
+    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
-    duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -223,7 +221,7 @@ defmodule TuistWeb.TestsLive do
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, environment_label(analytics_environment))
       |> assign(:analytics_test_scheme, analytics_test_scheme)
-      |> assign(:test_schemes, Tests.project_test_schemes(project))
+      |> assign(:test_schemes, test_schemes)
       |> assign(:analytics_preset, preset)
       |> assign(:analytics_period, period)
       |> assign(:analytics_trend_label, trend_label(preset))
@@ -237,14 +235,12 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
-    |> assign(:coverage_enabled, coverage_enabled)
     |> assign_async(
       [
         :test_runs_analytics,
         :flaky_test_runs_analytics,
         :failed_test_runs_analytics,
         :test_runs_duration_analytics,
-        :test_runs_coverage_analytics,
         :analytics_chart_data
       ],
       fn ->
@@ -258,18 +254,12 @@ defmodule TuistWeb.TestsLive do
 
         test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
 
-        test_runs_coverage_analytics =
-          if coverage_enabled,
-            do: Analytics.test_run_coverage_analytics(project.id, opts),
-            else: %{coverage: 0.0, runs_count: 0, trend: nil, dates: [], values: []}
-
         {:ok,
          %{
            test_runs_analytics: test_runs_analytics,
            flaky_test_runs_analytics: flaky_test_runs_analytics,
            failed_test_runs_analytics: failed_test_runs_analytics,
            test_runs_duration_analytics: test_runs_duration_analytics,
-           test_runs_coverage_analytics: test_runs_coverage_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
@@ -277,8 +267,7 @@ defmodule TuistWeb.TestsLive do
                test_runs_analytics,
                flaky_test_runs_analytics,
                failed_test_runs_analytics,
-               test_runs_duration_analytics,
-               test_runs_coverage_analytics
+               test_runs_duration_analytics
              )
          }}
       end
@@ -367,13 +356,9 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_slowest_test_cases(%{assigns: %{selected_project: project}} = socket) do
-    assign_async(socket, :slowest_test_cases, fn ->
-      # `:id` tiebreaker keeps the top-5 order deterministic when several
-      # test cases share the same duration. `:desc_nulls_last` sorts test cases
-      # with too few runs to rank behind the ranked ones, but sorting is not
-      # exclusion: a project with fewer than five ranked cases still fills the
-      # page with unranked ones, and the card would render each as "None". Drop
-      # them, and let the card be short or absent instead.
+    assign_async(socket, [:slowest_test_cases, :unranked_test_cases], fn ->
+      # Keep cases without enough timing samples visible without ranking them
+      # as slow tests or inventing a duration.
       {slowest_test_cases, _meta} =
         Tests.list_test_cases(
           project.id,
@@ -386,9 +371,14 @@ defmodule TuistWeb.TestsLive do
           preload: [:duration_p50_ms]
         )
 
-      slowest_test_cases = Enum.reject(slowest_test_cases, &is_nil(&1.duration_p50_ms))
+      {slowest_test_cases, unranked_test_cases} =
+        Enum.split_with(slowest_test_cases, &(not is_nil(&1.duration_p50_ms)))
 
-      {:ok, %{slowest_test_cases: slowest_test_cases}}
+      {:ok,
+       %{
+         slowest_test_cases: slowest_test_cases,
+         unranked_test_cases: if(slowest_test_cases == [], do: unranked_test_cases, else: [])
+       }}
     end)
   end
 
@@ -406,27 +396,17 @@ defmodule TuistWeb.TestsLive do
     end)
   end
 
-  # The coverage widget is hidden from accounts without coverage, so a link that selects it
-  # falls back to the default widget.
-  defp selected_analytics_widget("coverage", false), do: "test_run_count"
-  defp selected_analytics_widget(nil, _coverage_enabled), do: "test_run_count"
-  defp selected_analytics_widget(widget, _coverage_enabled), do: widget
-
   defp analytics_chart_data(
          analytics_selected_widget,
          selected_duration_type,
          test_runs_analytics,
          flaky_test_runs_analytics,
          failed_test_runs_analytics,
-         test_runs_duration_analytics,
-         test_runs_coverage_analytics
+         test_runs_duration_analytics
        ) do
     case analytics_selected_widget do
       "test_run_count" ->
         %{dates: test_runs_analytics.dates, values: test_runs_analytics.values}
-
-      "coverage" ->
-        %{dates: test_runs_coverage_analytics.dates, values: test_runs_coverage_analytics.values}
 
       "flaky_test_run_count" ->
         %{dates: flaky_test_runs_analytics.dates, values: flaky_test_runs_analytics.values}
@@ -435,17 +415,17 @@ defmodule TuistWeb.TestsLive do
         %{dates: failed_test_runs_analytics.dates, values: failed_test_runs_analytics.values}
 
       _ ->
-        %{
-          dates: test_runs_duration_analytics.dates,
-          values: duration_chart_values(test_runs_duration_analytics, selected_duration_type)
-        }
+        values =
+          case selected_duration_type do
+            "p99" -> test_runs_duration_analytics.p99_values
+            "p90" -> test_runs_duration_analytics.p90_values
+            "p50" -> test_runs_duration_analytics.p50_values
+            _ -> test_runs_duration_analytics.values
+          end
+
+        %{dates: test_runs_duration_analytics.dates, values: values}
     end
   end
-
-  defp duration_chart_values(analytics, "p99"), do: analytics.p99_values
-  defp duration_chart_values(analytics, "p90"), do: analytics.p90_values
-  defp duration_chart_values(analytics, "p50"), do: analytics.p50_values
-  defp duration_chart_values(analytics, _), do: analytics.values
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
@@ -458,6 +438,15 @@ defmodule TuistWeb.TestsLive do
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
   defp environment_label(true), do: dgettext("dashboard_tests", "CI")
   defp environment_label(false), do: dgettext("dashboard_tests", "Local")
+
+  defp test_scheme_options(project, params) do
+    if schemes?(project) do
+      {params["analytics-test-scheme"] || "any", params["duration-scatter-group-by"] || "scheme",
+       Tests.project_test_schemes(project)}
+    else
+      {"any", "environment", []}
+    end
+  end
 
   defp opts_with_analytics_test_scheme(opts, "any"), do: opts
   defp opts_with_analytics_test_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
@@ -501,12 +490,18 @@ defmodule TuistWeb.TestsLive do
   defp scatter_name_label(value, _), do: scheme_value_label(value)
 
   defp test_run_tooltip_extra(meta, project) do
-    [
-      # Not "Scheme": Bazel, Gradle and Once each call this something else.
-      %{label: scheme_label(project), value: scheme_value_label(meta.scheme)},
-      %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
-      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
-    ]
+    # Not "Scheme": Bazel, Gradle and Once each call this something else, and
+    # Mix has nothing of the kind, so its runs do not show one.
+    scheme =
+      if schemes?(project),
+        do: [%{label: scheme_label(project), value: scheme_value_label(meta.scheme)}],
+        else: []
+
+    scheme ++
+      [
+        %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
+        %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+      ]
   end
 
   defp selective_testing_tooltip_extra(meta) do

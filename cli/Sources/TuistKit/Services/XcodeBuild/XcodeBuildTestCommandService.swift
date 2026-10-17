@@ -29,6 +29,9 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadResultBundleService: UploadResultBundleServicing
+    private let testExecutionModeResolver: TestExecutionModeResolving
+    private let testCoverageEvidenceService: TestCoverageEvidenceServicing
+    private let coverageExportService: CoverageExportServicing
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
@@ -48,6 +51,9 @@ struct XcodeBuildTestCommandService {
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+        testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
+        testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
+        coverageExportService: CoverageExportServicing = CoverageExportService(),
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
@@ -66,6 +72,9 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.uploadResultBundleService = uploadResultBundleService
+        self.testExecutionModeResolver = testExecutionModeResolver
+        self.testCoverageEvidenceService = testCoverageEvidenceService
+        self.coverageExportService = coverageExportService
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
@@ -168,8 +177,11 @@ struct XcodeBuildTestCommandService {
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
         let allQuarantinedTests = mutedTests + skippedTests
-        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
+        var xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
+        }
+        if UploadResultBundleService.uploadsCoverage(config: config) {
+            xcodeBuildArgumentsWithSkip = AtomicCoverageCounters.adding(to: xcodeBuildArgumentsWithSkip)
         }
         let parseSummary = mode == .local || stressNewTests != nil
 
@@ -188,7 +200,12 @@ struct XcodeBuildTestCommandService {
         }
 
         do {
-            try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
+            try await runCollectingCoverage(
+                arguments: xcodeBuildArgumentsWithSkip,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                config: config
+            )
         } catch {
             if let derivedDataPath {
                 await processBuildRun(
@@ -244,7 +261,8 @@ struct XcodeBuildTestCommandService {
                 mode: mode,
                 onlyTestIdentifiers: callerOnlyTestIdentifiers,
                 skipTestIdentifiers: callerSkipTestIdentifiers,
-                stressNewTests: stressResult
+                stressNewTests: stressResult,
+                xcodebuildArguments: passthroughXcodebuildArguments
             )
 
             if quarantinePass {
@@ -300,7 +318,8 @@ struct XcodeBuildTestCommandService {
             mode: mode,
             onlyTestIdentifiers: callerOnlyTestIdentifiers,
             skipTestIdentifiers: callerSkipTestIdentifiers,
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            xcodebuildArguments: passthroughXcodebuildArguments
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -389,26 +408,6 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath
             )
         }
-    }
-
-    private func path(
-        passthroughXcodebuildArguments: [String]
-    ) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        if let workspaceOrProjectPath = passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
-            passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
-        {
-            return try AbsolutePath(validating: workspaceOrProjectPath, relativeTo: currentWorkingDirectory)
-        } else {
-            return currentWorkingDirectory
-        }
-    }
-
-    private func rootDirectory() async -> AbsolutePath? {
-        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
-            return nil
-        }
-        return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
 }
 
@@ -544,11 +543,19 @@ extension XcodeBuildTestCommandService {
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
-        stressNewTests: StressNewTestsResult? = nil
+        stressNewTests: StressNewTestsResult? = nil,
+        xcodebuildArguments: [String] = [],
+        schemeTargets: [String: String] = [:]
     ) async {
         guard config.fullHandle != nil else { return }
 
         await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
+        _ = await testExecutionModeResolver.record(
+            resultBundlePath: resultBundlePath,
+            xcodebuildArguments: xcodebuildArguments,
+            derivedDataPath: projectDerivedDataDirectory,
+            schemeTargets: schemeTargets
+        )
 
         do {
             switch mode {
@@ -578,7 +585,8 @@ extension XcodeBuildTestCommandService {
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
                     stressNewTests: stressNewTests?.serverPayload,
-                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? [],
+                    scheme: scheme
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -637,5 +645,68 @@ extension XcodeBuildTestCommandService {
             )
             return ([], [])
         }
+    }
+}
+
+extension XcodeBuildTestCommandService {
+    /// Runs xcodebuild telling the test processes where to record when the run collects evidence, and
+    /// reduces what it wrote, and exports the run's coverage, before anything else (a stress pass)
+    /// runs tests over the same derived data and replaces the profile. The run's own outcome is
+    /// what the caller sees.
+    private func runCollectingCoverage(
+        arguments: [String],
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
+        config: Tuist
+    ) async throws {
+        let session = await testCoverageEvidenceService.prepare(
+            platform: passedValue(for: "-destination", arguments: arguments)
+                .flatMap(TestCoverageEvidencePlatform.init(destination:))
+        )
+        let runStartedAt = Date()
+        var runError: Error?
+        do {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
+                try await xcodeBuildController.run(arguments: arguments)
+            }
+        } catch {
+            runError = error
+        }
+        if let session {
+            _ = await testCoverageEvidenceService.record(
+                session: session,
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: derivedDataPath
+            )
+        }
+        _ = await coverageExportService.export(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataPath,
+            config: config,
+            runStartedAt: runStartedAt
+        )
+        if let runError { throw runError }
+    }
+}
+
+extension XcodeBuildTestCommandService {
+    private func path(
+        passthroughXcodebuildArguments: [String]
+    ) async throws -> AbsolutePath {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        if let workspaceOrProjectPath = passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
+            passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
+        {
+            return try AbsolutePath(validating: workspaceOrProjectPath, relativeTo: currentWorkingDirectory)
+        } else {
+            return currentWorkingDirectory
+        }
+    }
+
+    private func rootDirectory() async -> AbsolutePath? {
+        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
+            return nil
+        }
+        return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
 }

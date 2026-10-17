@@ -44,7 +44,15 @@ public func parseXCResult(
         do {
             var parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
             do {
-                parsed.coverage = try await parseCoverage(path: path, timeout: coverageTimeoutSeconds)
+                // Streamed beside the bundle rather than returned as a term: a large bundle's
+                // per-line counts would not fit the BEAM comfortably, and the processor reads
+                // the file back in chunks.
+                let output = "\(rootDir)/tuist_coverage.ndjson"
+                if let summary = try await parseCoverage(path: path, into: output, timeout: coverageTimeoutSeconds) {
+                    parsed.coveragePath = output
+                    parsed.coveragePartial = summary.partial
+                    parsed.coverageFileCount = summary.fileCount
+                }
             } catch {
                 parsed.coverageError = error.localizedDescription
             }
@@ -62,7 +70,9 @@ public func parseXCResult(
     // `outcome` on that path, so a late write cannot race the value returned.
     let deadline = DispatchTime.now() + .seconds(timeoutSeconds + coverageTimeoutSeconds + 2 * cancellationGraceSeconds)
     guard semaphore.wait(timeout: deadline) == .success else {
-        task.cancel()
+        // Cancelling runs the parse's cancellation handlers on the calling thread. Off this dirty
+        // scheduler, so a handler that never returns cannot keep the scheduler and the job with it.
+        Thread.detachNewThread { task.cancel() }
         return write(
             timedOutMessage(path: path, seconds: timeoutSeconds),
             outputPtr: outputPtr,
@@ -135,12 +145,13 @@ private func parse(path: String, rootDir: String, timeout: Int) async throws -> 
 }
 
 /// Reads the coverage against its own deadline, the same way ``parse`` does.
-private func parseCoverage(path: String, timeout: Int) async throws -> XcodeCoverageReport? {
+private func parseCoverage(path: String, into output: String, timeout: Int) async throws -> XcodeCoverageSummary? {
     let xcresultPath = try AbsolutePath(validating: path)
+    let outputPath = try AbsolutePath(validating: output)
 
-    return try await withThrowingTaskGroup(of: XcodeCoverageReport?.self) { group in
+    return try await withThrowingTaskGroup(of: XcodeCoverageSummary?.self) { group in
         group.addTask {
-            try await XCResultParser().parseCoverage(path: xcresultPath)
+            try await XCResultParser().parseCoverage(path: xcresultPath, into: outputPath)
         }
         group.addTask {
             try await Task.sleep(for: .seconds(timeout))

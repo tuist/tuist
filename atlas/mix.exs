@@ -4,7 +4,7 @@ defmodule Atlas.MixProject do
   def project do
     [
       app: :atlas,
-      version: "0.1.0",
+      version: System.get_env("ATLAS_VERSION", "0.1.0"),
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -81,7 +81,6 @@ defmodule Atlas.MixProject do
       {:xlsx_reader, "~> 0.8"},
       {:mimic, "~> 2.0", only: :test},
       {:tidewave, "~> 0.9", only: :dev},
-      {:hammer, "~> 7.0"},
       {:condukt, github: "tuist/condukt", tag: "1.13.0", override: true},
       {:mail, "~> 0.5"},
       {:multipart, "~> 0.4"},

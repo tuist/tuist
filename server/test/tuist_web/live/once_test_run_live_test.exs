@@ -44,6 +44,62 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     assert row_count(view) == 5
   end
 
+  test "an expired run reads as interrupted and dates from its start", %{
+    project: project,
+    organization: organization,
+    conn: conn
+  } do
+    started_at = ~U[2026-10-05 06:51:41.735000Z]
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test",
+        started_at: started_at
+      })
+
+    run
+    |> Ecto.Changeset.change(finalization: "lost", finalized_at: ~U[2026-10-05 08:00:00.956432Z])
+    |> Tuist.Repo.update!()
+
+    {:ok, view, html} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs/#{run.run_id}")
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-processing]")
+    assert html =~ "Interrupted"
+    refute html =~ "In progress"
+    assert render_async(view, 2_000) =~ "Once stopped reporting before this run finished"
+    assert html =~ "06:51"
+    refute html =~ "08:00"
+  end
+
+  test "a cancelled run reads as cancelled rather than failed", %{
+    project: project,
+    organization: organization,
+    conn: conn
+  } do
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test"
+      })
+
+    run
+    |> Ecto.Changeset.change(finalization: "finalized", exit_status: 1, cancellation_reason: "SIGINT")
+    |> Tuist.Repo.update!()
+
+    {:ok, view, html} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs/#{run.run_id}")
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-failure]")
+    assert html =~ "Cancelled"
+    assert render_async(view, 2_000) =~ "The run was cancelled before it reported any test cases"
+  end
+
   test "the test targets tab lists the suite", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?tab=test-targets")
 

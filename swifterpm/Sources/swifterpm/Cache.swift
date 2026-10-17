@@ -53,7 +53,7 @@ struct Cache: Sendable {
         root
             .appendingPathComponent("archives")
             .appendingPathComponent(
-                "\(Hashing.stable(url))-\(revision).tar.gz")
+                "\(Hashing.stable(SourceControlLocations.canonicalLocation(url)))-\(revision).tar.gz")
     }
 
     /// The path is keyed on what a `Package.resolved` pin already carries, so it can be probed

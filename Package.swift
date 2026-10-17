@@ -46,6 +46,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistCargoCommand",
     "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
@@ -66,6 +67,27 @@ var tuistDependencies: [Target.Dependency] = [
     pathDependency,
     fileSystemDependency,
     swiftToolsSupportDependency,
+]
+#if os(Linux)
+let tuistCargoCacheDependency: Target.Dependency = "TuistCoreCache"
+#else
+let tuistCargoCacheDependency: Target.Dependency = "TuistCore"
+#endif
+var tuistCargoCommandDependencies: [Target.Dependency] = [
+    "TuistCAS",
+    tuistCargoCacheDependency,
+    "TuistREAPI",
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    processDependency,
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    tomlDecoderDependency,
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEnvironment",
+    "TuistServer",
+    "TuistCI",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -731,6 +753,26 @@ var targets: [Target] = [
         path: "cli/Sources/TuistCacheCommand"
     ),
     .target(
+        name: "TuistCI",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSupport",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCI",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCargoCommand",
+        dependencies: tuistCargoCommandDependencies,
+        path: "cli/Sources/TuistCargoCommand",
+        exclude: ["AGENTS.md"]
+    ),
+    .target(
         name: "TuistBazelCommand",
         dependencies: tuistBazelCommandDependencies,
         path: "cli/Sources/TuistBazelCommand"
@@ -1069,6 +1111,8 @@ var targets: [Target] = [
         name: "TuistProcessTests",
         dependencies: [
             "TuistProcess",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
         ],
         path: "cli/Tests/TuistProcessTests"
     ),
@@ -1081,6 +1125,16 @@ var targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Tests/TuistOIDCTests"
+    ),
+    .testTarget(
+        name: "TuistREAPITests",
+        dependencies: [
+            "TuistREAPI",
+            "TuistEnvironmentTesting",
+            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+        ],
+        path: "cli/Tests/TuistREAPITests"
     ),
     .testTarget(
         name: "TuistHTTPTests",
@@ -1210,6 +1264,15 @@ var targets: [Target] = [
         name: "TuistRunnerCommandTests",
         dependencies: [
             "TuistRunnerCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistHTTP",
+            "TuistNooraTesting",
+            "TuistServer",
+            argumentParserDependency,
+            mockableDependency,
         ],
         path: "cli/Tests/TuistRunnerCommandTests"
     ),
@@ -1298,6 +1361,40 @@ targets.append(contentsOf: [
         ]
     ),
 ])
+
+// A separate module keeps canImport(TuistCore) reserved for Xcode-specific functionality.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "TuistCoreCache",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistEnvironment",
+            "TuistSupport",
+        ],
+        path: "cli/Sources/TuistCore/Cache",
+        exclude: [
+            "BinaryCacheVariant.swift",
+            "CacheItem.swift",
+            "FileContentHashing.swift",
+            "GenerationMetadataStore.swift",
+            "ModuleCacheOutput.swift",
+            "TargetContentHashSubhashes.swift",
+        ],
+        sources: [
+            "CacheBudget.swift",
+            "CacheCategory.swift",
+            "CacheDirectoriesProvider.swift",
+            "SupportCachePruner.swift",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
+)
+#endif
 
 // MARK: - macOS-only targets
 
@@ -1738,19 +1835,6 @@ targets.append(contentsOf: [
         ]
     ),
     .target(
-        name: "TuistCI",
-        dependencies: [
-            "TuistSupport",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistCI",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistCASAnalytics",
         dependencies: [
             "TuistEnvironment",
@@ -1833,6 +1917,10 @@ targets.append(
             "Mockable": .staticFramework,
             "Subprocess": .staticFramework,
             "_NIOFileSystem": .staticFramework,
+            // Dynamic, so the observer registers when a test bundle loads even when the bundle
+            // references nothing in it; a static framework would be dropped by the linker.
+            "TestCoverageAttribution": .framework,
+            "TestCoverageAttributionObserver": .framework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -1964,7 +2052,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.1")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.5")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -2008,6 +2096,8 @@ let package = Package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra",
             .upToNextMajor(from: "1.1.0")
         ),
+        // Per-test coverage evidence in the coverage workflow; not in the registry yet.
+        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),

@@ -30,7 +30,85 @@ defmodule Tuist.Kura.StableEndpointTest do
     :ok
   end
 
-  test "production without the feature flag keeps regional URLs and publishes no stable intent" do
+  describe "await_ready/1" do
+    test "publishes and observes stable readiness for a newly active unplaced account" do
+      account = AccountsFixtures.user_fixture().account
+      server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      assert PlacerRegions.all_for(account) == []
+
+      expect(KubernetesController, :sync_stable_endpoint, fn refreshed, region ->
+        assert refreshed.id == server.id
+        assert StableEndpoint.intent(refreshed, region)["stableAdvertise"]
+        {:ok, %{}}
+      end)
+
+      assert :pending = StableEndpoint.await_ready(server.id)
+
+      expect(KubernetesController, :sync_stable_endpoint, fn refreshed, _region ->
+        observe(refreshed, account)
+        :ok
+      end)
+
+      assert :done = StableEndpoint.await_ready(server.id)
+      assert StableEndpoint.ready?(Repo.get!(Server, server.id), StableEndpoint.host(account))
+      assert PlacerRegions.all_for(account) == []
+    end
+
+    test "transient sync failures remain pending and can recover" do
+      account = AccountsFixtures.user_fixture().account
+      server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      expect(KubernetesController, :sync_stable_endpoint, fn _, _ -> {:error, :timeout} end)
+      assert :pending = StableEndpoint.await_ready(server.id)
+      refute StableEndpoint.ready?(Repo.get!(Server, server.id), StableEndpoint.host(account))
+
+      expect(KubernetesController, :sync_stable_endpoint, fn refreshed, _ ->
+        observe(refreshed, account)
+        :ok
+      end)
+
+      assert :done = StableEndpoint.await_ready(server.id)
+    end
+
+    test "a stale or old-generation observation cannot complete polling" do
+      account = AccountsFixtures.user_fixture().account
+      server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      observe(server, account, checked_at: DateTime.add(DateTime.utc_now(), -600, :second))
+
+      expect(KubernetesController, :sync_stable_endpoint, fn refreshed, _ ->
+        observe(refreshed, account, generation: 2)
+        :ok
+      end)
+
+      assert :pending = StableEndpoint.await_ready(server.id)
+    end
+
+    test "a fresh ready route completes without another API request" do
+      account = AccountsFixtures.user_fixture().account
+      server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      observe(server, account)
+      reject(&KubernetesController.sync_stable_endpoint/2)
+      assert :done = StableEndpoint.await_ready(server.id)
+    end
+
+    test "does not republish a draining, moving, unclaimed or private instance" do
+      account = AccountsFixtures.user_fixture().account
+      {:ok, _} = PlacerRegions.put_primary(account, "ca-east")
+      unclaimed = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      private_region = Enum.find(Regions.all(), &Regions.private?/1)
+      private = KuraFixtures.active_server_fixture(AccountsFixtures.user_fixture().account, region: private_region.id)
+      draining = KuraFixtures.active_server_fixture(AccountsFixtures.user_fixture().account, region: "eu-west")
+      draining |> Ecto.Changeset.change(status: :drain_pending) |> Repo.update!()
+      moving = KuraFixtures.active_server_fixture(AccountsFixtures.user_fixture().account, region: "eu-west")
+      moving |> Ecto.Changeset.change(move_phase: :moving_out) |> Repo.update!()
+      reject(&KubernetesController.sync_stable_endpoint/2)
+
+      for id <- [unclaimed.id, private.id, draining.id, moving.id, UUIDv7.generate()] do
+        assert :done = StableEndpoint.await_ready(id)
+      end
+    end
+  end
+
+  test "legacy hand-out stays flagged while stable DNS is published for new clients" do
     account = AccountsFixtures.user_fixture().account
     {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
     server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
@@ -40,10 +118,59 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == [server.url]
 
     assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
-             "stableHost" => "",
-             "stableAWSRegion" => "",
-             "stableAdvertise" => false
+             "stableHost" => StableEndpoint.host(account),
+             "stableAWSRegion" => Regions.get(server.region).provisioner_config.aws_region,
+             "stableAdvertise" => true
            }
+  end
+
+  test "existing instances publish stable DNS without placement rows" do
+    account = AccountsFixtures.user_fixture().account
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    assert PlacerRegions.all_for(account) == []
+    assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
+    observe(server, account)
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{StableEndpoint.host(account)}"]
+    assert PlacerRegions.all_for(account) == []
+  end
+
+  test "batched DNS reconciliation falls back only for accounts without placement rows" do
+    unplaced = AccountsFixtures.user_fixture().account
+    placed = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(placed, "ca-east")
+    {:ok, _} = PlacerRegions.mark_retiring(placed, "ca-east")
+
+    for account <- [unplaced, placed], region <- ["eu-west", "ca-east"] do
+      KuraFixtures.active_server_fixture(account, region: region)
+    end
+
+    owner = self()
+
+    stub(KubernetesController, :sync_stable_endpoint, fn server, region, claimed ->
+      send(owner, {:intent, server.account_id, region.id, StableEndpoint.intent(server, region, claimed)})
+      :ok
+    end)
+
+    StableEndpoint.reconcile()
+
+    for region <- ["eu-west", "ca-east"] do
+      assert_receive {:intent, id, ^region, intent} when id == unplaced.id
+      assert intent["stableAdvertise"]
+    end
+
+    assert_receive {:intent, id, "ca-east", intent} when id == placed.id
+    assert intent["stableAdvertise"]
+    assert_receive {:intent, id, "eu-west", intent} when id == placed.id
+    refute intent["stableAdvertise"]
+    assert intent["stableHost"] == ""
+  end
+
+  test "explicit placement excludes unclaimed instances in direct DNS intent" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "ca-east")
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    refute StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
+    assert StableEndpoint.intent(server, Regions.get(server.region))["stableHost"] == ""
   end
 
   test "production account opt-in does not enable another account" do
@@ -58,7 +185,7 @@ defmodule Tuist.Kura.StableEndpointTest do
       observe(server, account)
       enabled = account.id == opted_in.id
 
-      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
 
       expected = if enabled, do: ["https://#{account.name}.cache.tuist.dev"], else: [server.url]
       assert StableEndpoint.resolve(account, [server.url]) == expected
@@ -77,7 +204,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}-canary.cache.tuist.dev"]
   end
 
-  test "staging uses the account flag for both intent and hand-out" do
+  test "staging publishes stable DNS independently of legacy hand-out" do
     stub(Environment, :env, fn -> :stag end)
     selected = AccountsFixtures.user_fixture().account
     other = AccountsFixtures.user_fixture().account
@@ -89,7 +216,7 @@ defmodule Tuist.Kura.StableEndpointTest do
       observe(server, account)
       enabled = account.id == selected.id
 
-      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
 
       expected = if enabled, do: ["https://#{account.name}-staging.cache.tuist.dev"], else: [server.url]
       assert StableEndpoint.resolve(account, [server.url]) == expected
@@ -162,7 +289,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     refute StableEndpoint.retirement_ready?(server, account)
 
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
-    assert StableEndpoint.retirement_ready?(server, account)
+    refute StableEndpoint.retirement_ready?(server, account)
   end
 
   test "collapse waits for every desired region and keeps custom URLs" do
@@ -372,7 +499,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     refute draining["stableAdvertise"]
   end
 
-  test "disabling an account flag stops hand-out and requests withdrawal" do
+  test "disabling legacy hand-out does not withdraw DNS used by new clients" do
     account = AccountsFixtures.user_fixture().account
     {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
     server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
@@ -385,9 +512,9 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == [server.url]
 
     assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
-             "stableHost" => "",
-             "stableAWSRegion" => "",
-             "stableAdvertise" => false
+             "stableHost" => StableEndpoint.host(account),
+             "stableAWSRegion" => Regions.get(server.region).provisioner_config.aws_region,
+             "stableAdvertise" => true
            }
   end
 

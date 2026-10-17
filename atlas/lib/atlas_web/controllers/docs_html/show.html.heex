@@ -12,12 +12,14 @@
   </nav>
   <div id="docs-layout" data-part="docs-layout">
     <nav id="docs-sidebar" data-part="docs-sidebar" aria-label="Documentation navigation">
+      <div data-part="mobile-category-selector">
+        <.category_selector id="docs-mobile-nav-tabs" category={@page.category} />
+      </div>
       <div data-part="sidebar-scroll">
         <div
           :for={
             section <-
               @pages
-              |> Enum.filter(&(&1.category == @page.category))
               |> Enum.map(& &1.section)
               |> Enum.uniq()
           }
@@ -29,7 +31,7 @@
             <a
               :for={
                 page <-
-                  Enum.filter(@pages, &(&1.category == @page.category and &1.section == section))
+                  Enum.filter(@pages, &(&1.section == section))
               }
               href={if(page.slug == "", do: ~p"/docs", else: ~p"/docs/#{page.slug}")}
               data-part="nav-link"
@@ -37,7 +39,7 @@
             >
               <.tab_menu_vertical
                 data-part="nav-tab"
-                label={page.title}
+                label={page.sidebar_title}
                 data-selected={page.slug == @slug}
               />
             </a>

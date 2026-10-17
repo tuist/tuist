@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -647,7 +648,7 @@ func (r *ScalewayElasticMetalMachineReconciler) event(machine *infrav1.ScalewayE
 
 func (r *ScalewayElasticMetalMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.ScalewayElasticMetalMachine{}).
+		For(&infrav1.ScalewayElasticMetalMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }
 

@@ -173,6 +173,10 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
+  privateReplication:
+    enabled: false
   enabled: false
   stableDNS:
     enabled: false
@@ -194,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -726,6 +731,13 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -1352,6 +1364,25 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # Off until the processor leaves the main release. The server deploy runs
+  # `helm upgrade --atomic --wait` on the whole release, which waits on
+  # every Deployment, so one NotReady processor (a shared Postgres or
+  # ClickHouse outage, or a host that cannot reach its guest) would hold
+  # and roll back every server deploy, including ones that do not touch
+  # the processor.
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
@@ -1431,6 +1462,16 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  vultrPrivateNetwork:
+    enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
+    regions: {}
+  ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
   # Workload kubeconfig CAPI core's cluster cache uses to reach this
   # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
   # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
@@ -1612,6 +1653,71 @@ rackFleet:
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
 
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
+
+  # The rack's VM image cache: a zot registry on each of the rack's storage
+  # nodes that mirrors the runner images, so an image crosses the WAN once per
+  # rack instead of once per mini. Rendered by the rack-nodes chart
+  # (infra/helm/rack-nodes/templates/image-cache.yaml), which a deploy does not
+  # wait on. See "The rack's VM image cache" in infra/rack-nodes/AGENTS.md.
+  imageCache:
+    # Runs the cache on each of `nodes` and keeps `prewarm` synced.
+    enabled: false
+    # The rack hosts (`hosts[].name`) whose tart-kubelet pulls golden bases
+    # through the caches (`--image-mirror`), in the order of `nodes`, before
+    # the upstream; `"*"` routes every host. A cache that is down, does not
+    # hold the image or fails the pull falls back to the upstream. Adding or
+    # removing a host drifts that host only, so one host can carry the cache
+    # before the rest.
+    routeHosts: []
+    # The registry the caches mirror. Only images from it are routed.
+    upstream: ghcr.io
+    # The repositories the caches serve, as zot sync prefixes.
+    repositories:
+      - tuist/tuist-runner
+    # Each storage node that runs a cache, by Node name, and its address on
+    # the machines segment, which the cache binds and the minis pull from.
+    #   - name: ber1-store-a
+    #     address: 10.10.0.11
+    nodes: []
+    port: 5000
+    # The cache's volume on the node's XFS /data (a quota-bounded local-path
+    # volume), also requested as ephemeral-storage so the Kura region on the
+    # same node places its instances around it.
+    storageClass: scw-local-nvme
+    sizeGi: 400
+    # Catalog Xcode versions (`runnersFleet.xcodeVersions`) the caches fetch
+    # as soon as a release names them, rather than on the first pull. Every
+    # other image of `repositories` is fetched on its first pull, which the
+    # hosts that want it wait for together.
+    prewarm: []
+    # How often the prewarm set is asked for again, which is how a release's
+    # new tags reach the cache once a deploy names them.
+    syncInterval: 10m
+    # Tags neither in `prewarm` nor pulled within this long are deleted, and
+    # their blobs collected, so a release's previous images go once the rack
+    # has rolled off them.
+    keepPulledWithin: 24h
+    image:
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.22@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+      pullPolicy: IfNotPresent
+    # The prewarm loop's wget. From ECR Public, so the rack's one egress IP
+    # spends nothing of Docker Hub's anonymous budget.
+    prewarmImage:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
@@ -1635,14 +1741,39 @@ rackFleet:
   #     shelf: s3
   #     positionU: 12
   #     power:                  # the fleet's remote reboot: Apple silicon boots
-  #       driver: shelly        # on power-apply and every host runs
-  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
-  #       outlet: "0"           # cold boot with nobody at a console.
-  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #       pdu: ber1-pdu-b       # on power-apply and every host runs
+  #       outlet: "1"           # `pmset autorestart 1`, so an outlet cycle is
+  #                             # a cold boot with nobody at a console. `pdu`
+  #                             # names a RackPDU (rendered from the site
+  #                             # definition in infra/rack-switch-fleet), whose
+  #                             # outlets are 1-based. A plug that is not a
+  #                             # RackPDU takes `driver` (shelly), `host`,
+  #                             # `outlet` ("0") and `credentialsSecret`
+  #                             # instead.
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
+  #     nodeFleet: ""           # lends the host to another fleet's runner pools:
+  #                             # its Node's tuist.dev/fleet label, which the
+  #                             # rack fleet's own pools then skip
+  #     nodeCluster:            # lends the host to another env: its Node
+  #       kubeconfigItem: ""    # registers in that env's cluster with the
+  #       cacheVolumesURL: ""   # kubeconfig in this 1Password item (field
+  #                             # `kubeconfig`; see "Lending a host to another
+  #                             # env" in infra/rack-nodes/AGENTS.md); drain
+  #                             # the Node first.
+  #                             # cacheVolumesURL is that env's server's
+  #                             # cache-volumes endpoint, empty for none
   hosts: []
+
+  # Rack hosts another env lends this cluster, by Machine name: each gets the
+  # node identity its tart-kubelet registers with here
+  # (templates/rack-joining-nodes.yaml). The lending env sets the host's
+  # `nodeCluster` to a kubeconfig built from its token (see "Lending a host
+  # to another env" in infra/rack-nodes/AGENTS.md). This env runs the rack catalog's pools on them through
+  # `runners` below, with `name` set to the hosts' `nodeFleet`, and does not
+  # enable the fleet itself.
+  joiningNodes: []
 
   # Each host's node sizing. Each field falls back to the operator's global
   # default when unset.
@@ -1656,6 +1787,54 @@ rackFleet:
     # host" (the only setting that fits a 256 GB prototype box) and is
     # deliberately distinguishable from unset, which inherits the global.
     runnerCacheVolumeGiB: null
+
+  # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
+  # entry renders a second macOS pool, on the catalog's default shape, that
+  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # the server's `runner_site` flag have their profiles routed to these pools,
+  # and the server falls back to the rented fleet for a profile the site has no
+  # pool for. The pools select only this fleet, so the runners-controller
+  # apportions this fleet's guest slots among them and among any explicit
+  # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
+  # cannot be newer than its host: every catalog image has to fit the hosts'
+  # macOS.
+  runners:
+    enabled: false
+    # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
+    # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
+    # guestCapacity); the allocator caps the pools' joint sum.
+    autoscaling: {}
+    #   enabled: true
+    #   minWarmPoolFloor: 0
+    #   maxReplicas: 18
+    # rollout:
+    #   maxConcurrentPercent: 5
+    # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
+    xcodeOverrides: {}
+    # A bigger guest on this fleet for a catalog shape, keyed
+    # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
+    # shape still route to it and its jobs are recorded, billed and counted
+    # against concurrency limits at the shape; only its Pods grow. Size the
+    # hosts' `machine` for the guests, and keep memory per vCPU the same across
+    # this fleet's guests so memory binds guest count where CPU does. A guest
+    # smaller than its shape fails the render.
+    guestShapes: {}
+    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
+    # each with its `autoscaling` (and optional `rollout`). A shape not named
+    # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
+    # one, as on the rented fleet.
+    shapes: {}
+    #   12vcpu-28gb:
+    #     autoscaling:
+    #       enabled: true
+    #       minWarmPoolFloor: 0
+    #       maxReplicas: 9
 
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
@@ -1672,12 +1851,29 @@ rackFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
-  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
-  # management segment with no password needs none; leave disabled and omit
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
+  # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
   # `power.credentialsSecret` on the hosts.
   powerExternalSecret:
     enabled: false
-    item: BER1_PDU
+    item: ""
     secretName: ""       # default: <fleet-name>-power
     refreshInterval: 1h
     storeRef:
@@ -1732,11 +1928,20 @@ rackLinuxFleet:
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange
   #       gateway: 192.168.50.1  # default: amt.gateway
+  # An edge's way out on the first boot of an install (spec.edge) comes from
+  # rack-sites/<site>.yaml, which `mise run rack:fleet render` writes from the
+  # site definition, not from here.
   hosts: []
 
   # Intel AMT. The operator activates, in admin control mode, the AMT of each
@@ -1764,6 +1969,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1803,6 +2010,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -2178,6 +2387,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
@@ -2466,10 +2677,12 @@ runnersFleet:
   # is true; the chart fails the render with an empty list.
   pools: []
     # Example entry. Defaults are applied per field; only `name`,
-    # `runnerImage`, and `dispatchLabel` are required.
+    # `runnerImage` (or `xcodeVersion`), and `dispatchLabel` are required.
     # - name: default          # Suffix for the RunnerPool CR name.
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
-    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   runnerImage: ""        # Required unless xcodeVersion is set. Digest-pinned in production.
+    #   xcodeVersion: ""       # Instead of runnerImage: the catalog image for this Xcode,
+    #                          # which follows runnerImageSemver and xcodeOverrides[].imageTag.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   # GitHub runner labels stamped at JIT-mint time, in addition
     #   # to `dispatchLabel` (always appended). Defaults per-OS in
@@ -2842,6 +3055,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in
@@ -3314,9 +3528,12 @@ clickhouse:
       # Under the default object-storage bucket, then the namespace, so
       # environments sharing a bucket cannot restore over each other.
       prefix: clickhouse-backups
-      # Six hours. Long enough for a full of a dataset this size, short enough
-      # that a wedged backup does not block the next one indefinitely.
-      timeoutSeconds: 21600
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
       # Memory budget for the `backup` user the jobs run as, which is separate
       # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
       # leaves the user unbounded below the server's own ceiling.
@@ -3714,3 +3931,16 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+
+# One global wildcard fallback; explicit account Route53 records take precedence.
+# Enable in one cluster only after validation. No PVCs or Kubernetes API token.
+kuraActivation:
+  enabled: false
+  nodeSelector: {}
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
+  servers:
+    production: https://tuist.dev
+    canary: https://canary.tuist.dev
+    staging: https://staging.tuist.dev

@@ -8,6 +8,7 @@ defmodule TuistWeb.OnceRunLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.VCSLinks, only: [source_file_link: 1]
   import TuistWeb.Widget
 
   alias Noora.Filter
@@ -19,7 +20,7 @@ defmodule TuistWeb.OnceRunLive do
   @refresh_interval_ms 1_000
 
   def mount(%{"once_run_id" => run_id}, _session, socket) do
-    project = socket.assigns.selected_project
+    project = Tuist.Repo.preload(socket.assigns.selected_project, vcs_connection: :github_app_installation)
 
     case OnceEvents.get_run(project.id, run_id) do
       nil ->
@@ -37,11 +38,18 @@ defmodule TuistWeb.OnceRunLive do
 
         {:ok,
          assign(socket,
+           selected_project: project,
            run: run,
+           failure_category: Tuist.BuildMetrics.failure_category(project.id, "once", run.run_id),
            available_filters: define_filters(),
            cache: OnceEvents.cache_summary(run),
-           cache_detail_metrics: OnceEvents.cache_detail_metrics(run),
+           # Filled by `load_cache/1` when the Cache tab is the one shown.
+           cache_detail_metrics: nil,
            cache_events: [],
+           actions: [],
+           action_count: 0,
+           total_pages: 1,
+           page: 1,
            cache_current_page: 1,
            cache_total_pages: 1,
            refresh_scheduled?: false,
@@ -86,8 +94,7 @@ defmodule TuistWeb.OnceRunLive do
        cache_sort_by: one_of(query["cache_sort_by"], @cache_sort_fields, "observed"),
        cache_sort_order: one_of(query["cache_sort_order"], ["asc"], "desc")
      )
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   # Called from the render, where the cache assigns are only present once
@@ -176,12 +183,22 @@ defmodule TuistWeb.OnceRunLive do
     {:noreply,
      socket
      |> assign(:run, run || socket.assigns.run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(socket.assigns.selected_project.id, "once", socket.assigns.run.run_id)
+     )
      |> assign(:refresh_scheduled?, false)
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
+
+  # Each tab renders only its own data, so only that tab's queries run. The
+  # Overview used to compute the Cache tab's page, count and detail metrics on
+  # every load and every refresh, and the reverse, although neither was shown.
+  # Switching tabs is a patch, which runs `handle_params/3` and loads the other.
+  defp load_tab(%{assigns: %{live_action: :cache}} = socket), do: load_cache(socket)
+  defp load_tab(socket), do: load_actions(socket)
 
   defp schedule_refresh(%{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
 
@@ -212,12 +229,24 @@ defmodule TuistWeb.OnceRunLive do
               <div data-part="icon"><.circle_check /></div>
             </div>
             <div
-              :if={@run.finalization == "finalized" and @run.exit_status not in [nil, 0]}
+              :if={
+                @run.finalization == "finalized" and @run.exit_status not in [nil, 0] and
+                  is_nil(@run.cancellation_reason)
+              }
               data-part="badge-failure"
             >
               <div data-part="icon"><.alert_circle /></div>
             </div>
-            <div :if={@run.finalization != "finalized"} data-part="badge-processing">
+            <div
+              :if={
+                @run.finalization == "lost" or
+                  (is_binary(@run.cancellation_reason) and @run.exit_status != 0)
+              }
+              data-part="badge-warning"
+            >
+              <div data-part="icon"><.alert_hexagon /></div>
+            </div>
+            <div :if={@run.finalization not in ["finalized", "lost"]} data-part="badge-processing">
               <div data-part="icon"><.circle_dashed /></div>
             </div>
             <h1 data-part="label">{run_title(@run)}</h1>
@@ -240,6 +269,7 @@ defmodule TuistWeb.OnceRunLive do
       </.tab_menu_horizontal>
       <.once_cache_tab
         :if={@live_action == :cache}
+        project={@selected_project}
         run={@run}
         cache={@cache}
         cache_detail_metrics={@cache_detail_metrics}
@@ -342,6 +372,7 @@ defmodule TuistWeb.OnceRunLive do
                 </div>
               </div>
             </div>
+            <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
           </.card_section>
         </.card>
 
@@ -357,7 +388,7 @@ defmodule TuistWeb.OnceRunLive do
                   type="search"
                   id="once-actions-search"
                   name="search"
-                  placeholder={dgettext("dashboard_projects", "Search actions or targets...")}
+                  placeholder={dgettext("dashboard_projects", "Search actions, targets or files...")}
                   show_suffix={false}
                   value={@search}
                   phx-debounce="200"
@@ -384,6 +415,17 @@ defmodule TuistWeb.OnceRunLive do
                   <.text_and_description_cell
                     label={action_label(action)}
                     description={action.target_execution_id}
+                  />
+                </:col>
+                <:col
+                  :let={action}
+                  :if={Enum.any?(@actions, &(&1.source_files != []))}
+                  label={dgettext("dashboard_projects", "Source files")}
+                >
+                  <.action_source_files
+                    files={action.source_files}
+                    project={@selected_project}
+                    run={@run}
                   />
                 </:col>
                 <:col
@@ -464,6 +506,7 @@ defmodule TuistWeb.OnceRunLive do
     """
   end
 
+  attr :project, :map, required: true
   attr :run, :map, required: true
   attr :cache, :map, required: true
   attr :cache_detail_metrics, :map, required: true
@@ -767,6 +810,16 @@ defmodule TuistWeb.OnceRunLive do
             </:col>
             <:col
               :let={event}
+              :if={
+                @selected_cache_view == "actions" and
+                  Enum.any?(@cache_events, &(&1.source_files != []))
+              }
+              label={dgettext("dashboard_projects", "Source files")}
+            >
+              <.action_source_files files={event.source_files} project={@project} run={@run} />
+            </:col>
+            <:col
+              :let={event}
               :if={@selected_cache_view == "content-objects"}
               label={dgettext("dashboard_projects", "Key")}
             >
@@ -853,6 +906,8 @@ defmodule TuistWeb.OnceRunLive do
     query = URI.encode_query(%{"cache_view" => view, "cache_search" => search})
     path <> "/cache?" <> query
   end
+
+  defp event_action_label(%{action_display_name: name}) when is_binary(name) and name != "", do: name
 
   defp event_action_label(%{action_identifier: identifier}) when is_binary(identifier) and identifier != "" do
     action_mnemonic(identifier)
@@ -1183,7 +1238,9 @@ defmodule TuistWeb.OnceRunLive do
     dgettext("dashboard_projects", "No actions match your search or filters")
   end
 
-  defp empty_title(%{run: %{finalization: "finalized"}}), do: dgettext("dashboard_projects", "No actions recorded")
+  defp empty_title(%{run: %{finalization: finalization}}) when finalization in ["finalized", "lost"],
+    do: dgettext("dashboard_projects", "No actions recorded")
+
   defp empty_title(_), do: dgettext("dashboard_projects", "Waiting for actions…")
 
   defp redacted_command?(run), do: String.contains?(run.command_display || "", "⟨opaque⟩")
@@ -1215,12 +1272,25 @@ defmodule TuistWeb.OnceRunLive do
 
   defp run_status_label(%{finalization: "finalized", exit_status: 0}), do: dgettext("dashboard_builds", "Passed")
 
+  # Checked before the failure clause: a cancelled run reports exit status 1.
+  defp run_status_label(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: dgettext("dashboard_projects", "Cancelled")
+
   defp run_status_label(%{finalization: "finalized"}), do: dgettext("dashboard_builds", "Failed")
+
+  # `lost` is terminal: Once stopped reporting (a killed process or a
+  # cancelled CI job) and the server expired the run, so it will never finish.
+  defp run_status_label(%{finalization: "lost"}), do: dgettext("dashboard_projects", "Interrupted")
 
   defp run_status_label(_), do: dgettext("dashboard_projects", "Running")
 
   defp run_status_badge_color(%{finalization: "finalized", exit_status: 0}), do: "success"
+
+  defp run_status_badge_color(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: "warning"
+
   defp run_status_badge_color(%{finalization: "finalized"}), do: "destructive"
+  defp run_status_badge_color(%{finalization: "lost"}), do: "warning"
   defp run_status_badge_color(_), do: "primary"
 
   # (Above is for the fill Badge which accepts destructive/primary; the
@@ -1231,6 +1301,36 @@ defmodule TuistWeb.OnceRunLive do
   defp action_status_variant(%{result: "failed"}), do: "error"
   defp action_status_variant(_), do: "in_progress"
 
+  attr :files, :list, required: true
+  attr :project, :map, required: true
+  attr :run, :map, required: true
+
+  defp action_source_files(assigns) do
+    assigns =
+      assigns
+      |> assign(:preview, Enum.take(assigns.files, 3))
+      |> assign(:remaining_count, max(length(assigns.files) - 3, 0))
+
+    ~H"""
+    <div data-part="cell" data-type="text" data-source-files>
+      <span :if={@preview == []} data-part="label">—</span>
+      <span :for={file <- @preview} data-part="label" title={file}>
+        <.source_file_link project={@project} path={file} commit_sha={@run.git_rev} />
+      </span>
+      <span :if={@remaining_count > 0} data-part="sublabel">
+        {dngettext(
+          "dashboard_projects",
+          "%{display_count} more file",
+          "%{display_count} more files",
+          @remaining_count,
+          display_count: format_number(@remaining_count)
+        )}
+      </span>
+    </div>
+    """
+  end
+
+  defp action_label(%{display_name: name}) when is_binary(name) and name != "", do: name
   defp action_label(%{identifier: identifier}) when is_binary(identifier) and identifier != "", do: identifier
 
   defp action_label(%{action_index: index}) do

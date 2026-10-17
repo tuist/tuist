@@ -6,9 +6,106 @@ defmodule TuistWeb.TestsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.Test.Buffer
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @render_async_timeout 1_000
+
+  for build_system <- [:mix, :xcode, :gradle, :bazel, :cargo] do
+    test "shows #{build_system} test cases before they have enough duration samples", %{
+      conn: conn,
+      project: project
+    } do
+      project =
+        project
+        |> Ecto.Changeset.change(build_system: unquote(build_system))
+        |> Tuist.Repo.update!()
+
+      {:ok, _} =
+        Tuist.Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 100,
+          status: "success",
+          scheme: "",
+          ran_at: DateTime.utc_now(),
+          is_ci: false,
+          build_system: Atom.to_string(unquote(build_system)),
+          test_modules: [
+            %{
+              name: "FreshTests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "first_sample", test_suite_name: "", status: "success", duration: 100}
+              ]
+            }
+          ]
+        })
+
+      Buffer.flush()
+
+      {:ok, lv, _} = live(conn, ~p"/#{project.account.name}/#{project.name}/tests")
+      render_async(lv, 5_000)
+
+      assert has_element?(lv, "[data-part='test-cases'] .test-case-card", "first_sample")
+      refute has_element?(lv, "[data-part='test-cases']", "No test cases yet")
+      refute has_element?(lv, "[data-part='test-cases']", "Slowest test cases")
+      refute has_element?(lv, ".test-case-card [data-part='duration']")
+    end
+  end
+
+  test "Cargo omits the redundant command selector and ignores legacy scheme filters", %{conn: conn, project: project} do
+    project = project |> Ecto.Changeset.change(build_system: :cargo) |> Tuist.Repo.update!()
+
+    ids =
+      for label <- ["nextest", "ci"] do
+        id = UUIDv7.generate()
+
+        {:ok, _} =
+          Tuist.Tests.create_test(%{
+            id: id,
+            project_id: project.id,
+            account_id: project.account_id,
+            duration: 1000,
+            status: "success",
+            scheme: label,
+            ran_at: DateTime.add(DateTime.utc_now(), -1, :minute),
+            is_ci: false,
+            build_system: "cargo",
+            test_modules: []
+          })
+
+        id
+      end
+
+    Buffer.flush()
+    base = ~p"/#{project.account.name}/#{project.name}/tests"
+    {:ok, view, _} = live(conn, base <> "?analytics-test-scheme=nextest&duration-scatter-group-by=scheme")
+    html = render_async(view, 5000)
+    refute has_element?(view, "#tests-analytics-scheme-dropdown")
+    assert html =~ "cargo nextest run"
+    assert html =~ "cargo nextest run · ci"
+    for id <- ids, do: assert(html =~ id)
+
+    expect(Tuist.Tests.Analytics, :test_run_duration_scatter_data, fn project_id, opts ->
+      assert project_id == project.id
+      assert opts[:group_by] == :environment
+      refute Keyword.has_key?(opts, :scheme)
+      %{series: [], truncated: false, oldest_entry: nil}
+    end)
+
+    render_patch(
+      view,
+      base <>
+        "?analytics-test-scheme=missing&analytics-selected-widget=test_run_duration&duration-chart-type=scatter&duration-scatter-group-by=scheme"
+    )
+
+    html = render_async(view, 5000)
+    for id <- ids, do: assert(html =~ id)
+    refute has_element?(view, "#tests-analytics-scheme-dropdown")
+  end
 
   test "a Once project's runs column is headed Run, not Scheme", %{conn: conn, project: project} do
     # Once has no schemes. The shared `scheme` column carries the command the
@@ -40,7 +137,7 @@ defmodule TuistWeb.TestsLiveTest do
         ]
       })
 
-    Tuist.Tests.Test.Buffer.flush()
+    Buffer.flush()
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{once_project.account.name}/#{once_project.name}/tests")
@@ -73,104 +170,6 @@ defmodule TuistWeb.TestsLiveTest do
     assert has_element?(lv, "#tests-analytics-scheme-dropdown [data-part='search-input']")
   end
 
-  test "renders the line coverage widget from the runs that gathered coverage", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, _} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        # The period ends at the mount's second, so a run stamped in the same second
-        # with microseconds would fall just outside it.
-        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: %{
-          partial: false,
-          files: [
-            %{
-              path: "Sources/Add.swift",
-              git_blob_id: "abc",
-              targets: ["Calculator"],
-              covered_lines: 3,
-              executable_lines: 4,
-              line_numbers: [1, 2, 3, 4],
-              execution_counts: [1, 1, 1, 0],
-              functions: []
-            }
-          ]
-        }
-      })
-
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
-    render_async(lv, @render_async_timeout)
-
-    assert has_element?(lv, "#widget-coverage", "75.0%")
-  end
-
-  test "hides the line coverage widget from an account without the xcode_coverage flag", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
-
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests?analytics-selected-widget=coverage")
-
-    render_async(lv, @render_async_timeout)
-
-    refute has_element?(lv, "#widget-coverage")
-    refute has_element?(lv, "#coverage-chart")
-  end
-
-  test "leaves partial runs out of the line coverage widget", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, _} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: %{
-          partial: true,
-          files: [
-            %{
-              path: "Sources/Add.swift",
-              git_blob_id: "abc",
-              targets: ["Calculator"],
-              covered_lines: 1,
-              executable_lines: 4,
-              line_numbers: [1, 2, 3, 4],
-              execution_counts: [1, 0, 0, 0],
-              functions: []
-            }
-          ]
-        }
-      })
-
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
-    render_async(lv, @render_async_timeout)
-
-    refute has_element?(lv, "#widget-coverage", "25.0%")
-  end
-
   test "renders the shared test dashboard for Bazel projects", %{
     conn: conn,
     organization: organization
@@ -183,5 +182,22 @@ defmodule TuistWeb.TestsLiveTest do
     assert has_element?(lv, "[data-part='analytics']")
     assert has_element?(lv, "#tests-analytics-scheme-dropdown", "Invocation:")
     refute has_element?(lv, "[data-part='selective-testing']")
+  end
+
+  test "lists Code Coverage in the sidebar only for Xcode and Mix projects", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
+
+    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+      coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
+
+      assert has_element?(lv, "a[href='#{coverage_path}']") == visible?,
+             "expected Code Coverage visible?=#{visible?} for #{build_system} projects"
+    end
   end
 end

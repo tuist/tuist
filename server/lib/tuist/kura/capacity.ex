@@ -24,11 +24,11 @@ defmodule Tuist.Kura.Capacity do
       reading over every resource the pod requests, because the scheduler
       declines per node and the resource that binds differs by region, and the
       region-level headroom `Tuist.Kura.Admission` creates instances against.
-    * whether a particular instance can be placed or grown where it already
+    * whether a particular instance can be placed, or grown from where it
       is (`placeable?/2`), so admission refuses a claim the scheduler will not
       be able to honour rather than leaving a replica Pending and its rolling
-      rebuild deadlocked. Per node again, and counting back what the
-      instance's own replicas release, because a resize replaces them.
+      rebuild stalled. Per node again, replaying the rebuild one replica at a
+      time, each handing back what it holds before its replacement is placed.
 
   Reservations rather than live usage on purpose. A freshly provisioned
   instance holds almost nothing and fills over days, so a region full of new
@@ -46,6 +46,7 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.Accounts.Account
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kubernetes.Quantity
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Identity
@@ -420,67 +421,7 @@ defmodule Tuist.Kura.Capacity do
 
   defp allocatable_bytes(_node), do: 0
 
-  @binary_suffixes %{
-    "Ki" => 1024,
-    "Mi" => 1024 ** 2,
-    "Gi" => 1024 ** 3,
-    "Ti" => 1024 ** 4,
-    "Pi" => 1024 ** 5,
-    "Ei" => 1024 ** 6
-  }
-  @decimal_exponents %{
-    "n" => -9,
-    "u" => -6,
-    "m" => -3,
-    "" => 0,
-    "k" => 3,
-    "M" => 6,
-    "G" => 9,
-    "T" => 12,
-    "P" => 15,
-    "E" => 18
-  }
-
-  # A Kubernetes quantity in whole units, at `scale` units per unit of the
-  # quantity: bytes for a storage quantity, millicores for a CPU one read at a
-  # thousand. The API keeps a quantity in whatever form it was written rather
-  # than a canonical one -- a decimal number with a binary suffix (`Ki` to
-  # `Ei`), a decimal one (`n` to `E`) or an exponent (`e3`) -- so every form
-  # is read, and a node whose eviction threshold left it `858993459200000m`
-  # of disk is read as the 800 GiB it has. Rounded down: a fraction of a byte
-  # or a millicore decides nothing.
-  defp parse_quantity(quantity, scale \\ 1)
-
-  defp parse_quantity(quantity, scale) when is_binary(quantity) do
-    with [_match, whole, fraction, suffix] <- Regex.run(~r/^\+?(\d+)(?:\.(\d*))?(.*)$/, quantity),
-         {numerator, denominator} <- multiplier(suffix) do
-      digits = String.to_integer(whole <> fraction)
-
-      div(digits * numerator * scale, Integer.pow(10, String.length(fraction)) * denominator)
-    else
-      _ -> nil
-    end
-  end
-
-  defp parse_quantity(quantity, scale) when is_integer(quantity), do: quantity * scale
-  defp parse_quantity(_quantity, _scale), do: nil
-
-  defp multiplier(suffix) when is_map_key(@binary_suffixes, suffix), do: {Map.fetch!(@binary_suffixes, suffix), 1}
-
-  defp multiplier(suffix) when is_map_key(@decimal_exponents, suffix),
-    do: power_of_ten(Map.fetch!(@decimal_exponents, suffix))
-
-  defp multiplier(<<e, exponent::binary>>) when e in [?e, ?E] do
-    case Integer.parse(exponent) do
-      {exponent, ""} -> power_of_ten(exponent)
-      _ -> :error
-    end
-  end
-
-  defp multiplier(_suffix), do: :error
-
-  defp power_of_ten(exponent) when exponent >= 0, do: {Integer.pow(10, exponent), 1}
-  defp power_of_ten(exponent), do: {1, Integer.pow(10, -exponent)}
+  defp parse_quantity(quantity, scale \\ 1), do: Quantity.parse(quantity, scale)
 
   @doc """
   Gibibytes of the region's disk its pods have reserved, or `nil` when the
@@ -490,6 +431,9 @@ defmodule Tuist.Kura.Capacity do
   from this repo's rows: it is the number the scheduler places against, it
   already accounts for replicas and for anything else sharing the region's
   nodes, and it cannot disagree with the cluster the way a parallel model can.
+  Retained volumes on the region's nodes count as well
+  (`retained_volume_bytes_by_node/1`): the scheduler cannot see them, but the
+  disk they hold is gone all the same.
   """
   def reserved_gib(region_id) do
     KeyValueStore.get_or_update(
@@ -500,18 +444,149 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib(region_id) do
-    case Client.list_pods(@namespace, region_selector(region_id)) do
-      {:ok, pods} ->
-        pods
-        |> Enum.reject(&terminal?/1)
-        |> Enum.map(&requested_bytes/1)
-        |> Enum.sum()
-        |> div(@gib)
+    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+         retained when is_map(retained) <- retained_volume_bytes_by_node(region_id) do
+      pods
+      |> Enum.reject(&terminal?/1)
+      |> Enum.map(&requested_bytes/1)
+      |> Enum.concat(Map.values(retained))
+      |> Enum.sum()
+      |> div(@gib)
+    else
+      _ -> nil
+    end
+  end
 
-      {:error, _reason} ->
+  @doc """
+  Gibibytes the region's pods have reserved, by the instance they belong to
+  (`app.kubernetes.io/instance`, which is a server's `provisioner_node_ref`),
+  or `nil` when the cluster cannot be read.
+
+  Keyed so a reading can be matched against the rows it describes: a pod with
+  no row still holds its disk, and a row whose pods do not exist yet will.
+
+  A node-local volume that no claim is bound to any more counts too, under
+  `persistentvolume/<name>`, because its directory still sits on the node's
+  disk with nothing scheduled against it (see `retained_volume_bytes_by_node/1`).
+  """
+  def reserved_gib_by_instance(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "reserved_gib_by_instance", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_reserved_gib_by_instance(region_id) end
+    )
+  end
+
+  defp measure_reserved_gib_by_instance(region_id) do
+    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+         {:ok, volumes} <- retained_volumes(region_id) do
+      pods
+      |> Enum.reject(&terminal?/1)
+      |> Enum.group_by(&get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]), &requested_bytes/1)
+      |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
+      |> Map.merge(Map.new(volumes, fn volume -> {"persistentvolume/" <> volume.name, div(volume.bytes, @gib)} end))
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Bytes of node-local volumes on each of the region's nodes that no claim is
+  bound to, by node, or `nil` when the cluster cannot be read.
+
+  The data volume of a cache replica is a directory on its node's disk, held
+  to its size by a filesystem quota. While a pod requests it, that request is
+  what the scheduler and admission count. A volume whose claim is gone keeps
+  its directory and its quota with nothing requesting either: a replica
+  quarantined by serving-authority recovery is retained until an operator
+  decides what to do with it, and nothing deletes it in the meantime. Counted
+  at the size it was provisioned at, which is what its quota lets it hold.
+
+  Only volumes pinned to a node of the region count, so a volume left behind
+  on a machine that has left the pool, whose disk is gone with it, does not.
+  """
+  def retained_volume_bytes_by_node(region_id) do
+    case retained_volumes(region_id) do
+      {:ok, volumes} ->
+        volumes
+        |> Enum.group_by(& &1.node, & &1.bytes)
+        |> Map.new(fn {node, bytes} -> {node, Enum.sum(bytes)} end)
+
+      _ ->
         nil
     end
   end
+
+  defp retained_volumes(region_id) do
+    cached([__MODULE__, "retained_volumes", region_id], fn -> measure_retained_volumes(region_id) end)
+  end
+
+  defp measure_retained_volumes(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, volumes} <- Client.list_persistent_volumes(timeout: @read_timeout),
+         unbound = unbound_local_volumes(volumes),
+         {:ok, nodes} <- if(unbound == [], do: {:ok, MapSet.new()}, else: region_node_names(region)) do
+      {:ok, Enum.filter(unbound, &MapSet.member?(nodes, &1.node))}
+    else
+      _ -> :error
+    end
+  end
+
+  defp unbound_local_volumes(volumes) do
+    Enum.flat_map(volumes, fn volume ->
+      case local_volume_node(volume) do
+        node when is_binary(node) ->
+          if bound?(volume),
+            do: [],
+            else: [%{name: get_in(volume, ["metadata", "name"]), node: node, bytes: volume_bytes(volume)}]
+
+        nil ->
+          []
+      end
+    end)
+  end
+
+  # A region that pins its instances to no pool has no nodes of its own to
+  # attribute a volume to.
+  defp region_node_names(region) do
+    case Regions.node_label_selector(region) do
+      nil ->
+        {:ok, MapSet.new()}
+
+      selector ->
+        case Client.list_nodes(selector, timeout: @read_timeout) do
+          {:ok, %{"items" => items}} -> {:ok, MapSet.new(items, &node_name/1)}
+          _ -> :error
+        end
+    end
+  end
+
+  # Every phase but Bound: Released (its claim was deleted), Available (never
+  # claimed, or unclaimed by hand) and Failed all leave the directory behind.
+  defp bound?(%{"status" => %{"phase" => "Bound"}}), do: true
+  defp bound?(_volume), do: false
+
+  # The local-path provisioner pins each volume to the node its directory is
+  # on with a required `kubernetes.io/hostname` affinity. A volume without one
+  # is not on a node's disk.
+  defp local_volume_node(%{"spec" => %{"nodeAffinity" => %{"required" => %{"nodeSelectorTerms" => terms}}}})
+       when is_list(terms) do
+    Enum.find_value(terms, fn
+      %{"matchExpressions" => expressions} when is_list(expressions) ->
+        Enum.find_value(expressions, fn
+          %{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]} -> node
+          _expression -> nil
+        end)
+
+      _term ->
+        nil
+    end)
+  end
+
+  defp local_volume_node(_volume), do: nil
+
+  defp volume_bytes(%{"spec" => %{"capacity" => %{"storage" => quantity}}}), do: parse_quantity(quantity) || 0
+  defp volume_bytes(_volume), do: 0
 
   # A pod that has run to completion or been evicted holds no directory, and
   # the scheduler counts neither against the node.
@@ -538,34 +613,40 @@ defmodule Tuist.Kura.Capacity do
   The region totals above cannot answer this. They compare one sum against
   another, and the scheduler places each replica whole on one node, so a
   region with room to spare in aggregate can have no node that takes a
-  replica. On 2026-09-11 one did: 646 GiB of headroom spread over three boxes
-  with 649, 143 and 117 GiB free, and an instance whose two replicas their
-  local volumes pinned to the 117.
+  replica.
 
   Two questions, because an instance that is already running is not placed
   the way a new one is:
 
-    * every box the instance's replicas sit on has to hold them at the new
-      size. A local volume pins its pod to its box, and neither side of that
-      will yield: the claim does not release while the pod references it, and
-      the pod does not schedule while the claim pins it. What the replicas
-      reserve today is counted back, because the rebuild hands it in before
-      asking for the replacement. Leaving it out would refuse resizes that
-      plainly fit.
+    * an instance with replicas placed grows the way the kura-controller
+      resizes it. The storage class cannot expand a volume, so for each replica
+      whose data claim is smaller than the new one the controller deletes the
+      claim and the pod, the StatefulSet recreates both, and it moves on to the
+      next ordinal only once that one is serving again. The new claim is
+      unbound until its pod is scheduled, so the rebuilt replica lands on
+      whichever node of the pool has room for everything it requests, beside
+      its sibling when that node does. A replica whose claim is already at
+      least the new size, left over from a shrink, keeps its volume and only
+      restarts at the new request, on the node that volume is bound to, once
+      the rebuilds are done. This replays that sequence: each replica below the
+      new request, rebuilt ones in ordinal order and then kept ones, hands back
+      what it holds on its node, then needs a node with room for the new
+      request, which is charged before the next replica's turn. A sibling
+      whose turn has not come keeps its old reservation where it is. The
+      instance is placeable when every turn finds a node.
     * an instance with nothing placed has to fit whole somewhere. Its
       replicas split across nodes if no single node takes them all, because
       the controller's affinity only prefers co-location.
 
-  A box is charged for every replica the region declares that no other box
-  holds, not only for the ones it holds right now. A rollout replaces replicas
-  one at a time, and the one between deletion and recreation is in no pod list
-  while its volume is still bringing it back to the box it left. Read without
-  it, a box mid-rollout looks like it only has to hold what is left, and admits
-  a raise the returning replica cannot fit beside its sibling.
+  A replica the region declares that no node holds takes its turn first, with
+  nothing to hand back. It is either the one a resize already rebuilt, waiting
+  for a node, which the controller finishes before touching another, or one a
+  rollout is recreating, which needs the new claim somewhere before the resize
+  is done either way.
 
   One reading, per node, of everything scheduled there at its effective
   request, whoever owns it: the one `room_for?/2` reads. The account's own
-  replicas are picked out of those same pods, so what is counted back is
+  replicas are picked out of those same pods, so what is handed back is
   always something that reading already charged to the node. Read against what
   the node makes allocatable rather than against the pressure line the region
   reads against, because this answers what the scheduler will do; holding it
@@ -575,11 +656,11 @@ defmodule Tuist.Kura.Capacity do
 
   `nil` for everything that stops the reading being trusted: a cluster that
   cannot be read, a node whose pods cannot be listed or whose allocatable
-  cannot be parsed, a region with no Ready, schedulable node, or an instance
-  with a replica on a node the scheduler places nothing on. All of them admit,
-  deliberately. A false refusal here stops every legitimate claim growth in the
-  region and produces nothing an operator would see, while the scheduler still
-  refuses to overfill a node.
+  cannot be parsed, a region with no Ready, schedulable node, an instance with a
+  replica on a node the scheduler places nothing on, or a replica whose data
+  claim cannot be read. All of them admit, deliberately. A false refusal here
+  stops every legitimate claim growth in the region and produces nothing an
+  operator would see, while the scheduler still refuses to overfill a node.
   """
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
@@ -593,18 +674,119 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp fits?(nodes, handle, claim, replicas) do
-    case for(%{kura_replicas: %{^handle => placed}} = node <- nodes, do: {node, placed}) do
+    case placed_replicas(nodes, handle) do
       [] ->
         nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
 
-      boxes ->
-        placed_count = boxes |> Enum.map(fn {_node, %{count: count}} -> count end) |> Enum.sum()
+      placed ->
+        with %{} = volumes <- data_volume_bytes(placed) do
+          grows?(nodes, handle, placed, volumes, claim, replicas)
+        end
+    end
+  end
 
-        Enum.all?(boxes, fn {node, %{count: count, bytes: bytes}} ->
-          returning = max(count, replicas - (placed_count - count))
+  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, claim, replicas) do
+    request = Map.put(requests, @ephemeral_storage, claim)
+    unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
 
-          disk_available(node) + bytes >= returning * claim
-        end)
+    {kept, rebuilt} =
+      placed
+      |> Enum.filter(&(Map.fetch!(&1.requests, @ephemeral_storage) < claim))
+      |> Enum.split_with(&(Map.get(volumes, &1.volume, 0) >= claim))
+
+    (Enum.map(unplaced ++ rebuilt, &{:rebuilt, &1}) ++ Enum.map(kept, &{:kept, &1}))
+    |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn {kind, replica}, nodes ->
+      nodes = release(nodes, handle, replica)
+
+      case landing(kind, replica, nodes, handle, request) do
+        nil -> {:halt, :unplaceable}
+        name -> {:cont, charge(nodes, name, handle, request)}
+      end
+    end)
+    |> case do
+      :unplaceable -> false
+      _nodes -> true
+    end
+  end
+
+  # What each replica's data claim asks for, by claim name, which is what the
+  # controller compares against the new claim to decide whether to replace the
+  # volume. A claim that does not exist is left out: the StatefulSet creates it
+  # unbound. `nil` when one cannot be read.
+  defp data_volume_bytes(placed) do
+    placed
+    |> Enum.map(& &1.volume)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce_while(%{}, fn volume, sizes ->
+      case Client.get_persistent_volume_claim(@namespace, volume, timeout: @read_timeout) do
+        {:ok, %{"spec" => %{"resources" => %{"requests" => %{"storage" => size}}}}} ->
+          case parse_quantity(size) do
+            bytes when is_integer(bytes) -> {:cont, Map.put(sizes, volume, bytes)}
+            nil -> {:halt, nil}
+          end
+
+        {:error, :not_found} ->
+          {:cont, sizes}
+
+        _ ->
+          {:halt, nil}
+      end
+    end)
+  end
+
+  # In the order the controller rebuilds them.
+  defp placed_replicas(nodes, handle) do
+    nodes
+    |> Enum.flat_map(fn %{name: name, kura_replicas: replicas} ->
+      replicas |> Map.get(handle, []) |> Enum.map(&Map.put(&1, :node, name))
+    end)
+    |> Enum.sort_by(& &1.ordinal)
+  end
+
+  defp release(nodes, _handle, %{node: nil}), do: nodes
+
+  defp release(nodes, handle, %{node: name, requests: requests} = replica) do
+    Map.update!(nodes, name, fn node ->
+      %{
+        node
+        | reserved: Map.merge(node.reserved, requests, fn _resource, reserved, amount -> reserved - amount end),
+          kura_replicas: Map.update!(node.kura_replicas, handle, &List.delete(&1, Map.delete(replica, :node)))
+      }
+    end)
+  end
+
+  defp charge(nodes, name, handle, request) do
+    Map.update!(nodes, name, fn node ->
+      %{
+        node
+        | reserved: Map.merge(node.reserved, request, fn _resource, reserved, amount -> reserved + amount end),
+          kura_replicas:
+            Map.update(
+              node.kura_replicas,
+              handle,
+              [%{ordinal: nil, volume: nil, requests: request}],
+              &[%{ordinal: nil, volume: nil, requests: request} | &1]
+            )
+      }
+    end)
+  end
+
+  # A kept replica restarts on the node its volume is bound to. A rebuilt one
+  # goes where the scheduler puts it: beside the account's other replicas when
+  # that node has room, as the controller's affinity prefers, and otherwise on
+  # the node with the most disk left.
+  defp landing(:kept, %{node: name}, nodes, _handle, request) do
+    if replicas_fitting(Map.fetch!(nodes, name), request) >= 1, do: name
+  end
+
+  defp landing(:rebuilt, _replica, nodes, handle, request) do
+    nodes
+    |> Map.values()
+    |> Enum.filter(&(replicas_fitting(&1, request) >= 1))
+    |> Enum.sort_by(&{Map.get(&1.kura_replicas, handle, []) == [], -disk_available(&1), &1.name})
+    |> case do
+      [%{name: name} | _] -> name
+      [] -> nil
     end
   end
 
@@ -859,7 +1041,8 @@ defmodule Tuist.Kura.Capacity do
     with selector when is_binary(selector) <- Regions.node_label_selector(region),
          {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
          {[_ | _] = nodes, off_pool} <- Enum.split_with(items, &schedulable?/1),
-         headroom = Enum.map(nodes, &measure_node(&1, region_id)),
+         retained when is_map(retained) <- retained_volume_bytes_by_node(region_id),
+         headroom = Enum.map(nodes, &measure_node(&1, region_id, retained)),
          false <- Enum.any?(headroom, &is_nil/1) do
       %{
         nodes: headroom,
@@ -892,14 +1075,16 @@ defmodule Tuist.Kura.Capacity do
 
   defp ceiling_budget_advertised?(_node), do: false
 
-  defp measure_node(node, region_id) do
+  # A retained volume holds its node's disk the way a pod's request does, so it
+  # is charged to the node's ephemeral storage alongside them.
+  defp measure_node(node, region_id, retained) do
     with name when is_binary(name) and name != "" <- node_name(node),
          allocatable when is_map(allocatable) <- node_allocatable(node),
          {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
       %{
         name: name,
         allocatable: allocatable,
-        reserved: pods_requested(pods),
+        reserved: pods |> pods_requested() |> Map.update!(@ephemeral_storage, &(&1 + Map.get(retained, name, 0))),
         kura_replicas: kura_replicas(pods, region_id)
       }
     else
@@ -908,10 +1093,11 @@ defmodule Tuist.Kura.Capacity do
   end
 
   # The region's cache replicas among a node's pods, by the account they serve:
-  # how many, and what they reserve at their effective request. Picked out of
-  # the same pods the node's reservation is summed from, so what a rebuild hands
-  # back is always something that reading already charged. Another region's
-  # instance of the same account on this box is a neighbour like any other.
+  # each one's StatefulSet ordinal and what it reserves at its effective
+  # request. Picked out of the same pods the node's reservation is summed from,
+  # so what a rebuild hands back is always something that reading already
+  # charged. Another region's instance of the same account on this box is a
+  # neighbour like any other.
   defp kura_replicas(pods, region_id) do
     pods
     |> Enum.reject(&terminal?/1)
@@ -927,13 +1113,38 @@ defmodule Tuist.Kura.Capacity do
         }
       } = pod
       when is_binary(account) ->
-        [{account, pod_requested(pod, @ephemeral_storage)}]
+        [{account, %{ordinal: pod_ordinal(pod), volume: data_volume(pod), requests: replica_requests(pod)}}]
 
       _pod ->
         []
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Map.new(fn {account, requests} -> {account, %{count: length(requests), bytes: Enum.sum(requests)}} end)
+  end
+
+  defp pod_ordinal(%{"metadata" => %{"name" => name}}) when is_binary(name) do
+    case name |> String.split("-") |> List.last() |> Integer.parse() do
+      {ordinal, ""} -> ordinal
+      _ -> nil
+    end
+  end
+
+  defp pod_ordinal(_pod), do: nil
+
+  # The claim the StatefulSet's `data` template made for this replica.
+  defp data_volume(%{"spec" => %{"volumes" => volumes}}) when is_list(volumes) do
+    Enum.find_value(volumes, fn
+      %{"name" => "data", "persistentVolumeClaim" => %{"claimName" => claim}} when is_binary(claim) -> claim
+      _volume -> nil
+    end)
+  end
+
+  defp data_volume(_pod), do: nil
+
+  defp replica_requests(pod) do
+    Map.new(@scheduled_resources, fn
+      @pods -> {@pods, 1}
+      resource -> {resource, pod_requested(pod, resource)}
+    end)
   end
 
   # Ready and not cordoned: the scheduler places on neither.

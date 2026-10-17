@@ -12,7 +12,9 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Kura.Workers.ArchiveInactiveInstancesWorker
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Marketing.Workers.CacheGlobeRefreshWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
   alias Tuist.Oban.RuntimeConfig
+  alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Registry.Swift.SyncWorker
@@ -30,6 +32,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
+  alias Tuist.Tests.Coverage.Workers.RetentionWorker, as: CoverageRetentionWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
   alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
 
@@ -141,12 +144,15 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert PruneExpiredSubscriptionsWorker in workers
+        assert CoverageRetentionWorker in workers
 
         refute ExpireInteractiveSessionsWorker in workers
         refute DailySlackReportWorker in workers
         refute HourlySlackReportWorker in workers
         refute CacheGlobeRefreshWorker in workers
         refute UpdateAllAccountsUsageWorker in workers
+        refute DeleteExpiredImagesWorker in workers
         refute ScheduleExpiredArtifactsWorker in workers
         refute DeleteExpiredCasCacheArtifactsWorker in workers
         refute DeleteExpiredLegacyBuildArtifactsWorker in workers
@@ -284,12 +290,14 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert CoverageRetentionWorker in workers
 
         assert ExpireInteractiveSessionsWorker in workers
         assert DailySlackReportWorker in workers
         assert HourlySlackReportWorker in workers
         assert CacheGlobeRefreshWorker in workers
         assert UpdateAllAccountsUsageWorker in workers
+        assert DeleteExpiredImagesWorker in workers
         assert ScheduleExpiredArtifactsWorker in workers
         assert DeleteExpiredCasCacheArtifactsWorker in workers
         assert DeleteExpiredLegacyBuildArtifactsWorker in workers

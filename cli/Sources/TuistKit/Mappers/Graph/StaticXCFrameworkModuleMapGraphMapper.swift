@@ -76,7 +76,9 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 return variants
             }
             var variants = xcframeworkVariantsLinkedDirectlyByGeneratedTargets[path, default: []]
-            for reference in graphTraverser.targetsProcessingStaticXCFramework(at: path) {
+            for reference in graphTraverser.targetsProcessingStaticXCFramework(at: path)
+                where !Self.isKeptBinarySourceTarget(reference.target)
+            {
                 variants.formUnion(Self.productsVariants(of: reference.target, under: reference.condition))
             }
             xcframeworkVariantsProcessedByGeneratedTargetsByPath[path] = variants
@@ -401,6 +403,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     ///   counted when the linking target is still in the substituted graph, since a target replaced
     ///   by a cached binary never runs `ProcessXCFramework`).
     ///
+    /// Targets kept only as binary sources are left out of both.
+    ///
     /// `map` adds, only for the xcframeworks a consumer needs a vendor module map for, the generated targets
     /// `GraphTraverser.targetsProcessingStaticXCFramework(at:)` returns: the ones a static consumer relinks the
     /// xcframework into transitively (a static SwiftPM shim like `GoogleMapsTarget` wrapping
@@ -422,7 +426,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         }
 
         for project in graph.projects.values {
-            for target in project.targets.values {
+            for target in project.targets.values where !isKeptBinarySourceTarget(target) {
                 let sourceDependency: GraphDependency = .target(name: target.name, path: project.path)
                 for dependency in graph.dependencies[sourceDependency, default: []] {
                     guard case let .xcframework(xcframework) = dependency else { continue }
@@ -440,7 +444,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         if let initialGraphWithSources {
             for (source, dependencies) in initialGraphWithSources.dependencies {
                 guard case let .target(name, path, _) = source,
-                      let survivingTarget = graph.projects[path]?.targets[name]
+                      let survivingTarget = graph.projects[path]?.targets[name],
+                      !isKeptBinarySourceTarget(survivingTarget)
                 else { continue }
                 for dependency in dependencies {
                     guard case let .xcframework(xcframework) = dependency else { continue }
@@ -456,6 +461,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         }
 
         return variantsByPath
+    }
+
+    /// `keepSourceTargets` leaves a target replaced by a cached binary in its project, with its dependency
+    /// edges, but nothing that consumes the binary builds it, so its `ProcessXCFramework` never publishes
+    /// a module map for those consumers.
+    private static func isKeptBinarySourceTarget(_ target: Target) -> Bool {
+        target.metadata.tags.contains("tuist:binary-sources")
     }
 
     /// When `targetDependency` links `xcframework` directly, the condition under which it reaches
@@ -684,29 +696,36 @@ extension SettingsDictionary {
             case let .string(value):
                 settings[key] = .string(value)
             case let .array(value):
+                // A bare token is never a standalone Swift flag, so it is the argument of the flag before it
+                // (`-module-alias A=B`, `-D FOO`, `-cas-plugin-option k=v`). Deduplicating it on its own would
+                // drop a repeated flag and orphan its next argument, which swift-driver reads as an input file.
+                func takesArgument(at index: Int) -> Bool {
+                    guard value[index].hasPrefix("-"), index + 1 < value.endIndex else { return false }
+                    let next = value[index + 1]
+                    return value[index].isFlagWithArgument || (!next.hasPrefix("-") && next != "$(inherited)")
+                }
+                func isWarningGroupFlag(at index: Int) -> Bool {
+                    (value[index] == "-Werror" || value[index] == "-Wwarning") &&
+                        (index == 0 || !takesArgument(at: index - 1))
+                }
                 var seen = Set<String>()
-                let value = value.enumerated().filter {
-                    if $0.element.isFlagWithArgument {
-                        if value.endIndex > $0.offset + 1 {
-                            return !seen.contains($0.element + value[$0.offset + 1])
-                        } else {
-                            return true
-                        }
-                    } else {
-                        if $0.offset == 0 {
-                            return seen.insert($0.element).inserted
-                        } else {
-                            let previousElement = value[$0.offset - 1]
-                            if previousElement.isFlagWithArgument {
-                                return seen.insert(previousElement + $0.element).inserted
-                            } else {
-                                return seen.insert($0.element).inserted
-                            }
-                        }
+                let uniqueFlags = value.enumerated().filter {
+                    // Preserve ordered warning overrides, but leave forwarded options such as -Xcc -Werror alone.
+                    if isWarningGroupFlag(at: $0.offset) ||
+                        ($0.offset > 0 && isWarningGroupFlag(at: $0.offset - 1))
+                    {
+                        return true
                     }
+                    if takesArgument(at: $0.offset) {
+                        return !seen.contains($0.element + value[$0.offset + 1])
+                    }
+                    if $0.offset > 0, takesArgument(at: $0.offset - 1) {
+                        return seen.insert(value[$0.offset - 1] + $0.element).inserted
+                    }
+                    return seen.insert($0.element).inserted
                 }
                 settings[key] = .array(
-                    value.map(\.element)
+                    uniqueFlags.map(\.element)
                 )
             }
         }

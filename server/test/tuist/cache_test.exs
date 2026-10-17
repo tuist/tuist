@@ -73,6 +73,11 @@ defmodule Tuist.CacheTest do
         count_queries(fn -> Cache.cache_grants(user) end)
       end
 
+      # The first call also loads a feature flag that FunWithFlags then serves
+      # from memory, so whichever measurement ran first counted one extra query
+      # unless an earlier test in the run had already loaded it.
+      queries_for.(1)
+
       # When
       few = queries_for.(2)
       many = queries_for.(12)
@@ -148,6 +153,9 @@ defmodule Tuist.CacheTest do
 
         count_queries(fn -> Cache.cache_grants(user) end)
       end
+
+      # Loads the feature flag FunWithFlags then serves from memory, see above.
+      queries_for.(1)
 
       # When
       few = queries_for.(2)
@@ -236,11 +244,13 @@ defmodule Tuist.CacheTest do
 
       # When
       handles = Cache.accessible_handles(user)
-      {:ok, _token, claims} = Cache.issue_cache_token(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user, origin: "SG")
 
       # Then
       assert handles.payment_required == [user.account.name]
       assert handles.payment_failed == [user.account.name]
+      assert claims["cache_origin"] == "SG"
+      assert claims["cache_payment_required"] == [user.account.name]
       assert claims["cache_payment_failed"] == [user.account.name]
     end
 

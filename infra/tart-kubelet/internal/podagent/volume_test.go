@@ -136,6 +136,10 @@ func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
 }
 
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
+	// A query from the custom-cache subdirectory shares the whole filesystem.
+	if f.root != "" {
+		root = f.root
+	}
 	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || filepath.Base(p) != masterImageName {

@@ -2158,7 +2158,7 @@
               "transformations": []
             }
           },
-          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
+          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read (BatchReadBlobs, GetActionResult, FindMissingBlobs, SplitBlob) refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); a write whose reply the floor cannot cover is refused before it stores anything, and that refusal and a compressed BatchUpdateBlobs item the pool cannot decode count as reapi_write_decode; reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
           "id": 12,
           "links": [],
           "title": "capacity_sheds_total (rate)",
@@ -2570,7 +2570,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operations_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "mean {{pod}}",
                         "range": true
@@ -2591,7 +2591,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod) (rate(kura_file_operations_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "rate {{pod}}",
                         "range": true
@@ -10619,7 +10619,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.5, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p50 {{pod}}",
                         "range": true
@@ -10640,7 +10640,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p95 {{pod}}",
                         "range": true
@@ -10661,7 +10661,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.99, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p99 {{pod}}",
                         "range": true
@@ -11509,7 +11509,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"` and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
+          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"`, `result=\"already_present\"`, and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
           "id": 29,
           "links": [],
           "title": "artifact_write_bytes_total (rate)",
@@ -11719,7 +11719,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
+          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. `result=\"already_present\"` is a ByteStream Write of a CAS blob the node already stored: Kura read the upload without staging, storing, or billing it. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
           "id": 30,
           "links": [],
           "title": "artifact_writes_total (rate)",
@@ -20119,7 +20119,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (region, le) (\n  sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n))",
+                        "expr": "histogram_quantile(0.95, sum by (region, le) (\n  (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval])))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n))",
                         "instant": false,
                         "legendFormat": "{{region}}",
                         "range": true

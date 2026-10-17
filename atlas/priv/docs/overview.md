@@ -4,3 +4,9 @@
 > Atlas brings customer relationships, finance, projects, knowledge, and connected tools into one workspace. Its capabilities and documentation will evolve as that work progresses.
 
 Atlas is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/en-US/MPL/2.0/). Follow its development in the [source repository](https://github.com/tuist/tuist/tree/main/atlas).
+
+Run Atlas on your infrastructure with the [self-hosting guide](/docs/self-hosting).
+
+[Connect your Claude or ChatGPT account](/docs/ai-accounts) in your account settings.
+
+Connect other tool servers through Atlas with the [MCPs guide](/docs/mcps).

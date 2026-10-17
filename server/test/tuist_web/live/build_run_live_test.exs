@@ -42,6 +42,8 @@ defmodule TuistWeb.BuildRunLiveTest do
     organization: organization,
     project: project
   } do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
     event = %{
       event_id: 1,
       title: "Compile <App>.swift",
@@ -59,7 +61,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
     refute has_element?(lv, "#build-timeline")
     lv |> element("a", "Timeline") |> render_click()
-    render_async(lv)
+    render_async(lv, 2_000)
     assert has_element?(lv, "#build-timeline[phx-hook=BuildTimeline]")
     assert has_element?(lv, ".noora-card", "Build Timeline")
     assert has_element?(lv, ".noora-text-input [data-control=search]")
@@ -97,11 +99,11 @@ defmodule TuistWeb.BuildRunLiveTest do
       search: ""
     })
 
-    render_async(lv)
+    render_async(lv, 2_000)
     assert_push_event(lv, "timeline-step", %{request_id: 22, step: %{event_id: 1}})
 
     render_hook(lv, "load-timeline-log", %{"event_id" => 1, "request_id" => 1, "build_run_id" => Ecto.UUID.generate()})
-    render_async(lv)
+    render_async(lv, 2_000)
 
     assert_push_event(lv, "timeline-log", %{
       request_id: 1,
@@ -116,7 +118,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
     )
 
-    render_async(lv)
+    render_async(lv, 2_000)
     assert has_element?(lv, "#build-timeline[data-version='#{version}']")
   end
 

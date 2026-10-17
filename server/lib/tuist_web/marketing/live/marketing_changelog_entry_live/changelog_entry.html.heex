@@ -3,7 +3,10 @@
     <article data-part="article">
       <header data-part="header">
         <div data-part="breadcrumb">
-          <a href={~p"/changelog"}>{dgettext("marketing", "Changelog")}</a>
+          <a href={Localization.localized_href(~p"/changelog")}>{dgettext(
+            "marketing",
+            "Changelog"
+          )}</a>
           <.math_slash aria-hidden="true" />
           <span>{@entry.category}</span>
         </div>

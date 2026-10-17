@@ -24,6 +24,11 @@
             <.alert_circle />
           </div>
         </div>
+        <div :if={status(@run) in ["interrupted", "cancelled"]} data-part="badge-warning">
+          <div data-part="icon">
+            <.alert_hexagon />
+          </div>
+        </div>
         <div :if={status(@run) == "in_progress"} data-part="badge-processing">
           <div data-part="icon">
             <.circle_dashed />
@@ -60,6 +65,20 @@
                 size="large"
               />
               <.badge
+                :if={status(@run) == "cancelled"}
+                label={dgettext("dashboard_tests", "Cancelled")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status(@run) == "interrupted"}
+                label={dgettext("dashboard_tests", "Interrupted")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
                 :if={status(@run) == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
@@ -89,7 +108,7 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Ran at")}</div>
               <span data-part="value">
-                {format_datetime(@run.finalized_at || @run.started_at, assigns[:user_timezone])}
+                {format_datetime(ran_at(@run), assigns[:user_timezone])}
               </span>
             </div>
           </div>
@@ -228,7 +247,7 @@
       </.card_section>
       <.empty_card_section
         :if={@test_cases.ok? and Enum.empty?(@test_cases.result)}
-        title={dgettext("dashboard_tests", "No test cases reported for this run")}
+        title={empty_test_cases_title(@run)}
       >
         <:image>
           <img

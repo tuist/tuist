@@ -901,6 +901,22 @@ it.
 {{- end }}
 {{- end }}
 
+{{/*
+The name writers off the pod network dial the in-cluster ClickHouse at: the
+full MagicDNS name, because the macOS VMs resolve tailnet names through a
+resolver scoped to `.ts.net` (infra/xcresult-processor-image/tailscale-up.sh).
+The bare name resolves only from a snapshot of peers taken at boot, which
+never contains a Tailscale Service and keeps an old address after the name
+moves to another device.
+*/}}
+{{- define "tuist.clickhouseTailnetHost" -}}
+{{- $host := required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname }}
+{{- with .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+{{- $host = printf "%s.%s" $host . }}
+{{- end }}
+{{- $host }}
+{{- end }}
+
 {{- define "tuist.clickhouseManagedEnvForKey" -}}
 {{- $key := .key }}
 {{- with .root }}
@@ -1130,6 +1146,20 @@ profile change reaches the server only through a restart.
 </clickhouse>
 {{- end }}
 
+{{/* Both platforms use one server-authenticated cache agent identity. */}}
+{{- define "tuist.runnerCacheVolumesNamespace" -}}
+{{- $mac := .Values.runnersFleet.namespace | default "tuist-runners" -}}
+{{- $linux := .Values.runnersFleetLinux.namespace | default $mac -}}
+{{- if .Values.runnersFleet.customCacheVolumes.enabled -}}
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled (ne $mac $linux) -}}
+{{- fail "macOS and Linux custom cache volumes must use the same runners namespace" -}}
+{{- end -}}
+{{- $mac -}}
+{{- else -}}
+{{- $linux -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Resolve the effective Once events ingress config.
 
@@ -1182,4 +1212,114 @@ grpcs
 {{- else -}}
 grpc
 {{- end -}}
+{{- end -}}
+
+{{/*
+The runner image for a catalog Xcode version:
+`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
+or the `imageTag` its `runnersFleet.xcodeOverrides` entry pins. The image is a
+property of the Xcode, not of the fleet it runs on, so every pool that runs an
+Xcode (the rented fleet's, a rack's, an explicit pool naming `xcodeVersion`)
+takes it from here and follows a release together.
+*/}}
+{{- define "tuist.macosRunnerImage" -}}
+{{- $root := .root -}}
+{{- $xcodeVersion := .xcodeVersion | toString -}}
+{{- $repo := $root.Values.runnersFleet.runnerImageRepository | default "" -}}
+{{- $semver := $root.Values.runnersFleet.runnerImageSemver | default "" -}}
+{{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
+{{- if not $repo -}}
+  {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" -}}
+{{- end -}}
+{{- if and (not (dig "imageTag" "" $override)) (not $semver) -}}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and override %s has no imageTag" $xcodeVersion) -}}
+{{- end -}}
+{{- printf "%s:%s" $repo (dig "imageTag" (printf "macos-%s-%s" ($xcodeVersion | replace "." "-") $semver) $override) -}}
+{{- end -}}
+
+{{/*
+The macOS catalog pools racked at the rack fleet's site, as a list of
+`{name, site}` in JSON: every `runnersFleet.xcodeVersions` entry on the
+catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`
+names. `templates/runner-pool.yaml` renders exactly these, and the server
+learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
+profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
+does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
+another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
+*/}}
+{{- define "tuist.rackCatalogPools" -}}
+{{- $pools := list -}}
+{{- if and .Values.runnersFleet.enabled (dig "runners" "enabled" false .Values.rackFleet) -}}
+{{- $site := required "rackFleet.site is required when rackFleet.runners.enabled is true" .Values.rackFleet.site -}}
+{{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
+{{- $rackShapes := dig "runners" "shapes" (dict) .Values.rackFleet -}}
+{{- range $xcode := (.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $xcodeTag := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString | replace "." "-" -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site) -}}
+{{- range $shape := ($.Values.runnersFleet.shapes | default list) -}}
+{{- if not $shape.default -}}
+{{- $shapeKey := printf "%dvcpu-%dgb" (int $shape.vcpus) (int $shape.memoryGb) -}}
+{{- if hasKey $rackShapes $shapeKey -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s-%s" $prefix $site $xcodeTag $shapeKey) "site" $site) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $pools | toJson -}}
+{{- end -}}
+
+{{/*
+The Secret a lent rack host's kubeconfig is synced into: the 1Password item's
+name as a Kubernetes name, so a rotated kubeconfig (a new item) is a new
+Secret, and the new name drifts the host onto it.
+*/}}
+{{- define "tuist.rackNodeKubeconfigSecret" -}}
+{{- $item := required (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem is required: the 1Password item holding the kubeconfig the other cluster issued" .host) .item -}}
+{{- if not (regexMatch "^[A-Za-z0-9_]+$" $item) -}}
+{{- fail (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem %q must be letters, digits and underscores" .host $item) -}}
+{{- end -}}
+{{- $item | lower | replace "_" "-" | trunc 63 -}}
+{{- end -}}
+
+{{/*
+The rack's VM image caches as tart-kubelet's `--image-mirror` entries,
+comma-separated in the order of `rackFleet.imageCache.nodes`: empty unless
+the caches run and the hosts are routed through them. The rack-nodes chart
+runs each cache at the same address and port.
+*/}}
+{{- define "tuist.rackImageMirrors" -}}
+{{- $cache := .Values.rackFleet.imageCache | default dict -}}
+{{- $mirrors := list -}}
+{{- if and $cache.enabled $cache.routeHosts -}}
+{{- $upstream := required "rackFleet.imageCache.upstream is required" $cache.upstream -}}
+{{- range $node := (required "rackFleet.imageCache.nodes needs a node to route the hosts to" $cache.nodes) -}}
+{{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address -}}
+{{- $mirrors = append $mirrors (printf "%s=http://%s:%d" $upstream $address (int $cache.port)) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $mirrors -}}
+{{- end -}}
+
+{{/*
+The rack hosts routed through the image caches, comma-separated, for
+`--rackhost-image-mirror-hosts`. Each is a `rackFleet.hosts[].name`, or `*`
+for every host; a name the inventory does not have fails the render rather
+than routing nothing.
+*/}}
+{{- define "tuist.rackImageMirrorHosts" -}}
+{{- $routed := .Values.rackFleet.imageCache.routeHosts | default list -}}
+{{- if not (kindIs "slice" $routed) -}}
+{{- fail "rackFleet.imageCache.routeHosts is a list of rackFleet.hosts[].name, or [\"*\"] for every host" -}}
+{{- end -}}
+{{- $known := list -}}
+{{- range (.Values.rackFleet.hosts | default list) -}}
+{{- $known = append $known .name -}}
+{{- end -}}
+{{- range $routed -}}
+{{- if and (ne . "*") (not (has . $known)) -}}
+{{- fail (printf "rackFleet.imageCache.routeHosts names %s, which is not in rackFleet.hosts" .) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $routed -}}
 {{- end -}}

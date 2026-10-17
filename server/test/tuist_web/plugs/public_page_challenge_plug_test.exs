@@ -46,6 +46,57 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
       refute out.halted
     end
 
+    test "allows default public project roots without granting verification", %{conn: conn} do
+      for method <- ["GET", "HEAD"], query <- ["", "utm_source=slack&ref=share"] do
+        conn = %{
+          conn
+          | method: method,
+            path_info: ["account", "project"],
+            request_path: "/account/project",
+            query_string: query
+        }
+
+        out = conn |> put_private(:tuist_public_project, true) |> PublicPageChallengePlug.call([])
+
+        refute out.halted
+        refute get_session(out, PublicPageChallengePlug.session_key())
+        refute get_session(out, PublicPageChallengePlug.return_to_key())
+      end
+    end
+
+    test "does not exempt filtered roots or deeper project routes", %{conn: conn} do
+      for path <- [
+            "/account/project?analytics-environment=ci",
+            "/account/project?unknown=1",
+            "/account/project/analytics",
+            "/account/project/builds"
+          ] do
+        uri = URI.parse(path)
+
+        conn = %{
+          conn
+          | path_info: String.split(uri.path, "/", trim: true),
+            request_path: uri.path,
+            query_string: uri.query || ""
+        }
+
+        out = conn |> put_private(:tuist_public_project, true) |> PublicPageChallengePlug.call([])
+
+        assert out.halted
+        assert get_session(out, PublicPageChallengePlug.return_to_key()) == path
+      end
+    end
+
+    test "does not exempt private roots, account pages or non-read requests", %{conn: conn} do
+      private = %{conn | path_info: ["account", "project"], request_path: "/account/project"}
+      account = %{conn | path_info: ["account"], request_path: "/account"}
+      post = put_private(%{private | method: "POST"}, :tuist_public_project, true)
+
+      for conn <- [private, account, post] do
+        assert PublicPageChallengePlug.call(conn, []).halted
+      end
+    end
+
     test "redirects to the challenge and stores return_to when anonymous", %{conn: conn} do
       conn =
         fetch_query_params(%{

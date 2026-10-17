@@ -1,8 +1,45 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import SwifterPMCore
 
 struct ResolveTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0"])
+        let package = root.appendingPathComponent("App")
+        try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        let scratch = package.appendingPathComponent(".build")
+        let sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
+        var request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: sharedCache,
+            disableSandbox: true,
+            cachedDirectoryMaterialization: .symlink,
+            quiet: true
+        )
+        let initial = try await SwifterPM().resolve(request)
+        let lockfile = package.appendingPathComponent("Package.resolved")
+        let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+        if !retainWorkspace {
+            try await fileSystem.remove(scratch.absolutePath)
+        }
+        request.forceResolvedVersions = true
+        let warm = try await SwifterPM().resolve(request)
+        #expect(warm.pins == initial.pins)
+        #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+        #expect(try await fileSystem.exists(sharedCache.appendingPathComponent("manifests/manifest.db").absolutePath))
+        #expect(try await fileSystem.exists(scratch.appendingPathComponent("checkouts/dependency/Package.swift").absolutePath))
+        let pin = try #require(try await ResolvedFile.read(packageDir: package).pins.first)
+        let cache = try await Cache(root: sharedCache)
+        #expect(try await fileSystem.exists(cache.sourcePath(pin: pin).appendingPathComponent("Package.swift").absolutePath))
+    }
+
     @Test
     func defaultResolverShellsOutToSwiftPMWithoutWritingWhenRequested() async throws {
         try await withTemporaryDirectory { root in
@@ -42,7 +79,8 @@ struct ResolveTests {
         try await withTemporaryDirectory { root in
             #expect(try await PackageResolver.localSourceControlPackageLocation(root.path) == nil)
             try await fileSystem.atomicWrite(
-                "package manifest\n", to: root.appendingPathComponent("Package.swift"))
+                "package manifest\n", to: root.appendingPathComponent("Package.swift")
+            )
 
             #expect(
                 try await PackageResolver.localSourceControlPackageLocation(root.path)?.path
@@ -61,7 +99,8 @@ struct ResolveTests {
     func localSourceControlPackageLocationAcceptsFileURLs() async throws {
         try await withTemporaryDirectory { root in
             try await fileSystem.atomicWrite(
-                "package manifest\n", to: root.appendingPathComponent("Package.swift"))
+                "package manifest\n", to: root.appendingPathComponent("Package.swift")
+            )
 
             #expect(
                 try await PackageResolver.localSourceControlPackageLocation(root.absoluteString)?
@@ -217,6 +256,52 @@ struct ResolveTests {
                         .absolutePath
                 )
             )
+        }
+    }
+
+    @Test
+    func coldResolutionWritesThePackageInfoCacheForTheResolvedPins() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cacheDirectory,
+                    registryConfig: RegistryConfig()
+                )
+            )
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                ))
+
+            let pin = try #require(
+                try await ResolvedFile.read(packageDir: package).pins.first
+            )
+            let indexPath = scratch.appendingPathComponent("swifterpm/package-info/index.json")
+            let index = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: indexPath.absolutePath))
+                    as? [String: Any])
+            let entries = try #require(index["packages"] as? [[String: Any]])
+            #expect(entries.map { $0["identity"] as? String } == ["dependency"])
+            let entry = try #require(entries.first)
+            #expect(entry["revision"] as? String == pin.state.revision)
+            #expect(entry["version"] as? String == "1.0.0")
+            let packageInfoPath = try #require(entry["package_info_path"] as? String)
+            #expect(try await fileSystem.exists(URL(fileURLWithPath: packageInfoPath).absolutePath))
         }
     }
 
@@ -786,6 +871,185 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func pruningKeepsRegistryPinsThatReplacedSourceControlDependencies() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: "https://example.invalid/Direct.git",
+                dependencyName: "Direct"
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct",
+                kind: "registry",
+                location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "orphan",
+                kind: "remoteSourceControl",
+                location: "https://example.invalid/Orphan.git",
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            try await fileSystem.makeDirectory(at: directSource.absolutePath, options: [.createTargetParentDirectories])
+            try await writeMinimalPackageManifest(at: directSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"),
+                mirrors: MirrorConfig(),
+                disableSandbox: true,
+                scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
+    @Test
+    func pruningFollowsTransitiveRegistryReplacement() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [
+                    .package(id: "example.direct", from: "1.0.0"),
+                ])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let transitive = ResolvedPin(
+                identity: "example.transitive", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            let transitiveSource = scratch.appendingPathComponent("registry/downloads/example/transitive/1.0.0")
+            try await fileSystem.makeDirectory(at: directSource.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "Direct", dependencies: [
+                    .package(url: "https://example.invalid/Transitive.git", from: "1.0.0"),
+                ])
+                """,
+                to: directSource.appendingPathComponent("Package.swift")
+            )
+            try await writeMinimalPackageManifest(at: transitiveSource, name: "Transitive")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, transitive], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(Set(try await ResolvedFile.read(packageDir: package).pins.map(\.identity))
+                == ["example.direct", "example.transitive"])
+        }
+    }
+
+    @Test
+    func pruningDropsUnreachableRegistryPinWithoutItsManifest() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [
+                    .package(id: "example.direct", from: "1.0.0"),
+                ])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "example.orphan", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let sourceOrphan = ResolvedPin(
+                identity: "source-orphan", kind: "remoteSourceControl",
+                location: "https://example.invalid/SourceOrphan.git",
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            try await writeMinimalPackageManifest(at: directSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan, sourceOrphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
+    @Test
+    func pruningKeepsSourceControlPinsWithRegistryIdentities() async throws {
+        try await withTemporaryDirectory { root in
+            let location = "https://example.invalid/Direct.git"
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: location, dependencyName: "Direct")
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "remoteSourceControl", location: location,
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "orphan", kind: "remoteSourceControl",
+                location: "https://example.invalid/Orphan.git",
+                state: .init(branch: nil, revision: "def", version: "1.0.0")
+            )
+            let cachedSource = try Cache.sourcePath(root: root.appendingPathComponent("cache"), pin: direct)
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: root.appendingPathComponent("scratch"),
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .useRegistryIdentityForSCM
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
     private func resolveIgnoringAmbientMirrorConfig(
         package: URL,
         cache: URL,
@@ -1032,7 +1296,7 @@ struct ResolveTests {
     }
 
     @Test
-    func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
+    func nativeResolvePrivatizesCachedCheckoutsWithoutAGitDirectory() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
             try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
@@ -1101,7 +1365,7 @@ struct ResolveTests {
                 forwardOutput: false
             )
 
-            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+            #expect(fileSystem.isDirectoryAndNotSymlink(checkouts.appendingPathComponent("other")))
             let committedArchive = try await SystemProcess.run(
                 "/usr/bin/git", ["-C", dependency.path, "show", "1.0.0:Framework.zip"]
             ).stdout
@@ -1363,7 +1627,7 @@ struct ResolveTests {
                     identity: "snapkit",
                     kind: "remoteSourceControl",
                     location:
-                        "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
+                    "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
                     state: ResolvedState(
                         branch: nil,
                         revision: "0000000000000000000000000000000000000000",
@@ -1892,11 +2156,14 @@ struct ResolveTests {
     ) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(
-            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency)
+            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency
+        )
         try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
         for tag in tags {
             try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
@@ -1906,11 +2173,14 @@ struct ResolveTests {
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(
-            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency)
+            "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency
+        )
         try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
         for tag in tags {
             try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)

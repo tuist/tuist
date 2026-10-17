@@ -463,7 +463,7 @@ defmodule TuistWeb.ModulesLiveTest do
     |> length()
   end
 
-  test "shows an error in place of the table when the module query fails", %{
+  test "shows coordinated analytics and table errors when the shared breakdown fails", %{
     conn: conn,
     organization: organization,
     project: project
@@ -481,16 +481,16 @@ defmodule TuistWeb.ModulesLiveTest do
     refute has_element?(lv, ~s([data-part="modules-table-section"] [data-part="skeleton"]))
     refute has_element?(lv, "#all-modules-table")
 
-    # The miss reasons chart is derived from the same breakdown, so the
-    # chart fails with the table while the independent module count stays visible.
-    refute has_element?(lv, "#widget-hits")
-    assert has_element?(lv, "#widget-modules")
-    assert has_element?(lv, "[data-part=\"analytics-error\"]")
+    # Required series fail together, so the card shows its shared error instead
+    # of a partial widget row. A count-only failure is covered separately.
+    refute has_element?(lv, "[data-part=analytics] [data-part=widgets]")
+    assert has_element?(lv, "[data-part=analytics][data-state=failed] [data-error]")
 
     expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
     render_patch(lv, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?q=Core")
     render_async(lv, 2000)
-    refute has_element?(lv, "[data-part=\"analytics-error\"]")
+    refute has_element?(lv, "[data-part=analytics] [data-error]")
+    assert has_element?(lv, "[data-part=analytics][data-state=ready]")
     assert has_element?(lv, "#widget-hits")
   end
 

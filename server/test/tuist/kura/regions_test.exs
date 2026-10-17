@@ -127,6 +127,7 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       assert Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      assert Regions.storage_governed?(Regions.get("ber1-runners"))
       refute Regions.storage_governed?(Regions.get("hetzner-staging-runners"))
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
@@ -611,6 +612,7 @@ defmodule Tuist.Kura.RegionsTest do
       # be deleted. It is not an available serving region.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
+               "ber1-runners",
                "hetzner-staging-runners"
              ]
 

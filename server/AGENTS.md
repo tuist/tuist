@@ -26,6 +26,14 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Previews (iOS app preview deployment)
 - Command Events (CLI analytics)
 
+## Horizontal Scaling
+
+- Every implementation must preserve horizontal scalability: requests and jobs must remain correct across multiple replicas, arbitrary request routing, rolling restarts and replica failure. Do not require sticky sessions or treat process memory, local files or ETS as authoritative shared state.
+- Node-local caches are allowed when disposable and their freshness/invalidation contract is explicit. Preserve bounded authentication staleness and strict privacy/privilege checks; do not replace caching with expensive work or database reads on every request without evaluating load.
+- Coordinate shared work through atomic operations in shared infrastructure, with explicit ownership, bounded waits and crash recovery. Prefer coordination independent of Erlang membership when possible. Cluster locks are only valid when discovery and partition behavior are part of the supported deployment contract. Verify actual provider semantics before relying on S3 conditional writes, Redis leases or database locks; expired owners must not release another owner's claim or overwrite its result.
+- Make retried work idempotent and persist required work before acknowledging it. Supervision and graceful shutdown do not make in-memory work durable.
+- Validate relevant cross-replica and failure scenarios, and consider cold starts, simultaneous cache expiry, CPU cost, database-pool pressure and shared-backend limits. Single-replica tests and warm-cache throughput alone do not establish horizontal scalability.
+
 ## Development Setup
 **Prerequisites**
 - PostgreSQL 16
@@ -65,6 +73,14 @@ mise run dev
 - `mix test --only tag_name`
 - The `:test` env compiles only the `"en"` locale by default so a cold `_build/test` (e.g. a fresh worktree) doesn't generate ex_cldr code for all ten locales. Tests that assert other locales' formatting/normalization are tagged `:locale` and excluded by default. Run `TUIST_DEV_ALL_LOCALES=1 mix test` to compile the full locale set and include them (this is what CI does).
 
+**Dependency Caching, Build and Test Insights**
+- `mix compile` and `mix test` cache supported compiled dependencies and report to the hosted `tuist/server` project through the local `tuist_ex` package. `tuist: [project: "tuist/server", cache: true]` enables caching; the compile alias bootstraps `tuist_ex` and exposes its dependencies without compiling the rest before `tuist.compile` restores cached artifacts. Native/custom compilation and local dependencies still compile through Mix, and unavailable authentication or caching falls back to normal compilation. The test alias keeps database creation, timezone setup, and migrations before `tuist.test`.
+- Authenticate locally with `mix tuist.login` (shares the Tuist CLI credentials). In CI, provide a project-scoped `TUIST_TOKEN` or authenticate with `mix tuist.login` using the CI provider's OIDC identity.
+- `TUIST_PROJECT` and `TUIST_URL` override the destination. Reporting failures never fail a build or test run; set `TUIST_DEBUG=1` to diagnose them.
+- `server.yml` builds once and runs four shards per ClickHouse variant. On a cold checkout, run `MIX_ENV=test mix compile --warnings-as-errors` before planning so the compile alias restores cached dependencies before Mix discovers the SDK task. Plan locally with `MIX_ENV=test TUIST_SHARD_REFERENCE=<unique-reference> mix tuist.test.build --shard-total 4`. On a cold shard, set `MIX_ENV=test`, `TUIST_SHARD_INDEX=<index>`, and `TUIST_SHARD_REFERENCE=<same-reference>`, then run `mix do deps.compile tuist_ex --include-children + tuist.test --prepare-only` so the cold bootstrap includes the SDK's gRPC/Protobuf dependencies. Run `mise run --no-deps db:reset` separately, then `mix tuist.test --no-download --warnings-as-errors`. Separate database setup prevents migration-module redefinition warnings in regression tests. Match `TUIST_DEV_ALL_LOCALES` across the build and shards; CI sets it to `1`. GitHub jobs reuse the build job's reference even when only failed jobs are rerun, and use distinct `--scheme` labels for each ClickHouse variant.
+- The hosted `tuist/server` project must be connected to the `tuist/tuist` GitHub repository for OpenID Connect credentials to authorize its reports and shard plans. If planning fails, separately named unprivileged jobs run both unsharded ClickHouse variants while the planner remains red.
+- Concurrent local shards need separate `MIX_BUILD_PATH`, `TUIST_SERVER_TEST_POSTGRES_DB`, `TUIST_SERVER_TEST_CLICKHOUSE_DB`, and `TUIST_SERVER_TEST_PORT` values. Put the database and port overrides after `mise exec -- env` so the development-instance setup does not overwrite them. Leave `MIX_TEST_PARTITION` unset when overriding database names: legacy cross-database migrations append it themselves. For isolated local setup, invoke `bash mise/tasks/db/reset.sh` under those overrides instead of nesting `mise run`, which reloads and replaces the database environment.
+
 **Code Quality**
 - `mix credo`
 - `mise run format`
@@ -95,7 +111,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - `mix.exs` - Elixir project configuration
 - `package.json` - JS dependencies (aube)
 - `config/` - Phoenix configuration
-- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox
+- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox, including `ORIGIN_APP/app_id` and the independent `ORIGIN_APP/private_key` signing key. Store the registered App ID beside its matching key; never hardcode an Origin private key.
 
 ## Testing Guidelines
 - Tests use ExUnit; files follow `test/**/module_name_test.exs`.

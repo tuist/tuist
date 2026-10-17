@@ -50,6 +50,7 @@ defmodule Tuist.Tests.TestCaseRun do
     field :is_flaky, :boolean, default: false
     field :is_new, :boolean, default: false
     field :is_quarantined, :boolean, default: false
+    field :coverage_evidence, Ch, type: "Enum8('none' = 0, 'own' = 1, 'overlapped' = 2)", default: "none"
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
@@ -87,6 +88,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_flaky,
       :is_new,
       :is_quarantined,
+      :coverage_evidence,
       :duration,
       :inserted_at,
       :module_name,

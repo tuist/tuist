@@ -8,6 +8,7 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.Alerts.Revision
+  alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -17,6 +18,22 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
       conn,
       ~p"/#{organization.account.name}/#{project.name}/settings/automations/#{automation.id}"
     )
+  end
+
+  test "keeps restricted automation fields out of public-project image URLs", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, project} = Projects.update_project(project, %{visibility: :public})
+    automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Internal quarantine policy")
+    path = ~p"/#{organization.account.name}/#{project.name}/settings/automations/#{automation.id}"
+    html = conn |> get(path) |> html_response(:ok)
+    document = Floki.parse_document!(html)
+
+    assert Floki.attribute(document, "meta[property='og:image']", "content") == [
+             Tuist.Environment.app_url(path: "/images/open-graph/dashboard/settings.png")
+           ]
   end
 
   test "shows the current configuration and edit history", %{

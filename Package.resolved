@@ -1,5 +1,5 @@
 {
-  "originHash" : "1910b516bdaf59b2c3db327a56e0a8ef48dfd6bb6f66f636e28ec9cb3f261f03",
+  "originHash" : "d76be3da6644f05ab364e5d4a82c9ddafe5737b83aabbd352508a460d283a643",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -654,6 +654,15 @@
       }
     },
     {
+      "identity" : "testcoverageattribution",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/TestCoverageAttribution",
+      "state" : {
+        "revision" : "4595ce714562f65e8d4931e488af266920b496b3",
+        "version" : "0.1.1"
+      }
+    },
+    {
       "identity" : "tid-kijyun.kanna",
       "kind" : "registry",
       "location" : "",
@@ -708,7 +717,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.17.1"
+        "version" : "9.17.5"
       }
     },
     {

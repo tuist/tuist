@@ -7,6 +7,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Kura.Origins
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.VCS
   alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
@@ -364,6 +365,11 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :integer,
                                  description: "The compilation time of a binary in milliseconds."
                                },
+                               instrumented: %Schema{
+                                 type: :boolean,
+                                 description:
+                                   "Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss."
+                               },
                                subhashes: %Schema{
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
@@ -609,6 +615,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     if not is_nil(xcode_graph) do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
+      Coverage.refold_after_selective_testing(command_event, xcode_graph)
     end
 
     module_cache_outputs = Map.get(body_params, :module_cache_outputs, [])

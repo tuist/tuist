@@ -128,6 +128,10 @@ func TestRackHostKeepsTheMachineThatMakesItANode(t *testing.T) {
 	if machine.Labels["tuist.dev/fleet"] != testFleet || machine.Labels[clusterv1.ClusterNameLabel] != testCluster || machine.Labels[RackHostLabel] != "mini-01" {
 		t.Fatalf("labels %v", machine.Labels)
 	}
+	// Cluster API syncs it to the Node, where the rack dashboards read the site.
+	if got := machine.Labels[infrav1.RackSiteNodeLabel]; got != "ber1" {
+		t.Fatalf("site label %q, want the host's site", got)
+	}
 	owner := metav1.GetControllerOf(machine)
 	if owner == nil || owner.Kind != "RackHost" || owner.Name != "mini-01" {
 		t.Fatalf("controller %+v, want the host", owner)
@@ -251,5 +255,31 @@ func TestNoMachinesWithoutTheirCluster(t *testing.T) {
 	}
 	if got := readHost(t, r, "mini-01").Status.Machine; got != "" {
 		t.Fatalf("status.machine = %q with no Machines kept", got)
+	}
+}
+
+// A host lent to another fleet's pools keeps the operator's Machine, whose
+// fleet label the MachineHealthCheck selects on, and hands the other fleet to
+// its machine for the Node.
+func TestRackHostLendsItsNodeToAnotherFleet(t *testing.T) {
+	host := unmachinedHost()
+	host.Spec.NodeFleet = "tuist-staging-rack-fleet"
+	r := newRackMachinesReconciler(t, host)
+
+	reconcileHost(t, r, "mini-01")
+
+	infra, ok := getInfraMachine(t, r, testHostMachine)
+	if !ok {
+		t.Fatal("no RackAppleSiliconMachine")
+	}
+	if infra.Spec.FleetName != testFleet || infra.Spec.NodeFleet != "tuist-staging-rack-fleet" {
+		t.Fatalf("fleet %q, node fleet %q", infra.Spec.FleetName, infra.Spec.NodeFleet)
+	}
+	machine, ok := getMachine(t, r, testHostMachine)
+	if !ok {
+		t.Fatal("no Machine")
+	}
+	if machine.Labels["tuist.dev/fleet"] != testFleet {
+		t.Fatalf("Machine fleet label %q, want the operator's %q", machine.Labels["tuist.dev/fleet"], testFleet)
 	}
 }

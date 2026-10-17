@@ -4,13 +4,23 @@ defmodule Tuist.Bazel.Invocation do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :command, :is_ci, :inserted_at],
-    sortable: [:inserted_at, :started_at, :finished_at, :duration_ms, :status, :command],
+    filterable: [:failure_category, :project_id, :status, :command, :is_ci, :inserted_at],
+    sortable: [
+      :failure_category,
+      :invocation_id,
+      :inserted_at,
+      :started_at,
+      :finished_at,
+      :duration_ms,
+      :status,
+      :command
+    ],
     default_order: %{order_by: [:finished_at], order_directions: [:desc]}
   }
 
   @primary_key false
   schema "bazel_invocations" do
+    field :failure_category, :string, virtual: true, default: ""
     field :id, Ch, type: "UUID"
     field :invocation_id, Ch, type: "String"
     field :command, Ch, type: "LowCardinality(String)"

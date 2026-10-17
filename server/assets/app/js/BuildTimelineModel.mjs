@@ -50,6 +50,11 @@ export function categoryFor(category, source = "xcode") {
     if (["Copy", "Sync", "ProcessResources"].includes(type)) return "resource";
     if (/^Link/.test(type)) return "link";
   }
+  if (source === "mix") {
+    if (category === "type_check") return "setup";
+    if (category === "write") return "resource";
+    if (category === "compiler") return "script";
+  }
   if (source === "once") {
     if (category === "Rustc") return "compile";
     if (category === "Link") return "link";

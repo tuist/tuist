@@ -699,6 +699,39 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "kura-egress-limits-form"
   end
 
+  test "offers the open source plan only to an account with no subscription", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "Start open source plan"
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    refute html =~ "Start open source plan"
+  end
+
+  test "starts the open source plan and reloads the account", %{conn: conn, user: user} do
+    expect(Billing, :start_open_source_plan, fn account ->
+      assert account.id == user.account.id
+      {:ok, %{id: "sub_fake"}}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv |> element("button", "Start open source plan") |> render_click()
+
+    flash = assert_redirect(lv, ~p"/ops/accounts/#{user.account.id}")
+    assert flash["info"] == "#{user.account.name} is now on the Open Source plan."
+  end
+
+  test "reports an account that already has a subscription", %{conn: conn, user: user} do
+    stub(Billing, :start_open_source_plan, fn _account -> {:error, :subscription_exists} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert render_hook(lv, "start_open_source_plan", %{}) =~
+             "#{user.account.name} already has an active subscription."
+  end
+
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     stub(Stripe.Customer, :retrieve, fn _customer_id ->
       {:ok,
@@ -967,6 +1000,163 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert has_element?(lv, "#prepaid-balance-table", "10K")
       assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
       refute render(lv) =~ "750.00$"
+    end
+  end
+
+  describe "prepaid runner pool" do
+    defp pool_params(overrides \\ %{}) do
+      Map.merge(
+        %{
+          "paid" => "8000.00",
+          "credit_multiplier" => "1.4",
+          "platforms" => "macos",
+          "starts_on" => "2026-10-01",
+          "expires_on" => "2027-09-30",
+          "invoice_id" => "in_pool"
+        },
+        overrides
+      )
+    end
+
+    test "quotes the credit and the baseline minutes it buys before anything is granted", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.grant_pool/2)
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params())
+        |> render_change()
+
+      assert html =~ "11,200.00"
+      assert html =~ "149.3K"
+    end
+
+    test "names the first and last invoice the pool will pay for", %{conn: conn, user: user} do
+      # Stripe picks the invoices a grant pays by when their period ends, so
+      # the operator sees which ones before granting rather than after.
+      stub(Billing, :current_billing_period, fn _account -> {~U[2099-09-15 00:00:00Z], ~U[2099-10-15 00:00:00Z]} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
+        |> render_change()
+
+      assert html =~ "November 15, 2099"
+      assert html =~ "November 15, 2100"
+    end
+
+    test "says no invoice will draw on a pool when the account has no billing cycle", %{conn: conn, user: user} do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
+        |> render_change()
+
+      assert html =~ "No subscription to invoice against"
+    end
+
+    test "grants the pool on the terms typed", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :grant_pool, fn account, attrs ->
+        assert account.id == user.account.id
+        assert attrs.paid_cents == 800_000
+        assert Decimal.equal?(attrs.credit_multiplier, Decimal.new("1.4"))
+        assert attrs.platforms == [:macos]
+        assert attrs.starts_on == ~D[2026-10-01]
+        assert attrs.expires_on == ~D[2027-09-30]
+        assert attrs.invoice_id == "in_pool"
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params())
+      |> render_submit()
+
+      assert render(lv) =~ "September 30, 2027"
+    end
+
+    test "covers every platform and records no invoice when those are left as they are", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :grant_pool, fn _account, attrs ->
+        assert attrs.platforms == [:linux, :macos]
+        assert is_nil(attrs.invoice_id)
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params(%{"platforms" => "all", "invoice_id" => "  "}))
+      |> render_submit()
+    end
+
+    test "refuses input it cannot read without granting anything", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.grant_pool/2)
+
+      for overrides <- [
+            %{"paid" => "eight thousand"},
+            %{"credit_multiplier" => "1.4x"},
+            %{"starts_on" => "soon"},
+            %{"expires_on" => "soon"}
+          ] do
+        lv
+        |> form("#prepaid-pool-form", pool_params(overrides))
+        |> render_submit()
+
+        assert render(lv) =~ "Could not grant the pool"
+      end
+    end
+
+    test "says which term was refused", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      stub(Prepaid, :grant_pool, fn _account, _attrs -> {:error, {:invalid_pool, :expires_on}} end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params())
+      |> render_submit()
+
+      assert render(lv) =~ "within thirteen months"
+    end
+
+    test "keeps a pool out of the minutes the monthly field opens on", %{conn: conn, user: user} do
+      # The monthly field replaces what it opens on. Opening on the pool's
+      # minutes would sell them again as a month's worth.
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(375_000, :USD),
+          expires_at: ~U[2026-11-05 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_monthly",
+              kind: "prepaid",
+              available: Money.new(75_000, :USD),
+              available_minutes: 10_000,
+              expires_at: ~U[2026-11-05 00:00:00Z]
+            },
+            %{
+              id: "credgr_pool",
+              kind: "pool",
+              available: Money.new(300_000, :USD),
+              available_minutes: 40_000,
+              expires_at: ~U[2027-10-05 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#prepaid-minutes-input[value=\"10000\"]")
+      assert has_element?(lv, "#prepaid-balance-table", "Pool")
     end
   end
 

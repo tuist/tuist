@@ -25,6 +25,13 @@ public enum XcodeBuildTestAction: Equatable {
     }
 }
 
+/// Environment variables for the xcodebuild invocations made inside a task, on top of the
+/// process's own: what reaches a test host through the `TEST_RUNNER_` prefix. Task-local so a
+/// caller scopes it to one invocation without every `XcodeBuildControlling` method carrying it.
+public enum XcodeBuildEnvironment {
+    @TaskLocal public static var additionalVariables: [String: String] = [:]
+}
+
 @Mockable
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.

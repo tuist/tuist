@@ -177,22 +177,23 @@ struct XCResultServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func parseCoverageReturnsTheBundlesReport() async throws {
+    func parseCoverageReturnsTheBundlesSummary() async throws {
         // Given
         let xcresult = try await fixtureXCResult("test.xcresult")
+        let output = try #require(FileSystem.temporaryTestDirectory).appending(component: "coverage.ndjson")
         let coverageParser = MockXcodeCoverageParsing()
         let manifest = XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
-        let coverage = XcodeCoverageReport(partial: false, files: [])
+        let summary = XcodeCoverageSummary(partial: false, fileCount: 3)
         given(coverageParser)
-            .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest))
-            .willReturn(coverage)
+            .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest), into: .value(output))
+            .willReturn(summary)
         let subject = XCResultService(coverageParser: coverageParser)
 
         // When
-        let got = try await subject.parseCoverage(path: xcresult, manifest: manifest)
+        let got = try await subject.parseCoverage(path: xcresult, manifest: manifest, into: output)
 
         // Then
-        #expect(got == coverage)
+        #expect(got == summary)
     }
 
     @Test(.inTemporaryDirectory)
@@ -214,14 +215,15 @@ struct XCResultServiceTests {
         let xcresult = try await fixtureXCResult("test.xcresult")
         let coverageParser = MockXcodeCoverageParsing()
         given(coverageParser)
-            .parse(resultBundlePath: .any, manifest: .any)
+            .parse(resultBundlePath: .any, manifest: .any, into: .any)
             .willThrow(NSError(domain: "xccov", code: 1))
         let subject = XCResultService(coverageParser: coverageParser)
 
         // When / Then
         #expect(try await subject.parseCoverage(
             path: xcresult,
-            manifest: XcodeCoverageManifest(rootDirectories: [], partial: false, files: [])
+            manifest: XcodeCoverageManifest(rootDirectories: [], partial: false, files: []),
+            into: try #require(FileSystem.temporaryTestDirectory).appending(component: "coverage.ndjson")
         ) == nil)
     }
 

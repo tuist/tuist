@@ -401,7 +401,7 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh spec/e2e/xcode_lookups_lifecycle_spec.sh"
           - shard_name: bytestream-admission
             specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
@@ -446,6 +446,13 @@ jobs:
         with:
           install: "rust shellspec bazel aqua:facebook/buck2"
           working-directory: kura
+
+      - name: Install Java for the Bazel upload recovery fixture
+        if: matrix.shard_name == 'clients'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Show Docker tooling
         run: docker compose version

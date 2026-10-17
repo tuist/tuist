@@ -16,17 +16,29 @@ public struct XCResultToolOutput: Sendable {
 /// The parser invokes Xcode tools at this boundary so parser tests can provide fixture output.
 public typealias XCResultToolExecuting = @Sendable ([String]) async throws -> XCResultToolOutput
 
+/// Like `XCResultToolExecuting`, with standard output written to the given file instead of
+/// returned, for output too large to hold in memory. The returned output's `standardOutput` is
+/// empty.
+public typealias XCResultToolFileExecuting = @Sendable ([String], URL) async throws -> XCResultToolOutput
+
 public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultToolOutput {
+    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+    let output = try await executeXCResultTool(arguments, standardOutputTo: outputURL)
+    return XCResultToolOutput(
+        standardOutput: try String(contentsOf: outputURL, encoding: .utf8),
+        standardError: output.standardError,
+        succeeded: output.succeeded
+    )
+}
+
+public func executeXCResultTool(_ arguments: [String], standardOutputTo outputURL: URL) async throws -> XCResultToolOutput {
     guard let executableName = arguments.first else {
         throw XCResultToolError.missingExecutable
     }
 
-    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let errorURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer {
-        try? FileManager.default.removeItem(at: outputURL)
-        try? FileManager.default.removeItem(at: errorURL)
-    }
+    defer { try? FileManager.default.removeItem(at: errorURL) }
 
     FileManager.default.createFile(atPath: outputURL.path, contents: nil)
     FileManager.default.createFile(atPath: errorURL.path, contents: nil)
@@ -55,7 +67,7 @@ public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultT
     }
 
     return XCResultToolOutput(
-        standardOutput: try String(contentsOf: outputURL, encoding: .utf8),
+        standardOutput: "",
         standardError: try String(contentsOf: errorURL, encoding: .utf8),
         succeeded: process.terminationStatus == 0
     )
@@ -210,17 +222,31 @@ private final class XCResultToolProcess: @unchecked Sendable {
         guard event.ident == UInt(processIdentifier), event.filter == Int16(EVFILT_PROC) else {
             throw POSIXError(.EIO)
         }
-        try lock.withLock {
-            defer { self.processIdentifier = nil }
-            // The event preserves the status even when the host auto-reaps children.
-            // Ordinary hosts still need waitpid to release the exited process.
-            while waitpid(processIdentifier, nil, 0) == -1 {
-                if errno == EINTR { continue }
-                if errno == ECHILD { break }
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-        }
+        // Cancellation runs under the same lock, so it must not be held while reaping.
+        lock.withLock { self.processIdentifier = nil }
+        try reapExitedChild(processIdentifier)
         return Int32(event.data)
+    }
+}
+
+/// The event preserves the status even when the host auto-reaps children.
+/// Ordinary hosts still need waitpid to release the exited process.
+///
+/// Never blocks: a host that ignores SIGCHLD, like the BEAM, gets `NOTE_EXIT` before the kernel
+/// reaps the child, and a blocking `waitpid` that reaches the child in between sleeps until every
+/// other child of the host has exited too.
+func reapExitedChild(_ processIdentifier: pid_t) throws {
+    let deadline = Date().addingTimeInterval(5)
+    while true {
+        let result = waitpid(processIdentifier, nil, WNOHANG)
+        if result == processIdentifier { return }
+        if result == -1 {
+            if errno == EINTR { continue }
+            if errno == ECHILD { return }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        if Date() >= deadline { return }
+        usleep(1000)
     }
 }
 

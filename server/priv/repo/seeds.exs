@@ -1,5 +1,6 @@
 import Ecto.Query
 
+alias Ecto.Adapters.SQL.Sandbox
 alias Tuist.Accounts
 alias Tuist.Accounts.AccountToken
 alias Tuist.Alerts.Alert
@@ -45,6 +46,16 @@ alias Tuist.Tests.TestCaseFailure
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
 alias Tuist.Tests.TestSuiteRun
+alias Tuist.Xcode.XcodeGraph
+alias Tuist.Xcode.XcodeProject
+alias Tuist.Xcode.XcodeTarget
+
+# CI seeds with MIX_ENV=test, where both repos use the SQL sandbox pool. Its
+# implicit checkout drops this script's connection after the default 120s
+# ownership timeout, which a full seed now exceeds.
+for repo <- [Repo, IngestRepo], repo.config()[:pool] == Sandbox do
+  :ok = Sandbox.checkout(repo, sandbox: false, ownership_timeout: :infinity)
+end
 
 # =============================================================================
 # Configuration via Environment Variables
@@ -81,10 +92,6 @@ alias Tuist.Tests.TestSuiteRun
 # as production data grows.
 #
 # =============================================================================
-
-alias Tuist.Xcode.XcodeGraph
-alias Tuist.Xcode.XcodeProject
-alias Tuist.Xcode.XcodeTarget
 
 # Scale presets
 seed_scale = System.get_env("SEED_SCALE", "small")
@@ -2234,7 +2241,7 @@ existing_events_with_xcode =
 events_needing_xcode =
   from(e in Event,
     where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at, project_id: e.project_id},
     order_by: [desc: e.ran_at],
     limit: 200
   )
@@ -3912,6 +3919,18 @@ end
 # =============================================================================
 
 runner_jobs_account_id = organization.account.id
+
+# The jobs below have fixed ids, and a job with a recorded completion refuses
+# to be claimed again, so a re-seed starts from the account's lifecycle rows
+# gone rather than stopping at the first job it already finished.
+for schema <- [
+      Tuist.Runners.JobCompletion,
+      Tuist.Runners.Claim,
+      Tuist.Runners.WorkflowJob,
+      RunnerSession
+    ] do
+  Repo.delete_all(from(row in schema, where: row.account_id == ^runner_jobs_account_id))
+end
 
 runner_jobs_repos = [
   "tuist/tuist",
@@ -5775,6 +5794,11 @@ kura_events
 end)
 
 IO.puts("  - kura usage events: #{length(kura_events)}")
+
+# Code coverage: the repository's history, runs carrying coverage and per-test
+# evidence, and the per-commit totals every coverage page reads. It lives in
+# its own file so it can be re-seeded alone.
+Code.eval_file(Path.join(__DIR__, "coverage_seeds.exs"))
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

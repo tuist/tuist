@@ -60,6 +60,12 @@ defmodule TuistWeb.CldrHelpersTest do
     assert format_number(12_345, locale: "es") == "12,3K"
   end
 
+  test "formats counts in full with locale grouping" do
+    assert format_count(658_422, locale: "en") == "658,422"
+    assert format_count(1_234_567, locale: "es") == "1.234.567"
+    assert format_count(42, locale: "en") == "42"
+  end
+
   test "preserves money and percent formatting" do
     assert format_money(Money.new(1_234_567, :USD), locale: "en") == "12,345.67$"
     assert format_percent(12_345, locale: "en") == "12,345%"

@@ -56,13 +56,26 @@
   },
   "eats16n": {
     "product": "Eaton EATS16N rack ATS",
-    "note": "1U, 2x C20 in, 8x C13 plus 1x C19 out, 16A/3.84kW, 8 ms transfer. Networking is built in (Netpack), so both inputs can be monitored over SNMP.",
+    "note": "1U, 2x C20 in, 8x C13 plus 1x C19 out, 16A/3.84kW, 8 ms transfer. Networking is built in (Netpack). Its card is taken to be a Network-M2, which serves the REST API the PDUs speak (/rest/mbdetnrs), and that is what the RackATS controller targets; the same card serves the EATON-ATS2-MIB over SNMP once SNMP is enabled, which it is not from the factory. Source 1 is feed A, source 2 feed B.",
+    "management_protocols": [
+      "rest",
+      "snmp",
+      "https"
+    ],
     "interfaces": {
       "netpack": {
         "media": "copper",
         "speed": "1G",
         "out_of_band": "native",
         "note": "Built-in management network port. Eaton's Netpack, not an add-in card."
+      },
+      "source-1": {
+        "media": "power",
+        "note": "C20 inlet for source 1, feed A."
+      },
+      "source-2": {
+        "media": "power",
+        "note": "C20 inlet for source 2, feed B."
       }
     }
   },
@@ -82,15 +95,20 @@
         "speed": "1G",
         "out_of_band": "native"
       },
-      "usb": {
-        "media": "usb",
-        "note": "Feeds an RS485 sensor chain through a USB converter, and powers it."
+      "sensor": {
+        "media": "rj45",
+        "note": "The SENSOR port: feeds and powers the RS485 (Modbus) chain of environmental probes, which run probe to probe over RJ45 cables."
       }
+    },
+    "outlets": {
+      "count": 24,
+      "labels": "A1 to A24",
+      "sockets": "Odd outlets C13, even outlets hybrid C13/C19, so every outlet takes a C14 plug and the even ones a C20 too."
     }
   },
   "emp-gen2": {
     "product": "Eaton EMP Gen 2 environmental probe",
-    "note": "No Ethernet at all. It hangs off a PDU's USB port through a USB-to-RS485 converter and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
+    "note": "No Ethernet at all. It hangs off a PDU's SENSOR port over an RJ45 cable carrying RS485 (Modbus), chained probe to probe, and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
     "bus": "rs485",
     "interfaces": {}
   }

@@ -12,6 +12,7 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -73,6 +74,12 @@ defmodule TuistWeb.API.ShardsController do
              description:
                "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
            },
+           concurrent_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+           },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
            shard_total: %Schema{
@@ -123,6 +130,7 @@ defmodule TuistWeb.API.ShardsController do
       test_suites: Map.get(body_params, :test_suites),
       skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
+      concurrent_modules: Map.get(body_params, :concurrent_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),
@@ -582,9 +590,10 @@ defmodule TuistWeb.API.ShardsController do
   end
 
   defp suite_catch_all_supported?(conn) do
-    case Headers.get_cli_version(conn) do
-      nil -> false
-      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
-    end
+    version_at_least?(Headers.get_cli_version(conn), @suite_catch_all_minimum_cli_version) or
+      version_at_least?(Headers.get_gradle_plugin_version(conn), @suite_catch_all_minimum_gradle_plugin_version)
   end
+
+  defp version_at_least?(nil, _minimum), do: false
+  defp version_at_least?(version, minimum), do: Version.compare(version, minimum) != :lt
 end

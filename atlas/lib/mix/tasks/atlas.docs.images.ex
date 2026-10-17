@@ -71,9 +71,25 @@ defmodule Mix.Tasks.Atlas.Docs.Images do
       # Stop only our isolated process and bound the generation step.
       if info = Port.info(port, :os_pid) do
         {:os_pid, pid} = info
-        System.cmd("kill", ["-TERM", Integer.to_string(pid)], stderr_to_stdout: true)
-        Port.close(port)
+        MuonTrap.cmd("kill", ["-TERM", Integer.to_string(pid)], stderr_to_stdout: true)
+        wait_for_browser_shutdown(port, pid, System.monotonic_time(:millisecond) + 5000)
       end
+    end
+  end
+
+  defp wait_for_browser_shutdown(port, pid, deadline) do
+    remaining = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {^port, {:exit_status, _status}} ->
+        :ok
+
+      {^port, {:data, _data}} ->
+        wait_for_browser_shutdown(port, pid, deadline)
+    after
+      remaining ->
+        MuonTrap.cmd("kill", ["-KILL", Integer.to_string(pid)], stderr_to_stdout: true)
+        if Port.info(port), do: Port.close(port)
     end
   end
 

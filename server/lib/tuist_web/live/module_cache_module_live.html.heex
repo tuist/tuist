@@ -105,27 +105,29 @@
     </div>
   </div>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@dependents_series, @miss_reasons_series, @module, @timeseries]}
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
   >
     <div :if={!@module.failed} data-part="widgets">
       <.widget
-        loading={!@module.ok?}
+        loading={!ready?}
         id="widget-cache-activity"
         title={dgettext("dashboard_cache", "Hits")}
         legend_color="primary"
         description={
           dgettext("dashboard_cache", "Builds where this module was served from the cache.")
         }
-        value={if @module.ok?, do: format_number(@module.result.reuses)}
+        value={if ready?, do: format_number(@module.result.reuses)}
         phx_click="select_widget"
         phx_value_widget="cache_activity"
         selected={@analytics_selected_widget == "cache_activity"}
       />
       <.widget
-        loading={!@module.ok?}
+        loading={!ready?}
         id="widget-hit-rate"
         title={dgettext("dashboard_cache", "Cache hit rate")}
         legend_color="primary"
@@ -136,7 +138,7 @@
           )
         }
         value={
-          if @module.ok?,
+          if ready?,
             do: dgettext("dashboard_cache", "%{rate}%", rate: @module.result.hit_rate)
         }
         phx_click="select_widget"
@@ -144,7 +146,7 @@
         selected={@analytics_selected_widget == "hit_rate"}
       />
       <.widget
-        loading={!@module.ok?}
+        loading={!ready?}
         id="widget-blast-radius"
         title={dgettext("dashboard_cache", "Dependents")}
         legend_color="secondary"
@@ -154,19 +156,19 @@
             "How many modules this one invalidates downstream when it changes."
           )
         }
-        value={if @module.ok?, do: format_number(@module.result.blast_radius || 0)}
+        value={if ready?, do: format_number(@module.result.blast_radius || 0)}
         phx_click="select_widget"
         phx_value_widget="blast_radius"
         selected={@analytics_selected_widget == "blast_radius"}
       />
       <.widget
-        loading={!@module.ok?}
+        loading={!ready?}
         id="widget-why-it-misses"
         title={miss_reason_title(@selected_miss_reason)}
         legend_color={miss_reason_legend(@selected_miss_reason)}
         description={reason_description(@selected_miss_reason)}
         value={
-          if @module.ok?,
+          if ready?,
             do: format_number(miss_reason_value(@module.result, @selected_miss_reason))
         }
         phx_click="select_widget"
@@ -194,7 +196,7 @@
               <span data-part="label">{label}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @module.ok?,
+                {if ready?,
                   do: format_number(miss_reason_value(@module.result, value)),
                   else: dgettext("dashboard_cache", "N/A")}
               </span>
@@ -205,16 +207,18 @@
     </div>
 
     <.card_section
-      :if={!@timeseries.ok? and !@timeseries.failed}
+      :if={!ready? and !@timeseries.failed}
       data-part="analytics-chart-section"
+      data-chart-frame="standard"
     >
       <.skeleton_chart />
     </.card_section>
     <.error_card_section :if={@timeseries.failed} data-part="analytics-error" />
 
     <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "cache_activity"}
+      :if={ready? && @analytics_selected_widget == "cache_activity"}
       data-part="analytics-chart-section"
+      data-chart-frame="standard"
     >
       <.chart
         id="module-cache-activity-chart"
@@ -257,8 +261,9 @@
     </.card_section>
 
     <.card_section
-      :if={@timeseries.ok? && @analytics_selected_widget == "hit_rate"}
+      :if={ready? && @analytics_selected_widget == "hit_rate"}
       data-part="analytics-chart-section"
+      data-chart-frame="standard"
     >
       <.chart
         id="module-hit-rate-chart"
@@ -303,8 +308,9 @@
     </.card_section>
 
     <.card_section
-      :if={@dependents_series.ok? && @analytics_selected_widget == "blast_radius"}
+      :if={ready? && @analytics_selected_widget == "blast_radius"}
       data-part="analytics-chart-section"
+      data-chart-frame="standard"
     >
       <.chart
         id="module-dependents-chart"
@@ -348,8 +354,9 @@
       />
     </.card_section>
     <.card_section
-      :if={@miss_reasons_series.ok? && @analytics_selected_widget == "miss_reasons"}
+      :if={ready? && @analytics_selected_widget == "miss_reasons"}
       data-part="analytics-chart-section"
+      data-chart-frame="standard"
     >
       <.chart
         id="module-miss-reasons-chart"
@@ -416,7 +423,7 @@
         grid_lines
       />
     </.card_section>
-  </.card>
+  </.async_card>
 
   <.card
     title={dgettext("dashboard_cache", "Builds")}

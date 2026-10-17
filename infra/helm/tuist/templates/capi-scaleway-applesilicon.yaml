@@ -49,6 +49,9 @@ rules:
       - vultrmachinetemplates
       - rackapplesiliconmachines
       - rackhosts
+      - rackpdus
+      - rackatses
+      - racksites
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -69,6 +72,13 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      # The RackPDU and RackATS controllers hold a deleted PDU or transfer
+      # switch with a finalizer until its egress Service is gone.
+      - rackpdus/status
+      - rackpdus/finalizers
+      - rackatses/status
+      - rackatses/finalizers
+      - racksites/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,
@@ -317,6 +327,40 @@ subjects:
     name: {{ $name }}
     namespace: {{ .Release.Namespace }}
 ---
+# Read on the single default/kubernetes Service, whose ClusterIP a rack node
+# translates to the API server (discoverKubernetesService), so in-cluster
+# clients on the node reach the API at the address they are given.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kubernetes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-kubernetes-service
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -368,6 +412,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      {{- with .Values.macosFleet.operatorNodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: manager
           image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default "latest" }}"
@@ -377,6 +425,12 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if .Values.capi.vultrPrivateNetwork.enabled }}
+            - --vultr-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+            {{- end }}
+            {{- if .Values.capi.ovhPrivateNetwork.enabled }}
+            - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+            {{- end }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}
@@ -407,6 +461,16 @@ spec:
             - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
             - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
             - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
+            - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
+            {{- end }}
+            {{- with include "tuist.rackImageMirrors" . }}
+            - --rackhost-image-mirrors={{ . }}
+            - --rackhost-image-mirror-hosts={{ include "tuist.rackImageMirrorHosts" $ }}
+            {{- end }}
+            {{- if .Values.rackFleet.cardRootKey.enabled }}
+            - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
+            {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}
@@ -444,6 +508,11 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- if .Values.runnersFleet.customCacheVolumes.enabled }}
+            - --custom-cache-url={{ .Values.server.appUrl }}/api/internal/runners/cache-volumes
+            - --custom-cache-namespace={{ .Values.runnersFleet.namespace | default "tuist-runners" }}
+            - --custom-cache-service-account={{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
+            {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
             # baked into the operator image at the Dockerfile-pinned
@@ -453,6 +522,9 @@ spec:
             # short-circuit.
             - --tailscale-binaries-path=/opt/tailscale/tailscale-darwin-arm64.tar.gz
             - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
+            # Temperatures, fan speeds, power and thermal pressure, served by
+            # node_exporter's textfile collector (infra/macos-host-sensors).
+            - --host-sensors-binary-path=/opt/host-sensors/tuist-host-sensors-darwin-arm64
             # The bootstrap reads this Secret per Machine reconcile
             # (controller-runtime cache hit, no API round-trip) so a
             # rotated key takes effect on the next reconcile without

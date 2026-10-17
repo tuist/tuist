@@ -58,6 +58,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
 
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Retry
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.VCS
@@ -86,7 +87,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
         },
         attempt: attempt
       }) do
-    with {:ok, installation} <- fetch_installation(installation_id),
+    with {:ok, installation} <- fetch_installation(installation_id, account_id),
          api_url = VCS.installation_api_url(installation),
          {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, line_count} <- stream_log(api_url, repository, workflow_job_id, account_id, token) do
@@ -122,9 +123,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
     end
   end
 
-  defp fetch_installation(installation_id) do
-    case VCS.get_github_app_installation_by_installation_id(to_string(installation_id)) do
-      {:ok, installation} -> {:ok, installation}
+  defp fetch_installation(installation_id, account_id) do
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
+         true <- installation.installation_id == to_string(installation_id) do
+      {:ok, installation}
+    else
       _ -> {:error, :installation_not_found}
     end
   end
@@ -151,7 +154,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
       |> with_log_stream(stream?, initial)
       |> Keyword.merge(Retry.retry_options())
 
-    case fetch_log_response(req_opts) do
+    case request_pinned_log(req_opts, redirect_count) do
       {:ok, %{status: 200} = resp} ->
         state =
           resp
@@ -196,6 +199,27 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
       state = consume_chunk(state, chunk)
       {:cont, {req, Req.Response.put_private(resp, :log_stream, state)}}
     end)
+  end
+
+  defp request_pinned_log(req_opts, redirect_count) do
+    case {URI.parse(req_opts[:url]), redirect_count} do
+      {%URI{scheme: "https", host: "api.github.com", port: 443, userinfo: nil, fragment: nil}, 0} ->
+        fetch_log_response(Keyword.put(req_opts, :finch, Tuist.Finch))
+
+      {%URI{scheme: "https", userinfo: nil, fragment: nil}, _} ->
+        case SSRFGuard.pin(req_opts[:url]) do
+          {:ok, pinned_url, hostname} ->
+            req_opts
+            |> Keyword.merge(url: pinned_url, connect_options: SSRFGuard.connect_options(hostname), finch: nil)
+            |> fetch_log_response()
+
+          {:error, reason} ->
+            {:error, {:ssrf, reason}}
+        end
+
+      _ ->
+        {:error, :invalid_log_url}
+    end
   end
 
   defp fetch_log_response(req_opts) do

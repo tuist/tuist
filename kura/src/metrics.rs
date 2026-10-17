@@ -10,7 +10,7 @@ use std::{
 
 use axum::http::StatusCode;
 use prometheus_client::{
-    encoding::{EncodeLabelSet, text::encode},
+    encoding::{EncodeLabelSet, LabelSetEncoder, text::encode},
     metrics::{
         counter::Counter,
         family::Family,
@@ -42,6 +42,9 @@ pub struct MetricsInner {
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
     backfill_bodies_peer_label_set: Arc<Mutex<HashSet<String>>>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
+    public_latency_by_transport: Family<PublicTransportLatencyLabels, Histogram>,
+    public_http_latency: Histogram,
+    public_grpc_latency: Histogram,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
     artifact_writes: Family<ArtifactOpLabels, Counter>,
@@ -579,6 +582,10 @@ pub mod shed_kind {
     ];
 }
 
+fn public_latency_histogram() -> Histogram {
+    Histogram::new(exponential_buckets(0.001, 2.0, 16))
+}
+
 impl Metrics {
     pub fn new(region: String, tenant_id: String) -> Self {
         let mut registry = Registry::default();
@@ -592,8 +599,20 @@ impl Metrics {
             });
         let backfill_bodies_peer_requests = Family::<BackfillBodiesPeerLabels, Counter>::default();
         let public_request_latency =
-            Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(|| {
-                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(
+                public_latency_histogram,
+            );
+        let public_latency_by_transport =
+            Family::<PublicTransportLatencyLabels, Histogram>::new_with_constructor(
+                public_latency_histogram,
+            );
+        let public_http_latency =
+            public_latency_by_transport.get_or_create_owned(&PublicTransportLatencyLabels {
+                transport: "http".to_owned(),
+            });
+        let public_grpc_latency =
+            public_latency_by_transport.get_or_create_owned(&PublicTransportLatencyLabels {
+                transport: "grpc".to_owned(),
             });
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
@@ -969,6 +988,11 @@ impl Metrics {
             "kura_public_request_latency_seconds",
             "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding",
             public_request_latency.clone(),
+        );
+        registry.register(
+            "kura_public_request_latency_by_transport_seconds",
+            "Time to first response byte for public cache requests by transport",
+            public_latency_by_transport.clone(),
         );
         registry.register(
             "kura_http_exceptions_total",
@@ -1898,6 +1922,9 @@ impl Metrics {
                 backfill_bodies_peer_requests,
                 backfill_bodies_peer_label_set: Arc::new(Mutex::new(HashSet::new())),
                 public_request_latency,
+                public_latency_by_transport,
+                public_http_latency,
+                public_grpc_latency,
                 http_exceptions,
                 artifact_reads,
                 artifact_writes,
@@ -2291,6 +2318,16 @@ impl Metrics {
     }
 
     pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
+        match transport {
+            "http" => self.public_http_latency.observe(duration.as_secs_f64()),
+            "grpc" => self.public_grpc_latency.observe(duration.as_secs_f64()),
+            _ => self
+                .public_latency_by_transport
+                .get_or_create(&PublicTransportLatencyLabels {
+                    transport: transport.to_owned(),
+                })
+                .observe(duration.as_secs_f64()),
+        }
         if transport == "grpc" {
             let histogram = match route {
                 "/google.bytestream.ByteStream/Read" => {
@@ -2643,15 +2680,22 @@ impl Metrics {
     }
 
     pub fn record_manifest_cache_lookup(&self, result: &str) {
+        self.record_manifest_cache_lookups(result, 1);
+    }
+
+    pub fn record_manifest_cache_lookups(&self, result: &str, count: u64) {
+        if count == 0 {
+            return;
+        }
         if result == "hit" {
-            self.hot_read.manifest_hits.inc();
+            self.hot_read.manifest_hits.inc_by(count);
             return;
         }
         self.manifest_cache_lookups
             .get_or_create(&ManifestCacheLookupLabels {
                 result: result.to_owned(),
             })
-            .inc();
+            .inc_by(count);
     }
 
     pub fn record_manifest_cache_admission(&self, result: &str) {
@@ -3542,10 +3586,27 @@ struct HttpExceptionLabels {
     kind: String,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct PublicRequestLatencyLabels {
     transport: String,
     route: String,
+}
+
+impl EncodeLabelSet for PublicRequestLatencyLabels {
+    fn encode(&self, encoder: &mut LabelSetEncoder) -> Result<(), std::fmt::Error> {
+        // Collectors can thin upgraded pods without losing old pods' buckets.
+        [
+            ("transport", self.transport.as_str()),
+            ("route", self.route.as_str()),
+            ("latency_aggregate", "true"),
+        ]
+        .encode(encoder)
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct PublicTransportLatencyLabels {
+    transport: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4396,6 +4457,90 @@ mod tests {
             "METRIC reapi_write_metrics_speedup_ratio={:.6}",
             speedups[median]
         );
+    }
+
+    #[test]
+    fn public_latency_aggregate_covers_cached_and_dynamic_routes_once() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let requests = [
+            ("grpc", "/google.bytestream.ByteStream/Read", 3),
+            ("grpc", "/google.bytestream.ByteStream/Write", 5),
+            (
+                "grpc",
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+                7,
+            ),
+            (
+                "grpc",
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob",
+                11,
+            ),
+            ("http", "/api/cache/module/:hash", 13),
+            ("http", "/api/cache/cas/:hash", 17),
+            ("other", "/future/public/route", 19),
+        ];
+        for (transport, route, milliseconds) in requests {
+            metrics.observe_public_request_latency(
+                transport,
+                route,
+                Duration::from_millis(milliseconds),
+            );
+        }
+        let rendered = metrics.render();
+        for (transport, count, sum) in [("grpc", 4, 0.026), ("http", 2, 0.03), ("other", 1, 0.019)]
+        {
+            let count_line = rendered
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_public_request_latency_by_transport_seconds_count")
+                        && line.contains(&format!("transport=\"{transport}\""))
+                })
+                .unwrap();
+            assert!(count_line.ends_with(&format!(" {count}")));
+            assert!(!count_line.contains("route="));
+            let sum_line = rendered
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_public_request_latency_by_transport_seconds_sum")
+                        && line.contains(&format!("transport=\"{transport}\""))
+                })
+                .unwrap();
+            let actual: f64 = sum_line.split_whitespace().last().unwrap().parse().unwrap();
+            assert!((actual - sum).abs() < 1e-12);
+        }
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_public_request_latency_seconds_count")
+                && line.contains("route=\"/api/cache/cas/:hash\"")
+                && line.contains("latency_aggregate=\"true\"")
+                && line.ends_with(" 1")
+        }));
+    }
+
+    #[test]
+    fn public_latency_aggregate_preserves_concurrent_observations() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        std::thread::scope(|scope| {
+            for route in [
+                "/google.bytestream.ByteStream/Read",
+                "/google.bytestream.ByteStream/Write",
+            ] {
+                let metrics = metrics.clone();
+                scope.spawn(move || {
+                    for _ in 0..1_000 {
+                        metrics.observe_public_request_latency(
+                            "grpc",
+                            route,
+                            Duration::from_millis(1),
+                        );
+                    }
+                });
+            }
+        });
+        assert!(metrics.render().lines().any(|line| {
+            line.starts_with("kura_public_request_latency_by_transport_seconds_count")
+                && line.contains("transport=\"grpc\"")
+                && line.ends_with(" 2000")
+        }));
     }
 
     #[test]
