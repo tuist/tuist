@@ -76,6 +76,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Coverage
+  alias TuistEx.Analytics.CoverageSummary
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
@@ -258,10 +259,29 @@ defmodule Mix.Tasks.Tuist.Test do
         Coverage.instrument([compile_path, Mix.Project.consolidation_path()])
 
         if Coverage.enable_native(compile_path) do
-          {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
+          warn_if_coverage_output()
+
+          options =
+            Keyword.merge(options,
+              coverage_native: true,
+              coverage_summary: CoverageSummary.options(options[:shard_index])
+            )
+
+          {options, Coverage.without_cover(test_args)}
         else
           {options, test_args}
         end
+    end
+  end
+
+  # Mix's coverage tool writes an HTML report to `:output`; counting natively
+  # writes none.
+  defp warn_if_coverage_output do
+    if Keyword.has_key?(Mix.Project.config()[:test_coverage] || [], :output) do
+      Mix.shell().info(
+        "warning: counting coverage natively writes no HTML report, so :output is not used. " <>
+          "Run with --export-coverage and then mix test.coverage for one."
+      )
     end
   end
 
@@ -295,7 +315,7 @@ defmodule Mix.Tasks.Tuist.Test do
     try do
       run_test(test_args)
     after
-      submit_runs(ExUnitFormatter.take_deferred(), [], options, history)
+      submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), [], options, history)
     end
   end
 
@@ -303,8 +323,9 @@ defmodule Mix.Tasks.Tuist.Test do
     configure(Keyword.put(options, :mode, {:defer, self()}))
     history = collect_history(options)
     suite = run_suite(test_args)
-    # One per suite that ran: an umbrella runs one for each application.
-    deferred = ExUnitFormatter.take_deferred()
+    # One per suite that ran: an umbrella runs one for each application. The
+    # first run's coverage is the run's: retries never carry `--cover`.
+    deferred = summarize_coverage(ExUnitFormatter.take_deferred())
 
     # A suite cut short by `--max-failures` left tests unrun. Retrying the
     # failures it did reach could pass and hide the ones it never got to, so
@@ -319,6 +340,17 @@ defmodule Mix.Tasks.Tuist.Test do
 
     if suite == :failed, do: fail(test_args)
     :ok
+  end
+
+  # A run counting natively leaves Mix's coverage tool out, so its summary
+  # and threshold are printed and checked here, from the counts the formatter
+  # read when the suite finished.
+  defp summarize_coverage(deferred) do
+    Enum.map(deferred, fn {payload, opts, aborted?} ->
+      {lines, payload} = Map.pop(payload, :coverage_lines)
+      if lines, do: CoverageSummary.report(lines, opts[:coverage_summary])
+      {payload, opts, aborted?}
+    end)
   end
 
   # The commits and branch heads go up before the runs, whose ingestion reads
