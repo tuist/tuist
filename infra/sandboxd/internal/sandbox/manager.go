@@ -980,7 +980,7 @@ func (m *Manager) Templates() []protocol.TemplateInfo {
 		for _, s := range t.ReadyShapes() {
 			shapes = append(shapes, s.String())
 		}
-		infos = append(infos, protocol.TemplateInfo{Name: t.Name, Tag: t.Tag, Ready: true, Shapes: shapes})
+		infos = append(infos, protocol.TemplateInfo{Name: t.Name, Tag: t.Tag, Ready: true, Shapes: shapes, RootfsBytes: vm.FileSize(t.Rootfs())})
 	}
 	return infos
 }

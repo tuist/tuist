@@ -77,6 +77,10 @@ type TemplateInfo struct {
 	Tag    string   `json:"tag"`
 	Ready  bool     `json:"ready"`
 	Shapes []string `json:"shapes"`
+	// RootfsBytes is the size of the rootfs image every sandbox of this
+	// template gets a clone of: the most a sandbox's rootfs can ever take on
+	// the node, which the server reserves against the disk budget.
+	RootfsBytes int64 `json:"rootfs_bytes"`
 }
 
 type SandboxInfo struct {

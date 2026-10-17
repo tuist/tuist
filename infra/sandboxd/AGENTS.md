@@ -192,7 +192,7 @@ Node to server:
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
- "templates":[{"name":"default","tag":"sha-...","ready":true}],
+ "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
                "vcpus":2,"memory_mb":4096,"worker_running":false}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}

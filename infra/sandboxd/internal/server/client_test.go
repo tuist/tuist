@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -212,7 +213,9 @@ func TestClientSession(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if strings.Join(handled, ",") != "slow,exec,bogus" {
+	// slow and exec run on their own goroutines, so either may start first;
+	// bogus is only sent once both have answered.
+	if len(handled) != 3 || handled[2] != "bogus" || !slices.Contains(handled[:2], "slow") || !slices.Contains(handled[:2], "exec") {
 		t.Fatalf("handled %v", handled)
 	}
 }
