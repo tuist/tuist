@@ -61,6 +61,22 @@ defmodule Tuist.Billing.EntitlementsTest do
       assert Entitlements.allows?(account, :dedicated_kura_gateway)
     end
 
+    test "expired Enterprise grace no longer grants paid features or custom endpoints" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      subscription =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :enterprise,
+          status: "past_due",
+          past_due_since: DateTime.truncate(DateTime.add(DateTime.utc_now(), -8, :day), :second)
+        )
+
+      refute Entitlements.allows?(account, :github_enterprise_server)
+      refute Entitlements.allows?(%{account | subscriptions: [subscription]}, :self_hosted_cache)
+      refute Tuist.Accounts.custom_cache_endpoints_available?(account)
+    end
+
     test "false for dedicated Kura gateways when there is no active subscription" do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
 

@@ -6,6 +6,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
   alias Tuist.Alerts.Workers.AlertWorker
   alias Tuist.Automations.Workers.AutomationScheduler
+  alias Tuist.Billing.Workers.PaymentGraceExpirySweepWorker
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias Tuist.Environment
   alias Tuist.Kura.Reconciler, as: KuraReconciler
@@ -162,6 +163,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
         refute DeleteExpiredGitLabCacheArtifactsWorker in workers
         refute SyncStripeMetersWorker in workers
+        refute PaymentGraceExpirySweepWorker in workers
         refute KuraReconciler in workers
         refute ClaimSizingWorker in workers
         refute StaleQueuedJobsWorker in workers
@@ -307,6 +309,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert DeleteExpiredGradleCacheArtifactsWorker in workers
         assert DeleteExpiredGitLabCacheArtifactsWorker in workers
         assert SyncStripeMetersWorker in workers
+        assert PaymentGraceExpirySweepWorker in workers
         assert KuraReconciler in workers
         assert ClaimSizingWorker in workers
         assert StaleQueuedJobsWorker in workers

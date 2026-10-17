@@ -6,6 +6,7 @@ This context owns cache entries and CAS analytics ingestion.
 - Create cache entries in ClickHouse via `IngestRepo`.
 - Query cache entries by CAS ID and project ID.
 - Batch insert CAS analytics events (upload/download sizes).
+- Resolve cache grants and billing refusals through `Billing` entitlement checks, not live billing subscriptions. Expired payment grace removes paid grants and reports payment failure once the applicable Air allowance is exhausted. Existing cache JWT grants remain snapshots until normal token expiry.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

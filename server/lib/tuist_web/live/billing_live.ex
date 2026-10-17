@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
@@ -72,6 +73,8 @@ defmodule TuistWeb.BillingLive do
         _ -> plan
       end
 
+    payment_issue = payment_issue(selected_account, subscription)
+
     socket =
       socket
       |> assign(:runner_usage, runner_usage)
@@ -82,21 +85,61 @@ defmodule TuistWeb.BillingLive do
       |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
-      |> assign(:payment_issue, payment_issue(selected_account, subscription))
+      |> assign(:payment_issue, payment_issue)
+      |> assign(:payment_grace_ends_at, Subscription.payment_grace_ends_at(subscription || %{}))
+      |> assign(:displayed_plan, displayed_plan(plan, payment_issue))
 
     {:ok, socket}
   end
 
-  # A past due subscription keeps its plan while Stripe retries the payment, and
-  # an unpaid one has already lost it. Either way the customer settles the open
-  # invoice rather than upgrading, which would open a second subscription.
-  defp payment_issue(_account, %{status: "past_due"}), do: :past_due
+  # A past due subscription keeps its plan for the grace period however long
+  # Stripe retries the payment, and an unpaid one has already lost it. Either
+  # way the customer settles the open invoice rather than upgrading, which
+  # would open a second subscription.
+  defp payment_issue(_account, %{status: "past_due"} = subscription) do
+    if Subscription.entitled?(subscription), do: :past_due, else: :grace_expired
+  end
 
   defp payment_issue(account, nil) do
     if Billing.payment_failed?(account), do: :payment_failed
   end
 
   defp payment_issue(_account, _subscription), do: nil
+
+  # The plan the account gets, which is what the plan card names, whatever
+  # `?plan=` a returning Checkout carries. Everything billed and managed keeps
+  # following the subscription, which stays in place until it is paid or
+  # canceled.
+  defp displayed_plan(_plan, payment_issue) when payment_issue in [:grace_expired, :payment_failed], do: :air
+  defp displayed_plan(plan, _payment_issue), do: plan
+
+  defp payment_issue_title(:grace_expired), do: dgettext("dashboard_account", "Your plan is limited to the Air plan")
+  defp payment_issue_title(_payment_issue), do: dgettext("dashboard_account", "A payment for your subscription failed")
+
+  defp payment_issue_description(:past_due, %DateTime{} = grace_ends_at) do
+    dgettext(
+      "dashboard_account",
+      "Your plan stays active until %{deadline}, even if the payment is still being retried. Pay the open invoice or update your payment method before then to keep it.",
+      deadline: format_grace_deadline(grace_ends_at)
+    )
+  end
+
+  defp payment_issue_description(:grace_expired, %DateTime{} = grace_ends_at) do
+    dgettext(
+      "dashboard_account",
+      "The payment for your subscription is still overdue, and its grace period ended on %{deadline}. Your plan is limited to the free tier of the Air plan until the open invoice is paid. Your subscription and billing details are unchanged.",
+      deadline: format_grace_deadline(grace_ends_at)
+    )
+  end
+
+  defp payment_issue_description(_payment_issue, _grace_ends_at) do
+    dgettext(
+      "dashboard_account",
+      "Your plan is limited to the free tier of the Air plan until the open invoice is paid."
+    )
+  end
+
+  defp format_grace_deadline(%DateTime{} = deadline), do: Timex.format!(deadline, "{Mfull} {D}, {YYYY}, {h24}:{m} UTC")
 
   @impl true
   def handle_params(_params, uri, socket) do
@@ -138,7 +181,9 @@ defmodule TuistWeb.BillingLive do
 
     {
       :noreply,
-      assign(socket, :plan, new_plan)
+      socket
+      |> assign(:plan, new_plan)
+      |> assign(:displayed_plan, displayed_plan(new_plan, socket.assigns.payment_issue))
     }
   end
 
@@ -344,7 +389,7 @@ defmodule TuistWeb.BillingLive do
 
   def pricing_card(assigns) do
     ~H"""
-    <div class="tuist-pricing-card" data-most-popular={@most_popular}>
+    <div id={@id} class="tuist-pricing-card" data-most-popular={@most_popular}>
       <div :if={@most_popular} data-part="most-popular">
         <span data-part="label">
           {dgettext("dashboard_account", "Most Popular")}
@@ -380,6 +425,11 @@ defmodule TuistWeb.BillingLive do
 
   attr :id, :string, required: true
   attr :plan, :atom, required: true
+
+  attr :pay_url, :string,
+    default: nil,
+    doc:
+      "Set while a subscription payment is owed: upgrading would not settle it, so the open invoice is offered instead."
 
   def pricing_cards(assigns) do
     ~H"""
@@ -431,11 +481,17 @@ defmodule TuistWeb.BillingLive do
           disabled
         />
         <.button
-          :if={@plan == :air}
+          :if={@plan == :air and is_nil(@pay_url)}
           label={dgettext("dashboard_account", "Upgrade")}
           variant="primary"
           phx-click="change_plan"
           phx-value-plan={:pro}
+        />
+        <.button
+          :if={@plan == :air and not is_nil(@pay_url)}
+          label={dgettext("dashboard_account", "Pay open invoice")}
+          variant="primary"
+          href={@pay_url}
         />
       </:action_button>
     </.pricing_card>

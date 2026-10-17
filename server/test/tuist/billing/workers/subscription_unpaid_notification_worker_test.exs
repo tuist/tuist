@@ -3,10 +3,13 @@ defmodule Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorkerTest do
   use Mimic
 
   import Bamboo.Test
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.Accounts
   alias Tuist.Accounts.UserNotifier
+  alias Tuist.Billing.Subscription
   alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -34,6 +37,32 @@ defmodule Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorkerTest do
     reject(UserNotifier, :deliver_subscription_unpaid_notification, 2)
 
     assert :ok = perform_job(SubscriptionUnpaidNotificationWorker, args)
+  end
+
+  # The grace expiry email already said the account is limited to Air;
+  # Stripe giving up on the retries afterwards is not news.
+  test "sends nothing when the grace period expiry was already announced", %{account: account, args: args} do
+    past_due_since = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -10, :day)
+
+    Repo.update_all(from(s in Subscription, where: s.account_id == ^account.id),
+      set: [past_due_since: past_due_since, payment_grace_expiry_notified_at: DateTime.add(past_due_since, 7, :day)]
+    )
+
+    reject(UserNotifier, :deliver_subscription_unpaid_notification, 2)
+
+    assert :ok = perform_job(SubscriptionUnpaidNotificationWorker, args)
+  end
+
+  test "emails when the expiry announced belongs to an earlier episode", %{account: account, admin: admin, args: args} do
+    past_due_since = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -2, :day)
+
+    Repo.update_all(from(s in Subscription, where: s.account_id == ^account.id),
+      set: [past_due_since: past_due_since, payment_grace_expiry_notified_at: DateTime.add(past_due_since, -30, :day)]
+    )
+
+    assert :ok = perform_job(SubscriptionUnpaidNotificationWorker, args)
+
+    assert_email_delivered_with(to: [nil: admin.email])
   end
 
   test "sends nothing to a user who is no longer an admin", %{args: args} do

@@ -8,6 +8,8 @@ defmodule Tuist.Billing.Workers.PaymentFailedNotificationWorker do
   alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
+  alias Tuist.Billing
+  alias Tuist.Billing.Subscription
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"invoice_id" => invoice_id, "account_id" => account_id, "user_id" => user_id}}) do
@@ -15,12 +17,27 @@ defmodule Tuist.Billing.Workers.PaymentFailedNotificationWorker do
          %User{} = user <- Accounts.get_user_by_id(user_id),
          true <- Accounts.owns_account_or_is_admin_to_account_organization?(user, account),
          true <- invoice_open?(invoice_id) do
-      case UserNotifier.deliver_payment_failed_notification(user, account) do
+      case UserNotifier.deliver_payment_failed_notification(user, account, grace(account)) do
         {:ok, _email} -> :ok
         {:error, reason} -> {:error, reason}
       end
     else
       _ -> :ok
+    end
+  end
+
+  # Read when the email is sent rather than when the failure was reported:
+  # Stripe can deliver the failed invoice before the subscription change that
+  # starts the grace period, and the email then states only its length.
+  defp grace(account) do
+    case Billing.get_current_active_subscription(account) do
+      %Subscription{status: "past_due"} = subscription ->
+        if Subscription.entitled?(subscription),
+          do: {:until, Subscription.payment_grace_ends_at(subscription)},
+          else: :expired
+
+      _ ->
+        :unknown
     end
   end
 

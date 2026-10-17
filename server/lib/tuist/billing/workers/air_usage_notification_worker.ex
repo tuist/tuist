@@ -55,7 +55,7 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorker do
     account = notification.account
     period_start = AirUsageNotifications.period_start(account, DateTime.utc_now(), notification.metric)
 
-    Billing.effective_plan(account) == :air &&
+    Billing.effective_plan(account) == :air && not Billing.payment_failed?(account) &&
       Accounts.owns_account_or_is_admin_to_account_organization?(notification.user, account) &&
       DateTime.compare(notification.period_start, period_start) == :eq &&
       AirUsageNotifications.eligible?(account, notification.metric)
