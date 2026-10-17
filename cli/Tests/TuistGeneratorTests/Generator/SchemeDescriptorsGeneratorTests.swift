@@ -986,6 +986,46 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
     }
 
+    func test_generateProjectSchemes_carries_tags_into_testPlan_descriptors() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let plan = TestPlan(
+            path: projectPath.appending(component: "UnitTests.xctestplan"),
+            testTargets: [
+                TestableTarget.test(
+                    target: TargetReference(projectPath: projectPath, name: "AppTests"),
+                    selectedTags: [".contract"],
+                    skippedTags: [".slow"]
+                ),
+            ],
+            isDefault: true,
+            kind: .generated
+        )
+        let scheme = Scheme.test(testAction: TestAction.test(testPlans: [plan]))
+        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
+        let graphTraverser = GraphTraverser(graph: Graph.test(projects: [project.path: project]))
+
+        // When
+        let (_, sideEffects) = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject(
+                targets: Array(project.targets.values),
+                projectPath: project.xcodeProjPath.pathString
+            ),
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let descriptor = try XCTUnwrap(sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }.first)
+        XCTAssertEqual(descriptor.testTargets.first?.selectedTags, [".contract"])
+        XCTAssertEqual(descriptor.testTargets.first?.skippedTags, [".slow"])
+    }
+
     func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {
         // Given: two schemes targeting the same generated test plan path
         let projectPath = try AbsolutePath(validating: "/Project")

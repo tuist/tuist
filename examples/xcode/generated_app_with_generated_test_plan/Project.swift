@@ -39,7 +39,7 @@ let project = Project(
             testAction: .testPlans([
                 .generated(
                     name: "UnitTests",
-                    testTargets: [.testableTarget(target: "AppTests")]
+                    testTargets: [.testableTarget(target: "AppTests", selectedTags: ["contract"])]
                 ),
                 .generated(
                     name: "SnapshotTests",
