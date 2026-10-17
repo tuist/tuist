@@ -102,16 +102,16 @@ defmodule Tuist.Authorization.Checks do
 
   When the object is a Project, this also verifies the token has access to that
   specific project (either via `all_projects: true` or the project being in `project_ids`).
+
+  Write scopes withheld by OIDC scope rules don't count for the resource they
+  were withheld for; the matching read scope takes their place.
   """
-  def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
-      when is_binary(scope) do
-    expanded_scopes = expand_scopes(scopes)
-    Enum.member?(expanded_scopes, scope) and project_access_permitted(auth_account, project)
+  def scopes_permit(%AuthenticatedAccount{} = auth_account, %Project{} = project, scope) when is_binary(scope) do
+    Enum.member?(effective_scopes(auth_account, project), scope) and project_access_permitted(auth_account, project)
   end
 
-  def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
-    expanded_scopes = expand_scopes(scopes)
-    Enum.member?(expanded_scopes, scope)
+  def scopes_permit(%AuthenticatedAccount{} = auth_account, resource, scope) when is_binary(scope) do
+    Enum.member?(effective_scopes(auth_account, resource), scope)
   end
 
   def scopes_permit(_, _, _) do
@@ -132,6 +132,36 @@ defmodule Tuist.Authorization.Checks do
 
   def expand_scopes(scopes) do
     AccountToken.expand_scopes(scopes)
+  end
+
+  defp effective_scopes(%AuthenticatedAccount{scopes: scopes, withheld_scopes: withheld}, resource) do
+    expanded = expand_scopes(scopes)
+
+    case withheld_scopes_for(withheld, resource) do
+      [] ->
+        expanded
+
+      withheld_here ->
+        reads = for scope <- withheld_here, scope in expanded, do: String.replace_suffix(scope, ":write", ":read")
+        Enum.uniq((expanded -- withheld_here) ++ reads)
+    end
+  end
+
+  defp withheld_scopes_for(nil, _resource), do: []
+  defp withheld_scopes_for(withheld, _resource) when map_size(withheld) == 0, do: []
+
+  defp withheld_scopes_for(withheld, %Project{id: project_id}) do
+    for {"project:" <> _ = scope, ids} <- withheld, project_id in List.wrap(ids), do: scope
+  end
+
+  defp withheld_scopes_for(withheld, %Account{id: account_id}) do
+    for {"account:" <> _ = scope, ids} <- withheld, account_id in List.wrap(ids), do: scope
+  end
+
+  # Resources that aren't a project or an account can't be matched to a rule,
+  # so every withheld scope applies to them.
+  defp withheld_scopes_for(withheld, _resource) do
+    for {scope, ids} <- withheld, List.wrap(ids) != [], do: scope
   end
 
   @doc """

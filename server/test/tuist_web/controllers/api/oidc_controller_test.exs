@@ -3,8 +3,11 @@ defmodule TuistWeb.API.OIDCControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Authentication
+  alias Tuist.Authorization
   alias Tuist.OAuth.Introspection
   alias Tuist.OIDC
+  alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "POST /api/auth/oidc/token" do
@@ -199,6 +202,141 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       response = json_response(conn, :unauthorized)
       assert response["message"] =~ "audience"
+    end
+  end
+
+  describe "POST /api/auth/oidc/token with OIDC scope rules" do
+    setup do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "tuist/rules"],
+          preload: [:account, :vcs_connection]
+        )
+
+      %{project: project, account: project.account}
+    end
+
+    defp exchange(conn, claims) do
+      stub(OIDC, :claims, fn _token ->
+        {:ok, Map.merge(%{repository: "tuist/rules", provider: :github_actions}, claims)}
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-tuist-cli-version", "4.300.0")
+      |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+    end
+
+    defp warnings(conn) do
+      case get_resp_header(conn, "x-tuist-cloud-warnings") do
+        [encoded] -> encoded |> Base.decode64!() |> JSON.decode!()
+        [] -> []
+      end
+    end
+
+    test "keeps every scope when the rules match", %{conn: conn, project: project} do
+      {:ok, _} = ScopeRules.put_project_rule(project, "project:previews:write", %{refs: ["refs/heads/main"]})
+
+      conn = exchange(conn, %{ref: "refs/heads/main"})
+
+      response = json_response(conn, :ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      refute Map.has_key?(claims, "withheld_scopes")
+      assert warnings(conn) == []
+
+      subject = Authentication.authenticated_subject(response["access_token"])
+      assert :ok = Authorization.authorize(:preview_create, subject, project)
+    end
+
+    test "withholds preview uploads for a non-matching branch but keeps other writes", %{conn: conn, project: project} do
+      {:ok, _} = ScopeRules.put_project_rule(project, "project:previews:write", %{refs: ["refs/heads/main"]})
+
+      conn = exchange(conn, %{ref: "refs/heads/feature"})
+
+      response = json_response(conn, :ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["withheld_scopes"] == %{"project:previews:write" => [project.id]}
+
+      assert [warning] = warnings(conn)
+      assert warning =~ "project:previews:write"
+      assert warning =~ "refs/heads/feature"
+
+      subject = Authentication.authenticated_subject(response["access_token"])
+      assert {:error, :forbidden} = Authorization.authorize(:preview_create, subject, project)
+      assert :ok = Authorization.authorize(:preview_read, subject, project)
+      assert :ok = Authorization.authorize(:test_create, subject, project)
+      assert :ok = Authorization.authorize(:project_cache_create, subject, project)
+    end
+
+    test "downgrades a withheld cache write to read access", %{conn: conn, project: project, account: account} do
+      {:ok, _} = ScopeRules.put_project_rule(project, "project:cache:write", %{environments: ["production"]})
+
+      response = conn |> exchange(%{ref: "refs/heads/main"}) |> json_response(:ok)
+
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert %{cache_grants: %{"project" => %{"read" => [^project_handle], "write" => []}}} =
+               Introspection.token_response(response["access_token"], account)
+
+      subject = Authentication.authenticated_subject(response["access_token"])
+      assert {:error, :forbidden} = Authorization.authorize(:project_cache_create, subject, project)
+      assert :ok = Authorization.authorize(:project_cache_read, subject, project)
+
+      # Cache nodes read these handles as read and write access, so a
+      # project whose write was withheld must not be listed.
+      access =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{response["access_token"]}")
+        |> get(~p"/api/cache/access")
+        |> json_response(:ok)
+
+      assert access["projects"] == []
+    end
+
+    test "withholds the account-wide cache by the account's own rules", %{conn: conn, project: project, account: account} do
+      {:ok, _} = ScopeRules.put_account_rule(account, "account:cache:write", %{refs: ["refs/heads/main"]})
+
+      conn = exchange(conn, %{ref: "refs/heads/feature"})
+      response = json_response(conn, :ok)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["withheld_scopes"] == %{"account:cache:write" => [account.id]}
+      assert [warning] = warnings(conn)
+      assert warning =~ "account:cache:write"
+
+      subject = Authentication.authenticated_subject(response["access_token"])
+      assert {:error, :forbidden} = Authorization.authorize(:account_cache_create, subject, account)
+      assert :ok = Authorization.authorize(:account_cache_read, subject, account)
+      assert :ok = Authorization.authorize(:project_cache_create, subject, project)
+    end
+
+    test "records the provider that exchanged the token", %{conn: conn, project: project} do
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/rules", provider: :circleci}} end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+      |> json_response(:ok)
+
+      assert Tuist.OIDC.ProjectProviders.recent_unmatched_providers(project) == [:circleci]
+    end
+
+    test "withholds ruled scopes from providers other than GitHub Actions", %{conn: conn, project: project} do
+      {:ok, _} = ScopeRules.put_project_rule(project, "project:bundles:write", %{refs: ["**"]})
+
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/rules", provider: :circleci}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-tuist-cli-version", "4.300.0")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      response = json_response(conn, :ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["withheld_scopes"] == %{"project:bundles:write" => [project.id]}
+      assert [warning] = warnings(conn)
+      assert warning =~ "only support GitHub Actions"
     end
   end
 end

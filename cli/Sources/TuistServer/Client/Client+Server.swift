@@ -41,6 +41,7 @@ extension Client {
                 RetryMiddleware(),
                 RequestIdMiddleware(),
                 ServerClientFeatureFlagsHeadersMiddleware(),
+                ServerClientCLIMetadataHeadersMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
             ]
