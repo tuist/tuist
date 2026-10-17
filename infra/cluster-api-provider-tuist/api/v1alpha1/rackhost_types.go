@@ -158,6 +158,11 @@ type RackHostMachine struct {
 	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 }
 
+// RackSiteNodeLabel carries a rack host's site on its Machine. Cluster API
+// syncs labels in the node.cluster.x-k8s.io domain from a Machine to its Node,
+// where kube-state-metrics exposes it.
+const RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
+
 // RackHostLocation is the physical position of a host.
 type RackHostLocation struct {
 	// Site is the rack site (e.g. `ber1`). Load-bearing: it composes the

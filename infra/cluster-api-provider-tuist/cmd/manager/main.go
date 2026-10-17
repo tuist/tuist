@@ -364,6 +364,14 @@ func main() {
 	flag.StringVar(&rackHostVMCacheGatewayCIDRsRaw, "rackhost-vm-cache-gateway-cidrs", "",
 		"Comma-separated IPv4 CIDRs of the rack's runner-cache gateways, which the VM egress firewall on a rack Mac host lets Tart VMs reach on TCP 443. "+
 			"Rack hosts only; the rented fleets never pass them. Flows from the chart's rackFleet.vmCacheGatewayCIDRs.")
+	var rackHostImageMirrorsRaw string
+	flag.StringVar(&rackHostImageMirrorsRaw, "rackhost-image-mirrors", "",
+		"Comma-separated <upstream>=<endpoint> entries naming the rack's VM image caches, which a rack Mac host's tart-kubelet tries "+
+			"in order before the upstream when it pulls a golden base (--image-mirror). Rack hosts only. Flows from the chart's rackFleet.imageCache.")
+	var rackHostImageMirrorHostsRaw string
+	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
+		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
+			"Flows from the chart's rackFleet.imageCache.routeHosts.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -466,6 +474,14 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
+	for _, mirror := range rackHostImageMirrors {
+		if err := bootstrap.ValidateImageMirror(mirror); err != nil {
+			setupLog.Error(err, "parse --rackhost-image-mirrors")
+			os.Exit(1)
+		}
+	}
 
 	scwClient, err := scaleway.NewClient()
 	if err != nil {
@@ -751,6 +767,13 @@ func main() {
 		setupLog.Error(err, "setup RackATSReconciler")
 		os.Exit(1)
 	}
+	if err := (&macos.RackSiteReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackSiteReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -777,6 +800,8 @@ func main() {
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+		ImageMirrors:                  rackHostImageMirrors,
+		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),

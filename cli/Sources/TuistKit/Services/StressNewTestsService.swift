@@ -4,6 +4,8 @@ import Mockable
 import Path
 import TuistAlert
 import TuistCore
+import TuistEnvironment
+import TuistGit
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -231,15 +233,21 @@ public struct StressNewTestsService: StressNewTestsServicing {
     private let createStressPlanService: CreateStressPlanServicing
     private let xcResultService: XCResultServicing
     private let fileSystem: FileSysteming
+    private let gitController: GitControlling
+    private let gitHistoryService: GitHistoryServicing
 
     public init(
         createStressPlanService: CreateStressPlanServicing = CreateStressPlanService(),
         xcResultService: XCResultServicing = XCResultService(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        gitController: GitControlling = GitController(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService()
     ) {
         self.createStressPlanService = createStressPlanService
         self.xcResultService = xcResultService
         self.fileSystem = fileSystem
+        self.gitController = gitController
+        self.gitHistoryService = gitHistoryService
     }
 
     public func run(
@@ -269,6 +277,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
 
         let executed = testSummary.testCases.filter { $0.status != .skipped }
+        await publishGitHistory(fullHandle: fullHandle, serverURL: serverURL)
 
         let plan: Components.Schemas.StressPlan
         do {
@@ -380,6 +389,24 @@ public struct StressNewTestsService: StressNewTestsServicing {
         let repetitions: Int
         let failed: Int
         let results: [StressNewTestsCandidate.Repetition]
+    }
+
+    /// The plan reads which commits the default branch reached, and this run may be the first to have
+    /// seen its newest one, so the run's history goes up before the plan is asked for. The checkout is
+    /// the one the run is reported from, so the report reuses this collection.
+    private func publishGitHistory(fullHandle: String, serverURL: URL) async {
+        guard let currentWorkingDirectory = try? await Environment.current.currentWorkingDirectory() else { return }
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        guard await gitController.isInGitRepository(workingDirectory: workingDirectory),
+              let rootDirectory = try? await gitController.topLevelGitDirectory(workingDirectory: workingDirectory),
+              let gitInfo = try? await gitController.gitInfo(workingDirectory: rootDirectory)
+        else { return }
+        _ = await gitHistoryService.publish(
+            gitInfo: gitInfo,
+            workingDirectory: rootDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
     }
 
     private func stressCandidates(

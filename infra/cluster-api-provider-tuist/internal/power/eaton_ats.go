@@ -84,6 +84,12 @@ type EatonATS struct {
 
 	Inputs []EatonATSInput
 
+	// Outputs is what the card serves under powerDistributions/1/outputs, and
+	// OutputsUnread why that could not be read. Neither is documented for a
+	// transfer switch, so an unread output fails nothing else.
+	Outputs       []EatonATSOutput
+	OutputsUnread string
+
 	// Preferred is the preferred source, 1 or 2, and 0 when the settings
 	// carry no key the driver recognises.
 	Preferred int
@@ -146,8 +152,26 @@ type EatonATSInput struct {
 	InRange   *bool
 	Voltage   *float64
 	Frequency *float64
+	// Current is measures.current, when the card reports it.
+	Current *float64
 	// Status is the input's status object, verbatim.
 	Status map[string]any
+}
+
+// EatonATSOutput is one output as the card reports it: the measures the
+// driver recognises, and every measure verbatim.
+type EatonATSOutput struct {
+	Number        int
+	Current       *float64
+	Voltage       *float64
+	ActivePower   *float64
+	ApparentPower *float64
+	Measures      map[string]any
+}
+
+// Detail is the output's measures, sorted by key.
+func (out EatonATSOutput) Detail() string {
+	return eatonDetail(out.Measures)
 }
 
 // ATS input states, as the RackATS controller names them.
@@ -188,14 +212,18 @@ func (in EatonATSInput) State() (string, string) {
 }
 
 func (in EatonATSInput) detail() string {
-	keys := make([]string, 0, len(in.Status))
-	for k := range in.Status {
+	return eatonDetail(in.Status)
+}
+
+func eatonDetail(fields map[string]any) string {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, in.Status[k]))
+		parts = append(parts, fmt.Sprintf("%s=%v", k, fields[k]))
 	}
 	return strings.Join(parts, " ")
 }
@@ -285,7 +313,8 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 		if err := get(ctx, fmt.Sprintf("/powerDistributions/1/inputs/%d", n), &input); err != nil {
 			return EatonATS{}, err
 		}
-		in := EatonATSInput{Number: n, Voltage: eatonNumber(input.Measures["voltage"]), Frequency: eatonNumber(input.Measures["frequency"]), Status: input.Status}
+		in := EatonATSInput{Number: n, Voltage: eatonNumber(input.Measures["voltage"]), Frequency: eatonNumber(input.Measures["frequency"]),
+			Current: eatonNumber(input.Measures["current"]), Status: input.Status}
 		if v, ok := input.Status["supply"].(bool); ok {
 			in.Supplying = &v
 		}
@@ -299,6 +328,12 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 		ats.Inputs = append(ats.Inputs, in)
 	}
 	sort.Slice(ats.Inputs, func(i, j int) bool { return ats.Inputs[i].Number < ats.Inputs[j].Number })
+
+	outputs, outputsErr := eatonATSOutputs(ctx, get)
+	ats.Outputs = outputs
+	if outputsErr != nil {
+		ats.OutputsUnread = outputsErr.Error()
+	}
 
 	if err := get(ctx, "/powerDistributions/1/settings", &ats.Settings); err != nil {
 		return EatonATS{}, err
@@ -323,6 +358,52 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 	}
 	ats.Card = identity
 	return ats, nil
+}
+
+// eatonATSOutputs reads every output the card lists under
+// powerDistributions/1/outputs, with its measures embedded the way the
+// inputs' are, or at its own measures resource the way a PDU outlet's are.
+func eatonATSOutputs(ctx context.Context, get eatonGetter) ([]EatonATSOutput, error) {
+	var list struct {
+		Members []struct {
+			ID string `json:"@id"`
+		} `json:"members"`
+	}
+	if err := get(ctx, "/powerDistributions/1/outputs", &list); err != nil {
+		return nil, err
+	}
+	if len(list.Members) == 0 {
+		return nil, fmt.Errorf("powerDistributions/1/outputs lists no outputs")
+	}
+	outputs := make([]EatonATSOutput, 0, len(list.Members))
+	for _, member := range list.Members {
+		n, err := strconv.Atoi(path.Base(member.ID))
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("output %q is not numbered", member.ID)
+		}
+		resource := fmt.Sprintf("/powerDistributions/1/outputs/%d", n)
+		var output struct {
+			Measures map[string]any `json:"measures"`
+		}
+		if err := get(ctx, resource, &output); err != nil {
+			return nil, err
+		}
+		if output.Measures == nil {
+			if err := get(ctx, resource+"/measures", &output.Measures); err != nil {
+				return nil, err
+			}
+		}
+		outputs = append(outputs, EatonATSOutput{
+			Number:        n,
+			Current:       eatonNumber(output.Measures["current"]),
+			Voltage:       eatonNumber(output.Measures["voltage"]),
+			ActivePower:   eatonNumber(output.Measures["activePower"]),
+			ApparentPower: eatonNumber(output.Measures["apparentPower"]),
+			Measures:      output.Measures,
+		})
+	}
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].Number < outputs[j].Number })
+	return outputs, nil
 }
 
 // eatonNumber is v when the card answered a number, and nil otherwise.

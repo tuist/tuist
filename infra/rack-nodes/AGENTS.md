@@ -434,14 +434,57 @@ onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
 the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
-Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
-that serves pods through Services needs the cluster's CNI, which is a
-`RackLinuxMachine` change to make once the rack's networks no longer overlap.
+A rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
+unless its host sets `publicAddress` (below). The edges hold addresses in the
+rack's management VLAN, 192.168.0.0/24, which sits inside the cluster's pod
+CIDR (192.168.0.0/16 in staging and production alike), so they stay off
+Cilium for good. A storage node holds no address in that range.
 
-### Pods on a rack node
+### A storage node on the cluster network
 
-A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+A host with `publicAddress` in `rackLinuxFleet.hosts` (`spec.clusterNetwork`)
+is an ordinary Cilium node. ber1-store-a is one, so the `ber1-runners` Kura
+region runs on the cluster network and replicates pod to pod with each
+account's other regions. Every Cilium node tunnels to every other at its
+InternalIP (VXLAN on 8472/udp), probes their health on 4240/tcp, and the API
+server reaches its kubelet on 10250/tcp. So:
+
+- **Its InternalIP is the site's WAN address**, 149.6.170.31 at BER1, which
+  the operator publishes as the node's address. There is no kubelet proxy and no
+  ExternalIP. The host holds the address on a dummy interface (`tuist-cluster`)
+  so the kubelet takes it as `--node-ip` and Cilium can bind its health
+  responder to it. An nft rule (`tuist_cluster_health`) hands health probes,
+  which the edge delivers to the host's machines address, to it.
+- **The edges forward those three ports** on the WAN address to the host's
+  machines address, from the cluster's Cilium nodes only. The forwards are the
+  edge's `tuist_cluster_forwards` table, in its node configuration. The node
+  agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
+  addresses without the Cilium exclusion, ExternalIPs included: Hetzner
+  Cloud nodes and the control plane have no InternalIP. The set is not in the
+  configuration, so a node joining the cluster restarts nothing on the edge.
+  The WAN filter lets through what the edge translated (`ct status dnat`).
+  Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
+  the overlay off the internet.
+- **Cilium attaches to the `en*` uplinks only** (the `CiliumNodeConfig` in
+  `rack-linux-fleet.yaml`): it would take the dummy for a device otherwise.
+- The site's one public IPv4 address fits one such host. A second waits for
+  the site's own range.
+
+Switching a host is a deploy. The operator rewrites the host's
+configuration: dummy, health rule, no bridge CNI, kubelet at the public
+address. It repoints the Node's addresses, and once the host has applied that
+configuration it removes the Node's Cilium exclusion, and Cilium's DaemonSet
+schedules there. Cilium binds its health responder to the public address once,
+at start: a Cilium that starts before the dummy exists (as on ber1-store-a on
+2026-10-16, before the operator waited) answers no node probe on 4240 until
+its pod is deleted. Pods that started on the bridge keep
+their bridge addresses until they are recreated. Delete them (`kubectl delete
+pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
+once Cilium is Ready on the node. The bridge interface goes at the next reboot.
+
+### Pods on a rack node off the cluster network
+
+On a node without `publicAddress`, a pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
 is its default gateway and masquerades it behind the node, so it reaches what
 the node reaches: the internet, the rack's segments and the tailnet. It reaches
 no cluster Service, no cluster DNS and no pod on another node, and nothing in
@@ -474,9 +517,10 @@ Ready, the pods on dark nodes included, and a Deployment only when all its
 replicas are available. So nothing in those releases runs a pod on a rack
 node:
 
-- The rack node agent and the boot server are the rack-nodes chart's
-  (`infra/helm/rack-nodes`), installed by `server-deployment.yml` after the
-  tuist release, from the tuist chart's values and the operator's image.
+- The rack node agent, the boot server and the VM image cache are the
+  rack-nodes chart's (`infra/helm/rack-nodes`), installed by
+  `server-deployment.yml` after the tuist release, from the tuist chart's
+  values and the operator's image.
 - The Kura gateways on storage nodes are the rack-cache-gateways chart's
   (`infra/helm/rack-cache-gateways`), installed by `k8s:install-platform` after
   the platform release, from the platform chart's values.
@@ -513,6 +557,107 @@ remediates a mini whose Node has been NotReady for 30 minutes, but only while
 at most one is (`unhealthyRange: "[0-1]"`): a rack-wide outage remediates no
 mini, and once the rack is back, a mini that stayed down is remediated on its
 own.
+
+## The rack's VM image cache
+
+A mini starts a runner by cloning a golden base it materialized once per
+image, with `tart pull` and `tart clone` (see "macOS runner runtime" in
+`infra/tart-kubelet/AGENTS.md`). Without a cache every mini pulls every image
+it runs from ghcr.io. When b04-b09 joined on 2026-10-14 each pulled 33 to 62
+GB in its first hour and a half, peaking at 0.3 to 0.5 Gbit/s per mini, so
+one 60 GB image took 16 to 27 minutes against the pull's 20 minute timeout,
+while edge-a's WAN took 5.8 Gbit/s
+and half the rack's guest slots sat in `CreatingVM`. Every runner image release
+repeats that on every mini. The cache makes an image cross the WAN once per
+rack.
+
+`rackFleet.imageCache` in the tuist chart values declares it, and
+`templates/image-cache.yaml` in the rack-nodes chart runs it: a zot registry
+(the full image; the minimal one has no sync), one Deployment per entry of
+`nodes`, pinned to that storage node, on the host network at the node's
+machines address and `port` (`10.10.0.11:5000` on ber1-store-a), in plain
+HTTP. Its storage is a `scw-local-nvme` volume of `sizeGi` on the node's XFS
+`/data`, under a project quota, and the pod requests the same as
+`ephemeral-storage`, so the ber1-runners Kura region's placement, which reads
+every pod's request on the node, places its instances around it. A cache
+that fills fails its next sync and those hosts pull from ghcr.io; it never
+takes the Kura region with it.
+
+- **What it holds.** zot syncs an image of `repositories` from `upstream` on
+  its first manifest request and answers only once all of it is local, with
+  the upstream's manifest bytes, so the digest is ghcr.io's. Requests for an
+  image that is already being fetched share that one fetch, and the fetch
+  carries on when a requester gives up. A `prewarm` container asks for each
+  `prewarm` Xcode's image every `syncInterval`, one at a time, so a release's
+  images are fetched as soon as a deploy names them. zot's own periodic sync
+  cannot be used: it starts from the registry's repository listing, which
+  ghcr.io refuses. The tags come from the same catalog values as the pools'
+  images; the deploy passes `runnersFleet.runnerImageSemver` to this release
+  too.
+- **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
+  within `keepPulledWithin`, and deletes the rest; garbage collection then
+  frees their blobs. A release's previous images go a day after the rack has
+  rolled off them.
+- **How the minis use it.** Tart has no mirror configuration, only `--insecure`
+  for plain HTTP, so tart-kubelet chooses the reference. Each host named in
+  `routeHosts` (`["*"]` for all of them) gets, through the operator's
+  `--rackhost-image-mirrors` and `--rackhost-image-mirror-hosts`, a tart-kubelet
+  with `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
+  golden base it asks the cache for the image's manifest. If the cache holds
+  it, tart-kubelet pulls `10.10.0.11:5000/tuist/tuist-runner@<that digest>`
+  with `--insecure`. If the cache is still fetching it, the Pod is requeued
+  (`ImageCacheSyncing`) for up to 30 minutes rather than pulling the same
+  image from ghcr.io beside it. If the cache is down, does not hold the image,
+  or the pull fails, tart-kubelet pulls from ghcr.io as before. The golden
+  keeps the name the Pod's image gives it, so Pods, golden Node labels, the
+  runners-controller's affinity and the GC key on nothing new.
+- **Pre-pull.** A joining host's prewarm (`podagent.Prewarmer`) materializes
+  through the same `ensureGolden`, so it goes through the cache too, and it
+  asks again every 30 seconds for an image the cache is still fetching rather
+  than letting Pods onto the host to wait on that fetch.
+- **Integrity.** Tart does not check a blob against its digest. The cache's
+  bytes are what zot fetched over TLS and wrote under its digest, and the hop
+  to the mini is the machines segment, which carries only our hosts; guests
+  are behind the hosts' NAT. Pulling by digest pins the manifest the probe
+  saw.
+- **Private images.** Everything mirrored today is public, so the cache syncs
+  anonymously. A private repository needs zot's `credentialsFile` for the
+  upstream, from a 1Password item through ESO, mounted into the cache pod. The
+  credential stays on the storage node; the minis keep pulling unauthenticated
+  from the segment.
+
+Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
+layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
+distinct blobs; a release shares about 57% of its blobs with the one before,
+so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
+928 GB, also home to the Kura region, which takes precedence on it. So
+production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
+which moves to the next minor when one ships. The other versions come from
+ghcr.io, and so does 27.1 for about a day after a new image, until the old
+tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
+version beside it needs about 160 GiB through a release change, and every
+image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+gives the site more disk.
+
+The claim is named after its size, because a claim cannot shrink: a new
+`sizeGi` makes a new volume, which the cache fills again from the upstream,
+and Helm deletes the old claim once the Deployment's Recreate has released
+it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
+is what the Kura region's placement counts.
+
+Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
+`enabled`; once
+`kubectl -n tuist logs deploy/tuist-tuist-rack-image-cache-ber1-store-a -c prewarm`
+shows the prewarm set fetched, add `ber1-runner-b01` to `routeHosts` (real rack
+hardware, running staging's jobs); then the other hosts, or `"*"`. Routing
+needs an operator image with `--rackhost-image-mirror-hosts`, and re-pushes the
+launchd config of the hosts added, and only theirs, through the drift loop.
+`tart_kubelet_image_mirror_probe_total{result}` and
+`tart_kubelet_image_pull_seconds{source}` show what the hosts did; the
+`upstream` and `mirror` pull times on the same hosts are the before and after.
+Taking a host out of `routeHosts` is its rollback. `mise run rack:fleet-test` checks
+that every cache and cache gateway is a storage node of the site at its
+RackLinuxHost's address.
 
 ## Production
 
@@ -827,6 +972,21 @@ busy, and no rented runner is minted for them, so none can pick one up. GitHub
 hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
+
+A catalog shape can run a bigger guest on the rack than on the rented fleet
+(`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
+8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
+hosts' 16 CPU / 48 GB sizing fits two and one of. The pool keeps the shape's
+name, so a job is still recorded, billed and counted against the account's
+concurrency limit at the shape its profile names, and one that spills over to
+the rented fleet runs at that shape.
+
+The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
+its guest slots through the runners-controller's fleet allocator. When one of
+them has queued jobs whose Pods the scheduler refuses for lack of resources,
+the others give up idle warm runners straight away instead of after their
+scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool
+preemption").
 
 The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 

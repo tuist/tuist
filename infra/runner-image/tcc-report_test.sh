@@ -7,7 +7,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 eq() { [ "$1" = "$2" ] || fail "expected [$1], got [$2]"; }
 event() { jq -nc --arg msg "$1" --argjson pid "${2:-410}" --argjson thread "${3:-10}" '{timestamp:"2026-10-14 14:00:00",processID:$pid,threadID:$thread,eventMessage:$msg}'; }
 fixture() {
-  eval "$(awk '/^(stream_tcc_log|filter_tcc_log|report_finder_automation|approve_simulator_microphone)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
+  eval "$(awk '/^(stream_tcc_log|filter_tcc_log|report_finder_automation)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
   # shellcheck disable=SC2034
   TCC_LOG="$work/tcc.log"; TCC_LOG_PID=''; RUNNER_TCC_DB="$work/TCC.db"
   : > "$TCC_LOG"
@@ -156,16 +156,28 @@ test_stream_stop_is_bounded_and_idempotent() {
   ! kill -0 "$old_pid" 2>/dev/null || fail 'stream survived'
   report_finder_automation >/dev/null 2>&1
 }
-test_simulator_microphone_approval_is_idempotent() {
+access_schema() {
   /usr/bin/sqlite3 "$RUNNER_TCC_DB" "CREATE TABLE access (service TEXT NOT NULL, client TEXT NOT NULL, client_type INTEGER NOT NULL, auth_value INTEGER NOT NULL, auth_reason INTEGER NOT NULL, auth_version INTEGER NOT NULL, csreq BLOB, policy_id INTEGER, indirect_object_identifier_type INTEGER, indirect_object_identifier TEXT NOT NULL DEFAULT 'UNUSED', indirect_object_code_identity BLOB, flags INTEGER, last_modified INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (service, client, client_type, indirect_object_identifier));"
-  approve_simulator_microphone > "$work/output" || fail 'approval failed'
-  approve_simulator_microphone >> "$work/output" || fail 'second approval failed'
-  eq 'kTCCServiceMicrophone|com.apple.CoreSimulator.SimulatorTrampoline|0|2|UNUSED' \
-    "$(/usr/bin/sqlite3 "$RUNNER_TCC_DB" "SELECT service, client, client_type, auth_value, indirect_object_identifier FROM access;")"
-  eq 2 "$(grep -c 'Simulator microphone approved' "$work/output")"
 }
-test_simulator_microphone_approval_skips_missing_database() {
-  approve_simulator_microphone > "$work/output" || fail 'missing database failed the boot'
+approvals() { TUIST_TCC_DB="$RUNNER_TCC_DB" /bin/bash "$ROOT/tcc-approvals.sh" "$@"; }
+test_seed_is_idempotent_and_passes_check() {
+  access_schema
+  approvals seed > "$work/output" || fail 'seed failed'
+  approvals seed >> "$work/output" || fail 'second seed failed'
+  eq $'kTCCServiceAppleEvents|/Users/runner/actions-runner/bin/Runner.Listener|1|2|com.apple.finder|1\nkTCCServiceAppleEvents|/bin/bash|1|2|com.apple.finder|1\nkTCCServiceMicrophone|com.apple.CoreSimulator.SimulatorTrampoline|0|2|UNUSED|0' \
+    "$(/usr/bin/sqlite3 "$RUNNER_TCC_DB" "SELECT service, client, client_type, auth_value, indirect_object_identifier, indirect_object_code_identity IS NOT NULL FROM access ORDER BY service, client;")"
+  approvals check > "$work/output" || fail 'check rejected seeded rows'
+  grep -q 'all approvals present' "$work/output" || fail 'check did not confirm'
+}
+test_check_names_each_missing_approval() {
+  access_schema
+  /usr/bin/sqlite3 "$RUNNER_TCC_DB" "INSERT INTO access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity) VALUES ('kTCCServiceAppleEvents', '/bin/bash', 1, 2, 3, 1, 0, 'com.apple.finder', X'00'), ('kTCCServiceAppleEvents', '/Users/runner/actions-runner/bin/Runner.Listener', 1, 2, 3, 1, 0, 'com.apple.finder', NULL), ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 0, 2, 1, NULL, 'UNUSED', NULL);"
+  ! approvals check > "$work/output" || fail 'check accepted incomplete rows'
+  eq 'tcc-approvals: missing finder:/Users/runner/actions-runner/bin/Runner.Listener microphone:com.apple.CoreSimulator.SimulatorTrampoline' "$(cat "$work/output")"
+}
+test_check_reports_missing_database() {
+  ! approvals check > "$work/output" || fail 'check accepted a missing database'
+  grep -q 'TCC.db missing' "$work/output" || fail 'missing database not named'
   [ ! -e "$RUNNER_TCC_DB" ] || fail 'created a database tccd does not own'
 }
 if [ "${1:-}" = --case ]; then

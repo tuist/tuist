@@ -70,16 +70,21 @@ const (
 )
 
 // The thresholds come from ber1-pdu-b's outlet meters (Eaton Rack PDU G4) on
-// 2026-10-14:
+// 2026-10-14 and 2026-10-15:
 //
 //   - An empty outlet reads exactly 0 W and 0 VA.
 //   - A Mac mini plugged in and off reads about 0.1 W and 4 to 6 VA: its PSU's
 //     input filter, with no real load behind it.
-//   - A sleeping mini reads 2 to 3 W, and a running one 20 to 55 W.
+//   - A mini running as an idle node reads 2.3 to 4 W, about what a sleeping
+//     one does, and up to about 85 W under load.
 //
 // So 1 VA separates an empty outlet from a cord, and 1 W separates an off
-// mini from a sleeping one, each with several times the meter's resolution
-// to spare on both sides.
+// mini from an idle one, with more than twice the threshold to spare on
+// either side.
+//
+// Active and apparent power are not one sample: under load the card has read
+// active power 25 W above apparent, which no load can draw. Neither is read
+// against the other except below 1 W, where both are steady.
 const (
 	// NoLoadApparentPowerVA is the apparent power below which nothing is
 	// plugged into an outlet.

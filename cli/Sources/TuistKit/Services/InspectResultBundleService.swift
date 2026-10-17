@@ -59,7 +59,8 @@ public protocol UploadResultBundleServicing {
         onlyTestIdentifiers: [String],
         skipTestIdentifiers: [String],
         stressNewTests: Components.Schemas.StressNewTestsResult?,
-        stressResultBundlePaths: [AbsolutePath]
+        stressResultBundlePaths: [AbsolutePath],
+        scheme: String?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -156,7 +157,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
 
         // The server that receives a locally processed run has no Xcode to read the coverage
-        // with, so the client reads it, through the same parser the server runs on a bundle.
+        // with, so the client reads it: the `llvm-cov` export the run wrote into the bundle, or
+        // the bundle's report through the same parser the server runs on a bundle.
         // The execution modes were recorded into the bundle after the summary was parsed.
         var testSummary = testSummary
         if let resultBundlePath {
@@ -164,7 +166,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             testSummary = testSummary
                 .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
         }
-        var coverageUpload: XcodeCoverageUpload?
+        var coverage: TestRunCoverage?
         var testRunId: String?
         var manifest: XcodeCoverageManifest?
         if let resultBundlePath {
@@ -188,17 +190,18 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 resultBundlePath: resultBundlePath,
                 manifest: manifest,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                testRunId: nil
             ) {
-                testSummary.coverage = prepared.inline
-                coverageUpload = prepared.upload
+                coverage = prepared.coverage
                 testRunId = prepared.testRunId
             }
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
-        let gitHistory = await gitHistoryService.collect(
+        // Before the run is created: ingestion reads which commits the default branch reached.
+        let gitHistory = await gitHistoryService.publish(
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
@@ -228,7 +231,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             skipTestIdentifiers: skipTestIdentifiers,
             stressNewTests: stressNewTests,
             gitHistory: gitHistory?.payload,
-            coverageUpload: coverageUpload,
+            coverage: coverage,
             // A run collected coverage when its bundle has some Tuist uploads. Without a bundle
             // it can't be told.
             coverageEnabled: resultBundlePath.map { _ in manifest != nil }
@@ -252,147 +255,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
 
         await RunMetadataStorage.current.update(testRunId: test.id)
-
-        return test
-    }
-
-    public func uploadResultBundle(
-        resultBundlePath: AbsolutePath,
-        config: Tuist,
-        quarantinedTests: [TestIdentifier] = [],
-        buildRunId: String? = nil,
-        shardPlanId: String? = nil,
-        shardIndex: Int? = nil,
-        onlyTestIdentifiers: [String] = [],
-        skipTestIdentifiers: [String] = [],
-        stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
-        stressResultBundlePaths: [AbsolutePath] = []
-    ) async throws -> Components.Schemas.RunsTest {
-        guard let fullHandle = config.fullHandle else {
-            throw UploadResultBundleServiceError.missingFullHandle
-        }
-
-        // Older Xcode versions dropped a `<name>` → `<name>.xcresult` symlink
-        // alongside the bundle when `-resultBundlePath` was given without an
-        // extension, and callers might still pass such a path through
-        // `--result-bundle-path`. Resolve any symlink so the archiver zips the
-        // real directory, not the pointer.
-        let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
-
-        // A populated xcresult bundle has Info.plist at its root. If it's
-        // missing, xcodebuild was interrupted before writing results — uploading
-        // the empty skeleton just produces a 5-attempt failure on the server side
-        // and a Sentry alert for nothing actionable.
-        let infoPlistPath = resolvedResultBundlePath.appending(component: "Info.plist")
-        if !(try await fileSystem.exists(infoPlistPath)) {
-            throw UploadResultBundleServiceError.bundleMissingInfoPlist(resolvedResultBundlePath)
-        }
-
-        if !quarantinedTests.isEmpty {
-            try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
-        }
-
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-
-        let rootDirectory = try await rootDirectory()
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
-
-        // The server reads the coverage from the bundle, but only this checkout can say which
-        // repository files its paths are and which Git blobs they had, so that travels inside the
-        // bundle, the way the quarantined tests do.
-        let coverageManifestPath = resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
-        let manifest = await coverageManifest(
-            resultBundlePath: resolvedResultBundlePath,
-            config: config,
-            rootDirectory: gitInfoDirectory,
-            onlyTestIdentifiers: onlyTestIdentifiers,
-            skipTestIdentifiers: skipTestIdentifiers
-        )
-        if let manifest {
-            try await fileSystem.writeAsJSON(manifest, at: coverageManifestPath)
-        } else if try await fileSystem.exists(coverageManifestPath) {
-            // An earlier upload of this bundle wrote one; the server reads coverage from whatever
-            // manifest the bundle carries.
-            try await fileSystem.remove(coverageManifestPath)
-        }
-        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
-        let ciInfo = ciController.ciInfo()
-        let gitHistory = await gitHistoryService.collect(
-            gitInfo: gitInfo,
-            workingDirectory: gitInfoDirectory,
-            fullHandle: fullHandle,
-            serverURL: serverURL
-        )
-
-        let testRunId = UUID().uuidString.lowercased()
-
-        try await analyticsArtifactUploadService.uploadResultBundle(
-            resolvedResultBundlePath,
-            fullHandle: fullHandle,
-            commandEventId: testRunId,
-            serverURL: serverURL
-        )
-
-        // The gate's pass wrote its own bundle. It goes up under the same run id, so the
-        // server can fold its executions into the test cases they belong to when it parses
-        // the run's own. A failure here costs the gate's per-execution detail and nothing
-        // else: the run and the gate's verdict are reported either way.
-        var stressNewTests = stressNewTests
-        if !stressResultBundlePaths.isEmpty {
-            do {
-                try await analyticsArtifactUploadService.uploadStressResultBundle(
-                    mergedStressResultBundle(stressResultBundlePaths),
-                    fullHandle: fullHandle,
-                    commandEventId: testRunId,
-                    serverURL: serverURL
-                )
-                stressNewTests?.has_result_bundle = true
-            } catch {
-                AlertController.current.warning(
-                    .alert("Failed to upload the stress gate's results: \(error.localizedDescription)")
-                )
-            }
-        }
-
-        let test = try await createTestService.createTest(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            id: testRunId,
-            testSummary: TestSummary(
-                testPlanName: nil,
-                status: .processing,
-                duration: 0,
-                testModules: []
-            ),
-            buildRunId: buildRunId,
-            gitBranch: gitInfo.branch,
-            gitCommitSHA: gitInfo.sha,
-            gitRef: gitInfo.ref,
-            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-            isCI: Environment.current.isCI,
-            modelIdentifier: machineEnvironment.modelIdentifier(),
-            macOSVersion: machineEnvironment.macOSVersion,
-            xcodeVersion: try await xcodeBuildController.version()?.description,
-            ciRunId: ciInfo?.runId,
-            ciProjectHandle: ciInfo?.projectHandle,
-            ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider,
-            shardPlanId: shardPlanId,
-            shardIndex: shardIndex,
-            onlyTestIdentifiers: onlyTestIdentifiers,
-            skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests,
-            gitHistory: gitHistory?.payload,
-            coverageUpload: nil,
-            coverageEnabled: manifest != nil
-        )
-        await gitHistoryService.upload(
-            gitHistory,
-            workingDirectory: gitInfoDirectory,
-            fullHandle: fullHandle,
-            serverURL: serverURL
-        )
 
         return test
     }
@@ -472,6 +334,175 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 }
 
 extension UploadResultBundleService {
+    public func uploadResultBundle(
+        resultBundlePath: AbsolutePath,
+        config: Tuist,
+        quarantinedTests: [TestIdentifier] = [],
+        buildRunId: String? = nil,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
+        stressResultBundlePaths: [AbsolutePath] = [],
+        scheme: String? = nil
+    ) async throws -> Components.Schemas.RunsTest {
+        guard let fullHandle = config.fullHandle else {
+            throw UploadResultBundleServiceError.missingFullHandle
+        }
+
+        // Older Xcode versions dropped a `<name>` → `<name>.xcresult` symlink
+        // alongside the bundle when `-resultBundlePath` was given without an
+        // extension, and callers might still pass such a path through
+        // `--result-bundle-path`. Resolve any symlink so the archiver zips the
+        // real directory, not the pointer.
+        let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
+
+        // A populated xcresult bundle has Info.plist at its root. If it's
+        // missing, xcodebuild was interrupted before writing results — uploading
+        // the empty skeleton just produces a 5-attempt failure on the server side
+        // and a Sentry alert for nothing actionable.
+        let infoPlistPath = resolvedResultBundlePath.appending(component: "Info.plist")
+        if !(try await fileSystem.exists(infoPlistPath)) {
+            throw UploadResultBundleServiceError.bundleMissingInfoPlist(resolvedResultBundlePath)
+        }
+
+        if !quarantinedTests.isEmpty {
+            try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
+        }
+
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        let rootDirectory = try await rootDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+
+        let testRunId = UUID().uuidString.lowercased()
+
+        // Only this checkout can say which repository files the coverage's paths are and which
+        // Git blobs they had, so that travels inside the bundle as the manifest, the way the
+        // quarantined tests do. The coverage itself goes with the run when the client measured it
+        // (`llvm-cov` over the test products, which the bundle does not carry), and the manifest
+        // says so, so the server reads only the evidence against it. Otherwise the server reads
+        // the bundle's own report against the manifest, as it always did.
+        var coverage: TestRunCoverage?
+        let coverageManifestPath = resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
+        let manifest = await coverageManifest(
+            resultBundlePath: resolvedResultBundlePath,
+            config: config,
+            rootDirectory: gitInfoDirectory,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
+        )
+        if let manifest {
+            let export = resolvedResultBundlePath.appending(component: CoverageExport.fileName)
+            if try await fileSystem.exists(export) {
+                coverage = await coverageUploadService.prepare(
+                    resultBundlePath: resolvedResultBundlePath,
+                    manifest: manifest,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testRunId: testRunId
+                )?.coverage
+                // The export is the client's intermediate, not part of the bundle it uploads.
+                if try await fileSystem.exists(export) { try await fileSystem.remove(export) }
+            }
+            try await fileSystem.writeAsJSON(
+                XcodeCoverageManifest(
+                    rootDirectories: manifest.rootDirectories,
+                    partial: manifest.partial,
+                    files: manifest.files,
+                    clientReported: coverage != nil
+                ),
+                at: coverageManifestPath
+            )
+        } else if try await fileSystem.exists(coverageManifestPath) {
+            // An earlier upload of this bundle wrote one; the server reads coverage from whatever
+            // manifest the bundle carries.
+            try await fileSystem.remove(coverageManifestPath)
+        }
+        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let ciInfo = ciController.ciInfo()
+        // Before the run is created: ingestion reads which commits the default branch reached.
+        let gitHistory = await gitHistoryService.publish(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        try await analyticsArtifactUploadService.uploadResultBundle(
+            resolvedResultBundlePath,
+            fullHandle: fullHandle,
+            commandEventId: testRunId,
+            serverURL: serverURL
+        )
+
+        // The gate's pass wrote its own bundle. It goes up under the same run id, so the
+        // server can fold its executions into the test cases they belong to when it parses
+        // the run's own. A failure here costs the gate's per-execution detail and nothing
+        // else: the run and the gate's verdict are reported either way.
+        var stressNewTests = stressNewTests
+        if !stressResultBundlePaths.isEmpty {
+            do {
+                try await analyticsArtifactUploadService.uploadStressResultBundle(
+                    mergedStressResultBundle(stressResultBundlePaths),
+                    fullHandle: fullHandle,
+                    commandEventId: testRunId,
+                    serverURL: serverURL
+                )
+                stressNewTests?.has_result_bundle = true
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to upload the stress gate's results: \(error.localizedDescription)")
+                )
+            }
+        }
+
+        let test = try await createTestService.createTest(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            id: testRunId,
+            // The scheme the run was asked for, so the coverage published with the run carries it:
+            // the server reads the rest off the bundle later, and the coverage is published now.
+            testSummary: TestSummary(
+                testPlanName: scheme,
+                status: .processing,
+                duration: 0,
+                testModules: []
+            ),
+            buildRunId: buildRunId,
+            gitBranch: gitInfo.branch,
+            gitCommitSHA: gitInfo.sha,
+            gitRef: gitInfo.ref,
+            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            isCI: Environment.current.isCI,
+            modelIdentifier: machineEnvironment.modelIdentifier(),
+            macOSVersion: machineEnvironment.macOSVersion,
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers,
+            stressNewTests: stressNewTests,
+            gitHistory: gitHistory?.payload,
+            coverage: coverage,
+            coverageEnabled: manifest != nil
+        )
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        return test
+    }
+
     private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
@@ -515,7 +546,16 @@ extension UploadResultBundleService {
     ) async -> XcodeCoverageManifest? {
         guard Self.uploadsCoverage(config: config) else { return nil }
         do {
-            guard let coveredFilePaths = try await xcResultService.coveredFilePaths(path: resultBundlePath) else { return nil }
+            // The run's `llvm-cov` export lists what it covered; without one, the bundle's report.
+            let export = resultBundlePath.appending(component: CoverageExport.fileName)
+            let coveredFilePaths: [String]
+            if try await fileSystem.exists(export) {
+                coveredFilePaths = try CoverageExport.paths(of: export)
+            } else if let reported = try await xcResultService.coveredFilePaths(path: resultBundlePath) {
+                coveredFilePaths = reported
+            } else {
+                return nil
+            }
 
             // Test products built in another checkout carry that checkout: the compiler embedded its
             // paths, and only the build knows which blobs it compiled. The current checkout may be
@@ -587,11 +627,13 @@ extension UploadResultBundleService {
     /// Every spelling of the root the covered files use. The compiler records the path the build
     /// was invoked through, which is not always the one Git reports: `/tmp` is `/private/tmp` on
     /// macOS, and a checkout can be reached through a symlink. A file whose canonical path is under
-    /// the root contributes the prefix it was recorded with.
+    /// the root contributes the prefix it was recorded with. A binary from the cache records its
+    /// files under the placeholder instead of any checkout.
     static func rootSpellings(of root: AbsolutePath, coveredFilePaths: [String]) -> [String] {
         let canonicalRoot = canonical(root.pathString)
         var spellings = [root.pathString]
         if canonicalRoot != root.pathString { spellings.append(canonicalRoot) }
+        spellings.append(XcodeCoverageManifest.sourceRootPlaceholder)
 
         for path in coveredFilePaths where path.hasPrefix("/") && !spellings.contains(where: { path.hasPrefix($0 + "/") }) {
             let resolved = canonical(path)

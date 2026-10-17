@@ -75,6 +75,7 @@ private-network guide above.
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Status carries its outlet's state and draw. Its controller keeps the host's Machine. Nothing running on the host reads it. |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. Status carries every outlet's state and meter reading. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
+| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`. See "RackSite" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -84,7 +85,7 @@ private-network guide above.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rpdu`, `rats`, `rlm`, `rlmt`, `rlh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rpdu`, `rats`, `rsite`, `rlm`, `rlmt`, `rlh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -187,6 +188,18 @@ target on the update path (HostConfigHash strips it), so the fallback re-points
 it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
+
+Both legs are bounded. The reconcile context has no deadline, so an unbounded
+push holds that Machine's reconcile until the operator restarts, and the host
+silently keeps its old config. `DialAuth` gives the handshake 30s after the
+TCP connect (`ClientConfig.Timeout` covers only the connect, and launchd
+accepts `:22` before sshd runs, so a wedged host completes TCP and never sends
+a banner). That failure leaves no fingerprint, so it falls back to the tailnet
+like a connect failure. `UpdateTartKubelet` gives the whole update 15 minutes
+and closes the client when it lapses, since session setup and uploads do not
+watch the context. On 2026-10-14 one production mini sat on its pre-update
+config for 1h45 behind a reconcile that never returned, until the leader was
+restarted.
 
 ### Host observability
 
@@ -330,6 +343,12 @@ carve-outs, and nothing else: not the host's listeners on any of its addresses
   link-local, multicast). The PN carve-out covers 443 as well as the
   NodePorts: the fr-par runner cache is a private gateway whose HTTPS
   hostname resolves to a PN address.
+- The cluster's node ports (8472/udp Cilium VXLAN, 4240/tcp cilium-health,
+  10250/tcp kubelet) are dropped to every destination, public ones included.
+  A rack guest leaves through the rack's public address, which is also the
+  storage node's cluster InternalIP, so every Cilium node takes its packets
+  for that node's (`remote-node`). Cilium trusts the identity in a VXLAN
+  header from a node address.
 - The host's own connections to a guest (the metrics forwarder, VNC relays)
   get state from an outbound pass, or the guest's reply would hit the drop.
 - IPv6 is keyed on the vmnet bridges (`bridge100`-`bridge103`; `bridge0` is
@@ -373,6 +392,13 @@ The names keep the fleet's prefix because a Node is named after its machine,
 and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
+
+**The Machine carries the host's site** as `node.cluster.x-k8s.io/rack-site`
+(`infrav1.RackSiteNodeLabel`), and so does a rack Linux host's. Cluster API
+syncs labels in that domain from a Machine to its Node, kube-state-metrics
+allowlists it, and the Racks dashboard reads a node's site from
+`kube_node_labels` rather than from its name. A host with no `location.site`
+gets no label.
 
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
@@ -435,14 +461,18 @@ mode behind it:
   cycle. Its outlet's meter (`power.Meter`, the G4's
   `outlets/<n>/measures`) tells it apart: an empty outlet reads exactly 0 W and
   0 VA, a mini plugged in and off about 0.1 W and 4 to 6 VA (its PSU's input
-  filter), a sleeping one 2 to 3 W, a running one 20 to 55 W. `power.Classify`
-  splits them at 1 VA and 1 W. While a host reads plugged in and off, the
+  filter), one running as an idle node 2.3 to 4 W (about what a sleeping one
+  reads), and up to about 85 W under load. `power.Classify` splits them at
+  1 VA and 1 W. The card's active and apparent power are not one sample: under
+  load it has read active power 25 W above apparent, so nothing should take a
+  power factor from them. While a host reads plugged in and off, the
   bootstrap-failure path skips its cycle with a `PowerButtonNeeded` event
   instead of cycling. It reads the outlet itself at that moment rather than
   the RackPDU's status, which can be ten minutes old. On 2026-10-14
   `ber1-runner-b04` to `b09` had sat for two and a half days in a loop of
-  five-minute SSH timeouts and cycles that could never start them. A meter that cannot be read does not withhold the cycle,
-  and Shelly reports no apparent power, so its outlets never read as off.
+  five-minute SSH timeouts and cycles that could never start them. A meter
+  that cannot be read does not withhold the cycle, and Shelly reports no
+  apparent power, so its outlets never read as off.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
   path releases the host so a *different* mini is ordered. A rack host's
   machine has no other box, so after `--bootstrap-max-attempts` the machine
@@ -478,6 +508,15 @@ mode behind it:
   translates it. The value is in the hash, so changing it re-pushes the
   firewall to running hosts through the drift loop. The rented fleets never
   get it.
+- **It pulls golden bases through the rack's image caches.**
+  `rackFleet.imageCache` renders `--rackhost-image-mirrors`, which the manager
+  validates at startup, and `routeHosts` renders `--rackhost-image-mirror-hosts`.
+  `rackFleetConfig` overlays the mirrors as `ImageMirrors` on the hosts named
+  there (`*` for all): one `--image-mirror` per cache in tart-kubelet's launchd
+  plist. tart-kubelet refuses to start on a malformed one, which is why the
+  operator checks first. It is in the plist, so in the hash, and routing a
+  host drifts that host only. See "The rack's VM image cache" in
+  `infra/rack-nodes/AGENTS.md`.
 - **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
   our own rack. That makes Stage 1 of the delete path (dropping the node
   identity) matter *more* than on rented capacity, not less: nothing wipes the
@@ -573,6 +612,36 @@ inside the machines segment's prefix. They are rendered from the rack's
 inventory, so racking a mini changes them, and hand approval would be a step per
 mini per edge; scoped to the segment, the tag can put nothing else into the
 tailnet's routing table.
+
+### The console session
+
+A host is only useful with an Aqua session for the SSH user on the console:
+Virtualization.framework refuses to start a guest without one. Bootstrap writes
+`/etc/kcpassword` + `autoLoginUser` and kicks loginwindow, then
+`ensureGUISession` (`infra/macos-host-bootstrap/gui_session.go`) checks that
+`/dev/console` is owned by the user and `launchctl print gui/<uid>` reports
+`session = Aqua`. A host without it is restarted once (detached
+`shutdown -r now`, then a redial until `kern.boottime` changes), and loginwindow
+is kicked again if the restart alone does not bring the session up. A host
+that already has the session is never restarted, and one with FileVault on is
+not restarted at all: auto-login cannot work there and the restart would stop
+at the unlock screen. If the session is still missing, bootstrap fails with a
+`GUISessionError` and `Bootstrapped` goes False with reason
+`GUISessionMissing`, so the host never reports Ready while unable to start a VM.
+It then follows the usual failure ladder (outlet cycle, then quarantine), except
+that a FileVault host (`RestartUnsafe`) is never cycled or rebooted by either
+kind's recovery, for the same reason bootstrap did not restart it.
+
+A freshly ADE-enrolled mini needs the restart: Setup Assistant's first-boot
+session (`_mbsetupuser`) keeps the console, a loginwindow kick does not replace
+it, and auto-login only applies on the next boot. On 2026-10-14
+ber1-runner-b04..b07 bootstrapped into Ready Nodes in that state and failed
+every Pod with `TartCreateFailed` until restarted by hand.
+
+Once bootstrapped, the host's first tart-kubelet start registers a Node that
+stays tainted `tuist.dev/prewarming` while it pulls its fleet's in-demand
+runner images, so it takes no Pod that would wait on a download (see
+[`infra/tart-kubelet`](../tart-kubelet/AGENTS.md)).
 
 ### RackPDU
 
@@ -783,8 +852,18 @@ keeps its state and has no reading; a pass that could not read the card drops
 them all, and their series with them. The readings say nothing about what is
 on an outlet: a RackHost on the PDU takes its outlet's entry and interprets
 it for a mini (`HostDrawing`, below), and ignores one older than three resyncs
-(30 minutes). Nothing names the outlets of the Linux nodes and switches yet,
-so their series are told apart by outlet number alone.
+(30 minutes). It keeps using that reading when its own read of the outlet's
+state fails (`PowerReachable=False`): on 2026-10-15 five hosts' reads failed
+for three minutes while the PDU's stayed current. Nothing names the outlets of the Linux nodes and switches yet,
+so their series are told apart by outlet number alone. The per-site sum of
+`capt_rackpdu_outlet_active_power_watts` is what "Rack power draw near its
+contracted limit" in `infra/helm/k8s-monitoring/alerts.md` compares with the
+site's `capt_racksite_contracted_power_watts` ("RackSite" below), together
+with the output of each transfer switch that feeds no reporting PDU. For that,
+every RackPDU with a `chain` exports `capt_rackpdu_chain{pdu, site, ats}` = 1
+while it reports active power on at least one outlet, naming the transfer
+switch whose output its outlet readings already cover. A PDU that stops
+reporting drops the series, and its switch's output then stands in for it.
 
 **The administrator login for people** is `admin` with the password
 `mise run rack:card-password <name>` prints ("Rack card passwords" below), or
@@ -890,9 +969,9 @@ differs otherwise:
 4. **Every minute**, as the controller's account through the eaton driver's
    session: `status.activeSource` (1, 2, or 0 for neither), `status.inputs`
    (each source's `state`, one of `good`, `derated`, `outOfRange`,
-   `missing`, `unknown`, with `voltage`, `frequency` and the card's raw
-   `detail`), `status.preferredSource`, the device's and the card's
-   identity, and `status.lastObserved`. Every change of the active source
+   `missing`, `unknown`, with `voltage`, `frequency`, `current` and the
+   card's raw `detail`), `status.outputs` (below), `status.preferredSource`,
+   the device's and the card's identity, and `status.lastObserved`. Every change of the active source
    between two reads sets `status.lastTransfer`, with 0 for neither source,
    and counts in `capt_rackats_observed_transfers_total{from,to}`. The event
    tells them apart: `Transferred` between the sources (Warning when it moved
@@ -926,27 +1005,61 @@ not observed either: `Redundant=Unknown`, reason `Standalone`.
 `capt_rackats_redundant`, `capt_rackats_input_good{source}`,
 `capt_rackats_input_state{source,state}`,
 `capt_rackats_input_voltage_volts{source}`,
+`capt_rackats_input_current_amps{source}`, `capt_rackats_output_current_amps{output}`,
+`capt_rackats_output_voltage_volts{output}`,
+`capt_rackats_output_active_power_watts{output}`,
+`capt_rackats_output_apparent_power_va{output}`,
 `capt_rackats_last_observed_timestamp_seconds`, and the counter
 `capt_rackats_observed_transfers_total{from,to}`. These exist only while the
 last read succeeded; `capt_rackats_observed` is 1 or 0 for whether it did.
 `capt_rackats_active_source` and `capt_rackats_redundant` are left out while
 the card does not say which source powers the load.
+
+**Outputs.** Each observation also reads `powerDistributions/1/outputs`, and
+each listed output's measures, embedded in it or at its own `measures`
+resource. `status.outputs` carries
+`current`, `voltage`, `activePower` and `apparentPower` when the card reports
+them as numbers, and every measure verbatim in `detail`, for a key the
+controller does not recognise. A card that serves no outputs, or one the
+controller cannot read, leaves `status.outputs` empty and says why in
+`status.outputsMessage`. It fails nothing else: redundancy, the active source
+and `Ready` stand without it. The output gauges exist only for a measure the
+card reported. The input's `current` is read from the same `measures` object
+as its voltage.
+
+What the BER1 switches' Network-M3 cards (firmware 2.1.2) serve, read on
+2026-10-16: one output, with its measures embedded, as `current`, `voltage`,
+`frequency` and `percentLoad` (current as a share of the 16 A rating). There's no
+active or apparent power, which matches the EATS16N manual's front-panel
+measures. Current comes in 0.1 A steps and reads coarsely at a few percent of
+the rating: at 184 W downstream, `ber1-ats-3` read 0.7 A where the load needs at
+least 0.8 A. The current on the input powering the load equals the output
+current.
+
 The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. There are no alert rules yet; the ones to add:
+restarts with the operator. Its series appear at their first transfer, so
+`increase()` misses that one; alerts read changes of
+`capt_rackats_active_source` instead.
 
-| Alert | Expression |
+The ATS alerts are live in Grafana (folder `Alerts`, group `Rack`, documented
+with their exact queries in `infra/helm/k8s-monitoring/alerts.md`):
+
+| Alert | Condition |
 |---|---|
-| A transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
-| A load is on its alternate source | `capt_rackats_active_source != capt_rackats_preferred_source and capt_rackats_active_source > 0` for 10m |
-| A load is not powered | `capt_rackats_active_source == 0` for 1m |
-| A source is not good | `capt_rackats_input_good == 0` for 5m |
-| A transfer happened | `increase(capt_rackats_observed_transfers_total{from!="0",to!="0"}[15m]) > 0` |
-| A load lost or regained power | `increase(capt_rackats_observed_transfers_total{to="0"}[15m]) > 0`, and `{from="0"}` |
-| A transfer switch is not observed | `capt_rackats_observed == 0` for 10m, or `time() - capt_rackats_last_observed_timestamp_seconds > 600` |
-| A transfer switch is not Ready | `capt_rackats_ready == 0` for 15m |
+| Rack transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
+| Rack load not powered | `capt_rackats_active_source == 0` for 1m |
+| Rack power equipment not observed | `capt_rackats_observed == 0` for 15m (shared with `capt_rackpdu_ready`) |
+| Rack transfer switch readings stale | `time() - capt_rackats_last_observed_timestamp_seconds > 600` for 5m |
+| Rack load on its alternate source | active source is not the preferred one, both inputs good, for 10m |
+| Rack transfer switch changed source | `capt_rackats_active_source` changed in the last 15m and the switch is redundant again |
+
+`capt_rackats_ready` has no rule: `capt_rackats_observed` is 1 only while the
+RackATS is Ready. A standby source that is not good is lost redundancy; an
+active source that is derated without a transfer (`capt_rackats_input_good ==
+0` on the active source) has no rule.
 
 **Which card, and the unsupported case.** The controller speaks to the card
 through `atsCard` (`rackats_card.go`): `Fingerprint`, `Adopt`, `Observe`. The
@@ -1000,6 +1113,25 @@ and it needs SNMP enabled and a v3 user given a password, which on a factory
 Network-M2 is the REST API's or the web UI's to do: either the REST
 implementation enables it during adoption, or that step is a person at the
 web UI, a zero-touch gap.
+
+### RackSite
+
+A `RackSite` is what belongs to a rack site rather than to one device in it.
+`infra/rack-switch-fleet` renders one per site into `k8s/<site>/<site>.yaml`,
+named after the site. Today it carries only `spec.contractedPower`: the power
+the colocation contract allows, as `{from, watts}` steps from the site
+definition's `contracted_power`. Each step applies from its day, 00:00 UTC,
+until the next step's. The last step stays in effect.
+
+The controller (`controllers/macos/racksite_controller.go`) sets
+`status.contractedPowerWatts`, `contractedPowerSince` and
+`nextContractedPowerChange`. It exports `capt_racksite_contracted_power_watts`
+labelled `site`, and requeues for the next step's first day, so a step change
+needs no edit anywhere. There is no series before the first step, without
+steps, or when a step cannot be read (`status.message` says why; the CRD
+already refuses a `from` that is not a date and `watts` below 1).
+"Rack power draw near its contracted limit" in
+`infra/helm/k8s-monitoring/alerts.md` divides each site's PDU draw by it.
 
 ### Rack card passwords
 
@@ -1678,6 +1810,40 @@ moves. The operator also lifts `node.cloudprovider.kubernetes.io/uninitialized`
 once the addresses are set, without waiting for the proxy. Until the proxy Pod
 is Ready, `logs` and `exec` time out as for the Mac minis.
 
+A host with `spec.clusterNetwork` is the exception: it runs Cilium, so the
+control plane reaches its kubelet at the site's public address, which the
+edges forward. Its InternalIP is that address, it has no ExternalIP, and the
+operator deletes its kubelet egress.
+
+**A host on the cluster network** (`spec.clusterNetwork`, rendered from a
+host's `publicAddress`) runs Cilium instead of the rack-local bridge. Its
+configuration (`rack_linux_converge.go`):
+
+- drops the bridge conflist and the `cilium.io/no-schedule` registration label;
+- runs the kubelet with `--node-ip=<publicAddress>`;
+- holds that address on the `tuist-cluster` dummy (networkd);
+- maps `<address>:4240` to it (`tuist_cluster_health`) for Cilium's health
+  responder, which binds the node IP;
+- sets the Cilium nodes' `lxc*` rp_filter sysctl.
+
+The operator removes the Cilium exclusion from an existing Node itself, since a
+kubelet registers labels only once, and only once the host has applied the
+configuration carrying the dummy (`clusterAddressApplied`: the agent's, or the
+SSH converge's, applied hash equals the published one). Cilium binds its health
+responder to the node IP once at start and never retries, so a Cilium that
+starts before the address exists answers no node probe until it restarts. Every edge of the host's site renders
+`tuist_cluster_forwards`: DNAT of 8472/udp, 4240/tcp and 10250/tcp on each
+cluster-network host's public address to its address, from the set `nodes`.
+`RackNodeConfig.clusterNodeSets` asks the node agent to keep that set equal to
+the Cilium nodes' IPv4 InternalIPs and ExternalIPs (`racknode.ClusterNodeAddresses`): a Hetzner Cloud node, the control plane included, has only an ExternalIP. The
+agent replaces it in one nft transaction when the Nodes change and every
+reapply. The addresses stay out of the configuration and its hash, because a
+hash change restarts the edge's kubelet, containerd and networkd. The file
+declares the set and flushes only its chain, so reloading it keeps the
+elements. A change to any host of a site wakes the site's edges
+(`machinesForHost`). See "A storage node on the cluster network" in
+[`infra/rack-nodes/AGENTS.md`](../rack-nodes/AGENTS.md).
+
 ```bash
 kubectl -n tailscale-operator get pod -l tailscale.com/parent-resource=rack-linux-<host>-kubelet -o wide
 kubectl get node <host> -o jsonpath='{.status.addresses}'
@@ -1876,6 +2042,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackats_controller.go    # RackATS: adoption, preferred source, observation, drift
 │   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation
 │   │   ├── rackats_metrics.go       # capt_rackats_* series
+│   │   ├── racksite_controller.go   # RackSite: the contracted power step in effect
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
@@ -1937,9 +2104,20 @@ optional field with a controller-side default over a required one.
 
 The Linux self-join is rendered **once**, at bootstrap
 (`renderLinuxBootstrapScript`), by whichever provider pod holds the leader lease
-at that moment. Nothing re-runs it. That makes every capability the script
-installs a one-shot decision, and it fails in a way that looks like anything but
-a provisioning bug.
+at that moment. Once a run has completed, nothing applies it again. That makes
+every capability the script installs a one-shot decision, and it fails in a way
+that looks like anything but a provisioning bug.
+
+The SSH form can still be *dialed* twice. A successful bootstrap is recorded
+only by the Machine's status patch, and a provider pod that terminates between
+the SSH run and that patch leaves the next reconcile to dial the host again.
+The script therefore opens with a guard: a host whose
+`/var/lib/tuist/joined-node` names this node and whose kubelet is active exits
+0, and the marker is written as the script's last step. Re-running the join on a
+live node deletes Cilium's sysctl drop-ins, re-applies the distribution's
+`rp_filter` defaults and restarts containerd. On 2026-10-16 that happened to
+the second `kura-scw-fr-par` box, and the kubelet could not reach any pod on it
+for about five minutes.
 
 During a rolling provider upgrade the chart applies the new provider Deployment
 and the fleet MachineDeployments in the same release. With `maxUnavailable: 0`

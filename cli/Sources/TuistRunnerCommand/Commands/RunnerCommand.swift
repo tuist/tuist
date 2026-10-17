@@ -11,6 +11,7 @@ public struct RunnerCommand: AsyncParsableCommand {
             subcommands: [
                 RunnerSSHCommand.self,
                 RunnerVolumeCommand.self,
+                RunnerProfileCommand.self,
             ]
         )
     }

@@ -86,6 +86,9 @@ on:
       egress_tree_agent_image_tag:
         description: Pre-built egress-tree-agent image tag to pin (e.g. `sha-537c990cae68`, built by egress-tree-agent-image.yml); wins over the resolved `egress-tree-agent@*` semver. Use to validate an in-flight BPF/HTB change on staging before tagging a release.
         required: false
+      xcresult_processor_image_tag:
+        description: Pre-built xcresult processor Tart image tag to pin (e.g. `d0d53abc`, built by xcresult-processor-image.yml); wins over the resolved `xcresult-processor-image@*` semver. Use to validate an in-flight processor change on staging before tagging a release.
+        required: false
   workflow_call:
     inputs:
       staging_platform_revision:
@@ -187,6 +190,15 @@ on:
           `sha-537c990cae68`, built by egress-tree-agent-image.yml). When
           unset, the deploy job resolves the latest `egress-tree-agent@*`
           semver tag. Use to validate an in-flight BPF/HTB change on
+          staging before tagging a release.
+        required: false
+        type: string
+      xcresult_processor_image_tag:
+        description: >-
+          Pre-built xcresult processor Tart image tag to pin (e.g.
+          `d0d53abc`, built by xcresult-processor-image.yml). When unset,
+          the deploy job resolves the latest `xcresult-processor-image@*`
+          semver tag. Use to validate an in-flight processor change on
           staging before tagging a release.
         required: false
         type: string
@@ -587,12 +599,47 @@ jobs:
         name: helm dependency update
         run: helm dependency update "$TAILSCALE_CHART_PATH"
       - if: steps.check-values.outputs.exists == 'true'
-        name: helm upgrade --install tailscale-operator
+        # Earlier versions of the chart created its Connector, ProxyClasses
+        # and ProxyGroups as hooks, which Helm deleted and recreated on every
+        # upgrade (see the chart's templates/_helpers.tpl). They are ordinary
+        # release resources now, and Helm only takes over an existing object
+        # that carries its ownership metadata, so stamp it on before
+        # upgrading. The hook annotations come off here too: a client-side
+        # apply upgrade, which these releases use, leaves them on the object.
+        # Metadata only: the operator does not restart a proxy for it, and
+        # objects already in this state are left as they are.
+        name: Let Helm adopt the chart's tailscale.com resources
         run: |
-          helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
-            --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
-            -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
-            --timeout 10m --wait
+          set -euo pipefail
+          if ! kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1; then
+            echo "No tailscale.com CRDs yet; nothing to adopt."
+            exit 0
+          fi
+          kubectl get connectors.tailscale.com,proxyclasses.tailscale.com,proxygroups.tailscale.com \
+            -l app.kubernetes.io/name=tuist-tailscale-operator -o name |
+            while read -r resource; do
+              kubectl label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
+              kubectl annotate --overwrite "$resource" \
+                meta.helm.sh/release-name="$TAILSCALE_RELEASE_NAME" \
+                meta.helm.sh/release-namespace="$TAILSCALE_NAMESPACE" \
+                helm.sh/hook- helm.sh/hook-weight- helm.sh/hook-delete-policy-
+            done
+      - if: steps.check-values.outputs.exists == 'true'
+        name: helm upgrade --install tailscale-operator
+        # On a cluster without the tailscale.com CRDs, the first pass installs
+        # them and leaves out the chart's Connector, ProxyClasses and
+        # ProxyGroups, which only render once the CRDs exist; the second
+        # renders them.
+        run: |
+          set -euo pipefail
+          passes=1
+          kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1 || passes=2
+          for _ in $(seq "$passes"); do
+            helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
+              --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
+              -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
+              --timeout 10m --wait
+          done
 
   platform-install:
     # Installs / upgrades the platform chart (cert-manager, ingress-nginx,
@@ -729,6 +776,7 @@ jobs:
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
       EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
+      XCRESULT_PROCESSOR_IMAGE_TAG_INPUT: ${{ inputs.xcresult_processor_image_tag }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -1070,7 +1118,13 @@ jobs:
               echo "WARNING: no version resolved for $1; leaving chart default."
             fi
           }
-          add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
+          xcresult_processor_image_tag="${XCRESULT_PROCESSOR_IMAGE_TAG_INPUT:-}"
+          if [ -n "$xcresult_processor_image_tag" ]; then
+            echo "Overriding resolved xcresult processor tag with input ${xcresult_processor_image_tag}"
+          else
+            xcresult_processor_image_tag="${XCRESULT_PROCESSOR_TAG:-}"
+          fi
+          add_set "xcresultProcessor.image.tag" "$xcresult_processor_image_tag"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used
@@ -1354,6 +1408,14 @@ jobs:
           rack_node_sets=()
           if [ -n "$capi_image_tag" ]; then
             rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
+          fi
+          # The rack's image cache prewarms the runner images the tuist
+          # release's pools run, so it names them from the same values.
+          if [ -n "${RUNNER_IMAGE_SEMVER:-}" ]; then
+            rack_node_sets+=(--set "runnersFleet.runnerImageSemver=$RUNNER_IMAGE_SEMVER")
+          fi
+          if [ -n "${MACOS_RUNNER_IMAGE_TAG_INPUT:-}" ]; then
+            rack_node_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$MACOS_RUNNER_IMAGE_TAG_INPUT")
           fi
           helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
             --namespace "$NAMESPACE" \

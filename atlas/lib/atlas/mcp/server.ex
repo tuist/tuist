@@ -16,13 +16,17 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
   alias Atlas.MCP.Tools.AddPOCScopeFeature
   alias Atlas.MCP.Tools.AddPOCTimelineEntry
+  alias Atlas.MCP.Tools.AddPublicHoliday
   alias Atlas.MCP.Tools.AddSpecComment
   alias Atlas.MCP.Tools.AddSupportThreadNote
   alias Atlas.MCP.Tools.AssignAsset
+  alias Atlas.MCP.Tools.AssignTimeOffLocation
   alias Atlas.MCP.Tools.AttachDocumentToFinancing
   alias Atlas.MCP.Tools.AttachDocumentToInsuranceClaim
   alias Atlas.MCP.Tools.AttachDocumentToInsurancePolicy
   alias Atlas.MCP.Tools.BrowseUrl
+  alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
+  alias Atlas.MCP.Tools.CancelHoliday
   alias Atlas.MCP.Tools.CancelInsurancePolicy
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
@@ -30,6 +34,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
   alias Atlas.MCP.Tools.CompleteTask
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
+  alias Atlas.MCP.Tools.ConnectClaudeProvider
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
   alias Atlas.MCP.Tools.CreateAccount
   alias Atlas.MCP.Tools.CreateAccountNote
@@ -60,6 +65,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
   alias Atlas.MCP.Tools.CreateTask
+  alias Atlas.MCP.Tools.CreateTimeOffLocation
   alias Atlas.MCP.Tools.DecommissionDataCenter
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
@@ -83,6 +89,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
   alias Atlas.MCP.Tools.DetachDocumentFromInsuranceClaim
   alias Atlas.MCP.Tools.DetachDocumentFromInsurancePolicy
+  alias Atlas.MCP.Tools.DisconnectLLMProvider
   alias Atlas.MCP.Tools.DismissNudge
   alias Atlas.MCP.Tools.DismissOutreachNextStep
   alias Atlas.MCP.Tools.DisposeAsset
@@ -145,8 +152,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetSocialPostRevision
   alias Atlas.MCP.Tools.GetSpec
   alias Atlas.MCP.Tools.GetSupportThread
+  alias Atlas.MCP.Tools.GetTimeOffCalendar
+  alias Atlas.MCP.Tools.GetTimeOffOverview
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
+  alias Atlas.MCP.Tools.ImportPublicHolidays
   alias Atlas.MCP.Tools.InstallAssetInDataCenter
   alias Atlas.MCP.Tools.LinkAssetToInsuranceClaim
   alias Atlas.MCP.Tools.LinkProjectDomain
@@ -192,6 +202,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListInsurancePolicies
   alias Atlas.MCP.Tools.ListInvoices
   alias Atlas.MCP.Tools.ListLicenses
+  alias Atlas.MCP.Tools.ListLLMProviderConnections
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
@@ -217,6 +228,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.MatchFinancingPayment
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
+  alias Atlas.MCP.Tools.PollChatGPTProviderLogin
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
   alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
@@ -234,7 +246,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ReleaseNudge
   alias Atlas.MCP.Tools.RemoveAssetFromInsurance
   alias Atlas.MCP.Tools.RemovePOCScopeFeature
+  alias Atlas.MCP.Tools.RemovePublicHoliday
   alias Atlas.MCP.Tools.ReplyToSupportThread
+  alias Atlas.MCP.Tools.ReportHoliday
   alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
   alias Atlas.MCP.Tools.ResolveErrorIssue
@@ -242,6 +256,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ReturnAsset
   alias Atlas.MCP.Tools.ReturnFinancing
   alias Atlas.MCP.Tools.ReviewGTMOpportunity
+  alias Atlas.MCP.Tools.ReviewHoliday
   alias Atlas.MCP.Tools.RotateDomainErrorDsn
   alias Atlas.MCP.Tools.RotateProjectErrorDsn
   alias Atlas.MCP.Tools.RunGTMSignalSearch
@@ -257,6 +272,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
   alias Atlas.MCP.Tools.SetPOCContext
+  alias Atlas.MCP.Tools.StartChatGPTProviderLogin
+  alias Atlas.MCP.Tools.SyncPublicHolidays
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
@@ -270,6 +287,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateEngineeringDomain
   alias Atlas.MCP.Tools.UpdateEngineeringProject
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
+  alias Atlas.MCP.Tools.UpdateHoliday
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
@@ -431,8 +449,23 @@ defmodule Atlas.MCP.Server do
     ReturnFinancing,
     TerminateFinancing
   ]
-  @admin_write_tools [CreateMCPServer, DeleteMCPServer]
+  @admin_write_tools [
+    CreateMCPServer,
+    DeleteMCPServer,
+    CreateTimeOffLocation,
+    AssignTimeOffLocation,
+    AddPublicHoliday,
+    RemovePublicHoliday,
+    ImportPublicHolidays,
+    SyncPublicHolidays
+  ]
   @admin_tools [
+    CreateTimeOffLocation,
+    AssignTimeOffLocation,
+    AddPublicHoliday,
+    RemovePublicHoliday,
+    ImportPublicHolidays,
+    SyncPublicHolidays,
     CreateMCPServer,
     DeleteMCPServer,
     ListLicenses,
@@ -465,6 +498,12 @@ defmodule Atlas.MCP.Server do
   ]
   @static_tools [
     GetMCPConnectionStatus,
+    ListLLMProviderConnections,
+    ConnectClaudeProvider,
+    StartChatGPTProviderLogin,
+    PollChatGPTProviderLogin,
+    CancelChatGPTProviderLogin,
+    DisconnectLLMProvider,
     CreateMCPServer,
     DeleteMCPServer,
     GetNudgeAnalyticsStatus,
@@ -557,6 +596,18 @@ defmodule Atlas.MCP.Server do
     AddSupportThreadNote,
     UpdateSupportThread,
     ListAccounts,
+    GetTimeOffCalendar,
+    GetTimeOffOverview,
+    UpdateHoliday,
+    ReportHoliday,
+    ReviewHoliday,
+    CancelHoliday,
+    CreateTimeOffLocation,
+    AssignTimeOffLocation,
+    AddPublicHoliday,
+    RemovePublicHoliday,
+    ImportPublicHolidays,
+    SyncPublicHolidays,
     ListTasks,
     CreateTask,
     UpdateTask,
@@ -835,9 +886,12 @@ defmodule Atlas.MCP.Server do
   end
 
   defp tool_allowed?(conn, tool_module) do
-    admin_tool_allowed?(conn, tool_module) and
+    admin_tool_allowed?(conn, tool_module) and approval_tool_allowed?(conn, tool_module) and
       (not restricted_mcp_session?(conn) or tool_group(tool_module) in allowed_tool_groups(conn))
   end
+
+  defp approval_tool_allowed?(conn, ReviewHoliday), do: Atlas.TimeOff.can_approve?(Tool.current_user(conn))
+  defp approval_tool_allowed?(_conn, _module), do: true
 
   defp static_tool_allowed_by_name?(conn, name) do
     case Enum.find(@static_tools, &(tool_name(&1) == name)) do
@@ -891,6 +945,10 @@ defmodule Atlas.MCP.Server do
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])
   end
+
+  defp audit_arguments(name, _arguments)
+       when name in ~w(connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments
 

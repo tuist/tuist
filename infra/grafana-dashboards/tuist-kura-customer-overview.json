@@ -94,7 +94,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(histogram_quantile(0.95, sum by (tenant_id, region, pod, le) (sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\"}[$__range])) * on (cluster, pod) group_left(tenant_id, region) max by (cluster, pod, tenant_id, region) (kura_node_info{cluster=~\"tuist-$env\", region=~\"$region\"})))) or max by (tenant_id, region, pod) (kura_node_info{cluster=~\"tuist-$env\", region=~\"$region\"}) * NaN",
+                        "expr": "(histogram_quantile(0.95, sum by (tenant_id, region, pod, le) ((sum by (cluster, pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\"}[$__range])) or sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", latency_aggregate!=\"true\"}[$__range]))) * on (cluster, pod) group_left(tenant_id, region) max by (cluster, pod, tenant_id, region) (kura_node_info{cluster=~\"tuist-$env\", region=~\"$region\"})))) or max by (tenant_id, region, pod) (kura_node_info{cluster=~\"tuist-$env\", region=~\"$region\"}) * NaN",
                         "format": "table",
                         "instant": true,
                         "legendFormat": "__auto",

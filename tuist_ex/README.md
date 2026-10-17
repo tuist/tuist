@@ -76,6 +76,15 @@ current git ref, and any recognised continuous integration provider metadata
 travel with the payload so a dashboard can group runs by branch, commit, and
 CI run.
 
+On continuous integration, the run also uploads the checkout's commit history:
+commit SHAs, their parents, commit dates, and the branch the run and its pull
+request's base branch were on, which is how Tuist learns which commits landed
+on the default branch. It reads what the checkout has, and asks the remote
+for the base branch's latest commit (`git ls-remote`) when the checkout lacks
+it; only `--cover` fetches history. `TUIST_GIT_UPLOAD_ENABLED=false` turns it
+off, and `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps it from contacting the
+remote.
+
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
 uses the `TUIST_TOKEN` environment variable if set, then the credentials from
@@ -84,19 +93,17 @@ integration provider.
 
 ## Keep using `mix test` and `mix compile`
 
-The Tuist tasks take the same command line as the tasks they wrap, so you can
-alias them once and nobody, person or coding agent, has to learn a different
-command:
+Run the shared setup once:
 
-```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [test: "tuist.test", compile: "tuist.compile"],
-    tuist: [project: "your-account/your-project"]
-  ]
-end
+```sh
+mix tuist.setup --project your-account/your-project
 ```
+
+Commit the updated `mix.exs`. Setup enables dependency caching and installs both
+compile and test integration, preserving other options and standard Phoenix test
+preparation. It refuses unsupported custom actions instead of removing them.
+Retries and CI sharding remain opt-in. No evaluation snippets or script paths are
+needed; see [Get started with Elixir](https://tuist.dev/en/docs/guides/get-started/elixir-project).
 
 `mix test test/my_test.exs:12 --trace` then runs and reports exactly as
 `mix tuist.test` would. The alias also gets the environment right: Mix runs
@@ -107,6 +114,109 @@ by name, set `MIX_ENV=test` or add
 `def cli` in your `mix.exs`. Aliasing `compile` covers every compile, including
 the ones `mix test` or `mix phx.server` trigger; a compile that finds nothing
 to do is not reported.
+
+## Cache compiled dependencies
+
+Enable dependency caching with `cache: true` to select supported dependencies
+automatically. It uses the same
+Kura REAPI ActionCache and CAS/ByteStream protocol as Bazel: an input key maps
+to an ActionResult whose output is a content-addressed dependency compilation
+bundle. A verified local snapshot store remains the fail-open fallback. The
+shared setup above enables this alongside build and test insights. `mix compile`
+restores matching dependency builds before Mix compiles the rest. The generated alias exposes compiled bootstrap modules without compiling other
+dependencies, including when Mix uses separate OS compiler workers. The wrapper
+re-enables Mix's normal dependency checks afterward, so local dependencies and
+unsupported chains still compile and changed locks are checked. Non-allowlisted
+fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
+Without an
+alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
+Dependencies needed to bootstrap Tuist itself compile normally and, when already
+current, do not produce cache lookups. Jason and Decimal are bootstrap
+dependencies, so they are not useful demonstration allowlist entries; replace
+any restore demonstration with dependencies your project actually uses.
+A standalone `mix tuist.compile` may compile dependencies while discovering the
+task, before caching is available. It caches fetched, pure Elixir dependencies,
+not the project's own code. Native and custom compilers, local dependencies,
+and inputs it cannot model compile normally. Dependencies Mix already considers
+up to date need no lookup and are not counted as hits.
+
+Declare extra compile-time file or directory inputs with `inputs: ["path"]`
+and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,
+locked dependency identities, upstream sources and BEAMs, effective application
+configuration (explicit configured keys, with application defaults covered by
+dependency sources), dependency and VM-wide compiler options, dependency-specific
+`env:` and `system_env:`, Mix environment/target,
+and the Elixir build, full OTP version (when available), ERTS, compiler bytecode,
+OS version, architecture, word size and byte order enter the key. Standard
+compiler/runtime inputs (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS`, `ERL_AFLAGS`,
+`ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`, and `MIX_ARCHIVES`) are included automatically;
+declare other compile-time environment variables explicitly. Inputs and effective
+configuration are captured before each dependency lookup and rechecked before
+publishing, so an earlier compilation cannot leave later lookups using stale inputs. Custom global tracers bypass
+caching so their side effects are not skipped.
+
+Elixir macros can read arbitrary inputs. Declare additional inputs, exclude
+non-deterministic dependencies with `exclude: [:dependency]`, or restrict selection
+with `dependencies: [:dependency]` when you need an audited allowlist. This is not automatic hermetic
+input discovery; changing undeclared external inputs can still make a bundle stale.
+
+Verified local snapshots are tried before the remote cache. Idle builds and
+builds fully served locally do not contact cache endpoints or resolve credentials.
+A compile lazily opens one remote session, closes it even on compiler failure,
+and enforces a 30-second client RPC deadline independently of the server.
+
+Remote caching uses the existing account endpoint discovery and project-scoped
+cache-token exchange. Kura reports signed action-cache and CAS analytics with
+`client_kind: "mix"`, the Mix build ID and dependency name. There is no separate
+Mix storage or analytics API. Clients request best-effort inlining of bundles up
+to 128 KiB in Kura's ActionCache response to avoid a second round trip. Endpoints
+that ignore these hints, larger bundles, and omitted contents use ByteStream.
+Both paths verify the bundle's declared size and SHA-256 before installation.
+On OTP 28 and later, clients negotiate zstd with the
+server for ByteStream transfers of at least 1 KiB. Incompressible uploads, older
+OTP runtimes and endpoints without compression use identity transport. CAS digests
+and reported transfer bytes always describe the uncompressed bundle. Set
+`remote: false` for local-only caching;
+`endpoint:` can select a self-hosted HTTPS REAPI endpoint (HTTP is limited to
+loopback development hosts). Authentication, unavailable
+endpoints, quota refusals and storage failures fall back without hiding compiler
+failures. Set `upload: false` to read remote bundles without publishing new ones;
+local snapshots still populate. This is a client behavior option, not an
+authorization boundary. Dependency snapshots and remote bundles are capped at 64 MiB. Compiler manifests and BEAMs
+may embed producer checkout paths and compile-time values, including secrets.
+Audit selected dependencies and restrict project cache access accordingly.
+Writers are trusted code producers: a writer can publish executable BEAMs under
+computed keys. Digest verification detects corruption, not malicious producers.
+Do not provide cache-write credentials to untrusted branches or dependencies.
+
+The local fallback is stored under the user's Tuist cache directory; `path:` selects a
+different location. Checkout paths are keyed by default. `portable: true` enables
+reuse across checkouts, but cached BEAMs retain producer paths, including
+compile-time `__DIR__`, `__ENV__.file`, and `File.cwd!()` values. Only enable it
+for dependencies whose behavior does not rely on those paths. Resource links
+are recreated for the current dependency checkout. Upstream BEAMs still enter
+portable keys and can embed absolute paths, so cross-checkout hits may require
+restoring the upstream dependency closure from the same cache too.
+
+The **Mix Cache** dashboard shows average/percentile hit rates, cache I/O and
+recent builds. Successful REAPI operations report actual CAS payload bytes and
+client transfer durations with `read_source`/`write_source` set to `remote`;
+local fallback operations report `local` provenance, copied artifact and
+manifest bytes and verification/installation durations. Neither includes
+compilation or linked source resources. Legacy and failed observations remain
+unavailable rather than becoming measured zero.
+Open a build's **Mix cache** tab for task hits/misses, hit rate and transfer
+totals. Expanded tasks show only their real CAS output rows and digest links;
+diagnostics and measurement provenance remain in the analytics records.
+**CAS Outputs** uses Bazel's shared REAPI analytics queries and Kura-signed
+records for its download/upload graph, time-weighted throughput widgets,
+searchable/sortable table and copyable content hashes. Local-only builds do not
+invent remote outputs or throughput. Compressed sizes are not reported.
+Estimated compilation time avoided is the original compilation duration, not
+elapsed build time saved. Cache-only compiles are reported too. There is no
+automatic eviction for the local fallback store; Kura uses its existing shared
+cache retention and eviction. See [Elixir cache](https://tuist.dev/en/docs/guides/features/cache/elixir)
+for the full behavior and limitations.
 
 ## Detect flaky tests with retries
 
@@ -143,8 +253,14 @@ machine compiles; the others download its build.
 On one machine, once per pipeline:
 
 ```sh
-mix tuist.test.build --shard-max 4
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 4
 ```
+
+The first command enters through the generated compile alias so dependency
+caching runs before Mix discovers the sharding task. On a cold checkout,
+direct task discovery can compile dependencies before Tuist can cache them.
+Keep both commands in the test environment.
 
 This compiles the project for testing, asks Tuist to split the test files
 into at most four shards, and uploads the `_build/test` directory. A test file
@@ -200,7 +316,8 @@ commit complete from a job that runs after all of them:
 
 ```sh
 # once, on the machine that builds
-mix tuist.test.build --shard-total 4 --cover
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
 
 # on each shard
 TUIST_SHARD_INDEX=0 mix tuist.test --cover
@@ -221,8 +338,9 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       # checkout, Elixir, mix deps.get
+      - run: MIX_ENV=test mix compile --warnings-as-errors
       - id: plan
-        run: mix tuist.test.build --shard-total 4 --cover
+        run: MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
   test:
     needs: build
     strategy:
@@ -271,7 +389,8 @@ branch's coverage trend.
 
 The run's Git history is the merge base with the branch a pull request merges
 into and the commits Tuist does not have yet. A shallow
-clone is deepened, within a time budget, until the merge base is found.
+clone is deepened, within a time budget, until the merge base is found. With
+`--cover`, the commit's file listing is uploaded too.
 
 ## Optional reported actor
 

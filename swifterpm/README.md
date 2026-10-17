@@ -113,10 +113,43 @@ If you previously relied on automatic provider-token discovery, configure Git au
 
 By default, `swifterpm` copies cached directories into the project scratch directory during [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) (CI) and symlinks them elsewhere. Pass `--cached-directory-materialization=symlink` to preserve global-cache symlinks during continuous integration. The accepted values are `automatic`, `copy`, and `symlink`.
 
+An explicit `--cache-path` also applies to native manifest compilation, including SwifterPM's internal `swift package dump-package` calls. For generated projects using `tuist install`, this allows dependency sources and native manifest caches to live beside workspace state in one retained `.build` directory:
+
+```bash
+tuist install --force-resolved-versions \
+  --cache-path "$PWD/.build/dependency-cache" \
+  --cached-directory-materialization=symlink
+```
+
+This example assumes `Package.swift` is at the repository root. For `Tuist/Package.swift`, use `$PWD/Tuist/.build/dependency-cache` and retain `Tuist/.build`. Always run installation on a cache hit to validate the lockfile. Cleaning `.build` also removes these caches; keeping them within a job's workspace trades sharing across jobs or worktrees for a single retained directory. Omitting `--cache-path` preserves the existing shared-cache locations. SwiftPM configuration and authentication remain outside this cache.
+
+Alternatively, retain only an external cache such as `--cache-path "$HOME/.cache/swifterpm"` and recreate `.build` on each job. Sources and native compiled manifests remain reusable, but workspace state and SwifterPM's cached manifest JSON must be regenerated. Measure installation time for your dependency graph before choosing which layout to retain.
+
 > [!NOTE]
 > `swifterpm resolve` writes `Package.resolved` with an `originHash` derived from `Package.swift`, while SwiftPM derives its hash from the dependency graph. Running `swift package resolve` after `swifterpm resolve` in the same checkout may treat the lockfile as stale and resolve again.
 
+## Source cache ownership and compatibility
+
+Before invoking native SwiftPM, SwifterPM detaches Git-bearing checkout links so SwiftPM supplies its own working copies. Git-free checkout links and binary artifacts are privately materialized, using directory copy-on-write cloning on supported macOS filesystems and independent copies elsewhere. Native Git operations therefore cannot rewrite the shared cache through those links, and a failed native run cannot strand a private copy of an already-damaged shared Git tree. Tuist applies the same preparation when `TUIST_USE_SWIFTERPM=0` is used.
+
+Native checkout publication exports the pinned Git commit through a temporary index and empty working tree, including initialized submodules. It does not import staged changes, untracked files, or arbitrary working-tree bytes. Git metadata is excluded from published snapshots. If export fails, the native checkout is retained rather than stamped as a trustworthy cache entry.
+
+Existing cache paths, revision markers, registry downloads, and CI materialization options remain unchanged. Ordinary Git-free cache hits still share sources through links outside CI, without a new source-tree hashing pass or Git subprocess per package. Native preparation and force-resolved verification may leave private copies; a subsequent ordinary install can relink them.
+
+Native resolution, update, and `--force-resolved-versions` validation privately materialize every linked source checkout and binary artifact they encounter. APFS clones share file data, but their metadata work still scales with the number of files; independent-copy fallback also copies the data. This can add noticeable time on large graphs, both for the native invocation and for the next ordinary install that discards those private trees and restores cache links. A matching revision marker is not proof that native execution will leave a shared tree untouched, or that its private copy still matches the pinned source afterward. The marker therefore does not bypass the ownership boundary, and private native copies are not reused as certified cache contents.
+
+Legacy shared entries that still contain `.git` are left untouched. Their pinned Git objects are restored to a private checkout in each worktree, which is reused on warm installs. Local source-control entries keep private Git metadata and tags to preserve their existing `Context.gitInformation`. A shallow transport clone copies the pinned objects rather than hard-linking them or retaining alternates to a replaceable/cache directory; working files, objects, index and HEAD are independent. Other legacy entries become Git-free snapshots, which can change manifests relying on `Context.gitInformation`. The local compatibility path preserves pinned commit/tag context, not the repository's full history or unrelated tags. This first restore writes a full source tree per worktree. If the legacy objects are unavailable, each worktree fetches the pin privately.
+
+Modified or unreadable real Git checkouts and unmanaged Git-free directories are preserved with a diagnostic, not silently imported or deleted. Clean older Git checkouts can be replaced only when their HEAD is still reachable from remote or tag refs and no unpublished branch commits exist; otherwise move them aside explicitly, even if the working files are clean. A preserved directory may also be a private copy of a damaged legacy entry left by an earlier version or interrupted invocation. Move it aside, rather than discarding it, before rebuilding from pinned sources. SwiftPM edited dependencies are rejected without clearing their edit state; use native SwiftPM or unedit them first.
+
+These protections do not certify already-corrupted Git-free cache entries whose revision marker still matches, prevent older binaries from modifying their cache, or isolate arbitrary editor/build/plugin writes through warm source links. Such entries need explicit, scoped recovery; installing this version is not a universal cache repair.
+
 ## Continuous integration
+
+Manifest dumps and package-info JSON use content fingerprints and stay under the root
+scratch directory, so identical fresh checkouts can reuse retained caches. Older entries
+refresh once on upgrade. Manifests that read arbitrary external files still require
+explicit cache invalidation; SwifterPM does not trace those reads.
 
 > [!IMPORTANT]
 > Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every continuous-integration run is a cold run.

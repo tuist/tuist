@@ -59,6 +59,11 @@ defmodule TuistWeb.API.Schemas.Preview do
         type: :string,
         description: "The track for the preview (e.g., 'beta', 'nightly')"
       },
+      release_notes: %Schema{
+        type: :string,
+        nullable: true,
+        description: "Optional plain-text release notes describing this preview build"
+      },
       builds: %Schema{
         type: :array,
         items: TuistWeb.API.Schemas.AppBuild

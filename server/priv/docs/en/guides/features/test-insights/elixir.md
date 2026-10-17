@@ -10,29 +10,17 @@
 Tuist's Hex package uploads the test results of your Elixir project after each test run, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 
 > [!IMPORTANT] REQUIREMENTS
-> - The <.localized_link href="/guides/install-hex-package">Hex package</.localized_link> installed and configured
+> - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your test runs {#report-your-test-runs}
 
-Run `mix tuist.test` instead of `mix test`. It takes the same arguments and reports the run when it finishes:
+The shared setup installs the test integration. Keep using `mix test`, with the same arguments, output and exit code:
 
 ```bash
-mix tuist.test test/my_app_test.exs:12 --trace
+mix test test/my_app_test.exs:12 --trace
 ```
 
-To report every run without anyone having to remember a different command, alias it in your `mix.exs`:
-
-```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [test: "tuist.test"],
-    tuist: [project: "account/project"]
-  ]
-end
-```
-
-`mix test` then runs and reports exactly as `mix tuist.test` would, with the same output and the same exit code.
+Tuist reports the run when it finishes; no additional test alias is needed.
 
 You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
@@ -46,11 +34,21 @@ The package collects results from ExUnit, including:
 - The message and location of each failure
 - Flaky test detection across runs
 - The branch and commit, and on continuous integration, the provider and the run
+- On continuous integration, the [Git history](#git-history) of the checkout
 
 Doctests are reported like any other test.
 
 > [!NOTE]
 > The package reports through an ExUnit formatter that it adds next to the ones you already use. If you pass `--formatter` on the command line, Mix replaces the whole list, so the run is not reported and the task warns you about it.
+
+### Git history {#git-history}
+
+On continuous integration, the package also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The package reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage (`--cover`), it doesn't fetch history.
+
+| Variable | Effect |
+| --- | --- |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |
 
 ## Troubleshooting {#troubleshooting}
 

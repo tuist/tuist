@@ -29,7 +29,7 @@ var now = time.Unix(1790000000, 0)
 func rackSwitch(name, mac string, managedBy v1alpha1.ManagedBy) *v1alpha1.RackSwitch {
 	return &v1alpha1.RackSwitch{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec:       v1alpha1.RackSwitchSpec{MAC: mac, ManagedBy: managedBy},
+		Spec:       v1alpha1.RackSwitchSpec{Site: "ber1", MAC: mac, ManagedBy: managedBy},
 	}
 }
 
@@ -74,11 +74,11 @@ func TestPollExportsAConnectedSwitch(t *testing.T) {
 
 	p.poll(context.Background())
 
-	expect(t, p, helpUp+`rack_switch_up{switch="ber1-mgmt"} 1
-`+helpCPU+`rack_switch_cpu_utilization_ratio{switch="ber1-mgmt"} 0.07
-`+helpMemory+`rack_switch_memory_utilization_ratio{switch="ber1-mgmt"} 0.63
-`+helpTemperature+`rack_switch_temperature_celsius{switch="ber1-mgmt"} 41
-`+helpOptic+`rack_switch_optic_temperature_celsius{port="49",switch="ber1-mgmt"} 38.5
+	expect(t, p, helpUp+`rack_switch_up{site="ber1",switch="ber1-mgmt"} 1
+`+helpCPU+`rack_switch_cpu_utilization_ratio{site="ber1",switch="ber1-mgmt"} 0.07
+`+helpMemory+`rack_switch_memory_utilization_ratio{site="ber1",switch="ber1-mgmt"} 0.63
+`+helpTemperature+`rack_switch_temperature_celsius{site="ber1",switch="ber1-mgmt"} 41
+`+helpOptic+`rack_switch_optic_temperature_celsius{port="49",site="ber1",switch="ber1-mgmt"} 38.5
 `+helpLast+`rack_switch_telemetry_last_success_timestamp_seconds 1.79e+09
 `,
 		"rack_switch_up", "rack_switch_cpu_utilization_ratio", "rack_switch_memory_utilization_ratio",
@@ -108,7 +108,7 @@ func TestPollExportsOnlyOpticReadingsTheControllerMarksValid(t *testing.T) {
 
 	p.poll(context.Background())
 
-	expect(t, p, helpOptic+`rack_switch_optic_temperature_celsius{port="49",switch="ber1-mgmt"} 38.5
+	expect(t, p, helpOptic+`rack_switch_optic_temperature_celsius{port="49",site="ber1",switch="ber1-mgmt"} 38.5
 `, "rack_switch_optic_temperature_celsius")
 }
 
@@ -122,7 +122,7 @@ func TestPollExportsNoTemperatureForAModelWithoutTheSensor(t *testing.T) {
 
 	p.poll(context.Background())
 
-	expect(t, p, helpUp+`rack_switch_up{switch="ber1-mgmt"} 1
+	expect(t, p, helpUp+`rack_switch_up{site="ber1",switch="ber1-mgmt"} 1
 `, "rack_switch_up", "rack_switch_temperature_celsius")
 }
 
@@ -134,7 +134,7 @@ func TestPollReportsADisconnectedSwitchAsDownAndNothingElse(t *testing.T) {
 
 	p.poll(context.Background())
 
-	expect(t, p, helpUp+`rack_switch_up{switch="ber1-mgmt"} 0
+	expect(t, p, helpUp+`rack_switch_up{site="ber1",switch="ber1-mgmt"} 0
 `, "rack_switch_up", "rack_switch_cpu_utilization_ratio", "rack_switch_memory_utilization_ratio",
 		"rack_switch_temperature_celsius", "rack_switch_optic_temperature_celsius")
 	for _, r := range o.Requests() {
@@ -173,7 +173,7 @@ func TestPollForgetsASwitchThatIsRemoved(t *testing.T) {
 	}
 	p.poll(context.Background())
 
-	expect(t, p, helpUp+`rack_switch_up{switch="ber1-mgmt"} 1
+	expect(t, p, helpUp+`rack_switch_up{site="ber1",switch="ber1-mgmt"} 1
 `, "rack_switch_up")
 }
 

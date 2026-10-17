@@ -4,6 +4,51 @@ import Testing
 
 struct SupportTests {
     @Test
+    func resolutionCredentialsDoNotChangeManifestFingerprints() async throws {
+        let manifest = ["PATH": "/usr/bin:/bin", "PACKAGE_FEATURE": "enabled"]
+        var firstFingerprint: String?
+        for token in ["first", "second"] {
+            let resolution = manifest.merging(["GITHUB_TOKEN": token], uniquingKeysWith: { _, new in new })
+            try await Environment.withManifestEnvironment(manifest, resolutionEnvironment: resolution) {
+                let process = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.resolution)
+                #expect(process.stdoutString.contains("GITHUB_TOKEN=\(token)"))
+                let dumpProcess = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.manifestValues)
+                #expect(!dumpProcess.stdoutString.contains("GITHUB_TOKEN="))
+                let fingerprint = ManifestEnvironmentFingerprint.current()
+                if let firstFingerprint {
+                    #expect(fingerprint == firstFingerprint)
+                } else {
+                    firstFingerprint = fingerprint
+                }
+            }
+        }
+        #expect(Environment.manifestValues == nil)
+        #expect(Environment.resolutionValues == nil)
+    }
+
+    @Test
+    func omittedResolutionEnvironmentPreservesExistingManifestContract() async throws {
+        let manifest = ["PACKAGE_FEATURE": "enabled"]
+        try await Environment.withManifestEnvironment(manifest) {
+            #expect(Environment.resolution == manifest)
+            try await Environment.withManifestEnvironment(nil) {
+                #expect(Environment.manifest == manifest)
+                #expect(Environment.resolution == manifest)
+            }
+        }
+    }
+
+    @Test
+    func nestedManifestOverrideDoesNotInheritOuterResolverCredentials() async throws {
+        try await Environment.withManifestEnvironment(["PACKAGE_FEATURE": "outer"], resolutionEnvironment: ["TOKEN": "outer"]) {
+            try await Environment.withManifestEnvironment(["PACKAGE_FEATURE": "inner"]) {
+                #expect(Environment.resolution == ["PACKAGE_FEATURE": "inner"])
+            }
+            #expect(Environment.resolution == ["TOKEN": "outer"])
+        }
+    }
+
+    @Test
     func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
         let result = try await SystemProcess.run(
             "/usr/bin/env",

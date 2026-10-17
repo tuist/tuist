@@ -83,6 +83,32 @@ type RackLinuxHostSpec struct {
 	// render). Unset, an edge's install takes DHCP on its uplinks.
 	// +optional
 	Edge *RackLinuxHostEdge `json:"edge,omitempty"`
+
+	// ClusterNetwork joins the host to the cluster's pod network (Cilium)
+	// instead of the rack-local bridge, so its pods reach Services and other
+	// nodes' pods and are reached from them. Unset, the host runs the
+	// rack-local bridge and nothing in the cluster reaches its pods.
+	// +optional
+	ClusterNetwork *RackLinuxHostClusterNetwork `json:"clusterNetwork,omitempty"`
+}
+
+// RackLinuxHostClusterNetwork is how the rest of the cluster reaches a rack
+// host that runs Cilium. Every node tunnels to every other at its InternalIP,
+// so the host needs one the cluster can reach: the site's public address,
+// whose ports the site's edges forward to the host.
+type RackLinuxHostClusterNetwork struct {
+	// PublicAddress is the site's WAN address. It becomes the Node's
+	// InternalIP, and the host holds it on a dummy interface so the kubelet
+	// and Cilium can bind it. The site's edges forward the cluster's tunnel
+	// (8472/udp), Cilium health (4240/tcp) and kubelet (10250/tcp) ports on
+	// it to Address, from the cluster's nodes only. One host per address.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	PublicAddress string `json:"publicAddress"`
+
+	// Address is the host's own address on the site's machines segment, the
+	// one the edges forward to.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	Address string `json:"address"`
 }
 
 // RackLinuxHostEdge is an edge's end of the site's VRRP VLAN, as the

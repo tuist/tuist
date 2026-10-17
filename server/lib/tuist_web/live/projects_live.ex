@@ -410,6 +410,7 @@ defmodule TuistWeb.ProjectsLive do
               <:item value="gradle" label="Gradle" />
               <:item value="bazel" label="Bazel" />
               <:item value="mix" label="Mix (Elixir)" />
+              <:item value="cargo" label="Cargo (Rust)" />
               <:item value="once" label="Once" />
             </.select>
           </div>
@@ -514,6 +515,7 @@ defmodule TuistWeb.ProjectsLive do
   defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
   defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
   defp build_system_badge(:mix), do: %{label: "Mix", color: "information"}
+  defp build_system_badge(:cargo), do: %{label: "Cargo", color: "information"}
   defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
   defp build_system_badge(_), do: nil
 
