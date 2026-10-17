@@ -56,7 +56,7 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
             return
         }
         guard !response.profiles.isEmpty else {
-            Noora.current.passthrough("No runner profiles found.")
+            Noora.current.passthrough("No runner profiles found.\n")
             return
         }
         let rows = response.profiles.map { profile in
@@ -136,7 +136,7 @@ struct RunnerProfileOptionsCommandService: RunnerProfileOptionsCommandServicing 
         )
         let xcodeVersions = response.xcode_versions.map { $0._default ? "\($0.xcode_version) (default)" : $0.xcode_version }
         if !xcodeVersions.isEmpty {
-            Noora.current.passthrough("Xcode versions for macOS profiles: \(xcodeVersions.joined(separator: ", ")).")
+            Noora.current.passthrough("Xcode versions for macOS profiles: \(xcodeVersions.joined(separator: ", ")).\n")
         }
     }
 }

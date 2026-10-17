@@ -28,7 +28,17 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
     @Option(name: .customLong("xcode-version"), help: "An available Xcode version. Required for macOS profiles.")
     var xcodeVersion: String?
 
-    @OptionGroup var cacheOptions: RunnerProfileCacheOptions
+    @Option(
+        name: .customLong("save-cache-from"),
+        help: "Additional branch name or * pattern whose jobs save the profile's cache volumes. Repeat for several branches."
+    )
+    var saveCacheFrom: [String] = []
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Whether jobs on each repository's default branch save the profile's cache volumes. Defaults to saving."
+    )
+    var saveCacheFromDefaultBranch: Bool?
 
     @OptionGroup var options: RunnerProfileOptions
 
@@ -49,8 +59,8 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
             vcpus: vcpus,
             memoryGB: memoryGB,
             xcodeVersion: xcodeVersion,
-            saveCacheFromDefaultBranch: cacheOptions.saveCacheFromDefaultBranch,
-            saveCacheFromBranches: cacheOptions.branches,
+            saveCacheFromDefaultBranch: saveCacheFromDefaultBranch,
+            saveCacheFromBranches: saveCacheFrom.isEmpty ? nil : saveCacheFrom,
             account: options.account,
             path: options.path,
             json: options.json
