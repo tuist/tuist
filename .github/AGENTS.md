@@ -4,13 +4,6 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
-Kura's handover fixture unit tests run without cluster credentials. The large
-production-shaped runtime qualification remains an explicit isolated staging
-run; ordinary PR jobs must never allocate its volumes or use production access.
-Same-repository PRs publish the existing E2E image under `qualification-<merge SHA>`
-for that manual run. Keep registry write permission in the separate artifact-only
-publisher, never in fork builds, and never reuse a deployment or release tag.
-
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated

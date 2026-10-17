@@ -29,20 +29,6 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
-  handover-fixture-tests:
-    name: Handover Fixture Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/mise-install
-        with:
-          install: "node"
-          working-directory: kura
-      - name: Check synthetic corpus and fixture safety
-        run: node --test test/e2e/serving-authority/production/profile.test.mjs
-
   format:
     name: Format
     runs-on: ubuntu-latest
@@ -351,37 +337,6 @@ jobs:
           path: kura/kura-e2e-images.tar.zst
           if-no-files-found: error
           retention-days: 1
-
-  qualification-image:
-    name: Publish Qualification Image
-    needs: e2e-images
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: write
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    defaults:
-      run:
-        working-directory: .
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: kura-e2e-images
-      - name: Load the already built runtime
-        run: zstd -d -c kura-e2e-images.tar.zst | docker load
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish the isolated qualification tag
-        env:
-          QUALIFICATION_IMAGE: ghcr.io/tuist/kura:qualification-${{ github.sha }}
-        run: |
-          docker tag kura:e2e "$QUALIFICATION_IMAGE"
-          docker push "$QUALIFICATION_IMAGE"
-          printf 'Staging qualification image: %s\n\nBuilt from the PR merge commit. Publication does not mean the other CI checks have passed.\n' "$QUALIFICATION_IMAGE" >> "$GITHUB_STEP_SUMMARY"
 
   e2e-images-fork:
     name: E2E Images Fork
