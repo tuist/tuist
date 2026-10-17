@@ -17,7 +17,7 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
       sandbox_fixture(
         state: :paused,
         node_name: "node-a",
-        paused_at: days_ago(RetentionWorker.paused_retention_days() + 1)
+        paused_at: days_ago(RetentionWorker.retention_days() + 1)
       )
 
     fresh = sandbox_fixture(state: :paused, node_name: "node-a", paused_at: days_ago(1))
@@ -49,5 +49,18 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
 
     assert :ok = perform_job(RetentionWorker, %{})
     assert Repo.get(Sandbox, sandbox.id) == nil
+  end
+
+  test "deletes sandboxes errored for longer than the retention window, whose jails still hold disk" do
+    sandbox = sandbox_fixture(state: :error, node_name: "node-c", error_message: "sandbox died")
+    Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [updated_at: days_ago(30)])
+    fresh = sandbox_fixture(state: :error, node_name: "node-c", error_message: "sandbox died")
+    sandbox_id = sandbox.id
+
+    expect(Nodes, :call, fn "node-c", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+    assert :ok = perform_job(RetentionWorker, %{})
+    assert Repo.get(Sandbox, sandbox.id) == nil
+    assert %Sandbox{state: :error} = Repo.reload!(fresh)
   end
 end

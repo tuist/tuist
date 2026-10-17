@@ -633,6 +633,9 @@ func TestTemplatesAdvertiseReadyShapes(t *testing.T) {
 	if len(infos) != 1 || !infos[0].Ready || len(infos[0].Shapes) != 0 || infos[0].Name != "default" || infos[0].Tag != "t1" {
 		t.Fatalf("templates before build %+v", infos)
 	}
+	if infos[0].RootfsBytes != int64(len("pristine rootfs")) {
+		t.Fatalf("rootfs_bytes = %d, want the size of the template's rootfs image", infos[0].RootfsBytes)
+	}
 	if err := h.m.BuildTemplate(context.Background(), "default", "", template.Shape{VCPUs: 4, MemoryMB: 8192}); err != nil {
 		t.Fatal(err)
 	}

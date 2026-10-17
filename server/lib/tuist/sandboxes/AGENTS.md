@@ -39,10 +39,16 @@ consumer is Claude Managed Agents `self_hosted` environments.
   free memory (setting `node_name` under a per-node advisory lock) and
   `admit/1` reserves the paused sandbox's own node by moving the row to
   `resuming`. When nothing fits, idle running sandboxes (no residency)
-  are paused, longest idle first. Nodes without room for another memory
-  image on disk, or past their disk budget, are skipped. `admissible?/2`
-  is the side-effect-free check the poller runs before acknowledging a
-  work item. A node that reports no capacity is not budgeted.
+  are paused, longest idle first. Disk is reserved at each sandbox's
+  ceiling (the template's `rootfs_bytes`, `workspace_gb` and the memory
+  image, all fixed-size files, plus 64 MiB): a new sandbox only goes to a
+  node whose disk budget holds its ceiling on top of the ceilings of what
+  the node reports holding and of rows placed there it has not reported
+  yet, checked under the node's lock. A paused sandbox's disk is already
+  reserved, so a resume only needs room for its next pause on the
+  filesystem. `admissible?/2` is the side-effect-free check the poller
+  runs before acknowledging a work item. A node that reports no capacity
+  or no disk budget is not budgeted on that resource.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
   (`connected_nodes/0`) read from
   `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`
@@ -88,9 +94,15 @@ consumer is Claude Managed Agents `self_hosted` environments.
   sandbox is still running, has no residency and the epoch it was
   enqueued with is still current, checked under the sandbox's lock.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
-  `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused for longer
-  than 14 days, falling back to the row's last update when the node
-  paused the sandbox without the server recording `paused_at`.
+  `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
+  for longer than 14 days (both still hold their disk), falling back to
+  the row's last update when the node paused the sandbox without the
+  server recording `paused_at`.
+- Idle pauses: a create, a resume or an exec that leaves a sandbox
+  running without a residency (re)schedules `PauseSandboxWorker` after
+  the grace period with the current epoch, so API-driven sandboxes are
+  paused once idle like agent ones; a residency starting meanwhile bumps
+  the epoch and the pending job does nothing.
 
 ## Multiple replicas
 

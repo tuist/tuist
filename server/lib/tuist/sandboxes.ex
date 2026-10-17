@@ -130,15 +130,18 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
-  Sandboxes paused since before `cutoff`. A sandbox the node reported as
+  Sandboxes paused, or errored, since before `cutoff`: both still hold
+  their disk on the node until deleted. A sandbox the node reported as
   paused without the server pausing it has no `paused_at`; its last
   update stands in.
   """
-  def list_sandboxes_paused_before(%DateTime{} = cutoff) do
+  def list_sandboxes_idle_before(%DateTime{} = cutoff) do
     Repo.all(
       from s in Sandbox,
-        where: s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff,
-        order_by: [asc: s.paused_at]
+        where:
+          (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
+            (s.state == :error and s.updated_at < ^cutoff),
+        order_by: [asc: s.updated_at]
     )
   end
 
@@ -216,7 +219,8 @@ defmodule Tuist.Sandboxes do
         boot_ms: data["boot_ms"]
       )
 
-      update_sandbox(sandbox, %{
+      sandbox
+      |> update_sandbox(%{
         state: :running,
         node_name: node_name,
         hostname: hostname,
@@ -224,6 +228,7 @@ defmodule Tuist.Sandboxes do
         last_active_at: now(),
         error_message: nil
       })
+      |> schedule_idle_pause()
     else
       {:error, reason} ->
         Logger.warning("sandboxes: sandbox creation failed", sandbox_id: sandbox.id, reason: inspect(reason))
@@ -304,7 +309,9 @@ defmodule Tuist.Sandboxes do
             restore_ms: data["restore_ms"]
           )
 
-          update_sandbox(sandbox, %{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
+          sandbox
+          |> update_sandbox(%{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
+          |> schedule_idle_pause()
 
         # The snapshot is intact on the node's disk; a node that is away or
         # slow is not a reason to give the sandbox up.
@@ -442,7 +449,7 @@ defmodule Tuist.Sandboxes do
         {stdout, stderr} = drain_output(ref)
         Process.delete({ref, :stdout})
         Process.delete({ref, :stderr})
-        _ = update_sandbox(sandbox, %{last_active_at: now()})
+        record_activity(sandbox)
 
         case result do
           {:ok, data} when is_map(data) ->
@@ -549,6 +556,41 @@ defmodule Tuist.Sandboxes do
 
       {0, []} ->
         {:ok, sandbox}
+    end
+  end
+
+  # A sandbox left running without a residency (created or resumed
+  # through the API, or used by an exec) is paused once it has been idle
+  # for the grace period, as one is after a residency ends. Each new use
+  # replaces the pending pause, and a residency starting meanwhile bumps
+  # the epoch, which turns the pending pause into a no-op.
+  defp schedule_idle_pause({:ok, %Sandbox{} = sandbox}) do
+    schedule_idle_pause(sandbox)
+    {:ok, sandbox}
+  end
+
+  defp schedule_idle_pause({:error, _reason} = error), do: error
+
+  defp schedule_idle_pause(%Sandbox{state: :running, residency_work_id: nil} = sandbox) do
+    case schedule_pause(sandbox) do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not schedule the idle pause", sandbox_id: sandbox.id, reason: inspect(reason))
+        :ok
+    end
+  end
+
+  defp schedule_idle_pause(%Sandbox{}), do: :ok
+
+  defp record_activity(%Sandbox{id: id}) do
+    timestamp = now()
+    query = from(s in Sandbox, where: s.id == ^id and s.state == :running, select: s)
+
+    case Repo.update_all(query, set: [last_active_at: timestamp, updated_at: timestamp]) do
+      {1, [sandbox]} -> schedule_idle_pause(sandbox)
+      {0, []} -> :ok
     end
   end
 

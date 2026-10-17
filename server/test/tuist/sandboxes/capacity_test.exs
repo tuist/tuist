@@ -158,18 +158,26 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:ok, ^node} = Capacity.place(new_sandbox(template))
     end
 
-    test "skips nodes whose disk cannot take another memory image or exceeds the sandbox budget", %{template: template} do
-      full_fs =
-        connect(node_name(), template, %{disk: %{available_bytes: 4 * @gib, sandboxes_bytes: 0, budget_bytes: 0}})
+    test "skips nodes whose filesystem cannot take another memory image or whose budget cannot take the ceiling",
+         %{template: template} do
+      templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
 
+      full_fs =
+        connect(node_name(), template, %{templates: templates, disk: %{available_bytes: 4 * @gib, budget_bytes: 0}})
+
+      # One reported sandbox of 8 + 10 + 4 GiB leaves no room for a second
+      # under a 30 GiB budget, however little either has written.
       over_budget =
         connect(node_name(), template, %{
-          disk: %{available_bytes: 500 * @gib, sandboxes_bytes: 98 * @gib, budget_bytes: 100 * @gib}
+          templates: templates,
+          disk: %{available_bytes: 500 * @gib, budget_bytes: 30 * @gib, sandboxes_bytes: 0},
+          sandboxes: [%{id: Ecto.UUID.generate(), template: template, memory_mb: 4096, workspace_gb: 10}]
         })
 
       roomy =
         connect(node_name(), template, %{
-          disk: %{available_bytes: 500 * @gib, sandboxes_bytes: 1 * @gib, budget_bytes: 100 * @gib}
+          templates: templates,
+          disk: %{available_bytes: 500 * @gib, budget_bytes: 100 * @gib}
         })
 
       sandbox_fixture(template: template, state: :running, node_name: roomy, memory_mb: 4096)
@@ -177,6 +185,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:ok, ^roomy} = Capacity.place(new_sandbox(template))
       refute full_fs == roomy
       refute over_budget == roomy
+    end
+
+    test "counts sandboxes placed on a node that it has not reported yet against its disk budget", %{
+      template: template
+    } do
+      templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
+
+      node =
+        connect(node_name(), template, %{
+          templates: templates,
+          disk: %{available_bytes: 500 * @gib, budget_bytes: 50 * @gib}
+        })
+
+      for state <- [:creating, :paused] do
+        sandbox_fixture(template: template, state: state, node_name: node, memory_mb: 4096, workspace_gb: 10)
+      end
+
+      {:ok, _pid, info} = Nodes.lookup(node)
+      ceiling = 8 * @gib + 10 * @gib + 4 * @gib + 64 * @mib
+      assert Capacity.reserved_disk_bytes(Map.put(info, :name, node)) == 2 * ceiling
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
 
     test "answers no_capacity when every ready node is out of disk", %{template: template} do
@@ -226,6 +256,21 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
       assert {:error, :no_capacity} = Capacity.admit(sandbox)
       assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
+    end
+
+    test "resumes a paused sandbox on a node whose disk budget is fully reserved, since its disk already is",
+         %{template: template} do
+      templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
+
+      node =
+        connect(node_name(), template, %{
+          templates: templates,
+          disk: %{available_bytes: 500 * @gib, budget_bytes: 20 * @gib}
+        })
+
+      sandbox = sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096, workspace_gb: 10)
+
+      assert {:ok, %Sandbox{state: :resuming}} = Capacity.admit(sandbox)
     end
 
     test "marks the sandbox resuming without budgeting when its node is not connected", %{template: template} do
