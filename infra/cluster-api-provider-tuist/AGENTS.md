@@ -2059,7 +2059,8 @@ infra/cluster-api-provider-tuist/
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
-│       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       └── kata_kvm.go              # install + prove the KVM guest kernel, label tuist.dev/kata-kvm
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
@@ -2207,6 +2208,24 @@ repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existin
 runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
 in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
+
+Nested virtualization (`controllers/linux/kata_kvm.go`) follows the same
+proof shape on every OVH Kata host, after the runtime and shared-memory proofs
+hold. The repair downloads the pinned `kata-kvm-kernel@` release, checks it
+against the `.sha256` beside it, links it at
+`/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container`, and writes the
+`config.d/50-tuist-kvm.toml` drop-in that adds `kernel` to Kata's
+`enable_annotations` (a drop-in array replaces the base one, so it restates
+Kata's defaults). It then checks `kvm_amd`/`kvm_intel` `nested`, and only on
+success labels the node `tuist.dev/kata-kvm=true` and stamps
+`tuist.dev/kata-kvm-config` with the setup hash and boot ID. The host's
+`/dev/kvm` mode is not touched; the runners-controller's device plugin sets the
+container node's mode through CDI. A host whose KVM refuses nesting records
+`<revision>:unavailable` and is not retried until it reboots or the setup
+changes. Any lapse withdraws the label before re-verifying, and a KVM failure
+marks only `KataKVMReady`, never `KataRuntimeReady`. Deliberately not part of
+the first-boot self-join, so a node's join never depends on this download.
+Hetzner workers get no KVM kernel and so never carry the label.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
 rather than checked in: managed clusters run no Prometheus Operator, so there is

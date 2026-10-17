@@ -131,6 +131,15 @@ spec:
                     sidecar to every Linux runner Pod. The microVM keeps
                     the sidecar's privileged surface off the bare-metal
                     host.
+                nestedVirtualization:
+                  type: boolean
+                  description: |
+                    Gives the runner container a usable /dev/kvm (Linux
+                    `kata-qemu` pools only), so jobs can run
+                    hardware-accelerated guests such as x86_64 Android
+                    emulators. Pods boot the KVM-enabled guest kernel,
+                    land only on `tuist.dev/kata-kvm=true` hosts, and
+                    request one `devices.tuist.dev/kvm`.
                 provisioning:
                   type: object
                   description: |

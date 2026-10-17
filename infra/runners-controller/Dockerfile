@@ -23,7 +23,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/manager ./cmd/manager && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes
+    go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/kvm-device-plugin ./cmd/kvm-device-plugin
 
 
 # The storage agent needs reflink copies, loop devices and ext4 formatting; keep
@@ -38,6 +40,9 @@ ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /out/manager /usr/local/bin/manager
+# Run by the kvm-device-plugin DaemonSet as root, which kubelet's
+# device-plugin directory requires; see cmd/kvm-device-plugin.
+COPY --from=builder /out/kvm-device-plugin /usr/local/bin/kvm-device-plugin
 
 USER nonroot:nonroot
 

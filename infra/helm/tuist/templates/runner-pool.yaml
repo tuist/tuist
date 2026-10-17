@@ -421,7 +421,7 @@ value without comparing those immutable Pod fields to live cluster state.
 {{- $kataRuntimeClassRevision := printf "v1|runtimeClass=kata-qemu|cpu=%v|memory=%v" .Values.kataContainers.podFixed.cpu .Values.kataContainers.podFixed.memory | sha256sum }}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleetLinux.pools[].name required" $pool.name }}
-{{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage required" $name) $pool.runnerImage }}
+{{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage (or runnersFleetLinux.shapeRunnerImage) required" $name) ($pool.runnerImage | default $.Values.runnersFleetLinux.shapeRunnerImage) }}
 {{- $dispatchLabel := required (printf "runnersFleetLinux.pools[%s].dispatchLabel required" $name) $pool.dispatchLabel }}
 {{- $replicas := $pool.replicas | default 0 }}
 {{- $podCPU := dig "pod" "cpuMilli" 4000 $pool }}
@@ -469,6 +469,15 @@ spec:
   {{- end }}
   {{- if $runtimeClass }}
   runtimeClass: {{ $runtimeClass | quote }}
+  {{- end }}
+  {{- if $pool.nestedVirtualization }}
+  {{- if ne $runtimeClass "kata-qemu" }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].nestedVirtualization requires runtimeClass kata-qemu" $name) }}
+  {{- end }}
+  {{- if not $.Values.runnersFleetLinux.nestedVirtualization.enabled }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].nestedVirtualization requires runnersFleetLinux.nestedVirtualization.enabled, which deploys the device plugin its Pods request /dev/kvm from" $name) }}
+  {{- end }}
+  nestedVirtualization: true
   {{- end }}
   provisioning:
     maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}

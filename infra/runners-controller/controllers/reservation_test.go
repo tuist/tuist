@@ -1087,3 +1087,31 @@ func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
 		t.Fatal("blocked forever behind a shape no drain could ever serve")
 	}
 }
+
+// A nested-virtualization pool reasons about the KVM-proven hosts only,
+// the same set its Pods' nodeSelector restricts the scheduler to.
+func TestFleetNodesOfANestedVirtualizationPoolAreTheKVMHosts(t *testing.T) {
+	node := func(name string, kvm bool) *corev1.Node {
+		labels := map[string]string{fleetNodePoolLabel: "runners-linux", nodeOSLabel: "linux"}
+		if kvm {
+			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}}
+	}
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node("kvm", true), node("plain", false)).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux", RuntimeClass: "kata-qemu"}}
+	all, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("plain pool fleet = %d nodes (err %v), want both", len(all), err)
+	}
+
+	pool.Spec.NestedVirtualization = true
+	kvm, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(kvm) != 1 || kvm[0].Name != "kvm" {
+		t.Fatalf("nested pool fleet = %v (err %v), want only the KVM host", kvm, err)
+	}
+}

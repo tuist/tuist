@@ -1,0 +1,88 @@
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.nestedVirtualization.enabled }}
+{{- /*
+Advertises devices.tuist.dev/kvm on Kata runner hosts the CAPI provider has
+labelled tuist.dev/kata-kvm=true. Runner Pods of a pool with
+`nestedVirtualization: true` request one, which is what adds /dev/kvm to
+their unprivileged runner container. Inside the microVM that node resolves
+to the guest kernel's KVM device. Source: infra/runners-controller/cmd/kvm-device-plugin.
+*/}}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "kvm-device-plugin") }}
+{{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $imageTag := required "runnersController.image.tag is required for the kvm device plugin" .Values.runnersController.image.tag }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kvm-device-plugin
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kvm-device-plugin
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: kvm-device-plugin
+    spec:
+      automountServiceAccountToken: false
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+        node.cluster.x-k8s.io/pool: {{ include "tuist.runnersFleetLinuxName" . | quote }}
+        tuist.dev/kata-kvm: "true"
+      tolerations:
+        - key: tuist.dev/runner-tier
+          operator: Exists
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      containers:
+        - name: plugin
+          image: "{{ .Values.runnersController.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.runnersController.image.pullPolicy }}
+          command: [/usr/local/bin/kvm-device-plugin]
+          args:
+            - --devices={{ .Values.runnersFleetLinux.nestedVirtualization.devicesPerNode }}
+          securityContext:
+            # Root only to write its socket and CDI spec into root-owned host
+            # directories; no capabilities and no privilege.
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - name: device-plugins
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: cdi
+              mountPath: /var/run/cdi
+            - name: kvm
+              mountPath: /dev/kvm
+              readOnly: true
+      volumes:
+        - name: device-plugins
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+        # One of containerd's default cdi_spec_dirs. The spec published here
+        # gives the container's /dev/kvm mode 0666 without touching the
+        # host node, which stays 0660.
+        - name: cdi
+          hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
+        # Mounted only so the plugin can report the host's KVM as
+        # unhealthy when it is missing; the plugin never opens it.
+        - name: kvm
+          hostPath:
+            path: /dev/kvm
+            type: CharDevice
+{{- end }}
