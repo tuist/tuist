@@ -88,6 +88,7 @@ struct DumpServiceConfigTests {
                 "disablePackageVersionLocking": false,
                 "disableSandbox": true,
                 "enableCaching": false,
+                "enableCachingPrefixMapping": true,
                 "enableCoveragePrefixMapping": false,
                 "enforceExplicitDependencies": false,
                 "includeGenerateScheme": true,

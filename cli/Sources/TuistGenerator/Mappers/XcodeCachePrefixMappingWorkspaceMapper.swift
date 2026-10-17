@@ -48,6 +48,7 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
 
     public func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         guard tuist.project.generatedProject?.generationOptions.enableCaching ?? false,
+              tuist.project.generatedProject?.generationOptions.enableCachingPrefixMapping != false,
               await XcodeCacheSettingsProjectMapper.isPrefixMappingSupported()
         else { return (workspace, []) }
 
