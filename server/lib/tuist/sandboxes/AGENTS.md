@@ -127,6 +127,13 @@ socket, the poller and the caller share a replica:
   between a reconnect and the old socket's exit runs once. The caller monitors the socket pid from the presence
   meta, so a socket dying mid-call yields `{:error, :node_disconnected}`
   wherever the caller runs.
+- A replica that has just started takes traffic a few seconds before
+  it has joined the cluster and received the node presences, and a node
+  that has just reconnected is invisible while it does. `Nodes.call/4`,
+  placement and resume admission therefore wait up to 10 s
+  (`Nodes.presence_wait_ms/0`) for a node to become visible before
+  answering `:not_connected` or `:no_node`; the poller's admission check
+  does not wait.
 - Each environment has one poller in the cluster, held under a
   `:global` name. Every replica's `Manager` asks its dynamic supervisor
   to start every enabled environment's poller each reconcile;

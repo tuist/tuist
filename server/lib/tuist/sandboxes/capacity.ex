@@ -191,7 +191,17 @@ defmodule Tuist.Sandboxes.Capacity do
   the template and `{:error, :no_capacity}` when none has room.
   """
   def place(%Sandbox{node_name: nil, template: template} = sandbox) do
-    ready = ready_nodes(template)
+    ready =
+      Nodes.await(
+        fn ->
+          case ready_nodes(template) do
+            [] -> {:retry, []}
+            nodes -> nodes
+          end
+        end,
+        Nodes.presence_wait_ms()
+      )
+
     candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 
     cond do
@@ -233,7 +243,7 @@ defmodule Tuist.Sandboxes.Capacity do
   def admit(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     charge = charge_bytes(sandbox)
 
-    case Nodes.lookup(node_name) do
+    case Nodes.await_lookup(node_name) do
       {:ok, _pid, info} ->
         node = Map.put(info, :name, node_name)
         reserve = fn -> reserve(node, charge, fn -> mark_resuming(sandbox) end) end

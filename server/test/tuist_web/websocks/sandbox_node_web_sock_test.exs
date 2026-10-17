@@ -74,7 +74,11 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
                name: ^node_name,
                templates: [%{name: "default", tag: "sha-1", ready: true}],
                capacity: %{cpus: 32},
-               disk: %{available_bytes: 1_500_000_000_000, sandboxes_bytes: 3_000_000_000, budget_bytes: 200_000_000_000},
+               disk: %{
+                 available_bytes: 1_500_000_000_000,
+                 sandboxes_bytes: 3_000_000_000,
+                 budget_bytes: 200_000_000_000
+               },
                pid: pid,
                node: erlang_node,
                connected_at: %DateTime{}
@@ -170,6 +174,39 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     assert eventually(fn -> match?({:ok, ^socket, _info}, Nodes.lookup(node_name)) end)
 
     assert {:error, :node_disconnected} = Nodes.call(node_name, "exec", %{sandbox_id: "s1", cmd: ["ls"]}, [])
+  end
+
+  test "a call waits for a node that becomes visible shortly after, and gives up after the wait", %{
+    node_name: node_name
+  } do
+    assert {:error, :not_connected} = Nodes.await_lookup(node_name, 300)
+
+    test_pid = self()
+
+    {:ok, socket} =
+      Task.start(fn ->
+        Process.sleep(400)
+        {:ok, state} = SandboxNodeWebSock.init(%{node_name: node_name})
+        {:ok, state} = SandboxNodeWebSock.handle_in(text(hello(node_name)), state)
+        send(test_pid, :tracked)
+
+        receive do
+          {:sandbox_command, _ref, "status", _args, _from} = message ->
+            {:push, _frame, state} = SandboxNodeWebSock.handle_info(message, state)
+            result = %{"type" => "result", "id" => "c1", "ok" => true, "data" => %{"state" => "running"}}
+            {:ok, _state} = SandboxNodeWebSock.handle_in(text(result), state)
+        end
+
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    assert {:ok, %{"state" => "running"}} =
+             Nodes.call(node_name, "status", %{sandbox_id: "s1"}, presence_wait_ms: 5_000)
+
+    assert_received :tracked
+    send(socket, :stop)
   end
 
   test "a reconnect supersedes the previous socket", %{node_name: node_name, state: state} do
