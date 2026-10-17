@@ -47,6 +47,23 @@ metadata:
     app.kubernetes.io/component: sandboxes
 automountServiceAccountToken: false
 ---
+# The daemon shares nodes with runner Pods, which carry no priority, and a
+# runner Pod becomes job-owning in place. A preempting priority would let the
+# scheduler, or the kubelet admitting a critical Pod, evict a customer build to
+# make room for the carve-out. With `Never` the daemon only goes first in the
+# scheduling queue: on a full node it waits for a job to finish.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+value: 1000000
+preemptionPolicy: Never
+globalDefault: false
+description: "sandboxd: scheduled ahead of runner Pods, never preempts them."
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -86,7 +103,7 @@ spec:
       # Pod's IP, so the Pod's Cilium endpoint and the NetworkPolicy below
       # gate every guest's egress.
       dnsPolicy: ClusterFirst
-      priorityClassName: system-node-critical
+      priorityClassName: {{ $name }}
       terminationGracePeriodSeconds: 120
       nodeSelector:
         kubernetes.io/os: linux

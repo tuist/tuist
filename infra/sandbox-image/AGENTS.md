@@ -1,9 +1,3 @@
-
-The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
-Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
-`/etc/profile.d/mise.sh`, shims in non-interactive shells) and the Anthropic
-`ant` CLI 1.30.0 as a fallback worker; its .deb installs a single `/usr/ant`
-binary, symlinked to `/usr/local/bin/ant`.
 # sandbox-image
 
 Guest side of the Firecracker sandboxes run by `infra/sandboxd`: the kernel,

@@ -10,7 +10,11 @@ queue and routes each session to its sandbox, and a worker inside the VM
 executes the bash and file tools.
 
 GitHub Actions runners stay on Kata (`infra/runners-controller`); sandboxd is
-a separate substrate on the same nodes.
+a separate substrate on the same nodes. The DaemonSet Pod reserves
+`sandboxes.memoryGiB` for guests (request equals limit) under a PriorityClass
+with `preemptionPolicy: Never`: runner Pods carry no priority and become
+job-owning in place, so the daemon must never evict one. On a full node it
+waits, first in the scheduling queue, for a job to finish.
 
 ## Pieces
 
