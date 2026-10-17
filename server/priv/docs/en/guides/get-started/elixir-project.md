@@ -43,7 +43,7 @@ mix tuist.setup --project account/project
 mix tuist.login
 ```
 
-Setup updates `mix.exs` with your project handle, enables dependency caching, and installs the compile and test aliases. It preserves other settings and standard test preparation such as Phoenix's database setup. If it cannot safely integrate a custom alias, it stops without changing the file.
+Setup updates `mix.exs` with your project handle, enables dependency caching, installs the compile and test aliases, and sets `TuistEx.Coverage` as the coverage tool so `mix test --cover` counts with the runtime's native line counters instead of compiling every module again. A project that already sets a coverage tool keeps it. It preserves other settings and standard test preparation such as Phoenix's database setup. If it cannot safely integrate a custom alias, it stops without changing the file.
 
 Commit the updated `mix.exs` so your team and CI use the same setup. No scripts or evaluation code to copy. Login opens a browser; see <.localized_link href="/guides/install-hex-package#authenticate">authentication</.localized_link> for headless login and CI credentials.
 

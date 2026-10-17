@@ -6,7 +6,10 @@ Do not start the customer application just to perform setup or authentication.
 ## Project setup
 
 `mix tuist.setup --project account/project` delegates source editing to
-`TuistEx.ProjectSetup`. Install the compile bootstrap and test wrapper together.
+`TuistEx.ProjectSetup`. Install the compile bootstrap and test wrapper together,
+and set `TuistEx.Coverage` as the `test_coverage` tool unless the project (an
+umbrella's root aside) sets one: a literal keyword list takes the entry first,
+any other expression is wrapped in `Keyword.put_new/3`.
 Use ordinary Mix aliases, not SDK function captures: the SDK is not necessarily
 loaded in the parent on cold parallel builds. Preserve Phoenix test preparation
 and environment-dependent alias expressions; never freeze their current value.

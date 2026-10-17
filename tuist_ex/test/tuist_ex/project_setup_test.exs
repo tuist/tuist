@@ -82,7 +82,8 @@ defmodule TuistEx.ProjectSetupTest do
 
     config = [
       aliases: [compile: @bootstrap, test: "tuist.test"],
-      tuist: [project: "account/demo", cache: true]
+      tuist: [project: "account/demo", cache: true],
+      test_coverage: [tool: TuistEx.Coverage]
     ]
 
     assert {:ok, ^source} = ProjectSetup.configure(source, config)
@@ -162,5 +163,62 @@ defmodule TuistEx.ProjectSetupTest do
   test "refuses syntax errors" do
     assert {:error, message} = ProjectSetup.configure("defmodule (", [], project: "a/b")
     assert message =~ "parse"
+  end
+
+  describe "coverage tool" do
+    defp project(entries) do
+      """
+      defmodule Demo.MixProject do
+        use Mix.Project
+        def project do
+          [app: :demo#{entries}]
+        end
+        defp test_coverage, do: [summary: false]
+      end
+      """
+    end
+
+    defp configure!(entries, config) do
+      {:ok, updated} = ProjectSetup.configure(project(entries), config, project: "account/demo")
+      {:ok, ast} = Code.string_to_quoted(updated)
+
+      {_, [entries]} =
+        Macro.prewalk(ast, [], fn
+          {:def, _, [{:project, _, _}, [do: entries]]} = node, acc -> {node, [entries | acc]}
+          node, acc -> {node, acc}
+        end)
+
+      {updated, entries[:test_coverage]}
+    end
+
+    test "sets TuistEx.Coverage as the project's tool" do
+      assert {_, [tool: {:__aliases__, _, [:TuistEx, :Coverage]}]} = configure!("", [])
+    end
+
+    test "keeps the project's other coverage options" do
+      {_, test_coverage} =
+        configure!(", test_coverage: [summary: [threshold: 80]]",
+          test_coverage: [summary: [threshold: 80]]
+        )
+
+      assert [tool: {:__aliases__, _, [:TuistEx, :Coverage]}, summary: [threshold: 80]] =
+               test_coverage
+
+      {updated, _} =
+        configure!(", test_coverage: test_coverage()", test_coverage: [summary: false])
+
+      assert updated =~ "test_coverage: Keyword.put_new(test_coverage(), :tool, TuistEx.Coverage)"
+    end
+
+    test "leaves a project that sets its own tool as it is" do
+      {_, test_coverage} =
+        configure!(", test_coverage: [tool: ExCoveralls]", test_coverage: [tool: ExCoveralls])
+
+      assert [tool: {:__aliases__, _, [:ExCoveralls]}] = test_coverage
+    end
+
+    test "sets nothing at an umbrella's root, whose applications run their own tests" do
+      assert {_, nil} = configure!(", apps_path: \"apps\"", apps_path: "apps")
+    end
   end
 end

@@ -22,7 +22,8 @@ defmodule TuistEx.ProjectSetup do
            Enum.reject([compile: @compile_alias, test: test_alias], fn {key, value} ->
              aliases[key] == value
            end),
-         {:ok, edits} <- edits(source, metadata, entries, updates, tuist, project) do
+         {:ok, edits} <-
+           edits(source, metadata, entries, updates, tuist, project, coverage_tool?(config)) do
       updated =
         edits
         |> Enum.sort_by(&elem(&1, 0), :desc)
@@ -38,6 +39,17 @@ defmodule TuistEx.ProjectSetup do
     error in [SyntaxError, TokenMissingError, ArgumentError] ->
       {:error,
        "Could not update mix.exs safely: #{Exception.message(error)}. No changes were made."}
+  end
+
+  # Mix runs an umbrella's tests in each of its applications, with their own
+  # `test_coverage`, so its root has nothing to set.
+  defp coverage_tool?(config) do
+    is_nil(config[:apps_path]) and
+      case Keyword.get(config, :test_coverage) do
+        nil -> true
+        options when is_list(options) -> is_nil(options[:tool])
+        _ -> false
+      end
   end
 
   defp validate_project(project) when is_binary(project) do
@@ -159,7 +171,7 @@ defmodule TuistEx.ProjectSetup do
   defp key_name({:__block__, _, [key]}), do: key
   defp key_name(_), do: nil
 
-  defp edits(source, metadata, entries, updates, tuist, project) do
+  defp edits(source, metadata, entries, updates, tuist, project, coverage_tool?) do
     settings = [
       project: project,
       cache: if(is_list(tuist[:cache]), do: tuist[:cache], else: true)
@@ -169,7 +181,10 @@ defmodule TuistEx.ProjectSetup do
       {:aliases, updates != [], fn value -> "Keyword.merge(#{value}, #{inspect(updates)})" end,
        inspect(updates)},
       {:tuist, tuist[:project] != project or tuist[:cache] in [nil, false],
-       fn value -> "Keyword.merge(#{value}, #{inspect(settings)})" end, inspect(settings)}
+       fn value -> "Keyword.merge(#{value}, #{inspect(settings)})" end, inspect(settings)},
+      {:test_coverage, coverage_tool?,
+       fn value -> "Keyword.put_new(#{value}, :tool, TuistEx.Coverage)" end,
+       "[tool: TuistEx.Coverage]"}
     ]
 
     Enum.reduce_while(fields, {:ok, [], []}, fn {key, changed?, wrap, initial},
@@ -187,10 +202,10 @@ defmodule TuistEx.ProjectSetup do
           {_, value} = entry
 
           result =
-            if key == :aliases do
-              alias_edits(source, value, wrap, updates)
-            else
-              wrapped_edit(source, value, wrap)
+            case key do
+              :aliases -> alias_edits(source, value, wrap, updates)
+              :test_coverage -> keyword_edit(source, value, wrap, "tool: TuistEx.Coverage")
+              _ -> wrapped_edit(source, value, wrap)
             end
 
           case result do
@@ -270,6 +285,15 @@ defmodule TuistEx.ProjectSetup do
       end
     end)
   end
+
+  # A literal keyword list takes the entry first; anything else is wrapped.
+  defp keyword_edit(source, {:__block__, metadata, [entries]}, _wrap, entry)
+       when is_list(entries) do
+    separator = if entries == [], do: "", else: ", "
+    {:ok, [{offset(source, metadata) + 1, 0, entry <> separator}]}
+  end
+
+  defp keyword_edit(source, value, wrap, _entry), do: wrapped_edit(source, value, wrap)
 
   defp wrapped_edit(source, value, wrap) do
     with {:ok, start, size} <- span(source, value) do

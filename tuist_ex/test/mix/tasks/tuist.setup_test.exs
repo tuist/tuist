@@ -47,6 +47,7 @@ defmodule Mix.Tasks.Tuist.SetupTest do
     assert updated =~ "cache: true"
     assert updated =~ "# Project settings stay here."
     assert updated =~ ~s(test: "tuist.test")
+    assert updated =~ "test_coverage: [tool: TuistEx.Coverage]"
     refute updated =~ "Code.eval"
     assert Bitwise.band(File.stat!(file).mode, 0o777) == 0o640
     {output, status} = run.()

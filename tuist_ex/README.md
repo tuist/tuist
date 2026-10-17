@@ -99,9 +99,10 @@ Run the shared setup once:
 mix tuist.setup --project your-account/your-project
 ```
 
-Commit the updated `mix.exs`. Setup enables dependency caching and installs both
-compile and test integration, preserving other options and standard Phoenix test
-preparation. It refuses unsupported custom actions instead of removing them.
+Commit the updated `mix.exs`. Setup enables dependency caching, installs both
+compile and test integration and sets `TuistEx.Coverage` as the coverage tool
+(see [Count coverage natively](#count-coverage-natively)), preserving other
+options and standard Phoenix test preparation. It refuses unsupported custom actions instead of removing them.
 Retries and CI sharding remain opt-in. No evaluation snippets or script paths are
 needed; see [Get started with Elixir](https://tuist.dev/en/docs/guides/get-started/elixir-project).
 
@@ -305,20 +306,46 @@ mix tuist.test --cover
 mix tuist.coverage.complete
 ```
 
-Erlang's `cover` compiles every module of the project again at the start of
-each run, which on a large project costs a minute or more. So with `--cover`,
-Tuist recompiles the project's modules once with the runtime's native line
-counters, switches the counters on and counts with them instead of running
-Mix's coverage tool. Later runs recompile only the modules a compile wrote
-since. Only the modules Mimic copies are compiled for `cover`, because Mimic
-keeps a `cover` compiled module's counts across the swaps it makes and
-reloading a module resets its native counters.
+### Count coverage natively
 
-Mix's own coverage report and threshold are not produced by
-`mix tuist.test --cover`. A project that sets another coverage tool
-(`test_coverage: [tool: ...]`, such as excoveralls) keeps it: Tuist reads the
-counters Erlang's `cover` collected once the suite finishes, as does a run on
-a runtime without the JIT, which cannot count natively.
+Mix's coverage tool has Erlang's `cover` compile every module of the project
+again at the start of each run, which on a large project costs a minute or
+more. `TuistEx.Coverage` is a coverage tool that counts with the runtime's
+native line counters instead. `mix tuist.setup` sets it, keeping your other
+`test_coverage` options:
+
+```elixir
+def project do
+  [
+    app: :my_app,
+    test_coverage: [tool: TuistEx.Coverage]
+  ]
+end
+```
+
+With it, `mix test --cover` recompiles the project's modules and consolidated
+protocols once with the counters, switches them on and counts with them.
+Later runs recompile only the modules a compile wrote since. Only the modules
+Mimic copies are compiled for `cover`, because Mimic keeps a `cover` compiled
+module's counts across the swaps it makes and reloading a module resets its
+native counters.
+
+Like Mix's tool, it prints each module's coverage when the suite finishes and
+fails the run when the total is below the threshold (`summary: [threshold:
+N]`, 90 unless set; `summary: false` turns both off), and it leaves out the
+`ignore_modules`. It writes no HTML report: it warns when `:output` is set,
+and `mix test --cover --export-coverage NAME` followed by `mix test.coverage`
+produces one. Mix's tool counts instead, with the same options, when the run
+exports its coverage (`--export-coverage`, or Mix's test partitions), when
+`local_only: false` asks to count across nodes, and on a runtime without the
+JIT, which cannot count natively.
+
+A project without the tool keeps Mix's, and `mix tuist.test --cover` says how
+to switch; set `tool: Mix.Tasks.Test.Coverage` to keep it without the note. A
+project that sets another tool, such as excoveralls, keeps it. Either way,
+Tuist reads the counters `cover` collected once the suite finishes. In an
+umbrella, set the tool in each application's `mix.exs`: Mix runs each
+application's tests with its own options.
 
 ### With shards
 
@@ -370,17 +397,17 @@ jobs:
       - run: mix tuist.coverage.complete
 ```
 
-Each shard reports its share and Tuist merges them into one run. Shards count
-natively as an unsharded run does, and `mix tuist.test.build --cover`
-recompiles the build's modules with the counters once, on the machine that
-builds, so the shards don't each do it. A shard of a build made without
-`--cover` recompiles them itself.
+Each shard reports its share and Tuist merges them into one run. With
+`TuistEx.Coverage`, shards count natively as an unsharded run does, and
+`mix tuist.test.build --cover` recompiles the build's modules with the
+counters once, on the machine that builds, so the shards don't each do it. A
+shard of a build made without `--cover` recompiles them itself. A shard runs
+part of the suite, so it prints no summary and isn't held to the threshold.
 
-A shard that uses Mix's coverage tool, on a runtime without the JIT or in a
-project that sets another tool, exports its coverage, under
-`cover/shard-<index>` unless you pass `--export-coverage` yourself, rather
-than holding it to the project's threshold, which a shard running part of
-the suite would not meet.
+A shard that counts with `cover`, on a runtime without the JIT or in a
+project with another tool, exports its coverage, under `cover/shard-<index>`
+unless you pass `--export-coverage` yourself, rather than holding it to the
+project's threshold, which a shard running part of the suite would not meet.
 
 ### What is reported
 
