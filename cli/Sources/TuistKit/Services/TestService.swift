@@ -384,7 +384,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
+            ignoreBinaryCache: ignoreBinaryCache || Self
+                .requiresSourceBuildForCoverage(xcodebuildArguments: passthroughXcodeBuildArguments),
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination,
@@ -2581,6 +2582,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func removeStressResultBundles(_ stressNewTests: StressNewTestsResult?) async {
         guard let directory = stressNewTests?.resultBundlePaths.first?.parentDirectory else { return }
         try? await fileSystem.remove(directory)
+    }
+
+    /// An out-of-manifest coverage override cannot reuse ordinary cached products, even when uploads are disabled.
+    static func requiresSourceBuildForCoverage(xcodebuildArguments: [String]) -> Bool {
+        guard let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage") else { return false }
+        guard xcodebuildArguments.indices.contains(index + 1) else { return true }
+        return !["NO", "FALSE", "0"].contains(xcodebuildArguments[index + 1].uppercased())
     }
 
     /// Whether a run that skipped every test was set up to collect the coverage Tuist uploads: the

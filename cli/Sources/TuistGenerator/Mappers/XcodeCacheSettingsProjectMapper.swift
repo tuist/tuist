@@ -61,7 +61,9 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
         // that gather coverage. A project that only needs Tuist's coverage keeps
         // those builds path-independent with `enableCoveragePrefixMapping`.
-        if await Self.isPrefixMappingSupported() {
+        if tuist.project.generatedProject?.generationOptions.enableCachingPrefixMapping != false,
+           await Self.isPrefixMappingSupported()
+        {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             // The project mappings (`/^src`, `/^derived`, `/^built`, `/^workspace`) name a
             // different directory in every project, and the debugger gets a single source

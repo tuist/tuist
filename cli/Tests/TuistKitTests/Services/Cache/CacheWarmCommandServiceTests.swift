@@ -464,9 +464,7 @@
 
         @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -499,11 +497,9 @@
                 .called(1)
         }
 
-        @Test(.inTemporaryDirectory) func run_doesNotBundleDSYMsIntoXCFrameworks_whenWarmingADebugConfiguration() async throws {
+        @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingADebugConfiguration() async throws {
             stubFrameworkBuilds()
-            given(xcodeBuildController)
-                .createXCFramework(arguments: .any, output: .any)
-                .willReturn()
+            stubXCFrameworkCreation()
 
             try await run(
                 noUpload: true,
@@ -520,7 +516,7 @@
                     rosetta: .any,
                     derivedDataPath: .any,
                     clean: .any,
-                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf")) },
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) },
                     passthroughXcodeBuildArguments: .any
                 )
                 .called(2)
@@ -528,11 +524,37 @@
                 .createXCFramework(
                     arguments: .matching { arguments in
                         let slices = Self.xcframeworkSlices(arguments)
-                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == nil }
+                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == "\($0.framework).dSYM" }
                     },
                     output: .any
                 )
                 .called(1)
+        }
+
+        private func stubXCFrameworkCreation() {
+            given(xcodeBuildController).createXCFramework(arguments: .any, output: .any).willProduce { arguments, output in
+                let libraries: [[String: Any]] = try Self.xcframeworkSlices(arguments).map { slice in
+                    let simulator = slice.framework.contains("iphonesimulator")
+                    let identifier = simulator ? "ios-arm64-simulator" : "ios-arm64"
+                    try FileManager.default.createDirectory(
+                        at: output.appending(component: identifier).url,
+                        withIntermediateDirectories: true
+                    )
+                    var library: [String: Any] = [
+                        "LibraryIdentifier": identifier, "LibraryPath": "Fixtures.framework",
+                        "SupportedPlatform": "ios", "SupportedArchitectures": ["arm64"],
+                    ]
+                    if simulator { library["SupportedPlatformVariant"] = "simulator" }
+                    return library
+                }
+                let info: [String: Any] = [
+                    "AvailableLibraries": libraries,
+                    "CFBundlePackageType": "XFWK",
+                    "XCFrameworkFormatVersion": "1.0",
+                ]
+                try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                    .write(to: output.appending(component: "Info.plist").url)
+            }
         }
 
         /// Stubs builds to lay out a `Fixtures.framework` in the products directory, plus its dSYM when the build asks

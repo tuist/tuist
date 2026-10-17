@@ -198,7 +198,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         exceptions: includedTargets
                     ),
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    coverageSchemeName: schemeName
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())

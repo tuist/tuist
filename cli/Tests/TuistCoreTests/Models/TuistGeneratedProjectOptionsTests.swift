@@ -117,6 +117,7 @@ struct TuistGeneratedProjectOptionsTests {
                 disableSandbox: true,
                 includeGenerateScheme: true,
                 enableCaching: true,
+                enableCachingPrefixMapping: false,
                 enableCoveragePrefixMapping: true
             )
 
@@ -135,6 +136,7 @@ struct TuistGeneratedProjectOptionsTests {
             #expect(result.disableSandbox == true)
             #expect(result.includeGenerateScheme == true)
             #expect(result.enableCaching == true)
+            #expect(result.enableCachingPrefixMapping == false)
             #expect(result.enableCoveragePrefixMapping == true)
 
             // Original arguments should be preserved plus new ones

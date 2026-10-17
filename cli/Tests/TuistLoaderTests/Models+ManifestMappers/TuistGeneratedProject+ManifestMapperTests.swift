@@ -33,6 +33,231 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(ProjectDescription.Config.GenerationOptions.options().enableCoveragePrefixMapping == false)
     }
 
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func generationOptions_mapsCachingPrefixMapping(enabled: Bool) throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let options = ProjectDescription.Config.GenerationOptions.options(
+            enableCaching: true,
+            enableCachingPrefixMapping: enabled
+        )
+        let manifest = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+        #expect(manifest == options)
+        let got = try TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.from(
+            manifest: manifest,
+            generatorPaths: GeneratorPaths(manifestDirectory: directory, rootDirectory: directory),
+            fullHandle: nil
+        )
+
+        #expect(got.enableCachingPrefixMapping == enabled)
+        #expect(ProjectDescription.Config.GenerationOptions.options().enableCachingPrefixMapping == true)
+        #expect(TuistConfig.TuistGeneratedProjectOptions.default.generationOptions.enableCachingPrefixMapping == true)
+    }
+
+    @Test func generationOptions_preservesFactoryReferences() {
+        let inferredFactory = ProjectDescription.Config.GenerationOptions.options
+        let typedFactory: (
+            Bool,
+            ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets,
+            String?,
+            Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool,
+            [String],
+            ProjectDescription.Config.GenerationOptions.WarningsAsErrors,
+            String,
+            [String],
+            ProjectDescription.Config.GenerationOptions.OutdatedDependenciesAction,
+            ProjectDescription.Config.GenerationOptions.ProjectFormat
+        ) -> ProjectDescription.Config.GenerationOptions = ProjectDescription.Config.GenerationOptions.options
+        let inferred = inferredFactory(true, true, nil, .excluding(["Feature"]), true, "Release", true)
+        let expectedInferred = ProjectDescription.Config.GenerationOptions.options(
+            resolveDependenciesWithSystemScm: true,
+            disablePackageVersionLocking: true,
+            staticSideEffectsWarningTargets: .excluding(["Feature"]),
+            enforceExplicitDependencies: true,
+            defaultConfiguration: "Release",
+            optionalAuthentication: true
+        )
+        let typed = typedFactory(
+            true, .excluding(["Feature"]), "Release", true, true, true, false, false, true, true, true,
+            ["--verbose"], .all, "6", ["CUSTOM_*"], .fail, .xcproj
+        )
+        let expected = ProjectDescription.Config.GenerationOptions.options(
+            disablePackageVersionLocking: true,
+            staticSideEffectsWarningTargets: .excluding(["Feature"]),
+            defaultConfiguration: "Release",
+            optionalAuthentication: true,
+            buildInsightsDisabled: true,
+            testInsightsDisabled: true,
+            disableSandbox: false,
+            includeGenerateScheme: false,
+            enableCaching: true,
+            enableCachingPrefixMapping: true,
+            enableCoveragePrefixMapping: true,
+            registryEnabled: true,
+            additionalPackageResolutionArguments: ["--verbose"],
+            warningsAsErrors: .all,
+            defaultSwiftVersion: "6",
+            manifestEnvironment: ["CUSTOM_*"],
+            onOutdatedDependencies: .fail,
+            projectFormat: .xcproj
+        )
+
+        #expect(inferred == expectedInferred)
+        #expect(inferred.enableCachingPrefixMapping == true)
+        #expect(typed == expected)
+    }
+
+    @Test(arguments: [false, true])
+    func generationOptions_roundTripsNonDefaultManifest(enableCachingPrefixMapping: Bool) throws {
+        var options = ProjectDescription.Config.GenerationOptions.options(
+            resolveDependenciesWithSystemScm: true,
+            disablePackageVersionLocking: true,
+            clonedSourcePackagesDirPath: .relativeToRoot("Packages"),
+            staticSideEffectsWarningTargets: .excluding(["Feature"]),
+            enforceExplicitDependencies: true,
+            defaultConfiguration: "Custom",
+            optionalAuthentication: true
+        )
+        options.additionalPackageResolutionArguments = ["--verbose"]
+        options.buildInsightsDisabled = true
+        options.testInsightsDisabled = true
+        options.disableSandbox = false
+        options.includeGenerateScheme = true
+        options.enableCaching = true
+        options.enableCachingPrefixMapping = enableCachingPrefixMapping
+        options.enableCoveragePrefixMapping = true
+        options.registryEnabled = true
+        options.warningsAsErrors = .only([.outdatedDependencies, .staticSideEffects])
+        options.defaultSwiftVersion = "6"
+        options.manifestEnvironment = ["CUSTOM_*"]
+        options.onOutdatedDependencies = .fail
+        options.projectFormat = .xcproj
+
+        let decoded = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+
+        #expect(decoded == options)
+    }
+
+    @Test func generationOptions_decodesManifestWithoutCachingPrefixMapping() throws {
+        let options = ProjectDescription.Config.GenerationOptions.options(enableCaching: true)
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json.removeValue(forKey: "enableCachingPrefixMapping")
+
+        let decoded = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        #expect(decoded == options)
+        #expect(decoded.enableCachingPrefixMapping == true)
+    }
+
+    @Test func generationOptions_decodesConfigurationWithoutCachingPrefixMapping() throws {
+        let options = TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.test(enableCaching: true)
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json.removeValue(forKey: "enableCachingPrefixMapping")
+
+        let decoded = try JSONDecoder().decode(
+            TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        #expect(decoded == options)
+        #expect(decoded.enableCachingPrefixMapping == true)
+    }
+
+    @Test(arguments: ["enableCaching", "enableCoveragePrefixMapping", "projectFormat"])
+    func generationOptions_stillRequiresExistingSerializedKeys(key: String) throws {
+        let manifest = ProjectDescription.Config.GenerationOptions.options()
+        let configuration = TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.test()
+        for encoded in [try JSONEncoder().encode(manifest), try JSONEncoder().encode(configuration)] {
+            var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            json.removeValue(forKey: key)
+            let data = try JSONSerialization.data(withJSONObject: json)
+
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+            }
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+            }
+        }
+    }
+
+    @Test(arguments: [
+        "resolveDependenciesWithSystemScm", "disablePackageVersionLocking", "enforceExplicitDependencies",
+        "optionalAuthentication", "buildInsightsDisabled", "testInsightsDisabled", "disableSandbox",
+        "includeGenerateScheme", "enableCaching", "enableCachingPrefixMapping", "enableCoveragePrefixMapping",
+        "registryEnabled",
+    ])
+    func generationOptions_decodesEachBooleanIndependently(key: String) throws {
+        let options = ProjectDescription.Config.GenerationOptions.options()
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json[key] = !(try #require(json[key] as? Bool))
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let manifest = try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+        let configuration = try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+
+        for encoded in [try JSONEncoder().encode(manifest), try JSONEncoder().encode(configuration)] {
+            let reencoded = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            #expect(NSDictionary(dictionary: reencoded).isEqual(to: json))
+        }
+    }
+
+    @Test func generationOptions_rejectsInvalidCachingPrefixMapping() throws {
+        let options = ProjectDescription.Config.GenerationOptions.options()
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json["enableCachingPrefixMapping"] = "false"
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+        }
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generationOptions_roundTripsNonDefaultConfiguration() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let options = TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.test(
+            resolveDependenciesWithSystemScm: true,
+            disablePackageVersionLocking: true,
+            clonedSourcePackagesDirPath: directory,
+            additionalPackageResolutionArguments: ["--verbose"],
+            staticSideEffectsWarningTargets: .excluding(["Feature"]),
+            enforceExplicitDependencies: true,
+            defaultConfiguration: "Release",
+            optionalAuthentication: true,
+            buildInsightsDisabled: false,
+            testInsightsDisabled: false,
+            disableSandbox: false,
+            includeGenerateScheme: false,
+            enableCaching: true,
+            enableCachingPrefixMapping: false,
+            enableCoveragePrefixMapping: true,
+            registryEnabled: true,
+            warningsAsErrors: .only([.outdatedDependencies]),
+            defaultSwiftVersion: "6",
+            manifestEnvironment: ["CUSTOM_*"],
+            onOutdatedDependencies: .fail,
+            projectFormat: .xcproj
+        )
+
+        let decoded = try JSONDecoder().decode(
+            TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+
+        #expect(decoded == options)
+    }
+
     @Test func installOptions_mapsManifestEnvironment() {
         let got = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
             manifest: .options(
