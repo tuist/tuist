@@ -37,7 +37,12 @@ var (
 		Help: "RMS current on the PDU's outlet, in amperes. Labels: pdu, site, outlet.",
 	}, []string{"pdu", "site", "outlet"})
 
-	rackPDUOutletGauges = []*prometheus.GaugeVec{rackPDUOutletOnGauge, rackPDUOutletActivePowerGauge, rackPDUOutletApparentPowerGauge, rackPDUOutletCurrentGauge}
+	rackPDUChainGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackpdu_chain",
+		Help: "1 while the PDU reports active power on at least one outlet, naming the transfer switch that feeds it (spec.chain): that switch's output is already in the PDU's outlet readings. No series while the PDU reports no draw. Labels: pdu, site, ats.",
+	}, []string{"pdu", "site", "ats"})
+
+	rackPDUOutletGauges = []*prometheus.GaugeVec{rackPDUOutletOnGauge, rackPDUOutletActivePowerGauge, rackPDUOutletApparentPowerGauge, rackPDUOutletCurrentGauge, rackPDUChainGauge}
 )
 
 func init() {
@@ -138,4 +143,17 @@ func recordRackPDUOutletMetrics(pdu *infrav1.RackPDU) {
 			}
 		}
 	}
+	if pdu.Spec.Chain != "" && reportsActivePower(pdu.Status.Outlets) {
+		rackPDUChainGauge.WithLabelValues(pdu.Name, pdu.Spec.Site, pdu.Spec.Chain).Set(1)
+	}
+}
+
+// reportsActivePower is whether any outlet carries an active power reading.
+func reportsActivePower(outlets []infrav1.RackPDUOutlet) bool {
+	for _, o := range outlets {
+		if o.ActivePowerWatts != nil {
+			return true
+		}
+	}
+	return false
 }

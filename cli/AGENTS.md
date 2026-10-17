@@ -33,6 +33,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace). If the target you need is not in the current generated workspace, regenerate with that specific target instead of falling back to SwiftPM.
 - To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`. Do not use `swift build` for CLI validation unless the user explicitly asks for SwiftPM.
 - Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
+- The Linux release is a static musl binary built by `mise/tasks/cli/bundle-linux.sh`. Pass `--arch x86_64|aarch64` (or `TUIST_LINUX_ARCH`) to choose the target; an architecture other than the host's is cross-compiled through the Swift static Linux SDK. `mise run cli:bundle-linux --linux-vm --arch x86_64` builds the same binary in a `swift:6.2` container. The SDK setup lives in `mise/utilities/install_static_linux_sdk.sh`, shared with the PR `Linux Build` job.
+- The Linux release is a static musl binary, where libc is `Musl`, not `Glibc`. Guard platform imports with `#if canImport(Darwin)` / `#elseif canImport(Glibc)` / `#elseif canImport(Musl)` instead of assuming Linux means `Glibc`.
 
 ## Code Style
 - Do not add one-line comments unless they are truly useful.

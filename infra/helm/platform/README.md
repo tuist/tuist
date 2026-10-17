@@ -16,7 +16,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
 | `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
-| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp) and the kubelet (10250/tcp) from sources outside the cluster |
+| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp), the kubelet (10250/tcp) and the Cilium agent and Hubble metrics (9962/tcp, 9965/tcp) from sources outside the cluster |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap

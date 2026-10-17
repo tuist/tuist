@@ -427,7 +427,11 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute has_element?(view, "[data-part=errors-card-section] > [data-part=empty-state]")
   end
 
-  test "cache details show reported aggregates and qualification limits", %{conn: conn, user: user, project: project} do
+  test "cache details retain reported aggregates and actionable warnings without the interpretation banner", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
     id =
       build(project, user,
         cache: %{
@@ -459,14 +463,23 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     assert html =~ "Detailed cache records were not collected"
     assert html =~ "No data"
     refute has_element?(view, "#cargo-cache-activity-table")
-    render_patch(view, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}?tab=cache&cache-tab=cas-outputs")
+    assert html =~ "Cache verification detected divergent outputs"
+    assert html =~ "Fresh compiler outputs were retained"
+    refute html =~ "Compiler work is not wall-clock time saved"
+    refute html =~ "Estimated compiler work avoided"
+
+    html =
+      render_patch(
+        view,
+        "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}?tab=cache&cache-tab=cas-outputs"
+      )
+
     assert has_element?(view, "#cas-outputs-table")
     assert has_element?(view, "#widget-cargo-download-throughput")
     refute has_element?(view, "#cacheable-tasks-table")
-    assert html =~ "including protocol metadata"
-    assert html =~ "Compiler work is not wall-clock time saved"
-    assert html =~ "Aggregate hits do not distinguish local and remote restores"
-    assert html =~ "Fresh compiler outputs were retained"
+    assert html =~ "Cache verification detected divergent outputs"
+    refute html =~ "Compiler work is not wall-clock time saved"
+    refute html =~ "Estimated compiler work avoided"
     refute has_element?(view, "#cargo-compilation-timings")
   end
 
@@ -516,7 +529,7 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     refute html =~ "crate000 <script>"
     assert html =~ "Cache inspection is incomplete"
     assert has_element?(view, "#widget-cargo-cache-read-latency [data-part=value]", "2ms")
-    assert html =~ "CAS operations"
+    refute html =~ "Compiler work is not wall-clock time saved"
     assert has_element?(view, "[data-clipboard-value='#{object}']")
     expanded = html |> Floki.parse_fragment!() |> Floki.find("#cacheable-tasks-table [data-part=expanded-row]") |> hd()
     assert length(Floki.find(expanded, "[data-part=cas-output-item]")) == 2
