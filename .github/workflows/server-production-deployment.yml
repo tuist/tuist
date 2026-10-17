@@ -1702,6 +1702,43 @@ jobs:
           echo "Timed out waiting for the canary rollout of kura ${kura_tag} to complete." >&2
           exit 1
 
+  # Runners gate - a canary deploy that breaks Tuist Runners or the cache their
+  # jobs build against fails here instead of reaching production. Runs the
+  # Runners Acceptance workflow against canary's own runners, the only fleets
+  # that run this commit before production does: a job is dispatched onto a
+  # runner, round-trips a blob through the cache endpoint dispatch handed it
+  # with a token minted from its OIDC identity, and rebuilds a fixture from an
+  # empty local CAS, which must be served entirely from the remote cache.
+  # Production's own fleets, the BER1 rack among them, are covered by the
+  # workflow's hourly schedule, since a check of them here would test the
+  # release production is still on rather than this one.
+  #
+  # The probe is its own workflow run so its dispatch watchdog can cancel a job
+  # no runner picks up without cancelling this run. Runs on a GitHub-hosted
+  # runner so a broken Tuist runner fleet cannot keep the gate from reporting.
+  runners-acceptance:
+    name: Runners acceptance
+    needs: [check-releases, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Run the runners acceptance probe against canary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: canary
+          REF: ${{ github.ref_name }}
+          GATE_MINUTES: 35
+        run: .github/scripts/runners-acceptance/gate.sh
+
   # Production leg - standard path: canary ready + tests green. Promotes the
   # same image bytes tests ran against. Skipped on a hotfix. The
   # `always() && needs.*.result == 'success'` guard is required for the
@@ -1718,6 +1755,7 @@ jobs:
         acceptance-tests,
         backward-compatibility-acceptance,
         kura-canary-rollout-gate,
+        runners-acceptance,
         tag-infra-releases,
       ]
     if: >-
@@ -1728,6 +1766,7 @@ jobs:
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
       needs.kura-canary-rollout-gate.result == 'success' &&
+      needs.runners-acceptance.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
     # See `canary` above: grant the callee's full permission union.
     permissions:
