@@ -305,9 +305,20 @@ mix tuist.test --cover
 mix tuist.coverage.complete
 ```
 
-Tuist reads the counters Erlang's `cover` collected once the suite finishes,
-so your coverage tool keeps working as before: `mix test`'s HTML report and
-threshold, or excoveralls.
+Erlang's `cover` compiles every module of the project again at the start of
+each run, which on a large project costs a minute or more. So with `--cover`,
+Tuist recompiles the project's modules once with the runtime's native line
+counters, switches the counters on and counts with them instead of running
+Mix's coverage tool. Later runs recompile only the modules a compile wrote
+since. Only the modules Mimic copies are compiled for `cover`, because Mimic
+keeps a `cover` compiled module's counts across the swaps it makes and
+reloading a module resets its native counters.
+
+Mix's own coverage report and threshold are not produced by
+`mix tuist.test --cover`. A project that sets another coverage tool
+(`test_coverage: [tool: ...]`, such as excoveralls) keeps it: Tuist reads the
+counters Erlang's `cover` collected once the suite finishes, as does a run on
+a runtime without the JIT, which cannot count natively.
 
 ### With shards
 
@@ -359,21 +370,17 @@ jobs:
       - run: mix tuist.coverage.complete
 ```
 
-Each shard reports its share and Tuist merges them into one run. Erlang's
-`cover` compiles every module of the project again at the start of each run,
-which on a large project costs every shard a minute or more, so with `--cover`
-the build's modules are recompiled once, on the machine that builds, with the
-runtime's native line counters. Each shard switches the counters on and counts
-with them instead of running Mix's coverage tool, so no Mix coverage report is
-written. Only the modules Mimic copies are compiled for `cover`, because Mimic
-keeps a `cover` compiled module's counts across the swaps it makes and
-reloading a module resets its native counters.
+Each shard reports its share and Tuist merges them into one run. Shards count
+natively as an unsharded run does, and `mix tuist.test.build --cover`
+recompiles the build's modules with the counters once, on the machine that
+builds, so the shards don't each do it. A shard of a build made without
+`--cover` recompiles them itself.
 
-A shard on a runtime without the JIT cannot count natively and uses Mix's
-coverage tool, as does one built without `--cover`. Its coverage is then
-exported, under `cover/shard-<index>` unless you pass `--export-coverage`
-yourself, rather than held to the project's threshold, which a shard running
-part of the suite would not meet.
+A shard that uses Mix's coverage tool, on a runtime without the JIT or in a
+project that sets another tool, exports its coverage, under
+`cover/shard-<index>` unless you pass `--export-coverage` yourself, rather
+than holding it to the project's threshold, which a shard running part of
+the suite would not meet.
 
 ### What is reported
 
