@@ -250,11 +250,19 @@ acknowledged by the server's poller; the worker never polls.
   VMMs, and a node the sum would overflow is skipped. Idle running sandboxes
   (no residency) are paused, longest idle first, when nothing fits. A node
   without room for another memory image on disk (`disk.available_bytes`,
-  plus 1 GiB headroom) or past its `disk.budget_bytes` is skipped too. The
+  plus 1 GiB headroom) is skipped too, as is one whose `disk.budget_bytes`
+  cannot take the new sandbox's ceiling on top of the ceilings of every
+  sandbox it holds or is about to hold. A sandbox's ceiling is its rootfs
+  image (`templates[].rootfs_bytes`), its workspace image (`workspace_gb`)
+  and its memory image, all fixed-size files it can never write past, so
+  the reservation holds however the sandboxes later fill them. The
   poller leaves a work item unacknowledged when its sandbox would not fit
   anywhere, so the queue holds it until a pause frees memory.
-- Sandboxes paused for longer than 14 days are deleted by a daily job; a
-  session that returns afterwards gets a fresh sandbox.
+- A sandbox left running without a residency (created or resumed through
+  the API, or used by an exec) is paused after the same grace period of
+  idleness; a residency starting meanwhile supersedes the pending pause.
+- Sandboxes paused, or errored, for longer than 14 days are deleted by a
+  daily job; a session that returns afterwards gets a fresh sandbox.
 - The account API lets an account connect an environment (Anthropic
   environment id + environment key, stored encrypted with `Tuist.Vault`),
   list and delete sandboxes, and run commands in a sandbox for validation.
@@ -312,7 +320,7 @@ agent so the manager runs end to end without KVM).
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
-| `DISK_BUDGET_GIB` | `0` | Share of the data filesystem jails may hold exclusively, reported as `disk.budget_bytes` for the server's placement; `0` reports no budget. |
+| `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |

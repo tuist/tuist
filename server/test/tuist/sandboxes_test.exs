@@ -576,4 +576,47 @@ defmodule Tuist.SandboxesTest do
       assert Keyword.has_key?(errors, :workspace_gb)
     end
   end
+
+  describe "idle pauses" do
+    test "a create schedules the idle pause and an exec replaces it with a later one" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{id: id, residency_epoch: 0}} = Sandboxes.create_sandbox(account, %{})
+
+      assert [%Oban.Job{args: %{"sandbox_id" => ^id, "residency_epoch" => 0}, scheduled_at: first}] =
+               all_enqueued(worker: PauseSandboxWorker)
+
+      Process.sleep(1100)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      assert {:ok, %{exit_code: 0}} = Sandboxes.exec(Repo.get!(Sandbox, id), ["true"])
+
+      assert [%Oban.Job{args: %{"sandbox_id" => ^id}, scheduled_at: second}] = all_enqueued(worker: PauseSandboxWorker)
+      assert DateTime.after?(second, first)
+    end
+
+    test "a resume through the API schedules the idle pause" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a", residency_epoch: 3)
+      sandbox_id = sandbox.id
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :running}} = Sandboxes.resume(sandbox)
+
+      assert [%Oban.Job{args: %{"sandbox_id" => ^sandbox_id, "residency_epoch" => 3}}] =
+               all_enqueued(worker: PauseSandboxWorker)
+    end
+
+    test "a residency starting after the resume turns the scheduled idle pause into a no-op" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a", residency_epoch: 3)
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{residency_epoch: 4}} = Sandboxes.prepare_residency(sandbox, "work_1")
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: PauseSandboxWorker)
+
+      reject(&Nodes.call/4)
+      assert :ok = perform_job(PauseSandboxWorker, args)
+      assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+  end
 end

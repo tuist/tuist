@@ -213,7 +213,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp templates(templates) when is_list(templates) do
     for %{"name" => name} = template <- templates, is_binary(name) do
-      %{name: name, tag: template["tag"], ready: template["ready"] == true}
+      %{name: name, tag: template["tag"], ready: template["ready"] == true, rootfs_bytes: template["rootfs_bytes"]}
     end
   end
 
@@ -228,6 +228,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
         template_tag: sandbox["template_tag"],
         vcpus: sandbox["vcpus"],
         memory_mb: sandbox["memory_mb"],
+        workspace_gb: sandbox["workspace_gb"],
         worker_running: sandbox["worker_running"] == true
       }
     end

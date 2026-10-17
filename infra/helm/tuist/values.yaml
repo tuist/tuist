@@ -2422,11 +2422,15 @@ sandboxes:
   # the number of sessions: paused sandboxes cost disk, not memory.
   memoryGiB: 16
   cpu: "2"
-  # Share of the node's data filesystem that jails may hold exclusively
-  # (rootfs deltas, workspaces, memory images of paused sandboxes). The
-  # server stops placing sandboxes on a node that would exceed it, and
-  # always keeps one memory image plus headroom free for the next pause.
-  # 0 disables the budget and leaves only the free-space floor.
+  # Share of the node's data filesystem sandboxes may reserve. Every file a
+  # sandbox writes is fixed-size (rootfs clone, sparse workspace of
+  # workspace_gb, memory image), so the server reserves each sandbox's
+  # ceiling (template rootfs + workspace + memory) at placement, running or
+  # paused, and stops placing on a node whose ceilings would exceed this.
+  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
+  # reserves about 22 GiB. The server also keeps one memory image plus
+  # headroom free for the next pause. 0 disables the budget and leaves only
+  # that free-space floor.
   diskGiB: 200
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.

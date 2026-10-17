@@ -14,14 +14,22 @@ defmodule Tuist.Sandboxes.Capacity do
   paused until the newcomer fits. A sandbox with a resident worker is
   never paused for room.
 
-  A pause writes a full memory image beside the previous one, so a node
-  must have that much free plus headroom, and the node's optional disk
-  budget caps what jails hold exclusively.
+  Disk is reserved at the ceiling rather than at use. Everything a
+  sandbox writes to the node is a fixed-size file (its rootfs clone, its
+  sparse workspace image of `workspace_gb`, its memory image) plus a
+  little snapshot state and a capped log, so its ceiling is known when it
+  is placed. A new sandbox only goes to a node whose disk budget can hold
+  its ceiling on top of the ceilings of every sandbox the node holds
+  (from its report) or is about to hold (rows placed there it has not
+  reported yet), so sandboxes growing into their images later can never
+  overrun the budget together. A pause also writes a full memory image
+  beside the previous one, so the filesystem must have that much free
+  plus headroom at placement and at resume.
 
   Reservations are serialized per node with a transaction-scoped
   advisory lock. The reservation is the row itself: `node_name` set on a
   creating sandbox, or the `resuming` state on a paused one, both of
-  which the reserved sum counts.
+  which the reserved sums count.
   """
 
   import Ecto.Query
@@ -35,6 +43,7 @@ defmodule Tuist.Sandboxes.Capacity do
   require Logger
 
   @mib 1024 * 1024
+  @gib 1024 * @mib
   # The daemon, the jailers and the Firecracker processes share the cgroup
   # with the guests.
   @daemon_reserve_bytes 512 * @mib
@@ -42,7 +51,11 @@ defmodule Tuist.Sandboxes.Capacity do
   @vm_overhead_bytes 64 * @mib
   # Room the filesystem must keep beyond the next memory image.
   @disk_headroom_bytes 1024 * @mib
+  # Per sandbox beyond its three images: the vmstate file, the capped
+  # console log and metadata.
+  @sandbox_disk_overhead_bytes 64 * @mib
   @charged_states [:creating, :resuming, :running]
+  @placed_states [:creating, :resuming, :running, :paused]
   @advisory_lock_namespace 7_302
 
   def charge_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
@@ -93,22 +106,70 @@ defmodule Tuist.Sandboxes.Capacity do
     node_name |> reclaimable() |> Enum.map(&charge_bytes/1) |> Enum.sum()
   end
 
-  def disk_ok?(%{disk: %{available_bytes: available} = disk}, sandbox) when is_integer(available) do
-    needed = pause_bytes(sandbox)
-
-    within_budget =
-      case disk do
-        %{budget_bytes: budget, sandboxes_bytes: used} when is_integer(budget) and budget > 0 and is_integer(used) ->
-          used + needed <= budget
-
-        _no_budget ->
-          true
-      end
-
-    available >= needed + @disk_headroom_bytes and within_budget
+  @doc """
+  The most disk a sandbox can ever take on its node: its rootfs clone,
+  workspace image and memory image, plus a little for snapshot state and
+  logs. The rootfs size comes from the node's report of the template.
+  """
+  def disk_ceiling_bytes(%{workspace_gb: workspace_gb, memory_mb: memory_mb} = sandbox, node) do
+    (workspace_gb || 0) * @gib + (memory_mb || 0) * @mib + rootfs_bytes(node, Map.get(sandbox, :template)) +
+      @sandbox_disk_overhead_bytes
   end
 
-  def disk_ok?(_node, _sandbox), do: true
+  defp rootfs_bytes(node, template) do
+    sizes =
+      for %{name: name} = info <- Map.get(node, :templates, []),
+          is_integer(Map.get(info, :rootfs_bytes)),
+          do: {name, info.rootfs_bytes}
+
+    case for({^template, size} <- sizes, do: size) do
+      [] -> sizes |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> 0 end)
+      matching -> Enum.max(matching)
+    end
+  end
+
+  def disk_budget_bytes(%{disk: %{budget_bytes: budget}}) when is_integer(budget) and budget > 0, do: budget
+  def disk_budget_bytes(_node), do: :unbounded
+
+  @doc """
+  Disk reserved on the node: the ceilings of the sandboxes it reports
+  holding, in any state, and of the sandboxes placed there that it has not
+  reported yet (a create in flight, or one that finished since its last
+  report).
+  """
+  def reserved_disk_bytes(%{name: node_name} = node) do
+    reported = Map.get(node, :sandboxes, [])
+    reported_ids = for %{id: id} <- reported, {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
+
+    unreported =
+      Repo.all(
+        from s in Sandbox,
+          where: s.node_name == ^node_name and s.state in ^@placed_states and s.id not in ^reported_ids,
+          select: %{workspace_gb: s.workspace_gb, memory_mb: s.memory_mb, template: s.template}
+      )
+
+    (reported ++ unreported) |> Enum.map(&disk_ceiling_bytes(&1, node)) |> Enum.sum()
+  end
+
+  @doc """
+  Whether the node's disk budget can take a new sandbox's ceiling.
+  """
+  def disk_room?(node, sandbox) do
+    case disk_budget_bytes(node) do
+      :unbounded -> true
+      budget -> reserved_disk_bytes(node) + disk_ceiling_bytes(sandbox, node) <= budget
+    end
+  end
+
+  @doc """
+  Whether the filesystem has room for the sandbox's next pause, which
+  writes a full memory image beside the previous one.
+  """
+  def disk_space?(%{disk: %{available_bytes: available}}, sandbox) when is_integer(available) do
+    available >= pause_bytes(sandbox) + @disk_headroom_bytes
+  end
+
+  def disk_space?(_node, _sandbox), do: true
 
   def ready_nodes(template) when is_binary(template) do
     Enum.filter(Nodes.connected_nodes(), &template_ready?(&1, template))
@@ -129,7 +190,7 @@ defmodule Tuist.Sandboxes.Capacity do
   """
   def place(%Sandbox{node_name: nil, template: template} = sandbox) do
     ready = ready_nodes(template)
-    candidates = Enum.filter(ready, &disk_ok?(&1, sandbox))
+    candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 
     cond do
       ready == [] -> {:error, :no_node}
@@ -141,7 +202,10 @@ defmodule Tuist.Sandboxes.Capacity do
   defp place_on(candidates, sandbox) do
     charge = charge_bytes(sandbox)
     ranked = rank(candidates)
-    reserve = fn node -> reserve(node, charge, fn -> set_node(sandbox, node.name) end) end
+
+    reserve = fn node ->
+      reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn -> disk_room?(node, sandbox) end)
+    end
 
     case Enum.find(ranked, fn node -> reserve.(node) == :ok end) do
       %{name: node_name} ->
@@ -172,7 +236,7 @@ defmodule Tuist.Sandboxes.Capacity do
         node = Map.put(info, :name, node_name)
         reserve = fn -> reserve(node, charge, fn -> mark_resuming(sandbox) end) end
 
-        with true <- disk_ok?(node, sandbox),
+        with true <- disk_space?(node, sandbox),
              :no_capacity <- reserve.(),
              :ok <- reclaim(node, charge),
              :ok <- reserve.() do
@@ -202,20 +266,22 @@ defmodule Tuist.Sandboxes.Capacity do
 
       %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) ->
         case Nodes.lookup(node_name) do
-          {:ok, _pid, info} -> room?(Map.put(info, :name, node_name), sandbox)
+          {:ok, _pid, info} -> memory_room?(Map.put(info, :name, node_name), sandbox)
           {:error, :not_connected} -> true
         end
 
       _new ->
         case ready_nodes(agent_environment.template) do
           [] -> true
-          nodes -> Enum.any?(nodes, &room?(&1, agent_environment))
+          nodes -> Enum.any?(nodes, &(memory_room?(&1, agent_environment) and disk_room?(&1, agent_environment)))
         end
     end
   end
 
-  defp room?(node, sandbox) do
-    disk_ok?(node, sandbox) and
+  # A paused sandbox's disk is already reserved on its node, so resuming
+  # it only needs memory and room for its next pause.
+  defp memory_room?(node, sandbox) do
+    disk_space?(node, sandbox) and
       case free_bytes(node) do
         :unbounded -> true
         free -> free + reclaimable_bytes(node.name) >= charge_bytes(sandbox)
@@ -247,27 +313,24 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp reserve(node, charge, apply) do
-    case memory_budget_bytes(node) do
-      :unbounded ->
-        apply.()
-        :ok
+  # `disk_fits` runs under the node's lock too, so two placements racing
+  # for the last of a node's disk budget see each other's rows.
+  defp reserve(node, charge, apply, disk_fits \\ fn -> true end) do
+    fn ->
+      lock(node.name)
 
-      budget ->
-        fn ->
-          lock(node.name)
+      memory_fits =
+        case memory_budget_bytes(node) do
+          :unbounded -> true
+          budget -> budget - reserved_bytes(node.name) >= charge
+        end
 
-          if budget - reserved_bytes(node.name) >= charge do
-            apply.()
-          else
-            Repo.rollback(:no_capacity)
-          end
-        end
-        |> Repo.transaction()
-        |> case do
-          {:ok, _applied} -> :ok
-          {:error, :no_capacity} -> :no_capacity
-        end
+      if memory_fits and disk_fits.(), do: apply.(), else: Repo.rollback(:no_capacity)
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, _applied} -> :ok
+      {:error, :no_capacity} -> :no_capacity
     end
   end
 
