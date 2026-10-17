@@ -310,12 +310,19 @@ each run, which on a large project costs a minute or more. So with `--cover`,
 Tuist recompiles the project's modules once with the runtime's native line
 counters, switches the counters on and counts with them instead of running
 Mix's coverage tool. Later runs recompile only the modules a compile wrote
-since. Only the modules Mimic copies are compiled for `cover`, because Mimic
-keeps a `cover` compiled module's counts across the swaps it makes and
-reloading a module resets its native counters.
+since. Only the modules Mimic copies are compiled for `cover`, and swapped
+for Mimic's copies before any test runs, because Mimic keeps a `cover`
+compiled module's counts across the swaps it makes and reloading a module
+resets its native counters.
 
-Mix's own coverage report and threshold are not produced by
-`mix tuist.test --cover`. A project that sets another coverage tool
+Mix's summary and threshold still apply: once the suite finishes, the task
+prints each module's coverage and fails the run (exit status 3) when the
+total is below `test_coverage: [summary: [threshold: N]]`, 90 unless set;
+`summary: false` turns both off, and `ignore_modules` is honoured. A shard
+prints no summary and isn't held to the threshold. Counting natively writes
+no HTML report: a project that sets `:output` is warned, and
+`mix test --cover --export-coverage NAME` followed by `mix test.coverage`
+produces one with Mix's tool. A project that sets another coverage tool
 (`test_coverage: [tool: ...]`, such as excoveralls) keeps it: Tuist reads the
 counters Erlang's `cover` collected once the suite finishes, as does a run on
 a runtime without the JIT, which cannot count natively.
