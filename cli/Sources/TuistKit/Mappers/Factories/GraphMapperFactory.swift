@@ -129,7 +129,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             configuration: String?,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            coverage: BinaryCacheCoverage = .off
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = []
 
@@ -198,7 +199,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         exceptions: includedTargets
                     ),
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    coverage: coverage
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())

@@ -600,7 +600,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone"))),
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -2657,7 +2658,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -2719,7 +2721,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2822,7 +2825,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2899,7 +2903,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
 
@@ -3015,7 +3020,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -4956,7 +4962,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
     }
@@ -5010,7 +5017,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -5071,7 +5079,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -5128,7 +5137,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -5653,7 +5663,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -5898,7 +5909,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -6635,7 +6647,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
         verify(cacheStorage)
@@ -6705,7 +6718,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -8046,7 +8060,8 @@ private struct TestServiceSchemePlanningFixture {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -8361,7 +8376,8 @@ private struct TestServiceStressNewTestsFixture {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -8630,5 +8646,23 @@ struct TestServiceCoverageEnabledTests {
             ) == nil
         )
         #expect(TestService.coverageEnabled(testAction: nil, xcodebuildArguments: [], config: config) == nil)
+    }
+
+    @Test(.withMockedEnvironment())
+    func picksTheBinaryCacheVariantByTheSameRule() {
+        let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+        let covered = ["-enableCodeCoverage", "YES"]
+
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .off)
+
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .on)
+        #expect(
+            TestService.binaryCacheCoverage(
+                schemeName: "App", xcodebuildArguments: ["-enableCodeCoverage", "NO"], config: config
+            ) == .off
+        )
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: [], config: config) == .scheme("App"))
+        #expect(TestService.binaryCacheCoverage(schemeName: nil, xcodebuildArguments: [], config: config) == .scheme(nil))
     }
 }
