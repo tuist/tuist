@@ -178,7 +178,12 @@ OTP runtimes and endpoints without compression use identity transport. CAS diges
 and reported transfer bytes always describe the uncompressed bundle. Set
 `remote: false` for local-only caching;
 `endpoint:` can select a self-hosted HTTPS REAPI endpoint (HTTP is limited to
-loopback development hosts). Authentication, unavailable
+loopback development hosts). A nonempty `TUIST_CACHE_ENDPOINT` takes precedence
+over `endpoint:` and account discovery. Hosted runners use this override to
+reach their in-cluster cache. The environment override explicitly permits HTTP
+on non-loopback hosts: bearer tokens travel unencrypted, so use it only on a
+trusted network. Invalid overrides fall back to local snapshots, not discovery.
+Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
