@@ -36,7 +36,7 @@ defmodule Noora.ButtonGroup do
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
 
   attr(:icon_only, :boolean, default: false, doc: "Determines if the button is icon only")
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(phx-click disabled form target rel type))
 
   slot(:icon_left, doc: "Icon displayed on the left of an item")
   slot(:icon_right, doc: "Icon displayed on the right of an item")
@@ -44,7 +44,7 @@ defmodule Noora.ButtonGroup do
 
   def button_group_item(assigns) do
     ~H"""
-    <%= if @href || @navigate || @patch do %>
+    <%= if (@href || @navigate || @patch) && !@rest[:disabled] do %>
       <.link
         class="noora-button-group-item"
         href={@href}
