@@ -2783,6 +2783,7 @@ queue rather than on any particular cause.
 ```promql
 max by (cluster, env, queue) (
   tuist_oban_queue_oldest_available_age_seconds{
+    cluster=~"tuist-production|tuist-staging|tuist-canary",
     queue=~"process_xcresult|process_build"
   }
 ) > 900
@@ -2790,6 +2791,7 @@ max by (cluster, env, queue) (
 
 - Pending period: 5 minutes
 - Severity: critical
+- Grafana rule: `fg1efz3p68740a`
 - Summary: `No consumer is draining the {{ $labels.queue }} Oban queue in
   {{ $labels.cluster }}: the oldest job has been runnable for over 15
   minutes`
@@ -2800,6 +2802,8 @@ rather than the polling node's own producers. Every node running PromEx
 therefore reports it, including the always-healthy web pods, so the
 signal survives the complete loss of the deployment that consumes the
 queue. `max by` is required: the same gauge is reported once per pod.
+Only production emits it today, so the rule is silent in staging and
+canary, and the `cluster` matcher keeps the pentest cluster out.
 
 Age, not depth. A queue that is never empty because arrivals are served
 promptly and a queue with no consumer at all both sit at a non-zero
@@ -2836,6 +2840,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `bg1ewhe80qosgc`
 - Summary: `Oban queue-age telemetry is missing for
   {{ $labels.queue }} in {{ $labels.cluster }}`
 
@@ -3271,6 +3276,7 @@ sum by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metri
 
 - Pending period: 10 minutes
 - Severity: critical
+- Grafana rule: `dg1ejbdu0vwu8e`
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down fleet-wide`
 
@@ -3310,6 +3316,7 @@ sum by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-maco
 - Severity: critical
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down`
+- Grafana rule: `ag1f78hvm3i0wd`
 
 The single-replica counterpart of the rule above. 30 minutes matches
 `progressDeadlineSeconds: 1800`: a guest that stays down longer than one
@@ -3327,13 +3334,16 @@ slow, not broken.
 ### xcresult processor guest metrics unavailable on one host
 
 ```promql
-min by (cluster, env, instance) (
-  min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
-) == 0
+(
+  1 - min by (cluster, env, instance) (
+    min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
+  )
+) > 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
+- Grafana rule: `dg1ejbvirpslcc`
 - Summary: `xcresult processor on {{ $labels.instance }} is not serving
   metrics. The fleet is running below capacity`
 
@@ -3369,6 +3379,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `dg1ew04a5qfwge`
 - Summary: `xcresult processor scrape telemetry is missing in
   {{ $labels.cluster }}`
 
@@ -3381,21 +3392,32 @@ identity. Without this, every rule above silently evaluates to nothing.
 ### xcresult processor replicas unavailable
 
 ```promql
-kube_deployment_status_replicas_available{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
-<
-kube_deployment_spec_replicas{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_spec_replicas{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+-
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_status_replicas_available{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+> 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
-- Summary: `xcresult processor has unavailable replicas in
-  {{ $labels.namespace }}`
+- Summary: `{{ $values.A.Value | printf "%.0f" }} xcresult processor replica(s)
+  unavailable in {{ $labels.namespace }} ({{ $labels.cluster }})`
+- Grafana rule: `cg1efzyensg74a`
+
+The value is the number of missing replicas. Spec minus available, not
+`available < spec`: that form returns the available count, which is 0 in
+a total outage and never crosses a `> 0` threshold. `max by` keeps the
+two sides joined when kube-state-metrics moves to another pod.
 
 Catches the scheduling half of the same outage: on 2026-08-12 one of the
 two replicas sat `Pending` for over four hours while the Deployment
@@ -3404,8 +3426,8 @@ reported `Available=True MinimumReplicasAvailable` and
 satisfied by `maxUnavailable` rather than by `readyReplicas ==
 spec.replicas`. Kubernetes considers that healthy; it is not.
 
-With `xcresultProcessor.readinessProbe.enabled`, the probe tart-kubelet
-evaluates also makes a replica that runs but cannot reach Postgres,
+The readinessProbe tart-kubelet evaluates (`xcresultProcessor.readinessProbe`,
+on by default) also makes a replica that runs but cannot reach Postgres,
 ClickHouse or its Oban queue count as unavailable here.
 
 Same 45-minute rationale as the per-host rule: a Tart VM replacement
