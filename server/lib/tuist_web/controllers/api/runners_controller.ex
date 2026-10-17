@@ -22,14 +22,22 @@ defmodule TuistWeb.API.RunnersController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Profiles live on the account settings surface, where the dashboard
-  # requires account administrators even for the read-only table. The
-  # operational runner views intentionally remain visible to runner readers.
-  plug AuthorizationPlug, {:account, :account, :update} when action in [:index_profiles, :update_profile]
+  plug AuthorizationPlug,
+       {:account, :runners, :update}
+       when action in [:create_profile, :update_profile, :delete_profile]
 
   plug AuthorizationPlug,
        {:account, :runners}
-       when action in [:index_jobs, :show_job, :index_job_steps, :index_job_metrics, :index_job_logs, :index_workflows]
+       when action in [
+              :index_jobs,
+              :show_job,
+              :index_job_steps,
+              :index_job_metrics,
+              :index_job_logs,
+              :index_workflows,
+              :index_profiles,
+              :index_profile_options
+            ]
 
   tags ["Runners"]
 
@@ -117,6 +125,10 @@ defmodule TuistWeb.API.RunnersController do
       memory_gb: %Schema{type: :integer},
       xcode_version: %Schema{type: :string, nullable: true},
       protected: %Schema{type: :boolean},
+      runs_on_label: %Schema{
+        type: :string,
+        description: "The label workflows reference in runs-on to run jobs on this profile."
+      },
       cache_writer_default_branch: %Schema{
         type: :boolean,
         description: "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
@@ -136,6 +148,7 @@ defmodule TuistWeb.API.RunnersController do
       :vcpus,
       :memory_gb,
       :protected,
+      :runs_on_label,
       :cache_writer_default_branch,
       :cache_writer_branches,
       :inserted_at,
@@ -203,6 +216,75 @@ defmodule TuistWeb.API.RunnersController do
       description: "The account handle."
     ]
   ]
+
+  @profile_name_parameters [
+    profile_name: [
+      in: :path,
+      type: :string,
+      required: true,
+      description: "The profile name, without the runs-on label prefix."
+    ]
+  ]
+
+  @profile_change_fields [
+    :vcpus,
+    :memory_gb,
+    :xcode_version,
+    :cache_writer_default_branch,
+    :cache_writer_branches
+  ]
+
+  @profile_change_properties %{
+    vcpus: %Schema{type: :integer, description: "vCPUs of an available shape for the platform."},
+    memory_gb: %Schema{type: :integer, description: "Memory in GB of an available shape for the platform."},
+    xcode_version: %Schema{
+      type: :string,
+      description: "An available Xcode version, for example 26.5. Required for macOS profiles."
+    },
+    cache_writer_default_branch: %Schema{
+      type: :boolean,
+      description: "Whether jobs on each repository's default branch save. Defaults to true."
+    },
+    cache_writer_branches: %Schema{
+      type: :array,
+      items: %Schema{type: :string},
+      description: "Additional branch names or * patterns that save. An empty list removes them."
+    }
+  }
+
+  @profile_options_schema %Schema{
+    title: "RunnerProfileOptions",
+    type: :object,
+    properties: %{
+      shapes: %Schema{
+        type: :array,
+        items: %Schema{
+          title: "RunnerProfileShape",
+          type: :object,
+          properties: %{
+            platform: %Schema{type: :string, enum: ["linux", "macos"]},
+            vcpus: %Schema{type: :integer},
+            memory_gb: %Schema{type: :integer},
+            default: %Schema{type: :boolean}
+          },
+          required: [:platform, :vcpus, :memory_gb, :default]
+        }
+      },
+      xcode_versions: %Schema{
+        type: :array,
+        items: %Schema{
+          title: "RunnerProfileXcodeVersion",
+          type: :object,
+          properties: %{
+            xcode_version: %Schema{type: :string},
+            default: %Schema{type: :boolean}
+          },
+          required: [:xcode_version, :default]
+        }
+      }
+    },
+    required: [:shapes, :xcode_versions]
+  }
 
   @pagination_parameters [
     page: [in: :query, type: :integer, required: false, description: "Page number (default: 1)."],
@@ -484,43 +566,86 @@ defmodule TuistWeb.API.RunnersController do
     end
   end
 
-  operation(:update_profile,
-    summary: "Update which branches save a runner profile's cache volumes.",
+  operation(:index_profile_options,
+    summary: "List the machine shapes and Xcode versions runner profiles can use.",
     description:
-      "Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.",
-    operation_id: "updateRunnerProfile",
-    parameters:
-      @account_parameters ++
-        [
-          profile_name: [
-            in: :path,
-            type: :string,
-            required: true,
-            description: "The profile name, without the runs-on label prefix."
-          ]
-        ],
+      "Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.",
+    operation_id: "listRunnerProfileOptions",
+    parameters: @account_parameters,
+    responses: %{
+      ok: {"Runner profile options", "application/json", @profile_options_schema},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"Runners are not enabled", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def index_profile_options(%{assigns: %{selected_account: account}} = conn, _params) do
+    if FeatureFlags.runners_enabled?(account) do
+      json(conn, Profiles.options())
+    else
+      runners_unavailable(conn)
+    end
+  end
+
+  operation(:create_profile,
+    summary: "Create a runner profile.",
+    description:
+      "Creates a profile that pins a platform, a machine shape and, on macOS, an Xcode version. Workflows reference it in runs-on with the returned runs_on_label.",
+    operation_id: "createRunnerProfile",
+    parameters: @account_parameters,
     request_body:
-      {"Profile changes", "application/json",
+      {"Runner profile", "application/json",
        %Schema{
          type: :object,
-         properties: %{
-           cache_writer_default_branch: %Schema{
-             type: :boolean,
-             description: "Whether jobs on each repository's default branch save."
-           },
-           cache_writer_branches: %Schema{
-             type: :array,
-             items: %Schema{type: :string},
-             description: "Additional branch names or * patterns that save. An empty list removes them."
-           }
-         }
+         properties:
+           Map.merge(
+             %{
+               name: %Schema{
+                 type: :string,
+                 description:
+                   "Up to 32 lowercase letters, digits, and hyphens, starting with a letter. runner, runners, and tuist are reserved."
+               },
+               platform: %Schema{type: :string, enum: ["linux", "macos"]}
+             },
+             @profile_change_properties
+           ),
+         required: [:name, :platform, :vcpus, :memory_gb]
        }},
+    responses: %{
+      created: {"Created runner profile", "application/json", @profile_schema},
+      bad_request: {"Missing or malformed fields", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"Runners are not enabled", "application/json", Error},
+      unprocessable_entity:
+        {"The profile is invalid or the account reached its profile limit", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def create_profile(%{assigns: %{selected_account: account}, body_params: body} = conn, _params) do
+    with true <- FeatureFlags.runners_enabled?(account),
+         {:ok, profile} <- Profiles.create(account, Map.take(body, [:name, :platform | @profile_change_fields])) do
+      conn |> put_status(:created) |> json(serialize_profile(profile))
+    else
+      false -> runners_unavailable(conn)
+      {:error, reason} -> profile_error(conn, reason)
+    end
+  end
+
+  operation(:update_profile,
+    summary: "Update a runner profile.",
+    description:
+      "Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.",
+    operation_id: "updateRunnerProfile",
+    parameters: @account_parameters ++ @profile_name_parameters,
+    request_body: {"Profile changes", "application/json", %Schema{type: :object, properties: @profile_change_properties}},
     responses: %{
       ok: {"Updated runner profile", "application/json", @profile_schema},
       bad_request: {"Missing or malformed fields", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       not_found: {"The profile was not found or runners are not enabled", "application/json", Error},
-      unprocessable_entity: {"Invalid branch names", "application/json", Error},
+      unprocessable_entity: {"The changes are invalid", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
@@ -529,30 +654,50 @@ defmodule TuistWeb.API.RunnersController do
         %{assigns: %{selected_account: account}, path_params: %{"profile_name" => name}, body_params: body} = conn,
         _params
       ) do
+    with_profile(conn, account, name, fn profile ->
+      case Profiles.update(profile, Map.take(body, @profile_change_fields)) do
+        {:ok, profile} -> json(conn, serialize_profile(profile))
+        {:error, reason} -> profile_error(conn, reason)
+      end
+    end)
+  end
+
+  operation(:delete_profile,
+    summary: "Delete a runner profile.",
+    description:
+      "Jobs that request the profile's runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted.",
+    operation_id: "deleteRunnerProfile",
+    parameters: @account_parameters ++ @profile_name_parameters,
+    responses: %{
+      no_content: "The runner profile was deleted",
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"The profile was not found or runners are not enabled", "application/json", Error},
+      unprocessable_entity: {"The profile is a default profile", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def delete_profile(%{assigns: %{selected_account: account}, path_params: %{"profile_name" => name}} = conn, _params) do
+    with_profile(conn, account, name, fn profile ->
+      case Profiles.delete(profile) do
+        {:ok, _profile} -> send_resp(conn, :no_content, "")
+        {:error, reason} -> profile_error(conn, reason)
+      end
+    end)
+  end
+
+  defp with_profile(conn, account, name, fun) do
     with true <- FeatureFlags.runners_enabled?(account),
-         %Profile{} = profile <- Profiles.get_by_name(account, name),
-         {:ok, profile} <-
-           Profiles.update_cache_writer_policy(
-             profile,
-             Map.take(body, [:cache_writer_default_branch, :cache_writer_branches])
-           ) do
-      json(conn, serialize_profile(profile))
+         %Profile{} = profile <- Profiles.get_by_name(account, name) do
+      fun.(profile)
     else
-      false ->
-        runners_unavailable(conn)
-
-      nil ->
-        conn |> put_status(:not_found) |> json(%{message: "The runner profile was not found."})
-
-      {:error, %Ecto.Changeset{}} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{
-          message:
-            "Use up to #{Profile.max_cache_writer_branches()} branch names, optionally with * to match any characters."
-        })
+      false -> runners_unavailable(conn)
+      nil -> conn |> put_status(:not_found) |> json(%{message: "The runner profile was not found."})
     end
   end
+
+  defp profile_error(conn, reason),
+    do: conn |> put_status(:unprocessable_entity) |> json(%{message: Profiles.error_message(reason)})
 
   defp page_params(params) do
     page = params |> Map.get(:page, 1) |> max(1)
@@ -652,6 +797,7 @@ defmodule TuistWeb.API.RunnersController do
       :updated_at
     ])
     |> Map.put(:cache_writer_branches, profile.cache_writer_branches || [])
+    |> Map.put(:runs_on_label, Profile.dispatch_label(profile))
   end
 
   defp with_runner_job(conn, account, workflow_job_id, fun) do

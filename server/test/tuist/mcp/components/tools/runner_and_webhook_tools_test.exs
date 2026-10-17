@@ -4,15 +4,19 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
+  alias Tuist.MCP.Components.Tools.CreateRunnerProfile
+  alias Tuist.MCP.Components.Tools.DeleteRunnerProfile
   alias Tuist.MCP.Components.Tools.GetRunnerJob
   alias Tuist.MCP.Components.Tools.GetWebhookEndpoint
   alias Tuist.MCP.Components.Tools.ListRunnerJobs
+  alias Tuist.MCP.Components.Tools.ListRunnerProfileOptions
   alias Tuist.MCP.Components.Tools.ListRunnerProfiles
   alias Tuist.MCP.Components.Tools.ListWebhookEndpoints
-  alias Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches
+  alias Tuist.MCP.Components.Tools.UpdateRunnerProfile
   alias Tuist.Repo
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Webhooks
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -118,28 +122,38 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
     end
   end
 
-  describe "runner profile cache branch tools" do
-    test "list and update cache branches with the administrative account permission" do
+  describe "runner profile tools" do
+    setup do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      account_id = account.id
 
+      stub(Tuist.Authorization, :authorize, fn action, :subject, %{id: ^account_id}
+                                               when action in [:runners_update, :runners_read] ->
+        :ok
+      end)
+
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      %{account: account, conn: %Plug.Conn{assigns: %{current_subject: :subject}}}
+    end
+
+    test "list and update cache branches with the administrative account permission", %{account: account, conn: conn} do
       profile =
         Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 7, memory_gb: 13})
-
-      account_id = account.id
-      stub(Tuist.Authorization, :authorize, fn :account_update, :subject, %{id: ^account_id} -> :ok end)
-      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"text" => text}]} =
                ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
 
-      assert %{"name" => "ci", "cache_writer_default_branch" => true, "cache_writer_branches" => []} =
-               Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
+      assert %{
+               "name" => "ci",
+               "runs_on_label" => "tuist-ci",
+               "cache_writer_default_branch" => true,
+               "cache_writer_branches" => []
+             } = Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
 
       arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
 
       assert %{"content" => [%{"text" => text}]} =
-               UpdateRunnerProfileCacheBranches.call(
+               UpdateRunnerProfile.call(
                  conn,
                  Map.merge(arguments, %{
                    "cache_writer_default_branch" => false,
@@ -156,38 +170,202 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                Repo.get!(Profile, profile.id)
 
       assert %{"content" => [%{"text" => text}]} =
-               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", []))
+               UpdateRunnerProfile.call(conn, Map.put(arguments, "cache_writer_branches", []))
 
       assert %{"cache_writer_default_branch" => false, "cache_writer_branches" => []} = JSON.decode!(text)
 
       assert %{"content" => [%{"text" => text}]} =
-               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_default_branch", true))
+               UpdateRunnerProfile.call(conn, Map.put(arguments, "cache_writer_default_branch", true))
 
       assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => []} = JSON.decode!(text)
 
-      assert %{"isError" => true, "content" => [%{"text" => "Use up to 20 branch names" <> _}]} =
-               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", ["a b"]))
+      assert %{
+               "isError" => true,
+               "content" => [%{"text" => "cache_writer_branches must be branch names, optionally with * wildcards."}]
+             } = UpdateRunnerProfile.call(conn, Map.put(arguments, "cache_writer_branches", ["a b"]))
 
       assert %{"isError" => true, "content" => [%{"text" => "The runner profile was not found."}]} =
-               UpdateRunnerProfileCacheBranches.call(conn, %{
+               UpdateRunnerProfile.call(conn, %{
                  "account_handle" => account.name,
                  "profile_name" => "missing",
                  "cache_writer_branches" => ["main"]
                })
     end
 
-    test "refuses callers without account administration" do
-      account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> {:error, :forbidden} end)
-      reject(&Tuist.Runners.Profiles.update_cache_writer_policy/2)
-      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+    test "lists the shapes and Xcode versions profiles can use", %{account: account, conn: conn} do
+      stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> :ok end)
+
+      assert %{"content" => [%{"text" => text}]} =
+               ListRunnerProfileOptions.call(conn, %{"account_handle" => account.name})
+
+      assert %{"shapes" => shapes, "xcode_versions" => xcode_versions} = JSON.decode!(text)
+      assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in shapes
+      assert %{"platform" => "macos", "vcpus" => 6, "memory_gb" => 14, "default" => true} in shapes
+      assert %{"xcode_version" => "26.5", "default" => true} in xcode_versions
+    end
+
+    test "creates a profile and returns its runs-on label", %{account: account, conn: conn} do
+      arguments = %{
+        "account_handle" => account.name,
+        "name" => "linux-4vcpu",
+        "platform" => "linux",
+        "vcpus" => 4,
+        "memory_gb" => 8
+      }
+
+      assert %{"content" => [%{"text" => text}]} = CreateRunnerProfile.call(conn, arguments)
+
+      assert %{
+               "name" => "linux-4vcpu",
+               "platform" => "linux",
+               "vcpus" => 4,
+               "memory_gb" => 8,
+               "protected" => false,
+               "runs_on_label" => "tuist-linux-4vcpu"
+             } = JSON.decode!(text)
+
+      assert %{vcpus: 4, memory_gb: 8} = Repo.get_by!(Profile, account_id: account.id, name: "linux-4vcpu")
+
+      assert %{"isError" => true, "content" => [%{"text" => "A profile with this name already exists in this account."}]} =
+               CreateRunnerProfile.call(conn, arguments)
+    end
+
+    test "lists the available shapes when the requested one isn't in the catalog", %{account: account, conn: conn} do
+      assert %{"isError" => true, "content" => [%{"text" => text}]} =
+               CreateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "name" => "huge",
+                 "platform" => "linux",
+                 "vcpus" => 3,
+                 "memory_gb" => 8
+               })
+
+      assert text =~ "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB, 2 vCPU / 4 GB"
+      assert text =~ "4 vCPU / 8 GB"
+
+      assert %{"isError" => true, "content" => [%{"text" => text}]} =
+               CreateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "name" => "old-xcode",
+                 "platform" => "macos",
+                 "vcpus" => 6,
+                 "memory_gb" => 14,
+                 "xcode_version" => "15.0"
+               })
+
+      assert text =~ "xcode_version must be one of: 26.5, 26.4.1"
+    end
+
+    test "refuses to create a profile past the account limit", %{account: account, conn: conn} do
+      existing = account |> Profiles.list_for_account() |> length()
+
+      for index <- existing..(Profiles.max_per_account() - 1)//1 do
+        Repo.insert!(%Profile{account_id: account.id, name: "p#{index}", platform: :linux, vcpus: 2, memory_gb: 8})
+      end
+
+      assert %{"isError" => true, "content" => [%{"text" => "The account already has the maximum of 10" <> _}]} =
+               CreateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "name" => "one-more",
+                 "platform" => "linux",
+                 "vcpus" => 2,
+                 "memory_gb" => 8
+               })
+    end
+
+    test "changes a profile's shape and validates it against the catalog", %{account: account, conn: conn} do
+      Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 2, memory_gb: 8})
+      arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfile.call(conn, Map.merge(arguments, %{"vcpus" => 8, "memory_gb" => 32}))
+
+      assert %{"vcpus" => 8, "memory_gb" => 32, "cache_writer_default_branch" => true} = JSON.decode!(text)
+
+      assert %{
+               "isError" => true,
+               "content" => [%{"text" => "vcpus and memory_gb must match an available linux shape" <> _}]
+             } =
+               UpdateRunnerProfile.call(conn, Map.put(arguments, "vcpus", 5))
+
+      assert %{vcpus: 8, memory_gb: 32} = Repo.get_by!(Profile, account_id: account.id, name: "ci")
+    end
+
+    test "changes only a macOS profile's Xcode version", %{account: account, conn: conn} do
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "xcode",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        xcode_version: "26.5"
+      })
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "profile_name" => "xcode",
+                 "xcode_version" => "26.4.1"
+               })
+
+      assert %{"vcpus" => 6, "memory_gb" => 14, "xcode_version" => "26.4.1"} = JSON.decode!(text)
+    end
+
+    test "deletes a profile but not a default one", %{account: account, conn: conn} do
+      Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 2, memory_gb: 8})
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "base",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        protected: true
+      })
+
+      assert %{"content" => [%{"text" => text}]} =
+               DeleteRunnerProfile.call(conn, %{"account_handle" => account.name, "profile_name" => "ci"})
+
+      assert %{"name" => "ci"} = JSON.decode!(text)
+      refute Repo.get_by(Profile, account_id: account.id, name: "ci")
+
+      assert %{"isError" => true, "content" => [%{"text" => "This profile is a default and can't be deleted."}]} =
+               DeleteRunnerProfile.call(conn, %{"account_handle" => account.name, "profile_name" => "base"})
+
+      assert Repo.get_by(Profile, account_id: account.id, name: "base")
+    end
+
+    test "lets runner readers list profiles but not change them", %{account: account, conn: conn} do
+      stub(Tuist.Authorization, :authorize, fn
+        :runners_read, :subject, _account -> :ok
+        _action, :subject, _account -> {:error, :forbidden}
+      end)
+
+      reject(&Profiles.create/2)
+      reject(&Profiles.update/2)
+      reject(&Profiles.delete/1)
+
+      assert %{"content" => [%{"text" => text}]} = ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
+      assert is_list(JSON.decode!(text)["profiles"])
 
       assert %{"isError" => true} =
-               UpdateRunnerProfileCacheBranches.call(conn, %{
+               CreateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "name" => "ci",
+                 "platform" => "linux",
+                 "vcpus" => 2,
+                 "memory_gb" => 8
+               })
+
+      assert %{"isError" => true} =
+               UpdateRunnerProfile.call(conn, %{
                  "account_handle" => account.name,
                  "profile_name" => "linux",
                  "cache_writer_branches" => ["*"]
                })
+
+      assert %{"isError" => true} =
+               DeleteRunnerProfile.call(conn, %{"account_handle" => account.name, "profile_name" => "linux"})
     end
   end
 

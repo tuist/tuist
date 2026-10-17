@@ -4388,6 +4388,70 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerProfileOptions:
+      properties:
+        shapes:
+          items:
+            properties:
+              default:
+                type: boolean
+                x-struct:
+                x-validate:
+              memory_gb:
+                type: integer
+                x-struct:
+                x-validate:
+              platform:
+                enum:
+                  - linux
+                  - macos
+                type: string
+                x-struct:
+                x-validate:
+              vcpus:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - platform
+              - vcpus
+              - memory_gb
+              - default
+            title: RunnerProfileShape
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        xcode_versions:
+          items:
+            properties:
+              default:
+                type: boolean
+                x-struct:
+                x-validate:
+              xcode_version:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - xcode_version
+              - default
+            title: RunnerProfileXcodeVersion
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - shapes
+        - xcode_versions
+      title: RunnerProfileOptions
+      type: object
+      x-struct:
+      x-validate:
     RunnerVolumePagination:
       additionalProperties: false
       properties:
@@ -6500,6 +6564,7 @@ components:
               - account:registry:read
               - account:registry:write
               - account:runners:read
+              - account:runners:write
               - project:previews:read
               - project:previews:write
               - project:admin:read
@@ -7543,6 +7608,23 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.DurationMetrics
       x-validate:
+    RunnerProfileXcodeVersion:
+      properties:
+        default:
+          type: boolean
+          x-struct:
+          x-validate:
+        xcode_version:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - xcode_version
+        - default
+      title: RunnerProfileXcodeVersion
+      type: object
+      x-struct:
+      x-validate:
     CacheAccess:
       description: Account-scoped and project-scoped cache access handles
       properties:
@@ -7585,6 +7667,36 @@ components:
         - projects
         - payment_required
       title: CacheAccess
+      type: object
+      x-struct:
+      x-validate:
+    RunnerProfileShape:
+      properties:
+        default:
+          type: boolean
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        platform:
+          enum:
+            - linux
+            - macos
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - platform
+        - vcpus
+        - memory_gb
+        - default
+      title: RunnerProfileShape
       type: object
       x-struct:
       x-validate:
@@ -9530,6 +9642,7 @@ components:
                     - account:registry:read
                     - account:registry:write
                     - account:runners:read
+                    - account:runners:write
                     - project:previews:read
                     - project:previews:write
                     - project:admin:read
@@ -9823,6 +9936,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        runs_on_label:
+          description: The label workflows reference in runs-on to run jobs on this profile.
+          type: string
+          x-struct:
+          x-validate:
         updated_at:
           format: date-time
           type: string
@@ -9844,6 +9962,7 @@ components:
         - vcpus
         - memory_gb
         - protected
+        - runs_on_label
         - cache_writer_default_branch
         - cache_writer_branches
         - inserted_at
@@ -10204,6 +10323,7 @@ components:
               - account:registry:read
               - account:registry:write
               - account:runners:read
+              - account:runners:write
               - project:previews:read
               - project:previews:write
               - project:admin:read
@@ -13751,6 +13871,11 @@ paths:
                           type: boolean
                           x-struct:
                           x-validate:
+                        runs_on_label:
+                          description: The label workflows reference in runs-on to run jobs on this profile.
+                          type: string
+                          x-struct:
+                          x-validate:
                         updated_at:
                           format: date-time
                           type: string
@@ -13772,6 +13897,7 @@ paths:
                         - vcpus
                         - memory_gb
                         - protected
+                        - runs_on_label
                         - cache_writer_default_branch
                         - cache_writer_branches
                         - inserted_at
@@ -13823,6 +13949,207 @@ paths:
                 x-validate:
               style: simple
       summary: List runner profiles for an account.
+      tags:
+        - Runners
+    post:
+      callbacks: {}
+      description: Creates a profile that pins a platform, a machine shape and, on macOS, an Xcode version. Workflows reference it in runs-on with the returned runs_on_label.
+      operationId: createRunnerProfile
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache_writer_branches:
+                  description: Additional branch names or * patterns that save. An empty list removes them.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                cache_writer_default_branch:
+                  description: Whether jobs on each repository's default branch save. Defaults to true.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                memory_gb:
+                  description: Memory in GB of an available shape for the platform.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                name:
+                  description: Up to 32 lowercase letters, digits, and hyphens, starting with a letter. runner, runners, and tuist are reserved.
+                  type: string
+                  x-struct:
+                  x-validate:
+                platform:
+                  enum:
+                    - linux
+                    - macos
+                  type: string
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  description: vCPUs of an available shape for the platform.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: An available Xcode version, for example 26.5. Required for macOS profiles.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - name
+                - platform
+                - vcpus
+                - memory_gb
+              type: object
+              x-struct:
+              x-validate:
+        description: Runner profile
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_writer_branches:
+                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  cache_writer_default_branch:
+                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    enum:
+                      - linux
+                      - macos
+                    type: string
+                    x-struct:
+                    x-validate:
+                  protected:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  runs_on_label:
+                    description: The label workflows reference in runs-on to run jobs on this profile.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - platform
+                  - vcpus
+                  - memory_gb
+                  - protected
+                  - runs_on_label
+                  - cache_writer_default_branch
+                  - cache_writer_branches
+                  - inserted_at
+                  - updated_at
+                title: RunnerProfile
+                type: object
+                x-struct:
+                x-validate:
+          description: Created runner profile
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or malformed fields
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile is invalid or the account reached its profile limit
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Create a runner profile.
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/tests/git-history/settings:
@@ -24039,6 +24366,7 @@ paths:
                               - account:registry:read
                               - account:registry:write
                               - account:runners:read
+                              - account:runners:write
                               - project:previews:read
                               - project:previews:write
                               - project:admin:read
@@ -24157,6 +24485,7 @@ paths:
                       - account:registry:read
                       - account:registry:write
                       - account:runners:read
+                      - account:runners:write
                       - project:previews:read
                       - project:previews:write
                       - project:admin:read
@@ -31159,6 +31488,125 @@ paths:
       summary: List webhook endpoints for an account.
       tags:
         - Webhooks
+  /api/accounts/{account_handle}/runners/profile-options:
+    get:
+      callbacks: {}
+      description: Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+      operationId: listRunnerProfileOptions
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  shapes:
+                    items:
+                      properties:
+                        default:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        platform:
+                          enum:
+                            - linux
+                            - macos
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - platform
+                        - vcpus
+                        - memory_gb
+                        - default
+                      title: RunnerProfileShape
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  xcode_versions:
+                    items:
+                      properties:
+                        default:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        xcode_version:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - xcode_version
+                        - default
+                      title: RunnerProfileXcodeVersion
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - shapes
+                  - xcode_versions
+                title: RunnerProfileOptions
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner profile options
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the machine shapes and Xcode versions runner profiles can use.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/notification-alerts:
     get:
       callbacks: {}
@@ -31855,9 +32303,75 @@ paths:
       tags:
         - Tests
   /api/accounts/{account_handle}/runners/profiles/{profile_name}:
+    delete:
+      callbacks: {}
+      description: "Jobs that request the profile's runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted."
+      operationId: deleteRunnerProfile
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The profile name, without the runs-on label prefix.
+          in: path
+          name: profile_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The runner profile was deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile was not found or runners are not enabled
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile is a default profile
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Delete a runner profile.
+      tags:
+        - Runners
     patch:
       callbacks: {}
-      description: "Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows."
+      description: "Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows."
       operationId: updateRunnerProfile
       parameters:
         - description: The account handle.
@@ -31891,8 +32405,23 @@ paths:
                   x-struct:
                   x-validate:
                 cache_writer_default_branch:
-                  description: Whether jobs on each repository's default branch save.
+                  description: Whether jobs on each repository's default branch save. Defaults to true.
                   type: boolean
+                  x-struct:
+                  x-validate:
+                memory_gb:
+                  description: Memory in GB of an available shape for the platform.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  description: vCPUs of an available shape for the platform.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: An available Xcode version, for example 26.5. Required for macOS profiles.
+                  type: string
                   x-struct:
                   x-validate:
               type: object
@@ -31948,6 +32477,11 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  runs_on_label:
+                    description: The label workflows reference in runs-on to run jobs on this profile.
+                    type: string
+                    x-struct:
+                    x-validate:
                   updated_at:
                     format: date-time
                     type: string
@@ -31969,6 +32503,7 @@ paths:
                   - vcpus
                   - memory_gb
                   - protected
+                  - runs_on_label
                   - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
@@ -32001,7 +32536,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid branch names
+          description: The changes are invalid
         '429':
           content:
             application/json:
@@ -32023,7 +32558,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: Update which branches save a runner profile's cache volumes.
+      summary: Update a runner profile.
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/builds:
@@ -35281,6 +35816,7 @@ paths:
                         - account:registry:read
                         - account:registry:write
                         - account:runners:read
+                        - account:runners:write
                         - project:previews:read
                         - project:previews:write
                         - project:admin:read
