@@ -42,9 +42,11 @@ consumer is Claude Managed Agents `self_hosted` environments.
   are paused, longest idle first. Disk is reserved at each sandbox's
   ceiling (the template's `rootfs_bytes`, `workspace_gb` and the memory
   image, all fixed-size files, plus 64 MiB): a new sandbox only goes to a
-  node whose disk budget holds its ceiling on top of the ceilings of what
-  the node reports holding and of rows placed there it has not reported
-  yet, checked under the node's lock. A paused sandbox's disk is already
+  node whose disk budget holds its ceiling on top of the ceilings of the
+  rows placed there (creating, running, resuming, paused) and of errored
+  rows whose jail the node still reports, checked under the node's lock.
+  Rows decide rather than the report, which lags: a delete frees its
+  reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
   filesystem. `admissible?/2` is the side-effect-free check the poller
   runs before acknowledging a work item. A node that reports no capacity

@@ -252,7 +252,7 @@ acknowledged by the server's poller; the worker never polls.
   without room for another memory image on disk (`disk.available_bytes`,
   plus 1 GiB headroom) is skipped too, as is one whose `disk.budget_bytes`
   cannot take the new sandbox's ceiling on top of the ceilings of every
-  sandbox it holds or is about to hold. A sandbox's ceiling is its rootfs
+  sandbox placed there, including errored ones whose jail it still reports. A sandbox's ceiling is its rootfs
   image (`templates[].rootfs_bytes`), its workspace image (`workspace_gb`)
   and its memory image, all fixed-size files it can never write past, so
   the reservation holds however the sandboxes later fill them. The

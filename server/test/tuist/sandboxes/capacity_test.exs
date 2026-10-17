@@ -165,14 +165,15 @@ defmodule Tuist.Sandboxes.CapacityTest do
       full_fs =
         connect(node_name(), template, %{templates: templates, disk: %{available_bytes: 4 * @gib, budget_bytes: 0}})
 
-      # One reported sandbox of 8 + 10 + 4 GiB leaves no room for a second
+      # One paused sandbox of 8 + 10 + 4 GiB leaves no room for a second
       # under a 30 GiB budget, however little either has written.
       over_budget =
         connect(node_name(), template, %{
           templates: templates,
-          disk: %{available_bytes: 500 * @gib, budget_bytes: 30 * @gib, sandboxes_bytes: 0},
-          sandboxes: [%{id: Ecto.UUID.generate(), template: template, memory_mb: 4096, workspace_gb: 10}]
+          disk: %{available_bytes: 500 * @gib, budget_bytes: 30 * @gib, sandboxes_bytes: 0}
         })
+
+      sandbox_fixture(template: template, state: :paused, node_name: over_budget, memory_mb: 4096, workspace_gb: 10)
 
       roomy =
         connect(node_name(), template, %{
@@ -187,9 +188,8 @@ defmodule Tuist.Sandboxes.CapacityTest do
       refute over_budget == roomy
     end
 
-    test "counts sandboxes placed on a node that it has not reported yet against its disk budget", %{
-      template: template
-    } do
+    test "reserves the ceilings of placed sandboxes and of errored ones the node still reports, not of deleted ones",
+         %{template: template} do
       templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
 
       node =
@@ -202,9 +202,25 @@ defmodule Tuist.Sandboxes.CapacityTest do
         sandbox_fixture(template: template, state: state, node_name: node, memory_mb: 4096, workspace_gb: 10)
       end
 
+      errored_on_disk =
+        sandbox_fixture(template: template, state: :error, node_name: node, memory_mb: 4096, workspace_gb: 10)
+
+      sandbox_fixture(template: template, state: :error, node_name: node, memory_mb: 4096, workspace_gb: 10)
+
       {:ok, _pid, info} = Nodes.lookup(node)
+
+      # The report still lists a sandbox deleted a moment ago, and the
+      # errored sandbox whose jail is on disk; only the latter counts.
+      info =
+        info
+        |> Map.put(:name, node)
+        |> Map.put(:sandboxes, [
+          %{id: Ecto.UUID.generate(), template: template, memory_mb: 4096, workspace_gb: 10},
+          %{id: errored_on_disk.id, template: template, memory_mb: 4096, workspace_gb: 10}
+        ])
+
       ceiling = 8 * @gib + 10 * @gib + 4 * @gib + 64 * @mib
-      assert Capacity.reserved_disk_bytes(Map.put(info, :name, node)) == 2 * ceiling
+      assert Capacity.reserved_disk_bytes(info) == 3 * ceiling
 
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
