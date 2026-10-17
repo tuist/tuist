@@ -7,6 +7,14 @@ workflow=${WORKFLOW:-$root/.github/workflows/cli-build-publish.yml}
 packslip=${PACKSLIP:-packslip}
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
+for caller in cli-release cli-rc cli-promote cli-backport; do
+  yq -o=json '.jobs.build-publish' "$root/.github/workflows/$caller.yml" | jq -e '
+    .uses == "./.github/workflows/cli-build-publish.yml" and
+    (.with.version | type == "string") and (.with.ref | type == "string")
+  ' > /dev/null
+done
+echo 'ok: canary, RC, stable, and backport workflows use the shared signed publisher'
+
 yq -o=json '.' "$workflow" > "$fixture/workflow.json"
 inputs=$(jq -c '.jobs["sign-cli"].steps[] | select(.id == "packslip") | .with' "$fixture/workflow.json")
 source_commit=1234567890abcdef1234567890abcdef12345678
@@ -143,6 +151,7 @@ done
 jq -e '
   .jobs["sign-cli"] as $sign | .jobs["publish-cli"] as $publish |
   $sign.permissions == {contents: "read", "id-token": "write"} and
+  ($sign | has("if") | not) and
   $sign.env.GITHUB_TOKEN == "${{ github.token }}" and
   $sign.env.MISE_GITHUB_TOKEN == "${{ github.token }}" and
   all($sign.steps[]; (.uses // "" | contains("checkout@") | not)) and

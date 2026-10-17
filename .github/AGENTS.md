@@ -216,6 +216,8 @@ can truthfully identify each archive's build source.
 `cli-release-tests.yml` installs the CLI from the same pinned Packslip action and
 runs `bash .github/scripts/cli-packslip.test.sh`. The tests use `yq`, `jq`, offline
 keys, and generated ELF archives; they need neither OIDC nor release-write credentials.
+They also require every release-channel caller to use the shared publisher and
+keep signing unconditional across channels.
 
 ## Atlas releases
 
