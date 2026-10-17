@@ -15,12 +15,11 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    # Profiles is a settings surface — create / edit / delete rows
-    # affect every workflow on the account, so we gate it on
-    # `:account_update` (admin-only) the same way `webhooks_live` and
-    # `integrations_live` do. Read-only sibling views use
-    # `:runners_read` because they only surface state.
-    if Authorization.authorize(:account_update, current_user, selected_account) != :ok or
+    # Create / edit / delete rows affect every workflow on the account, so
+    # the page is gated on `:runners_update` (admin-only for users).
+    # Read-only sibling views use `:runners_read` because they only
+    # surface state.
+    if Authorization.authorize(:runners_update, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")

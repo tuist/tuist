@@ -17,8 +17,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     end
   end
 
-  def authorize_profiles_account(arguments, assigns) do
-    with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :update, :account),
+  def authorize_runners_update(arguments, assigns) do
+    with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :update, :runners),
          true <- FeatureFlags.runners_enabled?(account) do
       {:ok, account}
     else
@@ -713,7 +713,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use list_runner_profile_options for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration."
+      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use list_runner_profile_options for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -729,7 +729,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
       ])
 
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
          {:ok, profile} <- RunnerTools.profile_result(Profiles.create(account, attrs)) do
       MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
     else
@@ -775,7 +775,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from list_runner_profile_options. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration.)
+      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from list_runner_profile_options. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -789,7 +789,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
       ])
 
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
          {:ok, profile} <- RunnerTools.fetch_profile(account, arguments["profile_name"]),
          {:ok, profile} <- RunnerTools.profile_result(Profiles.update(profile, attrs)) do
       MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
@@ -830,12 +830,12 @@ defmodule Tuist.MCP.Components.Tools.DeleteRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      "Delete a runner profile after user confirmation. Jobs that request its runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted. Requires account administration."
+      "Delete a runner profile after user confirmation. Jobs that request its runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
          {:ok, profile} <- RunnerTools.fetch_profile(account, arguments["profile_name"]),
          {:ok, profile} <- RunnerTools.profile_result(Profiles.delete(profile)) do
       MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)

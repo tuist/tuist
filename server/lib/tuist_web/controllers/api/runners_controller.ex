@@ -23,7 +23,7 @@ defmodule TuistWeb.API.RunnersController do
   )
 
   plug AuthorizationPlug,
-       {:account, :account, :update}
+       {:account, :runners, :update}
        when action in [:create_profile, :update_profile, :delete_profile]
 
   plug AuthorizationPlug,

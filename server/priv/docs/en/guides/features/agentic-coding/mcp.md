@@ -260,12 +260,12 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
 | `list_runner_profiles` | List continuous-integration runner profiles for an account, with the `runs-on` label of each. | `account_handle` |
 | `list_runner_profile_options` | List the machine shapes and Xcode versions a runner profile can use. | `account_handle` |
-| `create_runner_profile` | Create a runner profile with a platform, a machine shape and, on macOS, an Xcode version. Optionally set which branches save its cache volumes. Requires account administration. | `account_handle`, `name`, `platform`, `vcpus`, `memory_gb` |
-| `update_runner_profile` | Change a runner profile's machine shape, Xcode version, or which branches save its custom cache volume changes. Omitted fields keep their value. Requires account administration. | `account_handle`, `profile_name` |
-| `delete_runner_profile` | Delete a runner profile after user confirmation. Default profiles can't be deleted. Requires account administration. | `account_handle`, `profile_name` |
+| `create_runner_profile` | Create a runner profile with a platform, a machine shape and, on macOS, an Xcode version. Optionally set which branches save its cache volumes. Requires account administration or the `account:runners:write` scope. | `account_handle`, `name`, `platform`, `vcpus`, `memory_gb` |
+| `update_runner_profile` | Change a runner profile's machine shape, Xcode version, or which branches save its custom cache volume changes. Omitted fields keep their value. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
+| `delete_runner_profile` | Delete a runner profile after user confirmation. Default profiles can't be deleted. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
 
 Runner volume tools expose the same data as the Volumes dashboard. Read tools
-require runner access; clearing requires account administration and user confirmation.
+require runner access; clearing requires account administration or the `account:runners:write` scope, and user confirmation.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|

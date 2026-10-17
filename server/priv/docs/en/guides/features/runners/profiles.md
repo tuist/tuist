@@ -53,7 +53,7 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 3. Give it a name, pick a platform, and select a shape. For macOS, also choose an Xcode version.
 4. Save, then reference it from a workflow with `runs-on: tuist-<name>`.
 
-You can also manage profiles from the command line. Creating, changing, and deleting profiles requires account administration, as in the dashboard:
+You can also manage profiles from the command line. Creating, changing, and deleting profiles requires account administration, as in the dashboard, or an account token with the `account:runners:write` scope:
 
 ```bash
 tuist runner profile options

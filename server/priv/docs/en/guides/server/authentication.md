@@ -121,6 +121,8 @@ The command accepts the following options:
 | `account:members:write` | Manage account members |
 | `account:registry:read` | Read from the Swift package registry |
 | `account:registry:write` | Publish to the Swift package registry |
+| `account:runners:read` | Read runner jobs, workflows, profiles, and volumes |
+| `account:runners:write` | Manage runner profiles and clear runner volumes |
 | `project:previews:read` | Download previews |
 | `project:previews:write` | Upload previews |
 | `project:admin:read` | Read project settings |

@@ -258,7 +258,35 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
                |> json_response(:not_found)
     end
 
-    test "lets runner readers list profiles but requires account administration to change them", %{
+    test "lets account tokens with runner write scope manage profiles", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]})
+        |> put_req_header("content-type", "application/json")
+
+      assert %{"runs_on_label" => "tuist-linux-4vcpu"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
+                 name: "linux-4vcpu",
+                 platform: "linux",
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+               |> json_response(:created)
+
+      assert %{"vcpus" => 8, "memory_gb" => 16} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu", %{vcpus: 8, memory_gb: 16})
+               |> json_response(:ok)
+
+      assert %{"profiles" => [_ | _]} =
+               conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
+
+      assert conn |> delete(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu") |> response(:no_content)
+      refute Profiles.get_by_name(account, "linux-4vcpu")
+    end
+
+    test "lets runner readers list profiles but not change them", %{
       conn: conn,
       account: account
     } do

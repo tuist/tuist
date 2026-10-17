@@ -128,7 +128,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       account_id = account.id
 
       stub(Tuist.Authorization, :authorize, fn action, :subject, %{id: ^account_id}
-                                               when action in [:account_update, :runners_read] ->
+                                               when action in [:runners_update, :runners_read] ->
         :ok
       end)
 
