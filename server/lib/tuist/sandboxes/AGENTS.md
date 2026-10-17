@@ -133,7 +133,9 @@ socket, the poller and the caller share a replica:
   placement and resume admission therefore wait up to 10 s
   (`Nodes.presence_wait_ms/0`) for a node to become visible before
   answering `:not_connected` or `:no_node`; the poller's admission check
-  does not wait.
+  does not wait. `NodePresence` heartbeats every 3 s when idle (the
+  tracker default is 15 s) so a new replica discovers its peers well
+  inside that wait.
 - Each environment has one poller in the cluster, held under a
   `:global` name. Every replica's `Manager` asks its dynamic supervisor
   to start every enabled environment's poller each reconcile;
