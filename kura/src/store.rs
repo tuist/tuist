@@ -4142,7 +4142,7 @@ impl Store {
                     && writer.file.is_some()
                 {
                     if writer.len_unknown {
-                        writer.len = self.io.metadata_len(&path).await?;
+                        writer.len = writer.len.max(self.io.metadata_len(&path).await?);
                         writer.len_unknown = false;
                     }
                     writer.len
@@ -13066,6 +13066,67 @@ mod tests {
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_positioned_then_serial_append_preserves_reserved_high_water() {
+        let (_temp_dir, _config, store) = temp_store();
+        let (warm, _, _) = store
+            .append_preloaded_to_reserved_segment(b"warm", ApplyDurability::Sync, None)
+            .await
+            .expect("initialize active writer");
+        let read_only = store
+            .io
+            .open_persistent_read_file(&store.segment_path(&warm.segment_id))
+            .await
+            .expect("read-only descriptor for injected write failure");
+        let original = store
+            .segment_write_lock
+            .lock()
+            .await
+            .file
+            .replace(Arc::new(read_only))
+            .expect("retain writable descriptor");
+        let sequence = store.pending_seq.load(Ordering::Acquire);
+        assert!(
+            store
+                .append_preloaded_to_reserved_segment(&[0; 4096], ApplyDurability::Sync, None)
+                .await
+                .is_err()
+        );
+        let high_water = store.segment_write_lock.lock().await.len;
+        assert_eq!(high_water, 4 + 4096);
+        assert_eq!(store.pending_seq.load(Ordering::Acquire), sequence);
+        assert!(
+            store
+                .append_reader_to_segment(
+                    &mut tokio::io::empty(),
+                    64,
+                    None,
+                    FileCachePolicy::Bounded,
+                    ApplyDurability::Sync
+                )
+                .await
+                .is_err()
+        );
+        assert!(store.segment_write_lock.lock().await.len_unknown);
+        assert_eq!(store.pending_seq.load(Ordering::Acquire), sequence);
+        store.segment_write_lock.lock().await.file = Some(original);
+        let (next, _, _) = store
+            .append_preloaded_to_reserved_segment(b"next", ApplyDurability::Sync, None)
+            .await
+            .expect("append after failures");
+        assert!(
+            next.offset >= high_water,
+            "reconciliation must not reuse the uncertain reserved tail: {} < {high_water}",
+            next.offset
+        );
+        let bytes = std::fs::read(store.segment_path(&next.segment_id)).expect("segment");
+        assert_eq!(&bytes[..4], b"warm");
+        assert_eq!(
+            &bytes[next.offset as usize..next.offset as usize + 4],
+            b"next"
         );
     }
 
