@@ -422,7 +422,7 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	return b.publish(slot)
 }
 func (b *LocalImages) publish(slot Slot) error {
-	archive := b.image(slot) + ".gz"
+	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")
 	digest, content, err := compressImage(b.image(slot), archive)
@@ -506,7 +506,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".gz", ".checking", ".verified"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

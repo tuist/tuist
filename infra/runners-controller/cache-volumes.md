@@ -78,11 +78,16 @@ The filesystem-specific implementation lives in `../runner-cache/local.go`:
   it through a presigned URL, checks its SHA-256, restores it sparsely, and clones
   it. A failed restoration falls back to ordinary job-local directories through
   the existing client. It never advertises a hit from corrupt data.
-- Raw ext4 images are gzip-compressed for object storage so unwritten space does
-  not require transferring 20 GB. The SHA-1 artifact identifier and SHA-256 checksum
-  describe the compressed object; unlike macOS's inventory digest, the Linux
-  identifier is not a cache-file inventory. Downloads are bounded in compressed
-  and expanded size and verified before installation.
+- Archives hold only the image's data: the agent walks the extents the host
+  filesystem reports with `SEEK_DATA`/`SEEK_HOLE`, drops zero chunks, and stores
+  each remaining run with its offset in a zstd stream. Saving and restoring
+  therefore scale with the data written, not the 20 GB logical size, and the
+  restored image stays sparse. Restoration still accepts the full-image gzip
+  archives published before this format. The SHA-1 artifact identifier and
+  SHA-256 checksum describe the compressed object; unlike macOS's inventory
+  digest, the Linux identifier is not a cache-file inventory. Downloads are
+  bounded in compressed and logical size, extents must stay inside the image,
+  and the checksum is verified before installation.
 - The host agent owns loop devices and mounts. Only `pods/<pod UID>` is exposed
   to that job's runner and DinD containers. Masters, images, journals, tokens and
   signed URLs stay outside workflow mounts. Mount operations reject symlinks.
