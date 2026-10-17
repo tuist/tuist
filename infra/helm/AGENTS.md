@@ -16,10 +16,11 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
-- Xcode 27.1 is added alongside RC with a prepublished bootstrap image pin.
-  Retire RC and migrate its profiles only after this additive chart is deployed
-  and a versioned runner-image release includes stable; remove the bootstrap pin
-  in that retirement change. Keep 26.6 as the default and warm floor.
+- Xcode 27.1 RC retirement requires the additive stable chart already deployed
+  and a published versioned runner image containing stable. Keep 26.6 as the
+  default and warm floor. Follow the prerequisites, rollback floor and required
+  post-rollout reconciliation in
+  [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
 
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
