@@ -626,7 +626,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfiles do
   @impl EMCP.Tool
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns) do
+         {:ok, account} <- RunnerTools.authorize_account(arguments, conn.assigns) do
       profiles = account |> Profiles.list_for_account() |> Enum.map(&RunnerTools.serialize_profile/1)
       MCPTool.json_response(%{profiles: profiles}, __MODULE__)
     else

@@ -126,7 +126,12 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
     setup do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
       account_id = account.id
-      stub(Tuist.Authorization, :authorize, fn :account_update, :subject, %{id: ^account_id} -> :ok end)
+
+      stub(Tuist.Authorization, :authorize, fn action, :subject, %{id: ^account_id}
+                                               when action in [:account_update, :runners_read] ->
+        :ok
+      end)
+
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       %{account: account, conn: %Plug.Conn{assigns: %{current_subject: :subject}}}
     end
@@ -330,11 +335,18 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert Repo.get_by(Profile, account_id: account.id, name: "base")
     end
 
-    test "refuses callers without account administration", %{account: account, conn: conn} do
-      stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> {:error, :forbidden} end)
+    test "lets runner readers list profiles but not change them", %{account: account, conn: conn} do
+      stub(Tuist.Authorization, :authorize, fn
+        :runners_read, :subject, _account -> :ok
+        _action, :subject, _account -> {:error, :forbidden}
+      end)
+
       reject(&Profiles.create/2)
       reject(&Profiles.update/2)
       reject(&Profiles.delete/1)
+
+      assert %{"content" => [%{"text" => text}]} = ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
+      assert is_list(JSON.decode!(text)["profiles"])
 
       assert %{"isError" => true} =
                CreateRunnerProfile.call(conn, %{

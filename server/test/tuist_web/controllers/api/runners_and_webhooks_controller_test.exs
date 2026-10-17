@@ -258,7 +258,18 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
                |> json_response(:not_found)
     end
 
-    test "requires account administration", %{conn: conn, account: account} do
+    test "lets runner readers list profiles but requires account administration to change them", %{
+      conn: conn,
+      account: account
+    } do
+      response =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+        |> get(~p"/api/accounts/#{account.name}/runners/profiles")
+        |> json_response(:ok)
+
+      assert %{"runs_on_label" => "tuist-ci"} = Enum.find(response["profiles"], &(&1["name"] == "ci"))
+
       conn
       |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
       |> put_req_header("content-type", "application/json")

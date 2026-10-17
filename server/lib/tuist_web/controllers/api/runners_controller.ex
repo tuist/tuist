@@ -22,12 +22,9 @@ defmodule TuistWeb.API.RunnersController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Profiles live on the account settings surface, where the dashboard
-  # requires account administrators even for the read-only table. The
-  # operational runner views intentionally remain visible to runner readers.
   plug AuthorizationPlug,
        {:account, :account, :update}
-       when action in [:index_profiles, :create_profile, :update_profile, :delete_profile]
+       when action in [:create_profile, :update_profile, :delete_profile]
 
   plug AuthorizationPlug,
        {:account, :runners}
@@ -38,6 +35,7 @@ defmodule TuistWeb.API.RunnersController do
               :index_job_metrics,
               :index_job_logs,
               :index_workflows,
+              :index_profiles,
               :index_profile_options
             ]
 
