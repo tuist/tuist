@@ -177,6 +177,9 @@ var tuistHTTPDependencies: [Target.Dependency] = [
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
 ]
 var tuistCASDependencies: [Target.Dependency] = [
+    fileSystemDependency,
+    pathDependency,
+    swiftToolsSupportDependency,
     "TuistServer",
     "TuistHTTP",
     "TuistEnvironment",
@@ -1099,6 +1102,8 @@ var targets: [Target] = [
     .testTarget(
         name: "TuistCASTests",
         dependencies: [
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             "TuistCAS",
             "TuistEnvironment",
             "TuistServer",

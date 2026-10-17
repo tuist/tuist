@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistEnvironment
@@ -18,24 +19,35 @@ struct TeardownCacheCommandServiceTests {
     private let subject: TeardownCacheCommandService
     private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()
+    private let installationStore = MockXcodeCacheInstallationStoring()
 
     init() {
         subject = TeardownCacheCommandService(
             launchAgentService: launchAgentService,
             configLoader: configLoader,
-            fileSystem: FileSystem()
+            fileSystem: FileSystem(),
+            installationStore: installationStore
         )
 
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "organization/project"))
 
+        given(installationStore).invalidate().willReturn()
+        let store = installationStore
         given(launchAgentService)
             .teardownLaunchAgent(label: .any, plistFileName: .any)
-            .willReturn()
+            .willProduce { _, _ in
+                verify(store).invalidate().called(1)
+            }
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func teardownCache() async throws {
+        let environment = try #require(Environment.mocked)
+        let plugin = environment.casPluginInstallPath()
+        try await FileSystem().makeDirectory(at: plugin.parentDirectory)
+        try await FileSystem().writeText("plugin", at: plugin)
+
         // When
         try await subject.run(path: nil)
 
@@ -53,6 +65,8 @@ struct TeardownCacheCommandServiceTests {
             )
             .called(1)
 
+        verify(installationStore).invalidate().called(1)
+        #expect(try await FileSystem().readTextFile(at: plugin) == "plugin")
         TuistTest.expectLogs("Xcode Cache has been torn down 🧹")
     }
 
@@ -70,6 +84,28 @@ struct TeardownCacheCommandServiceTests {
         // Then
         let socketStillExists = try await fileSystem.exists(socketPath)
         #expect(socketStillExists == false)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownCache_invalidatesMetadataEvenIfRemovingTheAgentFails() async throws {
+        let error = NSError(domain: "test", code: 1)
+        launchAgentService.reset()
+        given(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).willThrow(error)
+
+        await #expect(throws: error) { try await subject.run(path: nil) }
+
+        verify(installationStore).invalidate().called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownCache_doesNotRemoveTheAgentIfInvalidatingMetadataFails() async throws {
+        let error = NSError(domain: "test", code: 1)
+        installationStore.reset()
+        given(installationStore).invalidate().willThrow(error)
+
+        await #expect(throws: error) { try await subject.run(path: nil) }
+
+        verify(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func teardownCache_succeedsWhenSocketFileMissing() async throws {
@@ -90,7 +126,8 @@ struct TeardownCacheCommandServiceTests {
             .called(1)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedLogger()) func teardownCache_tearsDownProxyWhenFullHandleMissing() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func teardownCache_tearsDownProxyWhenFullHandleMissing() async throws {
         // Given
         configLoader.reset()
         given(configLoader)

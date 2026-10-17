@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -6,7 +8,9 @@ import TuistAlert
 import TuistCache
 import TuistCAS
 import TuistConfig
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistOpener
 import TuistServer
@@ -26,6 +30,7 @@ struct GenerateServiceTests {
     private var clock: StubClock!
     private var configLoader: MockConfigLoading!
     private var generationMetadataStore: MockGenerationMetadataStoring!
+    private let cacheInstallationChecker = MockXcodeCacheInstallationStoring()
 
     init() {
         opener = .init()
@@ -33,6 +38,9 @@ struct GenerateServiceTests {
         generatorFactory = .init()
         configLoader = .init()
         generationMetadataStore = .init()
+        given(cacheInstallationChecker)
+            .warning(developerDirectory: .any, xcodeBuildVersion: .any, tuistVersion: .any)
+            .willReturn(nil)
         given(generationMetadataStore).store(generationId: .any, for: .any).willReturn()
         given(generationMetadataStore).prune().willReturn()
         given(generatorFactory)
@@ -55,8 +63,114 @@ struct GenerateServiceTests {
             clock: clock,
             opener: opener,
             configLoader: configLoader,
-            generationMetadataStore: generationMetadataStore
+            generationMetadataStore: generationMetadataStore,
+            cacheInstallationChecker: cacheInstallationChecker
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedXcodeController, arguments: [true, false])
+    func run_checks_cache_installation_only_when_remote_caching_is_enabled(enabled: Bool) async throws {
+        let xcodeController = try #require(XcodeController.mocked)
+        given(xcodeController).developerDirectory().willReturn("/Applications/Xcode.app/Contents/Developer")
+        given(xcodeController).selectedBuildVersion().willReturn("17F113")
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: enabled))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+        cacheInstallationChecker.reset()
+        given(cacheInstallationChecker)
+            .warning(developerDirectory: .any, xcodeBuildVersion: .any, tuistVersion: .any)
+            .willReturn("Xcode Cache setup needs attention")
+        let alerts = AlertController()
+
+        try await AlertController.$current.withValue(alerts) {
+            try await subject.run(
+                path: nil, includedTargets: [], noOpen: true, configuration: nil,
+                ignoreBinaryCache: false, cacheProfile: nil
+            )
+        }
+
+        verify(cacheInstallationChecker)
+            .warning(
+                developerDirectory: .value("/Applications/Xcode.app/Contents/Developer"),
+                xcodeBuildVersion: .value("17F113"),
+                tuistVersion: .value(Constants.version)
+            )
+            .called(enabled ? 1 : 0)
+        #expect(alerts.warnings().count == (enabled ? 1 : 0))
+        if enabled {
+            let warning = try #require(alerts.warnings().first)
+            #expect(warning.takeaway?.plain().contains("tuist setup cache") == true)
+            #expect(warning.takeaway?.plain().contains("quit and reopen Xcode") == true)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedXcodeController)
+    func run_checks_setup_without_failing_generation_when_xcode_cannot_be_resolved() async throws {
+        let xcodeController = try #require(XcodeController.mocked)
+        let error = NSError(domain: "test", code: 1)
+        given(xcodeController).developerDirectory().willThrow(error)
+        given(xcodeController).selectedBuildVersion().willThrow(error)
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker)
+            .warning(developerDirectory: .value(nil), xcodeBuildVersion: .value(nil), tuistVersion: .value(Constants.version))
+            .called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedEnvironment(),
+        arguments: ["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
+    )
+    func run_does_not_check_custom_cache_integrations(override: String) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables[override] = "/custom/cache"
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker)
+            .warning(developerDirectory: .any, xcodeBuildVersion: .any, tuistVersion: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_does_not_check_local_only_caching() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker)
+            .warning(developerDirectory: .any, xcodeBuildVersion: .any, tuistVersion: .any)
+            .called(0)
     }
 
     @Test func throws_when_the_configuration_is_not_for_a_generated_project() async {

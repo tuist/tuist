@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
 import TuistLaunchctl
@@ -11,15 +12,18 @@ struct TeardownCacheCommandService {
     private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
+    private let installationStore: XcodeCacheInstallationStoring
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        installationStore: XcodeCacheInstallationStoring? = nil
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
+        self.installationStore = installationStore ?? XcodeCacheInstallationStore(fileSystem: fileSystem)
     }
 
     func run(
@@ -28,6 +32,7 @@ struct TeardownCacheCommandService {
         // The proxy is one machine-wide agent, not per-project, so tearing it
         // down needs no fullHandle.
         let proxyLabel = Environment.current.casProxyLaunchAgentLabel()
+        try await installationStore.invalidate()
         try await launchAgentService.teardownLaunchAgent(
             label: proxyLabel,
             plistFileName: "\(proxyLabel).plist"

@@ -2,8 +2,10 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
+import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistGenerator
@@ -29,6 +31,7 @@ public struct GenerateService {
     private let installService: InstallServicing
     private let outdatedDependenciesChecker: OutdatedDependenciesChecking
     private let generationMetadataStore: GenerationMetadataStoring
+    private let cacheInstallationChecker: XcodeCacheInstallationStoring
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -38,7 +41,8 @@ public struct GenerateService {
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
     ) {
         self.init(
             cacheStorageFactory: cacheStorageFactory,
@@ -50,7 +54,8 @@ public struct GenerateService {
             configLoader: configLoader,
             installService: InstallService(),
             outdatedDependenciesChecker: OutdatedDependenciesChecker(),
-            generationMetadataStore: generationMetadataStore
+            generationMetadataStore: generationMetadataStore,
+            cacheInstallationChecker: cacheInstallationChecker
         )
     }
 
@@ -64,7 +69,8 @@ public struct GenerateService {
         configLoader: ConfigLoading = ConfigLoader(),
         installService: InstallServicing,
         outdatedDependenciesChecker: OutdatedDependenciesChecking,
-        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -76,6 +82,7 @@ public struct GenerateService {
         self.installService = installService
         self.outdatedDependenciesChecker = outdatedDependenciesChecker
         self.generationMetadataStore = generationMetadataStore
+        self.cacheInstallationChecker = cacheInstallationChecker
     }
 
     public func run(
@@ -108,6 +115,8 @@ public struct GenerateService {
                 errorMessageOverride:
                 "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
+
+        await checkCacheInstallation(config: config)
 
         if let generatedProject = config.project.generatedProject,
            try await outdatedDependenciesChecker.packageDependenciesAreOutdated(at: path)
@@ -158,6 +167,23 @@ public struct GenerateService {
     }
 
     // MARK: - Helpers
+
+    private func checkCacheInstallation(config: Tuist) async {
+        guard config.fullHandle != nil, config.project.generatedProject?.generationOptions.enableCaching == true,
+              !["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
+              .contains(where: { !(Environment.current.variables[$0] ?? "").isEmpty })
+        else { return }
+        if let warning = await cacheInstallationChecker.warning(
+            developerDirectory: try? await XcodeController.current.developerDirectory(),
+            xcodeBuildVersion: try? await XcodeController.current.selectedBuildVersion(),
+            tuistVersion: Constants.version
+        ) {
+            AlertController.current.warning(.alert(
+                "\(warning)",
+                takeaway: "When no builds are running, run \(.command("tuist setup cache")) with the intended Tuist and Xcode versions, then fully quit and reopen Xcode. Generation has not changed the shared cache service."
+            ))
+        }
+    }
 
     /// Mints a generation identifier, records it on the run so the generate command event carries it
     /// alongside the uploaded graph, and persists it keyed by the generated workspace so a later

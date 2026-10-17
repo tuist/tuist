@@ -3,6 +3,8 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistAlert
+import TuistCAS
+import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -19,7 +21,7 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case notAuthenticated
     case cacheDaemonNotReady(label: String, socketPath: String, logPath: String)
     case registryNotReplaced(String, Int32)
-    case registryNotLocked(String, Int32)
+    case fileNotLocked(String, Int32)
     case casPluginNotInstalled(String, Int32)
 
     var errorDescription: String? {
@@ -35,8 +37,8 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
                 "The Xcode cache daemon '\(label)' did not start listening at \(socketPath), so its launch agent was stopped. Check the daemon log at \(logPath), address the reported error, and run `tuist setup cache` again."
         case let .registryNotReplaced(path, code):
             return "Could not update the cache proxy's registry at \(path) (errno \(code))."
-        case let .registryNotLocked(path, code):
-            return "Could not lock the cache proxy's registry at \(path) (errno \(code))."
+        case let .fileNotLocked(path, code):
+            return "Could not lock \(path) (errno \(code))."
         case let .casPluginNotInstalled(path, code):
             return "Could not install the Xcode cache plugin at \(path) (errno \(code))."
         }
@@ -102,6 +104,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private let resourceLocator: ResourceLocating
     private let xcodeController: XcodeControlling
     private let cacheDaemonStartupTimeout: Duration
+    private let installationStore: XcodeCacheInstallationStoring
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
@@ -115,7 +118,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         cacheSocketService: CacheSocketServicing = CacheSocketService(),
         resourceLocator: ResourceLocating = ResourceLocator(),
         xcodeController: XcodeControlling = XcodeController.current,
-        cacheDaemonStartupTimeout: Duration = .seconds(10)
+        cacheDaemonStartupTimeout: Duration = .seconds(10),
+        installationStore: XcodeCacheInstallationStoring? = nil
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
@@ -129,6 +133,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         self.resourceLocator = resourceLocator
         self.xcodeController = xcodeController
         self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
+        self.installationStore = installationStore ?? XcodeCacheInstallationStore(fileSystem: fileSystem)
     }
 
     /// The project's default branch, which is what a trunk-scoped cache snapshot is
@@ -207,7 +212,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         // first, so it reads the already-updated registry and upserts onto it.
         let lockPath = sourcesPath.parentDirectory
             .appending(component: "\(sourcesPath.basename).lock")
-        try await withRegistryLock(at: lockPath) {
+        try await withFileLock(at: lockPath) {
             // Read every other project back: this rewrites the whole file, so
             // anything lost here is a project silently losing its policy. A
             // registry we cannot decode therefore fails the command rather than
@@ -257,21 +262,26 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         }
     }
 
-    /// Runs `body` while holding an exclusive advisory lock on `lockPath`, so two
-    /// `tuist setup cache` processes cannot interleave a read-modify-write of the
-    /// registry. The lock file is created on demand and never removed: deleting
-    /// it would reopen the race it closes. `flock` is released when the descriptor
-    /// closes, including on a crash, so a killed setup cannot wedge the next one.
-    private func withRegistryLock(at lockPath: AbsolutePath, _ body: () async throws -> Void) async throws {
+    /// Serializes cooperating processes using an advisory lock. Keep the lock
+    /// file in place: deleting it would let another process lock a different inode.
+    /// Closing the descriptor releases the lock, including when setup crashes.
+    private func withFileLock(at lockPath: AbsolutePath, _ body: () async throws -> Void) async throws {
         let descriptor = open(lockPath.pathString, O_CREAT | O_RDWR, 0o644)
         guard descriptor >= 0 else {
-            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+            throw SetupCacheCommandServiceError.fileNotLocked(lockPath.pathString, errno)
         }
         defer { close(descriptor) }
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+        // Setup can hold this lock across proxy shutdown and readiness waits.
+        // Poll without blocking a cooperative executor thread, and allow cancellation.
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            let code = errno
+            guard code == EWOULDBLOCK || code == EINTR else {
+                throw SetupCacheCommandServiceError.fileNotLocked(lockPath.pathString, code)
+            }
+            try await Task.sleep(for: .milliseconds(50))
         }
         defer { flock(descriptor, LOCK_UN) }
+        try Task.checkCancellation()
         try await body()
     }
 
@@ -341,20 +351,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             throw SetupCacheCommandServiceError.notAuthenticated
         }
 
-        // Register BEFORE starting the proxy. The proxy prefetches a snapshot for
-        // every instance it already knows as soon as it boots, and it keys that
-        // snapshot by instance alone: if it starts first, an upgraded machine
-        // prefetches an unscoped view and keeps serving it until the next full
-        // refresh, however promptly the mapping lands afterwards.
-        try await registerSource(
-            fullHandle: fullHandle,
-            trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
-            branch: await ciBranch(sourceRoot: path),
-            upload: config.xcodeCache.upload,
-            storeSizeLimit: config.xcodeCache.storeSizeLimit
-        )
-        let casPlugin = try await installCASPlugin()
-        try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+        let casPlugin = try await installCache(config: config, fullHandle: fullHandle, path: path, serverURL: serverURL)
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
@@ -419,6 +416,45 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         }
     }
 
+    private func installCache(
+        config: Tuist,
+        fullHandle: String,
+        path: AbsolutePath,
+        serverURL: URL
+    ) async throws -> AbsolutePath? {
+        let trunk = await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
+        let branch = await ciBranch(sourceRoot: path)
+        let installationDirectory = Environment.current.casPluginInstallPath().parentDirectory
+        try await fileSystem.makeDirectory(at: installationDirectory)
+        var casPlugin: AbsolutePath?
+        // Serialize setups that honor this lock. Older CLIs and active builds
+        // do not participate, so setup must still run only when builds are idle.
+        try await withFileLock(at: installationDirectory.appending(component: "cas-setup.lock")) {
+            try await installationStore.invalidate()
+            // Register before starting the proxy, whose startup snapshot must use
+            // the project's trunk and upload policy from its very first request.
+            try await registerSource(
+                fullHandle: fullHandle,
+                trunk: trunk,
+                branch: branch,
+                upload: config.xcodeCache.upload,
+                storeSizeLimit: config.xcodeCache.storeSizeLimit
+            )
+            try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+            casPlugin = try await installCASPlugin()
+            do {
+                try await installationStore.record(
+                    pluginInstalled: casPlugin != nil,
+                    xcodeBuildVersion: try? await xcodeController.selectedBuildVersion(),
+                    tuistVersion: Constants.version
+                )
+            } catch {
+                Logger.current.debug("Could not record the Xcode Cache installation: \(error.localizedDescription)")
+            }
+        }
+        return casPlugin
+    }
+
     /// The `COMPILATION_CACHE_PLUGIN_PATH` value for the manual build-setting
     /// instructions, and a note to append to them when there is no plugin to point at.
     private func pluginPathInstructions(_ casPlugin: AbsolutePath?) -> (path: String, missingPluginNote: String) {
@@ -443,7 +479,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private func installCASPlugin() async throws -> AbsolutePath? {
         guard let plugin = try await resourceLocator.casPlugin() else { return nil }
         let installPath = Environment.current.casPluginInstallPath()
-        if FileManager.default.contentsEqual(atPath: plugin.pathString, andPath: installPath.pathString) {
+        let pluginData = try await fileSystem.readFile(at: plugin)
+        if (try? await fileSystem.readFile(at: installPath)) == pluginData {
             return installPath
         }
 
