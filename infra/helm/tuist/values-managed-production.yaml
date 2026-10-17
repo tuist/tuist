@@ -226,11 +226,6 @@ server:
     # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
-    # Kura on a rack node exports traces to the Alloy receiver at its tailnet
-    # name (infra/helm/k8s-monitoring values-production.yaml): it reaches no
-    # cluster Service.
-    - name: TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT
-      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4318/v1/traces
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
