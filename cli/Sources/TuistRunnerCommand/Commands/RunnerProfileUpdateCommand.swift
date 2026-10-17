@@ -27,18 +27,28 @@ public struct RunnerProfileUpdateCommand: AsyncParsableCommand, NooraReadyComman
 
     @OptionGroup var options: RunnerProfileOptions
 
+    var changes: RunnerProfileChanges {
+        RunnerProfileChanges(
+            vcpus: vcpus,
+            memoryGB: memoryGB,
+            xcodeVersion: xcodeVersion,
+            saveCacheFromDefaultBranch: cacheOptions.saveCacheFromDefaultBranch,
+            saveCacheFromBranches: cacheOptions.branches
+        )
+    }
+
     public var jsonThroughNoora: Bool { true }
+
+    public func validate() throws {
+        if changes == RunnerProfileChanges() {
+            throw ValidationError("Pass at least one option to change.")
+        }
+    }
 
     public func run() async throws {
         try await RunnerProfileUpdateCommandService().run(
             name: name,
-            changes: RunnerProfileChanges(
-                vcpus: vcpus,
-                memoryGB: memoryGB,
-                xcodeVersion: xcodeVersion,
-                saveCacheFromDefaultBranch: cacheOptions.saveCacheFromDefaultBranch,
-                saveCacheFromBranches: cacheOptions.branches
-            ),
+            changes: changes,
             account: options.account,
             path: options.path,
             json: options.json

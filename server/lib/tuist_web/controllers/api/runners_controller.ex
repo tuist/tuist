@@ -4,7 +4,6 @@ defmodule TuistWeb.API.RunnersController do
 
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
-  alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -585,13 +584,7 @@ defmodule TuistWeb.API.RunnersController do
 
   def index_profile_options(%{assigns: %{selected_account: account}} = conn, _params) do
     if FeatureFlags.runners_enabled?(account) do
-      json(conn, %{
-        shapes:
-          for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
-            %{platform: platform, vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
-          end,
-        xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
-      })
+      json(conn, Profiles.options())
     else
       runners_unavailable(conn)
     end

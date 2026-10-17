@@ -4,7 +4,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
-  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
 
@@ -333,16 +332,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     }
   end
 
-  def profile_options do
-    %{
-      shapes:
-        for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
-          %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
-        end,
-      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
-    }
-  end
-
   def fetch_profile(account, name) do
     case Profiles.get_by_name(account, name) do
       %Profile{} = profile -> {:ok, profile}
@@ -667,6 +656,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfileOptions do
 
   alias Tuist.MCP.Components.Tools.RunnerTools
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profiles
 
   @impl EMCP.Tool
   def description,
@@ -677,7 +667,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfileOptions do
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
          {:ok, _account} <- RunnerTools.authorize_account(arguments, conn.assigns) do
-      MCPTool.json_response(RunnerTools.profile_options(), __MODULE__)
+      MCPTool.json_response(Profiles.options(), __MODULE__)
     else
       {:error, message} -> EMCP.Tool.error(message)
     end

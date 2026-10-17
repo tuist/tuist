@@ -35,8 +35,10 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
     public var jsonThroughNoora: Bool { true }
 
     public func validate() throws {
-        if platform == .macos, xcodeVersion == nil {
-            throw ValidationError("Pass --xcode-version for a macOS profile.")
+        switch (platform, xcodeVersion) {
+        case (.macos, nil): throw ValidationError("Pass --xcode-version for a macOS profile.")
+        case (.linux, .some): throw ValidationError("--xcode-version only applies to macOS profiles.")
+        default: break
         }
     }
 

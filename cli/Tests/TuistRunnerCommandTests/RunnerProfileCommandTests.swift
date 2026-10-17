@@ -28,10 +28,10 @@ struct RunnerProfileCommandTests {
         #expect(command.options.account == "acme")
         #expect(command.options.json)
 
-        let unchanged = try RunnerProfileUpdateCommand.parse(["ci"])
-        #expect(unchanged.vcpus == nil)
-        #expect(unchanged.cacheOptions.branches == nil)
-        #expect(unchanged.cacheOptions.saveCacheFromDefaultBranch == nil)
+        #expect(throws: (any Error).self) { try RunnerProfileUpdateCommand.parse(["ci"]) }
+
+        let resized = try RunnerProfileUpdateCommand.parse(["ci", "--xcode-version", "26.4.1"])
+        #expect(resized.changes == RunnerProfileChanges(xcodeVersion: "26.4.1"))
 
         let cleared = try RunnerProfileUpdateCommand.parse(["ci", "--clear-save-cache-from"])
         #expect(cleared.cacheOptions.branches == [])
@@ -44,6 +44,11 @@ struct RunnerProfileCommandTests {
     @Test func requiresAnXcodeVersionForMacOSProfilesAndConfirmationToDelete() throws {
         #expect(throws: (any Error).self) {
             try RunnerProfileCreateCommand.parse(["ci", "--platform", "macos", "--vcpus", "6", "--memory-gb", "14"])
+        }
+        #expect(throws: (any Error).self) {
+            try RunnerProfileCreateCommand.parse([
+                "ci", "--platform", "linux", "--vcpus", "2", "--memory-gb", "8", "--xcode-version", "26.5",
+            ])
         }
         let command = try RunnerProfileCreateCommand.parse([
             "ci", "--platform", "macos", "--vcpus", "6", "--memory-gb", "14", "--xcode-version", "26.5",

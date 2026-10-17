@@ -286,6 +286,26 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{vcpus: 8, memory_gb: 32} = Repo.get_by!(Profile, account_id: account.id, name: "ci")
     end
 
+    test "changes only a macOS profile's Xcode version", %{account: account, conn: conn} do
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "xcode",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        xcode_version: "26.5"
+      })
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfile.call(conn, %{
+                 "account_handle" => account.name,
+                 "profile_name" => "xcode",
+                 "xcode_version" => "26.4.1"
+               })
+
+      assert %{"vcpus" => 6, "memory_gb" => 14, "xcode_version" => "26.4.1"} = JSON.decode!(text)
+    end
+
     test "deletes a profile but not a default one", %{account: account, conn: conn} do
       Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 2, memory_gb: 8})
 

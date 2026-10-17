@@ -229,6 +229,19 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
+  The shapes and Xcode versions a profile can use, for API and agent clients.
+  """
+  def options do
+    %{
+      shapes:
+        for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
+          %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
+        end,
+      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
+    }
+  end
+
+  @doc """
   Describes a failed profile mutation in one message for API and agent
   clients. An unavailable shape or Xcode version lists the catalog's options.
   """

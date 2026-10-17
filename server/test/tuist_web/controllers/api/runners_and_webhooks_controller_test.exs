@@ -195,13 +195,20 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     test "creates, resizes, and deletes a profile", %{conn: conn, user: user, account: account} do
       conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
 
-      assert %{"name" => "linux-4vcpu", "vcpus" => 4, "memory_gb" => 8, "runs_on_label" => "tuist-linux-4vcpu"} =
+      assert %{
+               "name" => "linux-4vcpu",
+               "vcpus" => 4,
+               "memory_gb" => 8,
+               "protected" => false,
+               "runs_on_label" => "tuist-linux-4vcpu"
+             } =
                conn
                |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
                  name: "linux-4vcpu",
                  platform: "linux",
                  vcpus: 4,
-                 memory_gb: 8
+                 memory_gb: 8,
+                 protected: true
                })
                |> json_response(:created)
 
