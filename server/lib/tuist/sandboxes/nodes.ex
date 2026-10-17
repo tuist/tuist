@@ -24,6 +24,8 @@ defmodule Tuist.Sandboxes.Nodes do
   @presence_topic "sandbox_nodes"
   @default_timeout to_timeout(minute: 1)
   @long_timeout to_timeout(second: 120)
+  @presence_wait_ms 10_000
+  @presence_poll_ms 250
 
   def presence_topic, do: @presence_topic
 
@@ -71,6 +73,55 @@ defmodule Tuist.Sandboxes.Nodes do
 
   def lookup(_node_name), do: {:error, :not_connected}
 
+  @doc """
+  How long callers wait for a node to become visible before treating it
+  as not connected. A replica that has just started takes traffic a few
+  seconds before it has joined the cluster and received its presences,
+  and a node that has just reconnected is invisible while it does; both
+  are gaps of seconds, not disconnections.
+  """
+  def presence_wait_ms do
+    :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:presence_wait_ms, @presence_wait_ms)
+  end
+
+  @doc """
+  `lookup/1`, waiting up to `wait_ms` for the node to become visible.
+  """
+  def await_lookup(node_name, wait_ms \\ presence_wait_ms()) do
+    await(
+      fn ->
+        case lookup(node_name) do
+          {:ok, _pid, _info} = found -> found
+          not_found -> {:retry, not_found}
+        end
+      end,
+      wait_ms
+    )
+  end
+
+  @doc """
+  Calls `fun` until it returns something other than `{:retry, last}`, for
+  at most `wait_ms`, and then answers `last`.
+  """
+  def await(fun, wait_ms) when is_function(fun, 0) and is_integer(wait_ms) do
+    do_await(fun, System.monotonic_time(:millisecond) + wait_ms)
+  end
+
+  defp do_await(fun, deadline) do
+    case fun.() do
+      {:retry, last} ->
+        if System.monotonic_time(:millisecond) >= deadline do
+          last
+        else
+          Process.sleep(@presence_poll_ms)
+          do_await(fun, deadline)
+        end
+
+      result ->
+        result
+    end
+  end
+
   def connected?(node_name) do
     match?({:ok, _pid, _info}, lookup(node_name))
   end
@@ -100,12 +151,16 @@ defmodule Tuist.Sandboxes.Nodes do
       and 60s otherwise.
     * `:on_stream` a one-arity function receiving `{:stdout | :stderr,
       binary}` for every stream frame the node emits before the result.
+    * `:presence_wait_ms` how long to wait for a node that is not visible
+      yet (`presence_wait_ms/0` by default, capped by the timeout).
   """
   def call(node_name, op, args, opts) when is_map(args) and is_list(opts) do
     timeout = Keyword.get(opts, :timeout, default_timeout(op))
     on_stream = Keyword.get(opts, :on_stream)
 
-    with {:ok, pid, _info} <- lookup(node_name) do
+    presence_wait = min(Keyword.get(opts, :presence_wait_ms, presence_wait_ms()), timeout)
+
+    with {:ok, pid, _info} <- await_lookup(node_name, presence_wait) do
       ref = make_ref()
       monitor = Process.monitor(pid)
       :ok = PubSub.broadcast(@pubsub, topic(node_name), {:sandbox_command, ref, to_string(op), args, self()})
