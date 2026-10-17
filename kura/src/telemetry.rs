@@ -16,7 +16,10 @@ use opentelemetry_sdk::{
     propagation::TraceContextPropagator,
     trace::{Sampler, SdkTracerProvider},
 };
-use sentry::{ClientInitGuard, ClientOptions};
+use sentry::{
+    ClientInitGuard, ClientOptions,
+    integrations::tracing::{EventFilter, SentryLayer, default_event_filter},
+};
 use tracing::{Span, field, info, warn};
 use tracing_opentelemetry::{OpenTelemetrySpanExt, SetParentError};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -72,7 +75,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .with(env_filter)
                     .with(fmt_layer)
                     .with(tracing_opentelemetry::layer().with_tracer(tracer))
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry_layer())
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -99,7 +102,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 tracing_subscriber::registry()
                     .with(env_filter)
                     .with(fmt_layer)
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry_layer())
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -125,7 +128,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 tracing_subscriber::registry()
                     .with(env_filter)
                     .with(fmt_layer)
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry_layer())
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -199,6 +202,26 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
         server_name: Some(config.otel_service_name.clone().into()),
         ..Default::default()
     }))
+}
+
+// The OpenTelemetry SDK logs every failed batch export at ERROR. A collector
+// that is briefly unreachable is not a Kura fault and is already in the logs,
+// so keep those as breadcrumbs instead of Sentry issues.
+fn sentry_layer<S>() -> SentryLayer<S>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    sentry::integrations::tracing::layer().event_filter(|metadata| {
+        if is_opentelemetry_target(metadata.target()) {
+            EventFilter::Breadcrumb
+        } else {
+            default_event_filter(metadata)
+        }
+    })
+}
+
+fn is_opentelemetry_target(target: &str) -> bool {
+    target.starts_with("opentelemetry")
 }
 
 fn build_tracer_provider(
@@ -416,9 +439,29 @@ mod tests {
     use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
     use super::{
-        OtlpTraceProtocol, export_timeout, otlp_http_client_builder, otlp_trace_exporter_config,
-        should_warn_about_parent_context_error,
+        OtlpTraceProtocol, export_timeout, is_opentelemetry_target, otlp_http_client_builder,
+        otlp_trace_exporter_config, should_warn_about_parent_context_error,
     };
+
+    #[test]
+    fn opentelemetry_internal_targets_are_recognized() {
+        for target in [
+            "opentelemetry",
+            "opentelemetry_sdk",
+            "opentelemetry-otlp",
+            "opentelemetry-http",
+        ] {
+            assert!(is_opentelemetry_target(target), "{target}");
+        }
+        for target in [
+            "kura",
+            "kura::telemetry",
+            "reqwest",
+            "tracing_opentelemetry",
+        ] {
+            assert!(!is_opentelemetry_target(target), "{target}");
+        }
+    }
 
     struct StalledResolver;
 
