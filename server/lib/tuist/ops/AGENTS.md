@@ -20,6 +20,7 @@ This context owns ops reporting workers.
 ## Guardrails
 - If changes add or modify stored customer data, update `server/data-export.md`.
 - Preserve the ClickHouse query limits and keep external table functions, cluster table functions, and unrestricted system metadata inaccessible.
+- Keep ClickHouse processing blocks independent of the requested result limit. The outer SQL limit and result limits bound output; sizing processing blocks to a one-row response makes large aggregations time out.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`
