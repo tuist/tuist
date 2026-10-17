@@ -29,6 +29,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Publish synchronously after verification: compress, preflight, upload,
   fast-forward, then install the accepted master. Bound compressed and expanded
   downloads and verify checksums. Require reflinks without byte-copy fallback.
+- Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
+  save and restore cost scales with data, not the logical image size. Restore
+  must keep accepting legacy full-image gzip masters until they age out.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
