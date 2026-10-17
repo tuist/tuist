@@ -678,6 +678,100 @@ defmodule TuistEx.Cache.ReapiTest do
     assert String.downcase(request) =~ "authorization: bearer api-token"
   end
 
+  test "the runner endpoint override skips discovery and supports remote writes and hits", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    project = "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string())
+
+    options = [
+      url: server_url,
+      project: project,
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> "http://127.1:#{port}"
+        _ -> nil
+      end
+    ]
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "https://unreachable.invalid"], "runner-build", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [request] = Task.await(requests)
+    assert request =~ "POST /api/cache/token?"
+    assert session.invocation_id == "runner-build"
+    assert :sys.get_state(session.channel.adapter_payload.conn_pid).conn.hostname == "127.1"
+
+    key = Key.build(:runner_override)
+    assert :miss = Reapi.get(session, key, :jason)
+    assert {:ok, uploaded} = Reapi.put(session, key, :jason, "runner-artifact")
+    assert uploaded.write_source == "remote"
+    assert {:ok, "runner-artifact", downloaded} = Reapi.get(session, key, :jason)
+    assert downloaded.read_source == "remote"
+    assert Agent.get(store, & &1.actions) != %{}
+
+    for {headers, metadata} <- Agent.get(store, & &1.metadata) do
+      assert headers["authorization"] == "Bearer scoped-cache-token"
+      assert metadata.tool_details.tool_name == "mix"
+      assert metadata.tool_invocation_id == "runner-build"
+      assert metadata.target_id == "jason"
+      assert metadata.action_id == key
+    end
+  end
+
+  test "discovery cannot opt a non-localhost endpoint into plaintext", %{store: store} do
+    {server_url, requests} =
+      serve_responses([
+        %{endpoints: ["http://cache.example.com"]},
+        %{token: "scoped-cache-token"}
+      ])
+
+    options = cache_options(server_url, store)
+    assert Reapi.open([], "insecure-discovery", options) == nil
+    assert [discovery, token] = Task.await(requests)
+    assert discovery =~ "/api/cache/endpoints?"
+    assert token =~ "/api/cache/token?"
+  end
+
+  test "a project endpoint option still rejects non-localhost plaintext", %{store: store} do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+    assert Reapi.open([endpoint: "http://cache.example.com"], "project-endpoint", options) == nil
+    assert [_token] = Task.await(requests)
+  end
+
+  test "an empty environment override falls back to the project endpoint", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "http://127.0.0.1:#{port}"], "empty-override", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [_token] = Task.await(requests)
+  end
+
+  test "invalid overrides fail locally without falling back to discovery", %{store: store} do
+    for endpoint <- [
+          "not-a-url",
+          "http://user:password@cache.example.com",
+          "http://cache.example.com/artifacts",
+          "http://cache.example.com?token=secret",
+          "http://cache.example.com#fragment"
+        ] do
+      {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+      options = cache_options(server_url, store, endpoint)
+      assert Reapi.open([], "invalid-override", options) == nil
+      assert [request] = Task.await(requests)
+      assert request =~ "POST /api/cache/token?"
+    end
+  end
+
   test "endpoint discovery requests Kura using the shared client feature flag header", %{
     port: port,
     store: store
@@ -724,6 +818,45 @@ defmodule TuistEx.Cache.ReapiTest do
     refute String.downcase(discovery) =~ "x-tuist-client-feature-flags"
     assert token =~ "/api/cache/token?"
     assert session.project == store |> :erlang.pid_to_list() |> List.to_string()
+  end
+
+  defp cache_options(server_url, store, endpoint \\ nil) do
+    [
+      url: server_url,
+      project: "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string()),
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> endpoint
+        _ -> nil
+      end
+    ]
+  end
+
+  defp serve_responses(responses) do
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    {:ok, port} = :inet.port(listener)
+    on_exit(fn -> :gen_tcp.close(listener) end)
+
+    requests =
+      Task.async(fn ->
+        for response <- responses do
+          {:ok, socket} = :gen_tcp.accept(listener, 5_000)
+          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
+          body = JSON.encode!(response)
+
+          :ok =
+            :gen_tcp.send(
+              socket,
+              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{byte_size(body)}\r\nConnection: close\r\n\r\n" <>
+                body
+            )
+
+          :gen_tcp.close(socket)
+          request
+        end
+      end)
+
+    {"http://127.0.0.1:#{port}", requests}
   end
 
   test "evicted CAS content is a recoverable miss and does not disable later uploads", %{
