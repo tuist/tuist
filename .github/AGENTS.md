@@ -259,3 +259,29 @@ recompiles every first-party module; the volume only spares the pinned
 third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
+
+## Runners acceptance
+
+`workflows/runners-acceptance.yml` runs a job on each Tuist Runners fleet of an
+environment and fails, naming the layer, when dispatch, the server's OIDC token,
+Kura reachability, Kura auth, the Kura data path, Xcode cache setup or remote
+cache hits break. Its scripts and fixture live in `scripts/runners-acceptance/`.
+The deploy cascade's `runners-acceptance` job runs it against canary through
+`gate.sh` and gates `production` on it; the hourly schedule runs it against
+production's rented fleet, the BER1 rack and the Linux pool.
+
+- A job no runner picks up stays queued for a day and `timeout-minutes` ignores
+  that wait, so the in-run dispatch watchdog fails and cancels the run past the
+  pickup bound. That is why the gate dispatches a separate run instead of
+  calling the workflow: cancelling it must not cancel the cascade.
+- Health checks are not enough: a Kura that cannot reach the server's token
+  introspection answers `/up` and degrades every lookup into a slow miss. Keep
+  the authenticated blob round trip and the rebuild from an empty local CAS,
+  which must be fully served remotely, and fail on any cache error the builds
+  or the proxy log.
+- The fixture is salted per run so the rebuild can only hit what that run
+  published. Keep probe job names starting with `macOS ` or `Linux `; the
+  watchdog finds the jobs it bounds by name.
+- To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
+  wrong URL; it skips the expected-host check and overrides what dispatch hands
+  each job.

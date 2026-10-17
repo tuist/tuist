@@ -52,7 +52,7 @@ jobs:
     steps:
       - id: plan
         env:
-          ENVIRONMENT: ${{ inputs.environment || 'canary' }}
+          ENVIRONMENT: ${{ inputs.environment || 'production' }}
         # Canary has one rented Mac mini, its own runner-cache region on the
         # Elastic Metal node beside it, and a Linux pool. The BER1 rack is a
         # production fleet only. `tuist-runners-acceptance` is a pool on
@@ -69,7 +69,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
+              macos='[{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
               linux='[{"name":"default","label":"tuist-linux"}]'
               ;;
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
