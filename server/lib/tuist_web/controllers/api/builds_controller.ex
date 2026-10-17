@@ -136,7 +136,7 @@ defmodule TuistWeb.API.BuildsController do
         type: %Schema{
           title: "BuildsIndexPage",
           description:
-            "The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.",
+            "The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.",
           type: :integer,
           minimum: 1
         }
@@ -458,7 +458,9 @@ defmodule TuistWeb.API.BuildsController do
 
   defp build_pagination(%{before: before, page_size: page_size}), do: %{last: page_size, before: before}
 
-  defp build_pagination(params), do: %{first: params.page_size, after: Map.get(params, :after)}
+  defp build_pagination(%{after: after_cursor, page_size: page_size}), do: %{first: page_size, after: after_cursor}
+
+  defp build_pagination(params), do: %{page: 1, page_size: params.page_size}
 
   defp validate_pagination(params) do
     cond do

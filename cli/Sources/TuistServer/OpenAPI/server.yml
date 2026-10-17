@@ -5480,7 +5480,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5501,7 +5501,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5862,7 +5862,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5883,7 +5883,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -7799,7 +7799,7 @@ components:
       x-struct:
       x-validate:
     BuildsIndexPage:
-      description: The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.
+      description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
       minimum: 1
       title: BuildsIndexPage
       type: integer
@@ -24445,7 +24445,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -24466,7 +24466,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -25220,7 +25220,7 @@ paths:
           name: page
           required: false
           schema:
-            description: The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -27853,7 +27853,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -27874,7 +27874,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -30291,7 +30291,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -30312,7 +30312,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -32183,7 +32183,7 @@ paths:
           name: page
           required: false
           schema:
-            description: The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -34262,7 +34262,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -34283,7 +34283,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -40419,7 +40419,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -40440,7 +40440,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:

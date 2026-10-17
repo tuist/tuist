@@ -12052,7 +12052,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
             public var current_page: Swift.Int?
-            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/end_cursor`.
             public var end_cursor: Swift.String?
@@ -12068,7 +12068,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
             public var page_size: Swift.Int
-            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/start_cursor`.
             public var start_cursor: Swift.String?
@@ -12084,11 +12084,11 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
-            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
@@ -12552,7 +12552,7 @@ public enum Components {
             public var before: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/current_page`.
             public var current_page: Swift.Int?
-            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/end_cursor`.
             public var end_cursor: Swift.String?
@@ -12568,7 +12568,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/page_size`.
             public var page_size: Swift.Int
-            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/start_cursor`.
             public var start_cursor: Swift.String?
@@ -12586,11 +12586,11 @@ public enum Components {
             ///   - after:
             ///   - before:
             ///   - current_page:
-            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
@@ -15284,7 +15284,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPage`.
         public typealias TestCaseRunsIndexPage = Swift.Int
-        /// The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.
+        /// The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
         public typealias BuildsIndexPage = Swift.Int
@@ -57964,7 +57964,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -57980,7 +57980,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -57998,11 +57998,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -66947,7 +66947,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -66963,7 +66963,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -66981,11 +66981,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -74080,7 +74080,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -74096,7 +74096,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -74114,11 +74114,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -86429,7 +86429,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -86445,7 +86445,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -86463,11 +86463,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -103748,7 +103748,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -103764,7 +103764,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -103782,11 +103782,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(

@@ -40,9 +40,18 @@ defmodule TuistWeb.API.BuildExportsControllerTest do
     assert Enum.map(first["builds"], & &1["id"]) == Enum.take(expected_ids, 2)
     assert first["pagination_metadata"]["has_next_page"]
     refute first["pagination_metadata"]["has_previous_page"]
-    assert first["pagination_metadata"]["current_page"] == nil
-    assert first["pagination_metadata"]["total_count"] == nil
-    assert first["pagination_metadata"]["total_pages"] == nil
+    assert first["pagination_metadata"]["current_page"] == 1
+    assert first["pagination_metadata"]["total_count"] == 5
+    assert first["pagination_metadata"]["total_pages"] == 3
+
+    explicit_first = conn |> get(path, page: 1, page_size: 2) |> json_response(:ok)
+    assert explicit_first["builds"] == first["builds"]
+
+    assert Map.drop(explicit_first["pagination_metadata"], ["start_cursor", "end_cursor"]) ==
+             Map.drop(first["pagination_metadata"], ["start_cursor", "end_cursor"])
+
+    assert explicit_first["pagination_metadata"]["start_cursor"] == nil
+    assert explicit_first["pagination_metadata"]["end_cursor"] == nil
 
     assert {:ok, %{inserted_at: ~N[2026-10-14 09:30:15.123456]}} =
              Flop.Cursor.decode(first["pagination_metadata"]["end_cursor"])
@@ -52,6 +61,9 @@ defmodule TuistWeb.API.BuildExportsControllerTest do
     assert Enum.map(second["builds"], & &1["id"]) == Enum.slice(expected_ids, 2, 2)
     assert second["pagination_metadata"]["has_next_page"]
     assert second["pagination_metadata"]["has_previous_page"]
+    assert second["pagination_metadata"]["current_page"] == nil
+    assert second["pagination_metadata"]["total_count"] == nil
+    assert second["pagination_metadata"]["total_pages"] == nil
 
     third = conn |> get(path, page_size: 2, after: second["pagination_metadata"]["end_cursor"]) |> json_response(:ok)
     assert Enum.map(third["builds"], & &1["id"]) == Enum.drop(expected_ids, 4)
@@ -122,6 +134,21 @@ defmodule TuistWeb.API.BuildExportsControllerTest do
     assert length(response["builds"]) == 101
     assert response["pagination_metadata"]["page_size"] == 1000
     refute response["pagination_metadata"]["has_next_page"]
+
+    legacy_default = conn |> get(path) |> json_response(:ok)
+    assert length(legacy_default["builds"]) == 20
+    assert legacy_default["pagination_metadata"]["current_page"] == 1
+    assert legacy_default["pagination_metadata"]["page_size"] == 20
+    assert legacy_default["pagination_metadata"]["total_count"] == 101
+    assert legacy_default["pagination_metadata"]["total_pages"] == 6
+
+    legacy_second = conn |> get(path, page: 2) |> json_response(:ok)
+    assert length(legacy_second["builds"]) == 20
+    assert legacy_second["pagination_metadata"]["current_page"] == 2
+    assert legacy_second["pagination_metadata"]["total_count"] == 101
+    assert legacy_second["pagination_metadata"]["total_pages"] == 6
+    assert legacy_second["pagination_metadata"]["start_cursor"] == nil
+    assert legacy_second["pagination_metadata"]["end_cursor"] == nil
   end
 
   test "rejects invalid ranges, page sizes, and cursors before querying", %{conn: conn, path: path} do
