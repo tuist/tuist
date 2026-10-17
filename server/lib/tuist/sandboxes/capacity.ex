@@ -19,10 +19,10 @@ defmodule Tuist.Sandboxes.Capacity do
   sparse workspace image of `workspace_gb`, its memory image) plus a
   little snapshot state and a capped log, so its ceiling is known when it
   is placed. A new sandbox only goes to a node whose disk budget can hold
-  its ceiling on top of the ceilings of every sandbox the node holds
-  (from its report) or is about to hold (rows placed there it has not
-  reported yet), so sandboxes growing into their images later can never
-  overrun the budget together. A pause also writes a full memory image
+  its ceiling on top of the ceilings of every sandbox placed there
+  (creating, running, resuming or paused) and of every errored one whose
+  jail the node still reports, so sandboxes growing into their images
+  later can never overrun the budget together. A pause also writes a full memory image
   beside the previous one, so the filesystem must have that much free
   plus headroom at placement and at resume.
 
@@ -132,23 +132,25 @@ defmodule Tuist.Sandboxes.Capacity do
   def disk_budget_bytes(_node), do: :unbounded
 
   @doc """
-  Disk reserved on the node: the ceilings of the sandboxes it reports
-  holding, in any state, and of the sandboxes placed there that it has not
-  reported yet (a create in flight, or one that finished since its last
-  report).
+  Disk reserved on the node: the ceilings of the sandboxes placed there
+  (creating, running, resuming or paused) and of the errored ones whose
+  jail it still reports. Rows rather than the report decide, because the
+  report lags by up to its interval: a create in flight is not in it yet,
+  and a sandbox deleted a moment ago still is.
   """
   def reserved_disk_bytes(%{name: node_name} = node) do
-    reported = Map.get(node, :sandboxes, [])
-    reported_ids = for %{id: id} <- reported, {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
+    reported_ids =
+      for %{id: id} <- Map.get(node, :sandboxes, []), {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
 
-    unreported =
-      Repo.all(
-        from s in Sandbox,
-          where: s.node_name == ^node_name and s.state in ^@placed_states and s.id not in ^reported_ids,
-          select: %{workspace_gb: s.workspace_gb, memory_mb: s.memory_mb, template: s.template}
-      )
-
-    (reported ++ unreported) |> Enum.map(&disk_ceiling_bytes(&1, node)) |> Enum.sum()
+    from(s in Sandbox,
+      where:
+        s.node_name == ^node_name and
+          (s.state in ^@placed_states or (s.state == :error and s.id in ^reported_ids)),
+      select: %{workspace_gb: s.workspace_gb, memory_mb: s.memory_mb, template: s.template}
+    )
+    |> Repo.all()
+    |> Enum.map(&disk_ceiling_bytes(&1, node))
+    |> Enum.sum()
   end
 
   @doc """
