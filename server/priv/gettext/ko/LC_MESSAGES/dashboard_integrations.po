@@ -6,133 +6,267 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/integrations_live.html.heex:82
+#: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr "새 프로젝트 연결 추가"
 
-#: lib/tuist_web/live/integrations_live.html.heex:145
+#: lib/tuist_web/live/integrations_live.html.heex:203
+#: lib/tuist_web/live/integrations_live.html.heex:534
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "취소"
 
-#: lib/tuist_web/live/integrations_live.html.heex:97
+#: lib/tuist_web/live/integrations_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr "Tuist 프로젝트 선택"
 
-#: lib/tuist_web/live/integrations_live.html.heex:124
+#: lib/tuist_web/live/integrations_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr "저장소 선택"
 
-#: lib/tuist_web/live/integrations_live.html.heex:75
+#: lib/tuist_web/live/integrations_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr "연결할 저장소 선택"
 
-#: lib/tuist_web/live/integrations_live.html.heex:9
+#: lib/tuist_web/live/integrations_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
 msgstr "GitHub 저장소를 프로젝트에 연결하세요"
 
-#: lib/tuist_web/live/integrations_live.ex:215
+#: lib/tuist_web/live/integrations_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr "%{time_ago} 전에 연결됨"
 
-#: lib/tuist_web/live/integrations_live.ex:217
+#: lib/tuist_web/live/integrations_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr "%{name}가 %{time_ago} 전에 연결함"
 
-#: lib/tuist_web/live/integrations_live.html.heex:152
+#: lib/tuist_web/live/integrations_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr "연결 생성"
 
-#: lib/tuist_web/live/integrations_live.html.heex:6
+#: lib/tuist_web/live/integrations_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:48
+#: lib/tuist_web/live/integrations_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr "GitHub 앱 설치"
 
-#: lib/tuist_web/live/integrations_live.ex:52
-#: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/integrations_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "연동"
 
-#: lib/tuist_web/live/integrations_live.html.heex:191
+#: lib/tuist_web/live/integrations_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "관리"
 
-#: lib/tuist_web/live/integrations_live.html.heex:59
+#: lib/tuist_web/live/integrations_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr "연동 관리"
 
-#: lib/tuist_web/live/integrations_live.html.heex:194
+#: lib/tuist_web/live/integrations_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr "연결 해제"
 
-#: lib/tuist_web/live/integrations_live.ex:16
+#: lib/tuist_web/live/integrations_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "이 작업을 수행할 권한이 없습니다."
 
-#: lib/tuist_web/live/integrations_live.html.heex:70
+#: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr "저장소 접근 권한은 GitHub와 Tuist 연동 설정에 따라 달라집니다."
 
-#: lib/tuist_web/live/integrations_live.ex:255
+#: lib/tuist_web/live/integrations_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr "잘못된 URL"
 
-#: lib/tuist_web/live/integrations_live.ex:287
+#: lib/tuist_web/live/integrations_live.ex:510
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr "잘못된 조직"
 
-#: lib/tuist_web/live/integrations_live.html.heex:38
+#: lib/tuist_web/live/integrations_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Server URL"
 msgstr "서버 URL"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
+#: lib/tuist_web/live/integrations_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Enterprise server"
 msgstr "엔터프라이즈 서버"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:213
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "계속"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server"
 msgstr "GitHub 엔터프라이즈 서버로 리디렉션 중"
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:208
 #, elixir-autogen, elixir-format
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr "Tuist 앱 등록을 위해 GitHub 엔터프라이즈 서버로 리디렉션 중…"
 
-#: lib/tuist_web/live/integrations_live.ex:244
+#: lib/tuist_web/live/integrations_live.ex:470
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "필수"
 
-#: lib/tuist_web/live/integrations_live.ex:250
+#: lib/tuist_web/live/integrations_live.ex:459
+#: lib/tuist_web/live/integrations_live.ex:491
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr "GitHub 엔터프라이즈 서버 URL 사용"
+
+#: lib/tuist_web/live/integrations_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "No github.com App is configured"
+msgstr "github.com 앱이 구성되지 않았습니다"
+
+#: lib/tuist_web/live/integrations_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Read the setup guide"
+msgstr "설정 가이드 읽기"
+
+#: lib/tuist_web/live/integrations_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
+msgstr "이 Tuist 서버는 github.com에 자체 GitHub 앱이 있어야 설치할 수 있습니다. 앱을 등록한 다음 TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, TUIST_GITHUB_APP_PRIVATE_KEY_BASE64를 설정하고 서버를 재시작하세요."
+
+#: lib/tuist_web/live/integrations_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "Buildkite"
+msgstr "Buildkite"
+
+#: lib/tuist_web/live/integrations_live.html.heex:453
+#: lib/tuist_web/live/integrations_live.html.heex:518
+#, elixir-autogen, elixir-format
+msgid "Cluster agent token"
+msgstr "클러스터 에이전트 토큰"
+
+#: lib/tuist_web/live/integrations_live.html.heex:299
+#: lib/tuist_web/live/integrations_live.html.heex:334
+#: lib/tuist_web/live/integrations_live.html.heex:489
+#: lib/tuist_web/live/integrations_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr "연결"
+
+#: lib/tuist_web/live/integrations_live.html.heex:477
+#, elixir-autogen, elixir-format
+msgid "Connect Buildkite"
+msgstr "Buildkite 연결"
+
+#: lib/tuist_web/live/integrations_live.html.heex:479
+#, elixir-autogen, elixir-format
+msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+msgstr "Buildkite의 클러스터 에이전트 토큰 아래에서 에이전트 토큰을 생성하세요. 작업은 러너 프로필 이름이 지정된 자체 호스팅 큐에서 가져옵니다."
+
+#: lib/tuist_web/live/integrations_live.html.heex:277
+#: lib/tuist_web/live/integrations_live.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "Disconnect"
+msgstr "연결 해제"
+
+#: lib/tuist_web/live/integrations_live.html.heex:507
+#, elixir-autogen, elixir-format
+msgid "Organization slug"
+msgstr "조직 슬러그"
+
+#: lib/tuist_web/live/integrations_live.ex:551
+#, elixir-autogen, elixir-format
+msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+msgstr "Tuist 러너에서 Buildkite 작업을 실행하세요. Tuist는 클러스터의 자체 호스팅 큐를 모니터링하여 발견한 작업을 실행합니다."
+
+#: lib/tuist_web/live/integrations_live.html.heex:521
+#, elixir-autogen, elixir-format
+msgid "Stored encrypted and never shown again."
+msgstr "암호화되어 저장되며 다시 표시되지 않습니다."
+
+#: lib/tuist_web/live/integrations_live.html.heex:443
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "조직"
+
+#: lib/tuist_web/live/integrations_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "Buildkite connection saved."
+msgstr "Buildkite 연결이 저장되었습니다."
+
+#: lib/tuist_web/live/integrations_live.html.heex:396
+#: lib/tuist_web/live/integrations_live.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr "변경 사항 저장"
+
+#: lib/tuist_web/live/integrations_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "Connect GitLab CI"
+msgstr "GitLab CI 연결"
+
+#: lib/tuist_web/live/integrations_live.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Disconnecting: waiting for GitLab to settle queued assignments."
+msgstr "연결 해제 중: GitLab이 대기열 할당 처리를 완료할 때까지 기다립니다."
+
+#: lib/tuist_web/live/integrations_live.html.heex:267
+#, elixir-autogen, elixir-format
+msgid "GitLab CI"
+msgstr "GitLab CI"
+
+#: lib/tuist_web/live/integrations_live.html.heex:317
+#: lib/tuist_web/live/integrations_live.html.heex:379
+#, elixir-autogen, elixir-format
+msgid "GitLab URL"
+msgstr "GitLab URL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:326
+#: lib/tuist_web/live/integrations_live.html.heex:388
+#, elixir-autogen, elixir-format
+msgid "Runner authentication token"
+msgstr "러너 인증 토큰"
+
+#: lib/tuist_web/live/integrations_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Check the GitLab URL and runner authentication token."
+msgstr "GitLab URL과 러너 인증 토큰을 확인하세요."
+
+#: lib/tuist_web/live/integrations_live.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
+msgstr "Tuist 프로필 태그로 GitLab 러너를 생성하고, 태그가 없는 작업을 비활성화한 후 여기에 토큰을 붙여넣으세요. 파이프라인에서 [tuist-macos]와 같은 태그로 머신을 선택하세요."
+
+#: lib/tuist_web/live/integrations_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
+msgstr "Tuist 러너에서 GitLab CI 작업을 실행하세요. 파이프라인 태그를 사용하여 각 작업에 대한 머신을 선택하세요."
+
+#: lib/tuist_web/live/integrations_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "The selected repository is not accessible to this account's GitHub App installation."
+msgstr "선택한 리포지토리는 이 계정의 GitHub App 설치에서 접근할 수 없습니다."
+
+#: lib/tuist_web/live/integrations_live.ex:321
+#, elixir-autogen, elixir-format
+msgid "The project connection could not be created."
+msgstr "프로젝트 연결을 생성할 수 없습니다."
