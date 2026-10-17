@@ -1,20 +1,25 @@
 import Nuke
 import SwiftUI
-import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistProjects
 import TuistServer
 
 public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
-    @EnvironmentObject private var authenticationService: AuthenticationService
-    @State var viewModel = PreviewsViewModel()
-    @State private var navigationPath = NavigationPath()
-    @State private var pressedPreviewId: String?
+    private let viewModel: PreviewsViewModel
     @State private var searchText = ""
+    @State private var navigationPath = NavigationPath()
+    @Binding private var pendingPreview: DeeplinkPreview?
     private let imagePrefetcher = ImagePrefetcher()
 
-    public init() {}
+    public init(
+        viewModel: PreviewsViewModel,
+        pendingPreview: Binding<DeeplinkPreview?> = .constant(nil)
+    ) {
+        self.viewModel = viewModel
+        _pendingPreview = pendingPreview
+    }
 
     public var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -31,31 +36,7 @@ public struct PreviewsView: View {
                     .background(Noora.Colors.surfaceBackgroundPrimary)
                 } else {
                     List {
-                        if let selectedProject = viewModel.selectedProject {
-                            HStack(spacing: Noora.Spacing.spacing3) {
-                                Text("Apps in")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-
-                                NooraDropdown<ServerProject>(
-                                    options: viewModel.projects,
-                                    currentOption: selectedProject,
-                                    cornerRadius: Noora.CornerRadius.max,
-                                    selectedOption: { project in
-                                        errorHandling.fireAndHandleError {
-                                            try await viewModel.selectProject(project)
-                                        }
-                                    }
-                                )
-                            }
-                            .padding(.vertical, Noora.Spacing.spacing4)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
-                            )
-                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
-
+                        if viewModel.selectedProject != nil {
                             VStack(alignment: .leading, spacing: Noora.Spacing.spacing3) {
                                 Text("Tracks")
                                     .font(.headline.weight(.medium))
@@ -118,11 +99,10 @@ public struct PreviewsView: View {
                             )
                         } else {
                             ForEach(viewModel.previews) { preview in
-                                PreviewRowView(
-                                    preview: preview,
-                                    navigationPath: $navigationPath,
-                                    pressedPreviewId: $pressedPreviewId
-                                )
+                                PreviewRowView(preview: preview) {
+                                    guard let project = viewModel.selectedProject else { return }
+                                    navigationPath.append(PreviewDestination(preview: preview, fullHandle: project.fullName))
+                                }
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(
                                     EdgeInsets(
@@ -164,21 +144,17 @@ public struct PreviewsView: View {
                                 try await viewModel.refreshPreviews()
                             }
                         } catch {
-                            errorHandling.handle(error: error)
+                            if !Task.isCancelled { errorHandling.handle(error: error) }
                         }
                     }
                 }
             }
-            .onAppear {
-                // When deleting an account, there's a bug when onAppear is called even when already logged out.
-                // This should never happen due to the check in TuistApp.swift, but it seems there's a race condition in the
-                // SwiftUI lifecycle
-                guard case .loggedIn = authenticationService.authenticationState else { return }
-                errorHandling.fireAndHandleError {
-                    try await viewModel.onAppear()
+            .navigationTitle("Previews")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ProjectSwitcher(context: viewModel.projectContext)
                 }
             }
-            .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
             .task(id: searchText) {
@@ -193,21 +169,20 @@ public struct PreviewsView: View {
                 }
             }
             .onChange(of: viewModel.selectedProject?.fullName) {
-                searchText = viewModel.searchQuery
+                searchText = ""
             }
             .background(Noora.Colors.surfaceBackgroundPrimary)
-            .navigationDestination(for: ServerPreview.self) { preview in
-                PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
+            .navigationDestination(for: PreviewDestination.self) { destination in
+                PreviewView(preview: destination.preview, fullHandle: destination.fullHandle)
             }
             .navigationDestination(for: DeeplinkPreview.self) { deeplink in
                 PreviewView(previewId: deeplink.previewId, fullHandle: deeplink.fullHandle)
             }
-            .onOpenURL { url in
-                handleOpenURL(url)
-            }
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                guard let url = userActivity.webpageURL else { return }
-                handleOpenURL(url)
+            .onChange(of: pendingPreview, initial: true) {
+                guard let preview = pendingPreview else { return }
+                navigationPath = NavigationPath()
+                navigationPath.append(preview)
+                pendingPreview = nil
             }
         }
     }
@@ -250,19 +225,6 @@ public struct PreviewsView: View {
         errorHandling.fireAndHandleError {
             try await viewModel.selectTrack(track)
         }
-    }
-
-    private func handleOpenURL(_ url: URL) {
-        let pathComponents = url.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count >= 4,
-              pathComponents[2] == "previews"
-        else { return }
-
-        let previewId = pathComponents[3]
-        let fullHandle = "\(pathComponents[0])/\(pathComponents[1])"
-
-        let deeplink = DeeplinkPreview(previewId: previewId, fullHandle: fullHandle)
-        navigationPath.append(deeplink)
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {

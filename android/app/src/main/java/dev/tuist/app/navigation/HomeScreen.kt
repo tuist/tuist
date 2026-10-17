@@ -3,7 +3,9 @@ package dev.tuist.app.navigation
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -15,89 +17,105 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
+import dev.tuist.app.ui.home.HomeDashboard
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
+import dev.tuist.app.ui.previews.PreviewsViewModel
 import dev.tuist.app.ui.profile.ProfileScreen
 
 @Composable
 fun HomeScreen() {
     val navController = rememberNavController()
+    val previewsViewModel: PreviewsViewModel = hiltViewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-
     val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true
+
+    fun navigateToTab(tab: HomeTabs) {
+        navController.navigate(tab) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
         bottomBar = {
             AnimatedVisibility(visible = showBottomBar) {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = currentDestination?.hierarchy?.any {
-                        it.hasRoute<HomeTabs.Previews>()
-                    } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Previews) {
-                            popUpTo(HomeTabs.Previews) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_device_mobile),
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.previews_title)) },
-                )
-                NavigationBarItem(
-                    selected = currentDestination?.hierarchy?.any {
-                        it.hasRoute<HomeTabs.Profile>()
-                    } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Profile) {
-                            popUpTo(HomeTabs.Previews)
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = {
-                        if (currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true) {
-                            Icon(Icons.Filled.Person, contentDescription = null)
-                        } else {
-                            Icon(Icons.Outlined.Person, contentDescription = null)
-                        }
-                    },
-                    label = { Text(stringResource(R.string.profile_title)) },
-                )
-            }
+                NavigationBar {
+                    val homeSelected = currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Home>() } == true
+                    NavigationBarItem(
+                        selected = homeSelected,
+                        onClick = { navigateToTab(HomeTabs.Home) },
+                        icon = {
+                            Icon(
+                                if (homeSelected) Icons.Filled.Home else Icons.Outlined.Home,
+                                contentDescription = null,
+                            )
+                        },
+                        label = { Text(stringResource(R.string.home_title)) },
+                    )
+                    NavigationBarItem(
+                        selected = currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Previews>() } == true,
+                        onClick = { navigateToTab(HomeTabs.Previews) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_device_mobile),
+                                contentDescription = null,
+                            )
+                        },
+                        label = { Text(stringResource(R.string.previews_title)) },
+                    )
+                    val profileSelected = currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true
+                    NavigationBarItem(
+                        selected = profileSelected,
+                        onClick = { navigateToTab(HomeTabs.Profile) },
+                        icon = {
+                            Icon(
+                                if (profileSelected) Icons.Filled.Person else Icons.Outlined.Person,
+                                contentDescription = null,
+                            )
+                        },
+                        label = { Text(stringResource(R.string.profile_title)) },
+                    )
+                }
             }
         },
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = HomeTabs.Previews,
+            startDestination = HomeTabs.Home,
             modifier = Modifier.padding(padding),
         ) {
-            composable<HomeTabs.Previews> {
-                PreviewsScreen(
+            composable<HomeTabs.Home> {
+                HomeDashboard(
+                    viewModel = previewsViewModel,
+                    onSeeAllPreviews = { navigateToTab(HomeTabs.Previews) },
                     onPreviewClick = { previewId, fullHandle ->
                         navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))
                     },
                 )
             }
-            composable<HomeTabs.Profile> {
-                ProfileScreen()
-            }
-            composable<HomeTabs.PreviewDetail> {
-                PreviewDetailScreen(
-                    onBack = { navController.popBackStack() },
+            composable<HomeTabs.Previews> {
+                PreviewsScreen(
+                    viewModel = previewsViewModel,
+                    onPreviewClick = { previewId, fullHandle ->
+                        navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))
+                    },
                 )
+            }
+            composable<HomeTabs.Profile> { ProfileScreen() }
+            composable<HomeTabs.PreviewDetail> {
+                PreviewDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }

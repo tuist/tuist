@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -35,6 +38,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +56,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.Image
@@ -84,6 +90,16 @@ fun PreviewsScreen(
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.previews_title)) },
+                actions = {
+                    (uiState as? PreviewsUiState.Success)?.let { state ->
+                        ProjectDropdown(state.projects, state.selectedProject, viewModel::selectProject)
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         PullToRefreshBox(
@@ -135,7 +151,6 @@ fun PreviewsScreen(
                     PreviewsContent(
                         state = state,
                         isLoadingMore = isLoadingMore,
-                        onProjectSelected = { viewModel.selectProject(it) },
                         onLoadMore = { viewModel.loadMorePreviews() },
                         onPreviewClick = { preview ->
                             onPreviewClick(preview.id, state.selectedProject.fullName)
@@ -151,7 +166,6 @@ fun PreviewsScreen(
 private fun PreviewsContent(
     state: PreviewsUiState.Success,
     isLoadingMore: Boolean,
-    onProjectSelected: (dev.tuist.app.api.model.Project) -> Unit,
     onLoadMore: () -> Unit,
     onPreviewClick: (Preview) -> Unit,
 ) {
@@ -176,15 +190,6 @@ private fun PreviewsContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = NooraSpacing.Spacing6),
     ) {
-        item(key = "header") {
-            ProjectDropdown(
-                projects = state.projects,
-                selectedProject = state.selectedProject,
-                onProjectSelected = onProjectSelected,
-            )
-            Spacer(Modifier.height(NooraSpacing.Spacing4))
-        }
-
         if (state.previews.isEmpty()) {
             item(key = "empty") {
                 Box(
@@ -229,61 +234,47 @@ private fun PreviewsContent(
 }
 
 @Composable
-private fun ProjectDropdown(
+internal fun ProjectDropdown(
     projects: List<dev.tuist.app.api.model.Project>,
     selectedProject: dev.tuist.app.api.model.Project,
     onProjectSelected: (dev.tuist.app.api.model.Project) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = NooraSpacing.Spacing4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.apps_in),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Spacer(Modifier.width(NooraSpacing.Spacing3))
-        Box {
-            Row(
-                modifier = Modifier.clickable { expanded = true },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = selectedProject.fullName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text(
+                text = selectedProject.fullName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 200.dp),
+            )
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 300.dp),
+        ) {
+            projects.forEach { project ->
+                DropdownMenuItem(
+                    text = { Text(project.fullName) },
+                    modifier = Modifier.semantics { selected = project == selectedProject },
+                    trailingIcon = {
+                        if (project == selectedProject) Icon(Icons.Default.Check, contentDescription = null)
+                    },
+                    onClick = {
+                        onProjectSelected(project)
+                        expanded = false
+                    },
                 )
-                Icon(
-                    Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.heightIn(max = 300.dp),
-            ) {
-                projects.forEach { project ->
-                    DropdownMenuItem(
-                        text = { Text(project.fullName) },
-                        onClick = {
-                            onProjectSelected(project)
-                            expanded = false
-                        },
-                    )
-                }
             }
         }
     }
 }
 
 @Composable
-private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
+internal fun PreviewRow(preview: Preview, compact: Boolean = false, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -295,7 +286,7 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
             model = preview.iconUrl,
             contentDescription = preview.displayName,
             modifier = Modifier
-                .size(64.dp)
+                .size(if (compact) 40.dp else 64.dp)
                 .clip(RoundedCornerShape(12.dp)),
             error = {
                 Image(
@@ -310,7 +301,7 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
 
         Column(modifier = Modifier.weight(1f)) {
             // Row 1: commit SHA
-            preview.gitCommitSha?.let { sha ->
+            preview.gitCommitSha?.takeIf { !compact }?.let { sha ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         painter = painterResource(R.drawable.ic_commit),
@@ -374,7 +365,10 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
         }
 
         val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
-        if (apkBuild != null && preview.supportedPlatforms.contains(PreviewSupportedPlatform.android)) {
+        if (compact) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
+        if (!compact && apkBuild != null && preview.supportedPlatforms.contains(PreviewSupportedPlatform.android)) {
             Spacer(Modifier.width(NooraSpacing.Spacing4))
             val context = LocalContext.current
             Box(

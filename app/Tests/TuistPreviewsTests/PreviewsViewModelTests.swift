@@ -6,8 +6,214 @@ import TuistServer
 import TuistSimulator
 
 @testable import TuistPreviews
+@testable import TuistProjects
 
-@Suite struct PreviewsViewModelTests {
+@MainActor
+struct PreviewsViewModelTests {
+    private let listProjectsService = MockListProjectsServicing()
+    private let listPreviewsService = MockListPreviewsServicing()
+    private let tracksService = MockListPreviewTracksServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let appStorage = MockAppStoring()
+    private let subject: PreviewsViewModel
+
+    init() {
+        subject = PreviewsViewModel(
+            projectContext: ProjectContext(
+                scope: "test",
+                listProjectsService: listProjectsService,
+                serverEnvironmentService: serverEnvironmentService,
+                appStorage: appStorage
+            ),
+            listPreviewsService: listPreviewsService,
+            listPreviewTracksService: tracksService,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any).willReturn(nil)
+        given(serverEnvironmentService).url().willReturn(URL(string: "https://tuist.dev")!)
+        given(appStorage).get(.any as Parameter<ProjectSelectionsKey.Type>).willReturn([:])
+        given(appStorage).set(.any as Parameter<ProjectSelectionsKey.Type>, value: .any).willReturn()
+        given(appStorage).get(.any as Parameter<RecentProjectsKey.Type>).willReturn([:])
+        given(appStorage).set(.any as Parameter<RecentProjectsKey.Type>, value: .any).willReturn()
+    }
+
+    @Test func recent_previews_are_limited_to_three_newest_without_limiting_the_browser() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPreviews(
+            (1 ... 8).reversed().map { .test(id: "\($0)", insertedAt: Date(timeIntervalSince1970: Double($0))) },
+            fullHandle: "tuist/app"
+        )
+
+        try await subject.onAppear()
+
+        #expect(subject.recentPreviews.map(\.id) == ["8", "7", "6"])
+        #expect(subject.previews.count == 8)
+    }
+
+    @Test func selected_project_is_shared_by_home_and_previews() async throws {
+        let first = ServerProject.test(fullName: "tuist/first")
+        let second = ServerProject.test(fullName: "tuist/second")
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([first, second])
+        stubPreviews([.test(id: "first")], fullHandle: first.fullName)
+        stubPreviews([.test(id: "second")], fullHandle: second.fullName)
+
+        try await subject.onAppear()
+        try await subject.selectProject(second)
+
+        #expect(subject.selectedProject?.fullName == second.fullName)
+        #expect(subject.recentPreviews.map(\.id) == ["second"])
+        #expect(subject.previews == subject.recentPreviews)
+    }
+
+    @Test func shell_selection_hides_previous_project_data_before_reloading() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([
+            .test(fullName: "tuist/first"), .test(fullName: "tuist/second"),
+        ])
+        stubPreviews([.test(id: "first")], fullHandle: "tuist/first")
+        stubPreviews([.test(id: "second")], fullHandle: "tuist/second")
+        try await subject.onAppear()
+
+        subject.projectContext.selectProject("tuist/second")
+        #expect(subject.recentPreviews.isEmpty)
+        #expect(subject.previews.isEmpty)
+
+        try await subject.loadSelectedProject()
+        #expect(subject.recentPreviews.map(\.id) == ["second"])
+    }
+
+    @Test func refreshing_projects_preserves_the_shell_selection() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([
+            .test(fullName: "tuist/first"), .test(fullName: "tuist/second"),
+        ])
+        stubPreviews([.test(id: "first")], fullHandle: "tuist/first")
+        stubPreviews([.test(id: "second")], fullHandle: "tuist/second")
+        try await subject.onAppear()
+        subject.projectContext.selectProject("tuist/second")
+
+        try await subject.refreshProjects()
+
+        #expect(subject.selectedProject?.fullName == "tuist/second")
+        #expect(subject.recentPreviews.map(\.id) == ["second"])
+    }
+
+    @Test func no_projects_has_no_recent_previews() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([])
+
+        try await subject.onAppear()
+
+        #expect(subject.recentPreviews.isEmpty)
+        #expect(subject.selectedProject == nil)
+        #expect(!subject.isInitialLoading)
+    }
+
+    @Test func project_without_previews_has_no_recent_previews() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPreviews([], fullHandle: "tuist/app")
+
+        try await subject.onAppear()
+
+        #expect(subject.recentPreviews.isEmpty)
+        #expect(subject.selectedProject != nil)
+        #expect(!subject.isInitialLoading)
+    }
+
+    @Test func refreshing_an_empty_project_keeps_the_loaded_list_mounted() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        let service = InspectingPreviewsService()
+        let subject = PreviewsViewModel(
+            projectContext: subject.projectContext,
+            listPreviewsService: service,
+            listPreviewTracksService: tracksService,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        try await subject.onAppear()
+        service.onRequest = {
+            #expect(subject.isRefreshingPreviews)
+            #expect(!subject.isInitialLoading)
+        }
+        defer { service.onRequest = nil }
+
+        try await subject.refreshPreviews()
+
+        #expect(!subject.isInitialLoading)
+        #expect(!subject.isRefreshingPreviews)
+    }
+
+    @Test func retrying_a_failed_first_page_keeps_the_refreshing_list_mounted() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        let service = InspectingPreviewsService()
+        service.fails = true
+        let subject = PreviewsViewModel(
+            projectContext: subject.projectContext,
+            listPreviewsService: service,
+            listPreviewTracksService: tracksService,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        await #expect(throws: PreviewLoadError.self) { try await subject.onAppear() }
+        service.fails = false
+        service.onRequest = {
+            #expect(subject.isRefreshingPreviews)
+            #expect(!subject.isInitialLoading)
+        }
+        defer { service.onRequest = nil }
+
+        try await subject.refreshPreviews()
+
+        #expect(!subject.isInitialLoading)
+        #expect(!subject.isRefreshingPreviews)
+    }
+
+    private func stubPreviews(_ previews: [ServerPreview], fullHandle: String) {
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .any,
+                specifier: .any,
+                track: .any,
+                supportedPlatforms: .any,
+                page: .any,
+                pageSize: .any,
+                distinctField: .any,
+                fullHandle: .value(fullHandle),
+                serverURL: .any
+            )
+            .willReturn(.test(previews: previews))
+    }
+}
+
+@MainActor
+private final class InspectingPreviewsService: ListPreviewsServicing {
+    func searchPreviews(
+        search _: String, track _: String?, page _: Int, pageSize _: Int, fullHandle _: String, serverURL _: URL
+    ) async throws -> ServerPreviewsPage {
+        throw CancellationError()
+    }
+
+    var onRequest: (() -> Void)?
+    var fails = false
+
+    func listPreviews(
+        displayName _: String?,
+        specifier _: String?,
+        track _: String?,
+        supportedPlatforms _: [DestinationType],
+        page _: Int?,
+        pageSize _: Int?,
+        distinctField _: ListPreviewsDistinctField?,
+        fullHandle _: String,
+        serverURL _: URL
+    ) async throws -> ServerPreviewsPage {
+        onRequest?()
+        if fails { throw PreviewLoadError.failed }
+        return .test(previews: [])
+    }
+}
+
+private enum PreviewLoadError: Error {
+    case failed
+}
+
+@MainActor
+struct PreviewsFilteringTests {
     private let previewsService = MockListPreviewsServicing()
     private let projectsService = MockListProjectsServicing()
     private let tracksService = MockListPreviewTracksServicing()
@@ -17,29 +223,39 @@ import TuistSimulator
 
     private func subject(
         previewsService: ListPreviewsServicing? = nil,
-        tracksService: ListPreviewTracksServicing? = nil
-    ) -> PreviewsViewModel {
+        tracksService: ListPreviewTracksServicing? = nil,
+        projects: [ServerProject] = [
+            .test(),
+            .test(fullName: "team/app"),
+            .test(fullName: "team/other"),
+            .test(fullName: "team/deleted"),
+        ]
+    ) async throws -> PreviewsViewModel {
         if tracksService == nil {
             given(self.tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any)
                 .willReturn(.init(totalCount: 0, tracks: []))
         }
         given(environmentService).url().willReturn(serverURL)
-        given(appStorage)
-            .set(.any as Parameter<SelectedProjectFullHandleKey.Type>, value: .any)
-            .willReturn()
+        given(appStorage).get(.any as Parameter<ProjectSelectionsKey.Type>).willReturn([:])
+        given(appStorage).set(.any as Parameter<ProjectSelectionsKey.Type>, value: .any).willReturn()
+        given(appStorage).get(.any as Parameter<RecentProjectsKey.Type>).willReturn([:])
+        given(appStorage).set(.any as Parameter<RecentProjectsKey.Type>, value: .any).willReturn()
+        given(projectsService).listProjects(serverURL: .any).willReturn(projects)
+        let context = ProjectContext(
+            scope: "test", listProjectsService: projectsService,
+            serverEnvironmentService: environmentService, appStorage: appStorage
+        )
+        try await context.load()
         return PreviewsViewModel(
-            listProjectsService: projectsService,
+            projectContext: context,
             listPreviewsService: previewsService ?? self.previewsService,
             listPreviewTracksService: tracksService ?? self.tracksService,
-            serverEnvironmentService: environmentService,
-            appStorage: appStorage
+            serverEnvironmentService: environmentService
         )
     }
 
     @Test func refreshing_an_empty_project_list_can_discover_projects_and_previews() async throws {
-        let subject = subject()
-        given(appStorage).get(.any as Parameter<SelectedProjectFullHandleKey.Type>).willReturn(nil)
-        given(projectsService).listProjects(serverURL: .any).willReturn([])
+        let subject = try await subject(projects: [])
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -58,7 +274,7 @@ import TuistSimulator
     }
 
     @Test func track_filter_is_applied_to_every_page_and_reset_for_another_project() async throws {
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .value(nil), supportedPlatforms: .any,
@@ -98,7 +314,7 @@ import TuistSimulator
     }
 
     @Test func track_filter_accepts_the_servers_case_insensitive_track_names() async throws {
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -114,7 +330,7 @@ import TuistSimulator
     }
 
     @Test func reports_older_servers_that_ignore_the_track_filter() async throws {
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -129,14 +345,9 @@ import TuistSimulator
         #expect(subject.previews.isEmpty)
     }
 
-    @Test(arguments: [nil, "team/other", "team/app", "team/deleted"] as [String?])
-    func refreshing_projects_preserves_the_track_only_for_the_same_project(storedProject: String?) async throws {
-        let subject = subject()
-        given(appStorage)
-            .get(.any as Parameter<SelectedProjectFullHandleKey.Type>)
-            .willReturn(storedProject)
-        given(projectsService).listProjects(serverURL: .value(serverURL))
-            .willReturn([.test(fullName: "team/other"), .test(fullName: "team/app")])
+    @Test(arguments: [false, true])
+    func refreshing_projects_preserves_filters_only_if_the_selected_project_still_exists(removed: Bool) async throws {
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -145,14 +356,16 @@ import TuistSimulator
             .willProduce { _, _, track, _, _, _, _, fullHandle, _ in
                 .test(previews: [.test(id: "\(fullHandle)-\(track ?? "all")", track: track)])
             }
-        let initialProject = storedProject == "team/deleted" ? "team/deleted" : "team/app"
-        try await subject.selectProject(.test(fullName: initialProject))
+        try await subject.selectProject(.test(fullName: removed ? "team/deleted" : "team/app"))
         try await subject.selectTrack("QA")
+        projectsService.reset([.given])
+        given(projectsService).listProjects(serverURL: .any)
+            .willReturn([.test(fullName: "team/other"), .test(fullName: "team/app")])
 
         try await subject.refreshProjects()
 
-        let expectedProject = storedProject == "team/app" ? "team/app" : "team/other"
-        let expectedTrack: String? = expectedProject == "team/app" ? "QA" : nil
+        let expectedProject = removed ? "team/other" : "team/app"
+        let expectedTrack: String? = removed ? nil : "QA"
         #expect(subject.selectedProject?.fullName == expectedProject)
         #expect(subject.selectedTrack == expectedTrack)
         #expect(subject.previews.map(\.id) == ["\(expectedProject)-\(expectedTrack ?? "all")"])
@@ -163,7 +376,7 @@ import TuistSimulator
         enum Failure: Error { case offline }
         let response = AsyncThrowingStream<ServerPreviewsPage, Error>.makeStream()
         let started = AsyncStream<Void>.makeStream()
-        let subject = subject(previewsService: SuspendedPreviewsService(
+        let subject = try await subject(previewsService: SuspendedPreviewsService(
             pendingPage: page, response: response.stream, didStart: started.continuation
         ))
         try await subject.selectProject(.test())
@@ -194,7 +407,7 @@ import TuistSimulator
     }
 
     @Test func track_choices_come_from_the_complete_server_list_and_survive_filtering() async throws {
-        let subject = subject(tracksService: tracksService)
+        let subject = try await subject(tracksService: tracksService)
         given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .value(serverURL))
             .willReturn(.init(totalCount: 80, tracks: [
                 .init(name: "beta", count: 2), .init(name: "nightly", count: 3), .init(name: "QA", count: 75),
@@ -221,7 +434,7 @@ import TuistSimulator
     }
 
     @Test func switching_projects_replaces_track_choices() async throws {
-        let subject = subject(tracksService: tracksService)
+        let subject = try await subject(tracksService: tracksService)
         given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any)
             .willProduce { fullHandle, _ in
                 .init(totalCount: 1, tracks: [.init(name: fullHandle == "team/app" ? "QA" : "beta", count: 1)])
@@ -242,7 +455,7 @@ import TuistSimulator
     }
 
     @Test func older_servers_without_track_discovery_still_allow_browsing() async throws {
-        let subject = subject(tracksService: tracksService)
+        let subject = try await subject(tracksService: tracksService)
         given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any).willReturn(nil)
         given(previewsService)
             .listPreviews(
@@ -264,7 +477,10 @@ import TuistSimulator
         enum Failure: Error { case offline }
         let response = AsyncThrowingStream<[String]?, Error>.makeStream()
         let started = AsyncStream<Void>.makeStream()
-        let subject = subject(tracksService: SuspendedTracksService(response: response.stream, didStart: started.continuation))
+        let subject = try await subject(tracksService: SuspendedTracksService(
+            response: response.stream,
+            didStart: started.continuation
+        ))
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -289,7 +505,7 @@ import TuistSimulator
     }
 
     @Test func search_combines_with_tracks_across_pages_without_changing_project_counts() async throws {
-        let subject = subject(tracksService: tracksService)
+        let subject = try await subject(tracksService: tracksService)
         given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any)
             .willReturn(.init(totalCount: 6, tracks: [.init(name: "beta", count: 2), .init(name: "QA", count: 4)]))
         given(previewsService)
@@ -335,7 +551,7 @@ import TuistSimulator
     }
 
     @Test func search_accepts_matches_in_full_release_notes() async throws {
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -359,7 +575,7 @@ import TuistSimulator
     }
 
     @Test func reports_older_servers_that_ignore_search() async throws {
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
@@ -381,7 +597,10 @@ import TuistSimulator
         enum Failure: Error { case offline }
         let response = AsyncThrowingStream<ServerPreviewsPage, Error>.makeStream()
         let started = AsyncStream<Void>.makeStream()
-        let subject = subject(previewsService: SuspendedSearchService(response: response.stream, didStart: started.continuation))
+        let subject = try await subject(previewsService: SuspendedSearchService(
+            response: response.stream,
+            didStart: started.continuation
+        ))
         try await subject.selectProject(.test())
         let stale = Task { try await subject.searchPreviews("old") }
         var iterator = started.stream.makeAsyncIterator()
@@ -399,9 +618,50 @@ import TuistSimulator
         #expect(!subject.isLoadingPreviews)
     }
 
+    @Test func browser_filters_do_not_change_home_and_shell_switching_clears_them() async throws {
+        let subject = try await subject()
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .value(nil), supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, fullHandle, _ in
+                .test(previews: (1 ... 4).map { .test(id: "\(fullHandle)-\($0)") })
+            }
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .value("QA"), supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(id: "filtered", displayName: "Filtered app", track: "QA")]))
+        given(previewsService)
+            .searchPreviews(search: .any, track: .any, page: .any, pageSize: .any, fullHandle: .any, serverURL: .any)
+            .willReturn(.test(previews: [.test(id: "filtered", displayName: "Filtered app", track: "QA")]))
+        try await subject.selectProject(.test(fullName: "team/app"))
+        try await subject.selectTrack("QA")
+        try await subject.searchPreviews("filtered")
+        #expect(subject.recentPreviews.map(\.id) == ["team/app-1", "team/app-2", "team/app-3"])
+        #expect(subject.previews.map(\.id) == ["filtered"])
+
+        try await subject.refreshProjects()
+
+        #expect(subject.recentPreviews.map(\.id) == ["team/app-1", "team/app-2", "team/app-3"])
+        #expect(subject.selectedTrack == "QA")
+        #expect(subject.searchQuery == "filtered")
+        #expect(subject.previews.map(\.id) == ["filtered"])
+
+        subject.projectContext.selectProject("team/other")
+        #expect(subject.previews.isEmpty)
+        #expect(subject.recentPreviews.isEmpty)
+        try await subject.loadSelectedProject()
+        #expect(subject.selectedTrack == nil)
+        #expect(subject.searchQuery.isEmpty)
+        #expect(subject.recentPreviews.map(\.id) == ["team/other-1", "team/other-2", "team/other-3"])
+    }
+
     @Test func failed_pagination_can_be_retried() async throws {
         enum Failure: Error, Equatable { case offline }
-        let subject = subject()
+        let subject = try await subject()
         given(previewsService)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
