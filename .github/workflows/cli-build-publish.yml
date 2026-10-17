@@ -164,19 +164,21 @@ jobs:
             build/SHASUMS512.txt
           retention-days: 1
 
+  # Both architectures build on Tuist's amd64 Linux fleet; aarch64 is
+  # cross-compiled with the Swift static Linux SDK, which ships sysroots for
+  # both. The matrix keeps each architecture on its own runner: TuistServer
+  # alone is about 7 minutes of single-threaded compilation per architecture,
+  # so one job building both would roughly double the wall-clock time while
+  # sharing only the host macros and package resolution.
   release-cli-linux:
     name: Release CLI (Linux ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    runs-on: tuist-linux-large
     container:
       image: swift:6.2
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
+        arch: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -187,6 +189,27 @@ jobs:
         run: |
           sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
           grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
+
+      # .build is only valid for the compiler that produced it, and the
+      # swift:6.2 tag moves across patch releases.
+      - name: Read the Swift version
+        id: swift
+        run: |
+          version="$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9.]*\).*/\1/p' | head -1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The checkout gives every source file a new mtime, so SwiftPM still
+      # compiles every first-party module from the release commit. The volume
+      # keeps the pinned third-party graph (BoringSSL, NIO, gRPC, swift-syntax)
+      # and the registry downloads.
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-build-${{ matrix.arch }}-swift-${{ steps.swift.outputs.version }}
+          path: .build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-swiftpm
+          path: ~/.cache/org.swift.swiftpm
 
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
@@ -226,12 +249,18 @@ jobs:
 
             echo "::warning::Linux CLI dependency resolution attempt ${attempt} failed; clearing SwiftPM state before retrying."
             ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
-            rm -rf \
+            # .build and the SwiftPM cache are volume mount points, so they
+            # are emptied in place rather than removed.
+            for dir in \
               "${BUILD_PATH:-.build}" \
               "$HOME/.cache/org.swift.swiftpm" \
               "$HOME/.swiftpm" \
               "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
-              "$ACCOUNT_HOME/.swiftpm"
+              "$ACCOUNT_HOME/.swiftpm"; do
+              if [ -d "$dir" ]; then
+                find "$dir" -mindepth 1 -delete
+              fi
+            done
             sleep $((attempt * 10))
           done
         env:
@@ -241,6 +270,8 @@ jobs:
           SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
       - name: Bundle CLI
         run: ./mise/tasks/cli/bundle-linux.sh
+        env:
+          TUIST_LINUX_ARCH: ${{ matrix.arch }}
 
       - name: Upload CLI Linux artifacts
         id: upload
