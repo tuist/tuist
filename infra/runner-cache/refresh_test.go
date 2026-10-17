@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -18,6 +19,8 @@ type headTransfer struct {
 	heads      map[string]Identity
 	errs       map[string]error
 	downloaded []Slot
+	started    chan struct{}
+	release    chan struct{}
 }
 
 func (h *headTransfer) Head(slot Slot) (Identity, error) {
@@ -31,6 +34,10 @@ func (h *headTransfer) Download(_ context.Context, slot Slot, path string) error
 	h.mu.Lock()
 	h.downloaded = append(h.downloaded, slot)
 	h.mu.Unlock()
+	if h.started != nil {
+		h.started <- struct{}{}
+		<-h.release
+	}
 	return os.WriteFile(path, []byte("refreshed"), 0600)
 }
 
@@ -184,5 +191,83 @@ func TestMaintenanceContinuesPastAnUnreachableLineage(t *testing.T) {
 	}
 	if exists(b.master(removed)) {
 		t.Fatal("stopped before the cleared lineage")
+	}
+}
+
+func TestRunningRefreshDoesNotBlockMaintenanceOrAdmission(t *testing.T) {
+	b, remote := newRefreshing(t)
+	remote.started, remote.release = make(chan struct{}, 1), make(chan struct{})
+	var free atomic.Uint64
+	free.Store(1 << 40)
+	b.FreeBytes = func(string) (uint64, error) { return free.Load(), nil }
+	scope := strings.Repeat("a", 64)
+	stale := installMaster(t, b, first, scope, 1, time.Now().Add(-time.Minute))
+	remote.heads[scope] = head(2)
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	<-remote.started
+	free.Store(0)
+	maintained, admitted := make(chan error, 1), make(chan error, 1)
+	go func() { maintained <- b.Maintain() }()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		admitted <- b.reserve(ctx)
+	}()
+	for _, check := range []struct {
+		result <-chan error
+		want   error
+	}{{maintained, nil}, {admitted, ErrCapacity}} {
+		select {
+		case err := <-check.result:
+			if !errors.Is(err, check.want) {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("waited behind the refresh download")
+		}
+	}
+	if !exists(b.master(stale)) || len(remote.downloads()) != 1 {
+		t.Fatal("evicted or refreshed the master again during its refresh")
+	}
+	close(remote.release)
+	next := stale
+	next.Identity.BaseGeneration, next.ImageDigest, next.ContentDigest = 2, head(2).ImageDigest, head(2).ContentDigest
+	eventually(t, func() bool { return exists(b.master(next)) && !exists(b.master(stale)) })
+}
+
+func TestStaleMasterIsRemovedWhenTheHeadIsAlreadyLocal(t *testing.T) {
+	b, remote := newRefreshing(t)
+	scope := strings.Repeat("a", 64)
+	stale := installMaster(t, b, first, scope, 1, time.Now().Add(-time.Hour/2))
+	publishedAt := time.Now().Truncate(time.Second)
+	current := installMaster(t, b, second, scope, 2, publishedAt)
+	remote.heads[scope] = head(2)
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	if exists(b.master(stale)) || len(remote.downloads()) != 0 {
+		t.Fatal("refreshed into a master that was already local")
+	}
+	if info, err := os.Stat(b.master(current)); err != nil || !info.ModTime().Equal(publishedAt) {
+		t.Fatal("changed the current master's last use", err)
+	}
+}
+
+func TestStaleMasterIsRemovedWhenTheRefreshQueueIsFull(t *testing.T) {
+	b, remote := newRefreshing(t)
+	b.refresh.once.Do(func() { b.refresh.jobs = make(chan refreshJob) })
+	scope := strings.Repeat("a", 64)
+	stale := installMaster(t, b, first, scope, 1, time.Now())
+	remote.heads[scope] = head(2)
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	if exists(b.master(stale)) {
+		t.Fatal("kept a master it could not queue")
+	}
+	if _, queued := b.refresh.pending.Load(b.master(stale)); queued {
+		t.Fatal("left the master marked as queued")
 	}
 }

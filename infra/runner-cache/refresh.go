@@ -3,6 +3,7 @@ package cachevolumes
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -28,6 +29,8 @@ type refresher struct {
 	once    sync.Once
 	jobs    chan refreshJob
 	pending sync.Map
+	// active holds the scope whose lock the running refresh keeps for its download.
+	active sync.Map
 }
 
 // queueRefresh reports whether the stale master stays until its refresh finishes.
@@ -38,6 +41,9 @@ func (b *LocalImages) queueRefresh(master string, stale Slot, head Identity, use
 	next := stale
 	next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
 	if !validHead(next.Identity) {
+		return false
+	}
+	if _, err := os.Stat(b.master(next)); err == nil {
 		return false
 	}
 	if _, queued := b.refresh.pending.LoadOrStore(master, struct{}{}); queued {
@@ -56,6 +62,14 @@ func (b *LocalImages) queueRefresh(master string, stale Slot, head Identity, use
 	}
 }
 
+// refreshing reports whether a running refresh download holds a master's scope
+// lock. Maintenance and admission skip it instead of waiting minutes. The scope
+// is marked before the refresh takes admission, so admission never misses it.
+func (b *LocalImages) refreshing(master string) bool {
+	_, ok := b.refresh.active.Load(filepath.Base(filepath.Dir(master)))
+	return ok
+}
+
 func (b *LocalImages) refreshMasters() {
 	for job := range b.refresh.jobs {
 		b.refreshMaster(job)
@@ -64,18 +78,23 @@ func (b *LocalImages) refreshMasters() {
 }
 
 func (b *LocalImages) refreshMaster(job refreshJob) {
-	ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
-	defer cancel()
-	done := b.Observe.Start("refresh", "remote")
-	err := b.RefreshMaster(ctx, job.next)
+	master := b.master(job.next)
+	if _, err := os.Stat(master); os.IsNotExist(err) {
+		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+		done := b.Observe.Start("refresh", "remote")
+		b.refresh.active.Store(job.stale.Scope, struct{}{})
+		err = b.RefreshMaster(ctx, job.next)
+		b.refresh.active.Delete(job.stale.Scope)
+		cancel()
+		if err == nil {
+			// Carry the last use over so a master no job attaches is not refreshed
+			// on every publication until it ages out.
+			err = os.Chtimes(master, job.usedAt, job.usedAt)
+		}
+		done(err)
+	}
 	unlock := b.lock(job.stale.Scope)
 	defer unlock()
-	if err == nil {
-		// Carry the last use over so a master no job attaches is not refreshed
-		// on every publication until it ages out.
-		err = os.Chtimes(b.master(job.next), job.usedAt, job.usedAt)
-	}
-	done(err)
 	_ = removeMaster(job.master)
 }
 

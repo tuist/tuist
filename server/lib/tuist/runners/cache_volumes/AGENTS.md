@@ -80,6 +80,9 @@ these schemas persist volume identities and per-job uses.
   base serves only the current HEAD, for a use on the same node in the same
   uncleared lineage, even after that use finished. Never widen it to other
   generations, nodes or lineages.
+  A refreshed master keeps authorizing through the use that first installed
+  it, so do not add use-age checks to `retain` or this `download`; a use pruned
+  from history only costs that host one remote restore.
 - `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
   Keep macOS dispatch validation restricted to built-in repository/account caches;
   custom attachment uses the separate authenticated host agent. Export includes

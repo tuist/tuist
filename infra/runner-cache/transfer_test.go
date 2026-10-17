@@ -49,4 +49,7 @@ func TestTransferReadsTheHeadAndDownloadsTheGenerationItNames(t *testing.T) {
 	if len(requests) != 2 || requests[1]["operation"] != "download" || requests[1]["id"] != first || requests[1]["generation"] != float64(2) {
 		t.Fatalf("requests %v", requests)
 	}
+	if _, ok := requests[0]["generation"]; ok {
+		t.Fatal("retain named a generation")
+	}
 }

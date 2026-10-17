@@ -51,8 +51,9 @@ type LocalImages struct {
 	// masters have been evicted. It must preserve all active reservations.
 	Reclaim func(context.Context, uint64) error
 	// RefreshMaster restores a newer master of a lineage with the same admission
-	// as a prefetch. When set, a stale master cloned within RefreshWithin is
-	// refreshed in the background instead of being removed right away.
+	// as a prefetch. When set, a stale master last used (cloned, restored or
+	// published) within RefreshWithin is refreshed in the background instead of
+	// being removed right away.
 	RefreshMaster func(context.Context, Slot) error
 	RefreshWithin time.Duration
 	refresh       refresher
@@ -215,7 +216,7 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		if err != nil {
 			return err
 		}
-		if free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour {
+		if b.refreshing(path) || (free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour) {
 			continue
 		}
 		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
@@ -566,6 +567,9 @@ func (b *LocalImages) Maintain() error {
 	// validated or evicted.
 	var failures []error
 	for _, path := range files {
+		if _, queued := b.refresh.pending.Load(path); queued || b.refreshing(path) {
+			continue
+		}
 		failures = append(failures, b.maintainMaster(path, heads))
 	}
 	return errors.Join(failures...)

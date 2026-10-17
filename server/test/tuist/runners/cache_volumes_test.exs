@@ -405,6 +405,25 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
   end
 
+  test "a job's download keeps its own base after the head advances", %{job: job, account: account} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, live} = CacheVolumes.allocate_for_job(job, identity(), attrs("live"))
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next", "other-node"))
+    assert {:ok, %{action: "keep"}} = publish_report("other-node", next.id)
+    name = CacheVolumes.storage_name(volume(account))
+    assert %{generation: 2} = VolumeHeads.get_head(account.id, name)
+
+    expect(Runners, :volume_master_download_url, fn _account_id, ^name, digest, content ->
+      assert {digest, content} == {live.image_digest, live.content_digest}
+      {:ok, "https://1.1.1.1/image"}
+    end)
+
+    assert {:ok, %{generation: 1, download_url: "https://1.1.1.1/image"}} =
+             CacheVolumes.image("node", live.id, %{"operation" => "download", "generation" => 1})
+  end
+
   test "provider and instance namespaces cannot collide, and each preserves warm reuse", %{job: job} do
     scopes = [
       %{provider: "github", provider_instance: "github.com", scope_id: "123", repository_id: 123, trusted: true},

@@ -30,9 +30,13 @@ type transferResponse struct {
 }
 
 func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest, content string) (transferResponse, error) {
+	fields := map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "image_digest": digest, "content_digest": content}
 	// A download names its generation: a host may refresh a stale master to the
 	// current HEAD of the lineage it already holds.
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "generation": slot.BaseGeneration, "image_digest": digest, "content_digest": content})
+	if operation == "download" {
+		fields["generation"] = slot.BaseGeneration
+	}
+	body, _ := json.Marshal(fields)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", t.URL, bytes.NewReader(body))
