@@ -4,6 +4,7 @@ This area owns the OpenAPI spec and schema definitions for the server API.
 
 ## Responsibilities
 - `BuildEntityResources` and `Schemas.BuildEntity` define additive project-scoped native task/action/module/file endpoints. Public resource names, response keys and operation IDs are native; generic entity vocabulary is internal. Share `Tuist.BuildEntities.Params` range/cursor bounds with MCP, retain nullable measurements and history cursor metadata, and preserve old run-level ingestion/read contracts. `duration_samples` counts only measured durations (including zero), stays zero for unmeasured cohorts, and is optional in the additive public metrics schema so earlier responses remain decodable.
+- `Schemas.PaginationMetadata` supports offset, cursor, and first-page offset responses that also offer cursors. Preserve optional cursor fields and page-number/total fields so existing clients can decode the first page unchanged while new clients follow cursors.
 - Define the OpenAPI spec (`TuistWeb.API.Spec`) and security schemes.
 - Provide schema modules used by the API controllers and docs.
 
