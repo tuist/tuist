@@ -11,7 +11,9 @@
     import TuistConfig
     import TuistConfigLoader
     import TuistCore
+    import TuistGit
     import TuistHasher
+    import TuistRootDirectoryLocator
     import TuistServer
     import TuistSupport
     import TuistXcodeBuildProducts
@@ -36,6 +38,8 @@
         private let contentHasher = MockContentHashing()
         private let cacheGraphContentHasher = MockCacheGraphContentHashing()
         private let configLoader = MockConfigLoading()
+        private let gitController = MockGitControlling()
+        private let rootDirectoryLocator = MockRootDirectoryLocating()
         private let fileSystem = FileSystem()
 
         @Test(.inTemporaryDirectory) func run_usesLocalCacheStorage_whenNoUpload() async throws {
@@ -68,7 +72,8 @@
                     cacheStorage: .any,
                     targetHashes: .value([
                         TargetReference(projectPath: temporaryDirectory, name: "Fixtures"): targetHash,
-                    ])
+                    ]),
+                    coverage: .any
                 )
                 .called(1)
             verify(cacheStorage)
@@ -137,7 +142,8 @@
                     targetsToBinaryCache: .any,
                     configuration: .any,
                     cacheStorage: .any,
-                    targetHashes: .any
+                    targetHashes: .any,
+                    coverage: .any
                 )
                 .willReturn(generator)
             given(generator)
@@ -153,7 +159,8 @@
                 generateOnly: true,
                 noUpload: false,
                 cacheProfile: nil,
-                scratchDirectory: nil
+                scratchDirectory: nil,
+                coverage: false
             )
 
             verify(generatorFactory)
@@ -164,7 +171,8 @@
                     },
                     configuration: .any,
                     cacheStorage: .any,
-                    targetHashes: .value([:])
+                    targetHashes: .value([:]),
+                    coverage: .any
                 )
                 .called(1)
         }
@@ -335,7 +343,8 @@
                     targetsToBinaryCache: .any,
                     configuration: .any,
                     cacheStorage: .any,
-                    targetHashes: .any
+                    targetHashes: .any,
+                    coverage: .any
                 )
                 .called(0)
         }
@@ -461,6 +470,103 @@
             for resultBundlePath in recorder.resultBundlePaths {
                 #expect(try await fileSystem.exists(resultBundlePath) == false)
             }
+        }
+
+        @Test(.inTemporaryDirectory) func run_buildsRepositoryTargetsWithCoverage_whenWarmingWithCoverage() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                coverage: true
+            )
+
+            verify(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                    coverage: .value(.on)
+                )
+                .called(1)
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
+                    coverage: .value(.on)
+                )
+                .called(1)
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .matching { arguments in
+                        arguments
+                            .contains(
+                                "CLANG_COVERAGE_MAPPING=$(TUIST_BINARY_CACHE_COVERAGE_MAPPING_$(TUIST_BINARY_CACHE_COVERAGE))"
+                            )
+                            && arguments.contains { $0.hasPrefix("TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=")
+                                && $0.contains("-coverage-prefix-map \"\(temporaryDirectory.pathString)=/TUIST_SOURCE_ROOT\"")
+                            }
+                    }
+                )
+                .called(2)
+        }
+
+        @Test(.inTemporaryDirectory) func run_buildsPlainBinaries_whenWarmingWithoutCoverage() async throws {
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended)
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .matching { arguments in
+                        !arguments.contains { $0.hasPrefix("CLANG_COVERAGE_MAPPING=") }
+                    }
+                )
+                .called(2)
+        }
+
+        @Test(.inTemporaryDirectory) func run_throws_whenWarmingAReleaseConfigurationWithCoverage() async throws {
+            await #expect(throws: CacheWarmCommandServiceError.self) {
+                try await run(
+                    noUpload: true,
+                    configuration: "Release",
+                    schemes: [.test(name: "Binaries-Cache-iOS")],
+                    targetProduct: .framework,
+                    projectSettings: .test(defaultSettings: .recommended),
+                    coverage: true
+                )
+            }
+            verify(xcodeBuildController)
+                .build(
+                    .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, clean: .any,
+                    arguments: .any, passthroughXcodeBuildArguments: .any
+                )
+                .called(0)
         }
 
         @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
@@ -625,9 +731,14 @@
             fetched: [CacheItem: AbsolutePath] = [:],
             generateOnly: Bool = false,
             cachedTarget: Bool = false,
-            republishError: Error? = nil
+            republishError: Error? = nil,
+            coverage: Bool = false
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            if coverage {
+                given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
+                given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+            }
             let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
             let cached = Target.test(name: "Cached", product: .bundle)
@@ -683,7 +794,7 @@
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
                     destination: .value(nil),
-                    coverage: .value(.off)
+                    coverage: .value(coverage ? .on : .off)
                 )
                 .willReturn(hashes)
             given(cacheStorage)
@@ -704,7 +815,8 @@
                     targetsToBinaryCache: .any,
                     configuration: .value(resolvedConfiguration),
                     cacheStorage: .any,
-                    targetHashes: .any
+                    targetHashes: .any,
+                    coverage: .any
                 )
                 .willReturn(generator)
             given(generator)
@@ -734,7 +846,8 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
-                scratchDirectory: scratchDirectory?.pathString
+                scratchDirectory: scratchDirectory?.pathString,
+                coverage: coverage
             )
         }
 
@@ -750,7 +863,11 @@
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: cacheGraphContentHasher,
                 cacheStorageFactory: cacheStorageFactory,
-                configLoader: configLoader
+                configLoader: configLoader,
+                coverageBuildSourcesService: CoverageBuildSourcesService(
+                    gitController: gitController,
+                    rootDirectoryLocator: rootDirectoryLocator
+                )
             )
         }
     }

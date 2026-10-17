@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import MachO
 
 /// An instrumented image's coverage mapping: for every function, the source regions its counters
 /// stand for (`__llvm_covfun`, with the file names in `__llvm_covmap`). With the counts a scope
@@ -97,7 +98,9 @@ struct CoverageMapping {
     /// header per member, a `#1/<length>` name carried in the member's data, an even-byte pad
     /// after each member), leaving out members that are not Mach-O, such as the symbol table.
     static func mappings(archivePath path: String) -> [CoverageMapping] {
-        guard let archive = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else { return [] }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
+              let archive = archive(in: data)
+        else { return [] }
         return archiveMembers(archive).compactMap { member in
             let sections = sections(of: member, named: ["__llvm_covmap", "__llvm_covfun"])
             guard let covmap = sections["__llvm_covmap"], let covfun = sections["__llvm_covfun"] else { return nil }
@@ -109,35 +112,64 @@ struct CoverageMapping {
     /// mapping: the code in it was built with coverage, so a run that collects coverage counts
     /// its lines. Anything else, or anything unreadable, does not.
     static func carriesMapping(path: String) -> Bool {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), data.count >= 32
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
+              data.count >= MemoryLayout<mach_header_64>.size
         else { return false }
-        if data.prefix(8).elementsEqual("!<arch>\n".utf8) {
-            return archiveMembers(data).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
+        if let archive = archive(in: data) {
+            return archiveMembers(archive).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
         }
         return !sections(of: data, named: ["__llvm_covmap"]).isEmpty
     }
 
-    /// The 64-bit Mach-O members of a BSD `ar` archive.
+    // BSD `ar` (`ar.h`, which Swift does not import): `ARMAG`, `sizeof(struct ar_hdr)`, the
+    // `ar_name` and `ar_size` fields, and `AR_EFMT1`, the prefix of a name carried in the member's data.
+    private static let archiveMagic = Array("!<arch>\n".utf8)
+    private static let archiveHeaderSize = 60
+    private static let archiveNameField = 0 ..< 16
+    private static let archiveSizeField = 48 ..< 58
+    private static let archiveExtendedNamePrefix = "#1/"
+
+    /// The BSD `ar` archive in `data`: the data itself, or the chosen slice of a universal file
+    /// whose slices are archives, which is how Xcode packs a static framework built for several
+    /// architectures. Nil for anything else.
+    static func archive(in data: Data) -> Data? {
+        if isArchive(data) { return data }
+        guard let slice = universalSlice(of: data) else { return nil }
+        let candidate = data.subdata(in: data.startIndex + slice.lowerBound ..< data.startIndex + slice.upperBound)
+        return isArchive(candidate) ? candidate : nil
+    }
+
+    private static func isArchive(_ data: Data) -> Bool {
+        data.prefix(archiveMagic.count).elementsEqual(archiveMagic)
+    }
+
+    /// The 64-bit Mach-O members of a BSD `ar` archive: a fixed-size text header per member, an
+    /// even-byte pad after each, and the symbol table and other non-Mach-O members left out.
     static func archiveMembers(_ archive: Data) -> [Data] {
-        guard archive.count >= 8, archive.prefix(8).elementsEqual("!<arch>\n".utf8) else { return [] }
+        guard isArchive(archive) else { return [] }
         var members: [Data] = []
-        var offset = 8
-        while offset + 60 <= archive.count {
-            let header = archive.subdata(in: archive.startIndex + offset ..< archive.startIndex + offset + 60)
-            let name = String(decoding: header.prefix(16), as: UTF8.self).trimmingCharacters(in: .whitespaces)
-            guard let size = Int(String(decoding: header[header.startIndex + 48 ..< header.startIndex + 58], as: UTF8.self)
-                .trimmingCharacters(in: .whitespaces))
-            else { break }
-            var start = offset + 60
+        var offset = archiveMagic.count
+        while offset + archiveHeaderSize <= archive.count {
+            let header = archive.subdata(in: archive.startIndex + offset ..< archive.startIndex + offset + archiveHeaderSize)
+            func field(_ range: Range<Int>) -> String {
+                String(
+                    decoding: header[header.startIndex + range.lowerBound ..< header.startIndex + range.upperBound],
+                    as: UTF8.self
+                )
+                .trimmingCharacters(in: .whitespaces)
+            }
+            guard let size = Int(field(archiveSizeField)) else { break }
+            var start = offset + archiveHeaderSize
             var length = size
-            if name.hasPrefix("#1/"), let nameLength = Int(name.dropFirst(3)) {
+            let name = field(archiveNameField)
+            if name.hasPrefix(archiveExtendedNamePrefix), let nameLength = Int(name.dropFirst(archiveExtendedNamePrefix.count)) {
                 start += nameLength
                 length -= nameLength
             }
             guard length >= 0, start + length <= archive.count else { break }
             let member = archive.subdata(in: archive.startIndex + start ..< archive.startIndex + start + length)
-            if member.count >= 32, (member.load(at: 0) as UInt32) == 0xFEED_FACF { members.append(member) }
-            offset = (offset + 60 + size + 1) & ~1
+            if let header: mach_header_64 = member.structure(at: 0), header.magic == MH_MAGIC_64 { members.append(member) }
+            offset = (offset + archiveHeaderSize + size + 1) & ~1
         }
         return members
     }
@@ -460,54 +492,73 @@ extension CoverageMapping {
 // MARK: - Mach-O
 
 extension CoverageMapping {
-    /// The named sections of a 64-bit Mach-O image, of its arm64 slice, or else its first 64-bit
-    /// one, when it is universal.
-    static func sections(of image: Data, named names: Set<String>) -> [String: Data] {
-        var base = 0
-        let magic: UInt32 = image.load(at: 0)
-        if magic == 0xBEBA_FECA || magic == 0xBFBA_FECA {
-            let wide = magic == 0xBFBA_FECA
-            let count = Int(UInt32(bigEndian: image.load(at: 4)))
-            var chosen: Int?
-            for index in 0 ..< count {
-                let entry = 8 + index * (wide ? 32 : 20)
-                let cpu = UInt32(bigEndian: image.load(at: entry))
-                let offset = wide
-                    ? Int(UInt64(bigEndian: image.load(at: entry + 8)))
-                    : Int(UInt32(bigEndian: image.load(at: entry + 8)))
-                if cpu == 0x0100_000C { chosen = offset }
-                if chosen == nil, cpu & 0x0100_0000 != 0 { chosen = offset }
+    /// The arm64 slice of a universal file, else its first 64-bit one, as a range of `data`; nil
+    /// when `data` is not universal or holds no such slice. The fat header and its entries are
+    /// big-endian, whatever the host.
+    static func universalSlice(of data: Data) -> Range<Int>? {
+        guard let header: fat_header = data.structure(at: 0) else { return nil }
+        let magic = UInt32(bigEndian: header.magic)
+        guard magic == FAT_MAGIC || magic == FAT_MAGIC_64 else { return nil }
+        let wide = magic == FAT_MAGIC_64
+        let stride = wide ? MemoryLayout<fat_arch_64>.size : MemoryLayout<fat_arch>.size
+        var chosen: Range<Int>?
+        for index in 0 ..< Int(UInt32(bigEndian: header.nfat_arch)) {
+            let entry = MemoryLayout<fat_header>.size + index * stride
+            let cpu: cpu_type_t
+            let slice: Range<Int>
+            if wide {
+                guard let arch: fat_arch_64 = data.structure(at: entry) else { break }
+                cpu = cpu_type_t(bigEndian: arch.cputype)
+                let offset = Int(UInt64(bigEndian: arch.offset))
+                slice = offset ..< offset + Int(UInt64(bigEndian: arch.size))
+            } else {
+                guard let arch: fat_arch = data.structure(at: entry) else { break }
+                cpu = cpu_type_t(bigEndian: arch.cputype)
+                let offset = Int(UInt32(bigEndian: arch.offset))
+                slice = offset ..< offset + Int(UInt32(bigEndian: arch.size))
             }
-            guard let chosen else { return [:] }
-            base = chosen
+            guard slice.upperBound <= data.count else { continue }
+            if cpu == CPU_TYPE_ARM64 { return slice }
+            if chosen == nil, cpu & CPU_ARCH_ABI64 != 0 { chosen = slice }
         }
-        guard (image.load(at: base) as UInt32) == 0xFEED_FACF else { return [:] }
-        let commandCount = Int(image.load(at: base + 16) as UInt32)
+        return chosen
+    }
+
+    /// The named sections of a 64-bit Mach-O image, or of its chosen slice when it is universal.
+    /// The image's own fields are read as laid out, which is host order on every Apple platform.
+    static func sections(of image: Data, named names: Set<String>) -> [String: Data] {
+        let base = universalSlice(of: image)?.lowerBound ?? 0
+        guard let header: mach_header_64 = image.structure(at: base), header.magic == MH_MAGIC_64 else { return [:] }
         var result: [String: Data] = [:]
-        var command = base + 32
-        for _ in 0 ..< commandCount {
-            let kind: UInt32 = image.load(at: command)
-            let size = Int(image.load(at: command + 4) as UInt32)
-            guard size > 0, command + size <= image.count else { break }
-            if kind == 0x19 {
-                let sectionCount = Int(image.load(at: command + 64) as UInt32)
-                for index in 0 ..< sectionCount {
-                    let section = command + 72 + index * 80
-                    guard section + 80 <= image.count else { break }
-                    let name = String(
-                        decoding: image[image.startIndex + section ..< image.startIndex + section + 16].prefix { $0 != 0 },
-                        as: UTF8.self
-                    )
+        var command = base + MemoryLayout<mach_header_64>.size
+        for _ in 0 ..< Int(header.ncmds) {
+            guard let load: load_command = image.structure(at: command), load.cmdsize > 0,
+                  command + Int(load.cmdsize) <= image.count
+            else { break }
+            if load.cmd == UInt32(LC_SEGMENT_64), let segment: segment_command_64 = image.structure(at: command) {
+                for index in 0 ..< Int(segment.nsects) {
+                    let offset = command + MemoryLayout<segment_command_64>.size + index * MemoryLayout<section_64>.size
+                    guard let section: section_64 = image.structure(at: offset) else { break }
+                    let name = withUnsafeBytes(of: section.sectname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
                     guard names.contains(name) else { continue }
-                    let length = Int(image.load(at: section + 40) as UInt64)
-                    let offset = base + Int(image.load(at: section + 48) as UInt32)
-                    guard offset + length <= image.count else { continue }
-                    result[name] = image.subdata(in: image.startIndex + offset ..< image.startIndex + offset + length)
+                    let start = base + Int(section.offset)
+                    let end = start + Int(section.size)
+                    guard end <= image.count else { continue }
+                    result[name] = image.subdata(in: image.startIndex + start ..< image.startIndex + end)
                 }
             }
-            command += size
+            command += Int(load.cmdsize)
         }
         return result
+    }
+}
+
+extension Data {
+    /// The C structure laid out at `offset`, byte for byte; nil when it would run past the end.
+    func structure<T>(at offset: Int) -> T? {
+        let start = startIndex + offset
+        guard offset >= 0, start + MemoryLayout<T>.size <= endIndex else { return nil }
+        return self[start ..< start + MemoryLayout<T>.size].withUnsafeBytes { $0.loadUnaligned(as: T.self) }
     }
 }
 
