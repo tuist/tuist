@@ -290,6 +290,8 @@ config :mime, :types, %{
 config :money,
   default_currency: :USD
 
+config :open_api_spex, :cache_adapter, TuistWeb.API.SpecCache
+
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
 config :phoenix, :filter_parameters, [
