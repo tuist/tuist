@@ -220,7 +220,7 @@ func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 
 type invalidatedTransfer struct{ *testTransfer }
 
-func (invalidatedTransfer) IsCurrent(Slot) (bool, error) { return false, nil }
+func (invalidatedTransfer) Head(Slot) (Identity, error) { return Identity{BaseGeneration: 2}, nil }
 func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T) {
 	b, r := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}

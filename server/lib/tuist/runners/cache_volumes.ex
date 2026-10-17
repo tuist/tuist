@@ -566,10 +566,24 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # A host validates each local master against the HEAD. The HEAD digests let it
+  # name the newer master it can refresh into before discarding the stale one.
   defp image_action(volume, usage, %{"operation" => "retain"}) do
     if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
-    head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
-    %{generation: (head && head.generation) || 0}
+
+    case VolumeHeads.get_head(volume.account_id, storage_name(volume)) do
+      nil -> %{generation: 0}
+      head -> %{generation: head.generation, image_digest: head.tree_digest, content_digest: head.content_digest}
+    end
+  end
+
+  # A host holding a master of this lineage may refresh it to the current HEAD,
+  # named by its generation, even after the use that installed it has finished.
+  # Clearing bumps the lineage and still fails with a conflict.
+  defp image_action(volume, usage, %{"operation" => "download", "generation" => generation})
+       when is_integer(generation) and generation > 0 and generation != usage.base_generation do
+    if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
+    head_download(volume, generation)
   end
 
   defp image_action(volume, usage, %{"operation" => "download"}) do
@@ -613,6 +627,21 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
+  defp head_download(volume, generation) do
+    name = storage_name(volume)
+
+    case VolumeHeads.get_head(volume.account_id, name) do
+      %{generation: ^generation, content_digest: content} = head when is_binary(content) ->
+        case Runners.volume_master_download_url(volume.account_id, name, head.tree_digest, content) do
+          {:ok, url} -> %{download_url: url, generation: generation, content_digest: content}
+          _ -> Repo.rollback(:unavailable)
+        end
+
+      _ ->
+        Repo.rollback(:conflict)
+    end
+  end
 
   defp valid_image_digests?(digest, content) do
     is_binary(digest) and Regex.match?(~r/\A[a-f0-9]{40}\z/, digest) and

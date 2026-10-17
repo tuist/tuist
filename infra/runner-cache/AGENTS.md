@@ -44,6 +44,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. Never create
   a private branch, publish, or extend the foreground budget from prefetch.
+- Linux refreshes a superseded master used in the last day to the new HEAD in
+  the background (one at a time, prefetch admission) before removing it.
+  Maintenance and admission skip the scope a refresh download holds. The server serves only the current HEAD of the same uncleared lineage on the
+  same node. macOS leaves `RefreshMaster` unset: its prefetch reservations share one ID.
+  Maintenance validates every master even when one lineage cannot be reached.
 
 - APFS admission records a reservation under the built-in lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
