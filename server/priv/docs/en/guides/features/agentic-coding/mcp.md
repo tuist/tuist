@@ -258,8 +258,11 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
-| `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
-| `update_runner_profile_cache_branches` | Set whether GitHub Actions jobs on each repository's default branch save a runner profile's custom cache volume changes, and which additional branch names or `*` patterns save. Requires the same administrator permission. | `account_handle`, `profile_name`, `cache_writer_default_branch`, `cache_writer_branches` |
+| `list_runner_profiles` | List continuous-integration runner profiles for an account, with the `runs-on` label of each. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+| `list_runner_profile_options` | List the machine shapes and Xcode versions a runner profile can use. | `account_handle` |
+| `create_runner_profile` | Create a runner profile with a platform, a machine shape and, on macOS, an Xcode version. Optionally set which branches save its cache volumes. Requires the same administrator permission. | `account_handle`, `name`, `platform`, `vcpus`, `memory_gb` |
+| `update_runner_profile` | Change a runner profile's machine shape, Xcode version, or which branches save its custom cache volume changes. Omitted fields keep their value. Requires the same administrator permission. | `account_handle`, `profile_name` |
+| `delete_runner_profile` | Delete a runner profile after user confirmation. Default profiles can't be deleted. Requires the same administrator permission. | `account_handle`, `profile_name` |
 
 Runner volume tools expose the same data as the Volumes dashboard. Read tools
 require runner access; clearing requires account administration and user confirmation.

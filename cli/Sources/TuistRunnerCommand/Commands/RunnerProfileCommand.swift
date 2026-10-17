@@ -1,12 +1,19 @@
 import ArgumentParser
+import TuistServer
 
 public struct RunnerProfileCommand: AsyncParsableCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "profile",
-            abstract: "Inspect runner profiles and choose which branches save their cache volumes.",
-            subcommands: [RunnerProfileListCommand.self, RunnerProfileUpdateCommand.self]
+            abstract: "Manage runner profiles: their machine shapes, Xcode versions, and the branches that save their cache volumes.",
+            subcommands: [
+                RunnerProfileListCommand.self,
+                RunnerProfileOptionsCommand.self,
+                RunnerProfileCreateCommand.self,
+                RunnerProfileUpdateCommand.self,
+                RunnerProfileDeleteCommand.self,
+            ]
         )
     }
 }
@@ -19,3 +26,36 @@ struct RunnerProfileOptions: ParsableArguments {
     @Flag(help: "Return the response as JSON.")
     var json = false
 }
+
+struct RunnerProfileCacheOptions: ParsableArguments {
+    @Option(
+        name: .customLong("save-cache-from"),
+        help: "Additional branch name or * pattern whose jobs save the profile's cache volumes. Repeat for several branches. Replaces the current list."
+    )
+    var saveCacheFrom: [String] = []
+
+    @Flag(
+        name: .customLong("clear-save-cache-from"),
+        help: "Remove the additional branches that save the profile's cache volumes."
+    )
+    var clearSaveCacheFrom = false
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Whether jobs on each repository's default branch save the profile's cache volumes. Defaults to saving."
+    )
+    var saveCacheFromDefaultBranch: Bool?
+
+    var branches: [String]? {
+        if clearSaveCacheFrom { return [] }
+        return saveCacheFrom.isEmpty ? nil : saveCacheFrom
+    }
+
+    func validate() throws {
+        if clearSaveCacheFrom, !saveCacheFrom.isEmpty {
+            throw ValidationError("Pass either --save-cache-from or --clear-save-cache-from, not both.")
+        }
+    }
+}
+
+extension RunnerProfilePlatform: @retroactive ExpressibleByArgument {}

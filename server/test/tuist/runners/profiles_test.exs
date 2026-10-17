@@ -124,10 +124,10 @@ defmodule Tuist.Runners.ProfilesTest do
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
 
       assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
-               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: false})
+               Profiles.update(updated, %{cache_writer_default_branch: false})
 
       assert {:error, %Ecto.Changeset{errors: errors}} =
-               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: nil})
+               Profiles.update(updated, %{cache_writer_default_branch: nil})
 
       assert errors[:cache_writer_default_branch]
     end
@@ -150,6 +150,45 @@ defmodule Tuist.Runners.ProfilesTest do
 
         assert errors[:cache_writer_branches]
       end
+    end
+  end
+
+  describe "update/2 against a changed catalog" do
+    test "validates the shape only when the update changes it", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{account_id: account.id, name: "retired", platform: :linux, vcpus: 7, memory_gb: 13})
+
+      assert {:ok, %Profile{cache_writer_branches: ["develop"], vcpus: 7}} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["develop"]})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(profile, %{"vcpus" => 7, "cache_writer_branches" => ["main"]})
+
+      assert errors[:vcpus]
+
+      assert {:ok, %Profile{vcpus: 8, memory_gb: 32}} = Profiles.update(profile, %{"vcpus" => 8, "memory_gb" => 32})
+    end
+  end
+
+  describe "error_message/1" do
+    test "lists the catalog's shapes for an unavailable shape", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "weird", "vcpus" => 7, "memory_gb" => 13})
+
+      assert Profiles.error_message(changeset) ==
+               "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB, 4 vCPU / 16 GB, 8 vCPU / 32 GB."
+    end
+
+    test "describes other validation errors by field", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "tuist", "vcpus" => 4})
+
+      message = Profiles.error_message(changeset)
+      assert message =~ "memory_gb can't be blank."
+      assert message =~ "name is reserved."
+    end
+
+    test "describes the profile limit and protected profiles" do
+      assert Profiles.error_message(:max_profiles_reached) =~ "maximum of 10 runner profiles"
+      assert Profiles.error_message(:protected) == "This profile is a default and can't be deleted."
     end
   end
 
