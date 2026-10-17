@@ -5,6 +5,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
@@ -368,6 +369,40 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :not_found} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
     CacheVolumes.delete(account.id, volume(account).id)
     assert {:error, :conflict} = CacheVolumes.image("node", next.id, %{"operation" => "retain"})
+  end
+
+  test "a host refreshes a stale local master to the current head", %{job: job, account: account} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    assert {:ok, _} = CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next", "other-node"))
+    assert {:ok, %{action: "keep"}} = publish_report("other-node", next.id)
+    head = Repo.get!(Usage, next.id)
+    name = CacheVolumes.storage_name(volume(account))
+
+    expect(Runners, :volume_master_download_url, fn account_id, ^name, digest, content ->
+      assert {account_id, digest, content} == {account.id, head.image_digest, head.content_digest}
+      {:ok, "https://1.1.1.1/image"}
+    end)
+
+    assert {:ok, %{generation: 2, image_digest: image_digest, content_digest: content_digest}} =
+             CacheVolumes.image("node", first.id, %{"operation" => "retain"})
+
+    assert image_digest == head.image_digest
+    assert content_digest == head.content_digest
+
+    assert {:ok, %{generation: 2, content_digest: ^content_digest, download_url: "https://1.1.1.1/image"}} =
+             CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
+
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 3})
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 1})
+
+    assert {:error, :not_found} =
+             CacheVolumes.image("third-node", first.id, %{"operation" => "download", "generation" => 2})
+
+    CacheVolumes.delete(account.id, volume(account).id)
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
   end
 
   test "provider and instance namespaces cannot collide, and each preserves warm reuse", %{job: job} do

@@ -75,6 +75,11 @@ these schemas persist volume identities and per-job uses.
   custom-volume clear/expiry epoch. Lock the custom volume through publication
   and clearing so a cleared lineage cannot be resurrected. Publication is
   idempotent by usage ID and both digests. A sealed report alone never publishes.
+- `retain` returns the HEAD generation and digests so a host can refresh a
+  superseded local master. `download` with a `generation` other than the use's
+  base serves only the current HEAD, for a use on the same node in the same
+  uncleared lineage, even after that use finished. Never widen it to other
+  generations, nodes or lineages.
 - `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
   Keep macOS dispatch validation restricted to built-in repository/account caches;
   custom attachment uses the separate authenticated host agent. Export includes

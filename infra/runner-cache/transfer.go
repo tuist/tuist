@@ -20,15 +20,19 @@ type HTTPTransfer struct {
 	Token                func(context.Context) (string, error)
 }
 type transferResponse struct {
-	DownloadURL string `json:"download_url"`
-	UploadURL   string `json:"upload_url"`
-	Checksum    string `json:"checksum_sha256"`
-	Generation  int64  `json:"generation"`
-	Conflict    bool   `json:"conflict"`
+	DownloadURL   string `json:"download_url"`
+	UploadURL     string `json:"upload_url"`
+	Checksum      string `json:"checksum_sha256"`
+	Generation    int64  `json:"generation"`
+	ImageDigest   string `json:"image_digest"`
+	ContentDigest string `json:"content_digest"`
+	Conflict      bool   `json:"conflict"`
 }
 
 func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest, content string) (transferResponse, error) {
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "image_digest": digest, "content_digest": content})
+	// A download names its generation: a host may refresh a stale master to the
+	// current HEAD of the lineage it already holds.
+	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "generation": slot.BaseGeneration, "image_digest": digest, "content_digest": content})
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", t.URL, bytes.NewReader(body))
@@ -123,12 +127,12 @@ func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, 
 	return result.Generation, err
 }
 
-func (t *HTTPTransfer) IsCurrent(slot Slot) (bool, error) {
+func (t *HTTPTransfer) Head(slot Slot) (Identity, error) {
 	result, err := t.request(context.Background(), slot, "retain", "", "")
-	if errors.Is(err, ErrConflict) {
-		return false, nil
+	if err != nil {
+		return Identity{}, err
 	}
-	return result.Generation == slot.BaseGeneration, err
+	return Identity{BaseGeneration: result.Generation, ImageDigest: result.ImageDigest, ContentDigest: result.ContentDigest}, nil
 }
 
 // Preserve cancellation for classification without logging credential-bearing URLs.

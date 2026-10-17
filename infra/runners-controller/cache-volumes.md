@@ -172,8 +172,9 @@ formatted in a private temporary file and atomically renamed before exposure;
 a restart never reformats an image a job could have written. Attachment checks
 a per-use marker. Teardown errors retain the image for retry. Private branches
 are released after durable sealing and publication acknowledgement. Local master
-replicas are validated against the central HEAD and evicted when superseded,
-cleared, or idle for seven days. Physical free-space watermarks drive admission
+replicas are validated against the central HEAD every 30 seconds and evicted when
+superseded, cleared, or idle for seven days. A superseded replica a job cloned in
+the last 24 hours is first refreshed to the new HEAD in the background (see below). Physical free-space watermarks drive admission
 and LRU eviction because reflinks share blocks; summed logical sizes cannot
 measure host disk consumption. Defaults are eight allocations per pod, 100 active
 branches per host, 20 GB logical volume capacity, and a 40 GB free-space reserve.
@@ -383,3 +384,16 @@ This favors warming hosts after an observed miss over predicting cache keys in t
 scheduler. It preserves ordinary placement and does not replicate every volume to
 every host. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
+
+Publishing a generation supersedes every other host's replica of that volume.
+When maintenance finds a superseded replica that a job cloned within the last 24
+hours, it restores the new HEAD in the background before removing the old
+replica, so the next job on that host attaches locally instead of downloading.
+The HEAD check returns the new image and content digests, and the host downloads
+that generation through the use that installed its replica. The server accepts
+this only for the current HEAD of the same, uncleared lineage on the same node.
+One refresh runs at a time per host, through the same admission as a prefetch,
+with a five-minute deadline and a bounded queue. A failed, rejected or queued-out
+refresh falls back to removing the replica, and a refreshed replica keeps its
+previous last-use time so unused volumes stop being refreshed after a day. Watch
+`operation="refresh"` results against `attach{source="local"}`.
