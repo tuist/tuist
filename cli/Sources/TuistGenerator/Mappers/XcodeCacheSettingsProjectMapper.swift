@@ -73,10 +73,9 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
                 baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
-            baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
-            baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
-            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] =
-                tuist.project.generatedProject?.generationOptions.enableCoveragePrefixMapping == true ? "YES" : "NO"
+            for (key, value) in Self.prefixMappingForCoverageSettings(tuist: tuist) {
+                baseSettings[key] = .string(value)
+            }
         }
 
         var casPluginOptions: [String] = []
@@ -163,9 +162,31 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         return (project, [])
     }
 
+    /// The settings that route a project's compilations through the CAS plugin, written when
+    /// the project has a full handle and the plugin dylib exists.
+    static let casPluginSettings = [
+        "COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS",
+        "COMPILATION_CACHE_ENABLE_PLUGIN",
+        "COMPILATION_CACHE_PLUGIN_PATH",
+        "COMPILATION_CACHE_REMOTE_SERVICE_PATH",
+        "COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES",
+    ]
+
     private static let prefixMappingForCoverageSetting = "TUIST_PREFIX_MAPPING_FOR_COVERAGE"
-    private static let prefixMappingUnlessCoverage: SettingValue =
-        "$(\(prefixMappingForCoverageSetting)_$(CLANG_COVERAGE_MAPPING))"
+    static let prefixMappingUnlessCoverageExpression = "$(\(prefixMappingForCoverageSetting)_$(CLANG_COVERAGE_MAPPING))"
+    private static let prefixMappingUnlessCoverage: SettingValue = .string(prefixMappingUnlessCoverageExpression)
+
+    /// The settings `prefixMappingUnlessCoverageExpression` resolves through, keyed by the
+    /// value of `CLANG_COVERAGE_MAPPING`.
+    static func prefixMappingForCoverageSettings(tuist: Tuist) -> [(String, String)] {
+        let enableCoveragePrefixMapping =
+            tuist.project.generatedProject?.generationOptions.enableCoveragePrefixMapping == true
+        return [
+            ("\(prefixMappingForCoverageSetting)_", "YES"),
+            ("\(prefixMappingForCoverageSetting)_NO", "YES"),
+            ("\(prefixMappingForCoverageSetting)_YES", enableCoveragePrefixMapping ? "YES" : "NO"),
+        ]
+    }
 
     /// Whether the selected Xcode's build system implements the source/build
     /// directory prefix mappings that make compilation-cache keys path-independent
@@ -203,7 +224,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
 
     /// The plugin's per-project `-cas-plugin-option` flags (`tuist-instance`, and
     /// `tuist-upload=false` when uploads are disabled).
-    private static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
+    static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
         var flags = ["-cas-plugin-option", "tuist-instance=\(fullHandle)"]
         if !upload {
             // `xcodeCache(upload:)` is per-project, but the proxy is machine-wide;

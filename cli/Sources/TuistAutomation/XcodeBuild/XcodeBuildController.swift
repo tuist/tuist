@@ -1,4 +1,5 @@
 import TuistProcess
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -22,22 +23,26 @@ public struct XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let simulatorController: SimulatorController
     private let commandRunner: CommandRunning
+    private let fileSystem: FileSysteming
     private static let showBuildSettingsTimeout: Duration = .seconds(60)
 
     public init() {
         self.init(
             formatter: Formatter(),
-            commandRunner: CommandRunner()
+            commandRunner: CommandRunner(),
+            fileSystem: FileSystem()
         )
     }
 
     init(
         formatter: Formatting,
-        commandRunner: CommandRunning
+        commandRunner: CommandRunning,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.formatter = formatter
         self.simulatorController = SimulatorController()
         self.commandRunner = commandRunner
+        self.fileSystem = fileSystem
     }
 
     public func build(
@@ -350,16 +355,64 @@ public struct XcodeBuildController: XcodeBuildControlling {
         var environment = Environment.current.variables
         environment["NSUnbufferedIO"] = "YES"
         environment.merge(XcodeBuildEnvironment.additionalVariables) { _, new in new }
-        for try await event in commandRunner.run(arguments: command, environment: environment) {
-            switch event {
-            case let .standardOutput(bytes):
-                log(bytes)
-            case let .standardError(bytes):
-                log(bytes, isError: true)
+
+        func execute(environment: [String: String]) async throws {
+            for try await event in commandRunner.run(arguments: command, environment: environment) {
+                switch event {
+                case let .standardOutput(bytes):
+                    log(bytes)
+                case let .standardError(bytes):
+                    log(bytes, isError: true)
+                }
             }
         }
+
+        guard let xcconfigPath = try await xcodeCachePackagesXCConfigPath(arguments: arguments) else {
+            try await execute(environment: environment)
+            return
+        }
+        logger.debug("Applying the Xcode cache package settings in \(xcconfigPath.pathString)")
+        guard let userXCConfig = environment["XCODE_XCCONFIG_FILE"] else {
+            environment["XCODE_XCCONFIG_FILE"] = xcconfigPath.pathString
+            try await execute(environment: environment)
+            return
+        }
+        // `XCODE_XCCONFIG_FILE` takes a single file, so both go through one that includes them.
+        // The package settings come last to extend the user's through `$(inherited)`.
+        let userXCConfigPath = try AbsolutePath(
+            validating: userXCConfig,
+            relativeTo: try await Environment.current.currentWorkingDirectory()
+        )
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcodebuild-xcconfig") { [environment] directory in
+            let wrapperPath = directory.appending(component: "xcode-cache.xcconfig")
+            try await fileSystem.writeText(
+                Self.xcconfig(including: [userXCConfigPath, xcconfigPath]),
+                at: wrapperPath
+            )
+            var environment = environment
+            environment["XCODE_XCCONFIG_FILE"] = wrapperPath.pathString
+            try await execute(environment: environment)
+        }
+    }
+
+    static func xcconfig(including paths: [AbsolutePath]) -> String {
+        paths.map { "#include \"\($0.pathString)\"\n" }.joined()
     }
     
+    /// The `XcodeCachePackagesXCConfig` that `tuist generate` wrote into the workspace passed with
+    /// `-workspace`, if any.
+    private func xcodeCachePackagesXCConfigPath(arguments: [String]) async throws -> AbsolutePath? {
+        guard let workspaceIndex = arguments.firstIndex(of: "-workspace"),
+              arguments.indices.contains(workspaceIndex + 1)
+        else { return nil }
+        let workspacePath = try AbsolutePath(
+            validating: arguments[workspaceIndex + 1],
+            relativeTo: try await Environment.current.currentWorkingDirectory()
+        )
+        let xcconfigPath = XcodeCachePackagesXCConfig.path(xcWorkspacePath: workspacePath)
+        return try await fileSystem.exists(xcconfigPath) ? xcconfigPath : nil
+    }
+
     public func version() async throws -> Version? {
         let output = try await commandRunner
             .run(arguments: ["xcodebuild", "-version"])
