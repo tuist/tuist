@@ -1364,6 +1364,25 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # Off until the processor leaves the main release. The server deploy runs
+  # `helm upgrade --atomic --wait` on the whole release, which waits on
+  # every Deployment, so one NotReady processor (a shared Postgres or
+  # ClickHouse outage, or a host that cannot reach its guest) would hold
+  # and roll back every server deploy, including ones that do not touch
+  # the processor.
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
@@ -1909,6 +1928,12 @@ rackLinuxFleet:
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
   #       activate: false        # default: amt.products decides
@@ -3503,9 +3528,12 @@ clickhouse:
       # Under the default object-storage bucket, then the namespace, so
       # environments sharing a bucket cannot restore over each other.
       prefix: clickhouse-backups
-      # Six hours. Long enough for a full of a dataset this size, short enough
-      # that a wedged backup does not block the next one indefinitely.
-      timeoutSeconds: 21600
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
       # Memory budget for the `backup` user the jobs run as, which is separate
       # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
       # leaves the user unbounded below the server's own ceiling.
@@ -3908,6 +3936,7 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
+  nodeSelector: {}
   # Both protocols must share this load balancer. The main nginx class sends
   # Connection: close upstream, which Go correctly rejects on HTTP/2.
   ingressClassName: nginx-grpc

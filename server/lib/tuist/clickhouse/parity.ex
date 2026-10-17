@@ -44,6 +44,15 @@ defmodule Tuist.ClickHouse.Parity do
   way; the ones that applies to either collapse duplicates by key or have not
   been written to in months.
 
+  The column a table is bounded by can record when something happened rather
+  than when its row was written: `runner_job_logs` by the time of each log
+  line, `test_runs` by when the run started. Their rows keep arriving long
+  after that time, so a bound on it alone still lets the second side read rows
+  the first did not. A table with an `inserted_at` is therefore also bounded by
+  it, in a `PREWHERE`, which ClickHouse applies before `FINAL`: each side is
+  then read as it stood at that moment, an older version of a row included
+  when its newer one arrived later.
+
   ## Why rows close to their TTL are left out
 
   A table with a TTL deletes expired rows only when a merge reaches them, and
@@ -107,19 +116,25 @@ defmodule Tuist.ClickHouse.Parity do
   tables, so a caller can gate on `differing == []` rather than reading logs.
   Its `migrations` entry lists the `schema_migrations` versions each server
   holds and the other does not.
+
+  A table only the destination holds is reported as schema drift rather than
+  compared, since there is nothing on the source to compare it with. That is
+  what a table dropped by a migration looks like: the migration runs on the
+  source, and the schema reconcile that follows is additive, so the drop never
+  reaches the destination.
   """
   def compare(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
-      derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end)
+      drift = Tables.schema_drift(source, target)
+      migrations = migration_drift(source, target)
+
+      copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end) -- drift.missing_on_source
+      derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end) -- drift.missing_on_source
       as_of = Keyword.get_lazy(opts, :as_of, &default_as_of/0)
       since = Keyword.get(opts, :since)
 
       window = if since, do: " written since #{since}", else: ""
       Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
-
-      drift = Tables.schema_drift(source, target)
-      migrations = migration_drift(source, target)
 
       {matching, differing, skipped} = split(source, target, copied, since, as_of)
       {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
@@ -144,10 +159,8 @@ defmodule Tuist.ClickHouse.Parity do
         Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} copied table(s) differ")
       end
 
-      if drift.missing_on_destination != [] or drift.differing_columns != [] do
-        Logger.error(
-          "ClickHouse schema drift: #{inspect(Map.take(drift, [:missing_on_destination, :differing_columns]))}"
-        )
+      if drift.missing_on_destination != [] or drift.missing_on_source != [] or drift.differing_columns != [] do
+        Logger.error("ClickHouse schema drift: #{inspect(drift)}")
       end
 
       if migrations.missing_on_destination != [] or migrations.only_on_destination != [] do
@@ -160,7 +173,7 @@ defmodule Tuist.ClickHouse.Parity do
         # the question is only ever how much: a percent on a rebuilt aggregate
         # is the design working, and half the rows is not.
         Logger.warning(
-          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{inspect(report.derived.differing)}"
+          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{inspect(report.derived.differing, limit: :infinity)}"
         )
       end
 
@@ -344,7 +357,8 @@ defmodule Tuist.ClickHouse.Parity do
 
   defp fingerprint_statement(endpoint, table, since, until, as_of, ttl) do
     {integer, float} = numeric_columns(endpoint, table)
-    time = time_column(endpoint, table)
+    times = time_columns(endpoint, table)
+    time = List.first(times)
 
     selects =
       ["count() AS rows"] ++
@@ -352,9 +366,13 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, until, as_of, ttl)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{written_clause(times, as_of)}#{window_clause(time, since, until, as_of, ttl)}"
 
     {selects, statement}
+  end
+
+  defp written_clause(times, as_of) do
+    if "inserted_at" in times, do: " PREWHERE `inserted_at` < toDateTime64('#{stamp(as_of)}', 6)", else: ""
   end
 
   # A table whose history was deliberately not copied is compared only over
@@ -472,7 +490,9 @@ defmodule Tuist.ClickHouse.Parity do
     {Enum.map(integer, &hd/1), Enum.map(float, &hd/1)}
   end
 
-  defp time_column(endpoint, table) do
+  defp time_column(endpoint, table), do: endpoint |> time_columns(table) |> List.first()
+
+  defp time_columns(endpoint, table) do
     %{rows: rows} =
       endpoint.repo.query!(
         """
@@ -485,10 +505,7 @@ defmodule Tuist.ClickHouse.Parity do
         log: false
       )
 
-    case List.flatten(rows) do
-      [] -> nil
-      [column | _] -> column
-    end
+    List.flatten(rows)
   end
 
   @doc """

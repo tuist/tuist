@@ -42,11 +42,14 @@ public enum CreateShardPlanServiceError: LocalizedError, Equatable {
 
 public struct CreateShardPlanService: CreateShardPlanServicing {
     private let fullHandleService: FullHandleServicing
+    private let concurrentModules: [String]?
 
     public init(
-        fullHandleService: FullHandleServicing = FullHandleService()
+        fullHandleService: FullHandleServicing = FullHandleService(),
+        concurrentModules: [String]? = nil
     ) {
         self.fullHandleService = fullHandleService
+        self.concurrentModules = concurrentModules
     }
 
     public func createShardPlan(
@@ -76,6 +79,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             body: .json(
                 .init(
                     build_run_id: buildRunId,
+                    concurrent_modules: concurrentModules,
                     git_branch: gitBranch,
                     granularity: .init(rawValue: shardGranularity.rawValue),
                     modules: modules,

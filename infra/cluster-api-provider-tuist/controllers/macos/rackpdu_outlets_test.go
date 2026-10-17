@@ -79,6 +79,41 @@ func TestRackPDUForgetsItsOutletsWhenTheCardStopsAnswering(t *testing.T) {
 	}
 }
 
+// capt_rackpdu_chain names the transfer switch whose output the PDU's outlet
+// readings already cover, only while it reports draw: a PDU that stops
+// answering hands its load back to the switch's meter.
+func TestRackPDUNamesItsChainWhileItReportsDraw(t *testing.T) {
+	rackPDUChainGauge.Reset()
+	h := newPDUHarness(t, rackPDU())
+	h.reconcile()
+	h.reconcile()
+	if got := testutil.ToFloat64(rackPDUChainGauge.WithLabelValues("ber1-pdu-b", "ber1", "ber1-ats-3")); got != 1 {
+		t.Fatalf("capt_rackpdu_chain{ats=ber1-ats-3} = %v while the PDU reports draw, want 1", got)
+	}
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 1 {
+		t.Fatalf("%d chain series, want one", n)
+	}
+
+	h.card.Close()
+	h.reconcile()
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 0 {
+		t.Fatalf("%d chain series after the card stopped answering", n)
+	}
+}
+
+func TestRackPDUWithoutAChainNamesNone(t *testing.T) {
+	rackPDUChainGauge.Reset()
+	h := newPDUHarness(t, rackPDU(func(p *infrav1.RackPDU) { p.Spec.Chain = "" }))
+	h.reconcile()
+	h.reconcile()
+	if len(h.pdu().Status.Outlets) == 0 {
+		t.Fatal("no outlets read from a reachable card")
+	}
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 0 {
+		t.Fatalf("%d chain series for a PDU without a chain", n)
+	}
+}
+
 // pduWithOutlet3 is a Ready RackPDU whose status read outlet 3 at readAt.
 func pduWithOutlet3(m power.Measures, readAt time.Time) *infrav1.RackPDU {
 	pdu := readyPDU(true)

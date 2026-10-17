@@ -14,6 +14,7 @@ pub(crate) enum Body<'a> {
         method: reqwest::Method,
         token: &'a str,
         payload: Option<Value>,
+        failure: fn(u16, &[u8]) -> crate::AuthError,
     },
 }
 
@@ -34,6 +35,7 @@ impl Transport for Network {
                 method,
                 token,
                 payload,
+                failure,
             } => {
                 let request = client
                     .request(method, url.clone())
@@ -45,7 +47,7 @@ impl Transport for Network {
                 } else {
                     request
                 };
-                return response_using(request.send(), crate::accounts::response_failure);
+                return response_using(request.send(), failure);
             }
         };
         response(request.send())

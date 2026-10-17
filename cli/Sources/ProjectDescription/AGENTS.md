@@ -17,7 +17,10 @@ This module provides manifest-facing types used to describe projects, targets, a
 - `enableCachingPrefixMapping` defaults to `true` and only controls Tuist-injected compilation-cache mappings. Its explicit opt-out preserves user mappings and keeps caching available with path-dependent keys. Missing serialized values decode to `true`; keep deprecated options overloads on the existing default. Retain the original modern factory signature, and disfavor the new required-flag overload so typed and inferred function references remain source-compatible.
 - `enableCoveragePrefixMapping` is an explicit opt-in for teams remapping coverage with tools such as `llvm-cov`. It requires both `enableCaching` and `enableCachingPrefixMapping`; the default stays compatible with `xccov`.
 
+- `InstallOptions.ManifestEnvironment.automatic` hides GitHub CI metadata and rotating credentials from cached manifest evaluation, preserving platform/toolchain and application inputs. Document that native SwiftPM resolution retains known credentials for fetching and evaluates manifests with them too. `.automatic(including:)` and `.all` restore intentional CI/credential-dependent manifest inputs; explicit exclusions affect native resolution as well.
+
 ## Related Context
+
 - cli/Sources/TuistLoader/AGENTS.md
 - cli/Sources/TuistGenerator/AGENTS.md
 - `includeLocalPackageTestTargets` opts local path package tests into generation, including cross-package products available through `Tuist/Package.swift`; remote package tests stay excluded.

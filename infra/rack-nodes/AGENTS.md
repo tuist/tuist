@@ -434,14 +434,57 @@ onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
 the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
-Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
-that serves pods through Services needs the cluster's CNI, which is a
-`RackLinuxMachine` change to make once the rack's networks no longer overlap.
+A rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
+unless its host sets `publicAddress` (below). The edges hold addresses in the
+rack's management VLAN, 192.168.0.0/24, which sits inside the cluster's pod
+CIDR (192.168.0.0/16 in staging and production alike), so they stay off
+Cilium for good. A storage node holds no address in that range.
 
-### Pods on a rack node
+### A storage node on the cluster network
 
-A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+A host with `publicAddress` in `rackLinuxFleet.hosts` (`spec.clusterNetwork`)
+is an ordinary Cilium node. ber1-store-a is one, so the `ber1-runners` Kura
+region runs on the cluster network and replicates pod to pod with each
+account's other regions. Every Cilium node tunnels to every other at its
+InternalIP (VXLAN on 8472/udp), probes their health on 4240/tcp, and the API
+server reaches its kubelet on 10250/tcp. So:
+
+- **Its InternalIP is the site's WAN address**, 149.6.170.31 at BER1, which
+  the operator publishes as the node's address. There is no kubelet proxy and no
+  ExternalIP. The host holds the address on a dummy interface (`tuist-cluster`)
+  so the kubelet takes it as `--node-ip` and Cilium can bind its health
+  responder to it. An nft rule (`tuist_cluster_health`) hands health probes,
+  which the edge delivers to the host's machines address, to it.
+- **The edges forward those three ports** on the WAN address to the host's
+  machines address, from the cluster's Cilium nodes only. The forwards are the
+  edge's `tuist_cluster_forwards` table, in its node configuration. The node
+  agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
+  addresses without the Cilium exclusion, ExternalIPs included: Hetzner
+  Cloud nodes and the control plane have no InternalIP. The set is not in the
+  configuration, so a node joining the cluster restarts nothing on the edge.
+  The WAN filter lets through what the edge translated (`ct status dnat`).
+  Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
+  the overlay off the internet.
+- **Cilium attaches to the `en*` uplinks only** (the `CiliumNodeConfig` in
+  `rack-linux-fleet.yaml`): it would take the dummy for a device otherwise.
+- The site's one public IPv4 address fits one such host. A second waits for
+  the site's own range.
+
+Switching a host is a deploy. The operator rewrites the host's
+configuration: dummy, health rule, no bridge CNI, kubelet at the public
+address. It repoints the Node's addresses, and once the host has applied that
+configuration it removes the Node's Cilium exclusion, and Cilium's DaemonSet
+schedules there. Cilium binds its health responder to the public address once,
+at start: a Cilium that starts before the dummy exists (as on ber1-store-a on
+2026-10-16, before the operator waited) answers no node probe on 4240 until
+its pod is deleted. Pods that started on the bridge keep
+their bridge addresses until they are recreated. Delete them (`kubectl delete
+pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
+once Cilium is Ready on the node. The bridge interface goes at the next reboot.
+
+### Pods on a rack node off the cluster network
+
+On a node without `publicAddress`, a pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
 is its default gateway and masquerades it behind the node, so it reaches what
 the node reaches: the internet, the rack's segments and the tailnet. It reaches
 no cluster Service, no cluster DNS and no pod on another node, and nothing in
@@ -451,13 +494,13 @@ the cluster reaches it.
   to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
   which the node agent loads on every apply), so an in-cluster client on the
   node, host network or not, reaches the API at the address it is given.
-- **Names.** A pod that needs them sets its own nameservers. Kura's
-  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
-  answers tailnet names and fails others over, then public resolvers.
+- **Names.** A pod that needs them sets its own nameservers, such as
+  Tailscale's `100.100.100.100`, which answers tailnet names and fails others
+  over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs, scrapes its node-local Kura pods and exports the
-  host's own metrics, and pushes them to the Alloy receiver at its tailnet
-  name. Kura exports its traces there too.
+  ships its pods' logs, scrapes any node-local Kura pods (none since the
+  storage node joined the cluster network) and exports the host's own
+  metrics, and pushes them to the Alloy receiver at its tailnet name.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
@@ -587,10 +630,20 @@ Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
 layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
 distinct blobs; a release shares about 57% of its blobs with the one before,
 so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
-928 GB, also home to the Kura region, so production's 400 GiB holds one
-release of what the rack runs plus the previous one while the rack rolls off
-it, rather than the whole catalog twice. A second disk in store-a's spare M.2
-slots, or store-b, is what makes room for more.
+928 GB, also home to the Kura region, which takes precedence on it. So
+production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
+which moves to the next minor when one ships. The other versions come from
+ghcr.io, and so does 27.1 for about a day after a new image, until the old
+tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
+version beside it needs about 160 GiB through a release change, and every
+image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+gives the site more disk.
+
+The claim is named after its size, because a claim cannot shrink: a new
+`sizeGi` makes a new volume, which the cache fills again from the upstream,
+and Helm deletes the old claim once the Deployment's Recreate has released
+it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
+is what the Kura region's placement counts.
 
 Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
 `enabled`; once

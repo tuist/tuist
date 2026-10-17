@@ -31,7 +31,7 @@ msgstr ""
 msgid "Already have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:67
+#: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
@@ -89,7 +89,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:115
+#: lib/tuist_web/live/connect_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "Connect your project"
 msgstr ""
@@ -146,7 +146,7 @@ msgstr ""
 msgid "Email is already taken"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:135
+#: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr ""
@@ -171,7 +171,8 @@ msgstr ""
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:97
+#: lib/tuist_web/live/connect_live.ex:104
+#: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
 msgstr ""
@@ -215,13 +216,13 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:133
-#: lib/tuist_web/live/connect_live.ex:199
+#: lib/tuist_web/live/connect_live.ex:140
+#: lib/tuist_web/live/connect_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:61
+#: lib/tuist_web/live/connect_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "OR"
 msgstr ""
@@ -242,7 +243,7 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:64
+#: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
@@ -253,12 +254,12 @@ msgstr ""
 msgid "Reset password"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:99
+#: lib/tuist_web/live/connect_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:117
+#: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
 msgstr ""
@@ -309,13 +310,14 @@ msgstr ""
 msgid "Tuist app is connected!"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:74
+#: lib/tuist_web/live/connect_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Tuist dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:142
-#: lib/tuist_web/live/connect_live.ex:208
+#: lib/tuist_web/live/connect_live.ex:149
+#: lib/tuist_web/live/connect_live.ex:190
+#: lib/tuist_web/live/connect_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
 msgstr ""
@@ -397,19 +399,19 @@ msgstr ""
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:109
-#: lib/tuist_web/live/connect_live.ex:127
+#: lib/tuist_web/live/connect_live.ex:116
+#: lib/tuist_web/live/connect_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "homebrew"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:104
-#: lib/tuist_web/live/connect_live.ex:122
+#: lib/tuist_web/live/connect_live.ex:111
+#: lib/tuist_web/live/connect_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "mise"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:89
+#: lib/tuist_web/live/connect_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "using CLI"
 msgstr ""
@@ -639,42 +641,54 @@ msgstr ""
 msgid "Let the %{organization} identity provider sign you in to your Tuist account."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:163
+#: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Add it to the dependencies in your mix.exs, then run mix deps.get."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:161
+#: lib/tuist_web/live/connect_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Add the Tuist package"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:179
+#: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:186
+#: lib/tuist_web/live/connect_live.ex:182
+#: lib/tuist_web/live/connect_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Log in and run your tests"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:177
+#: lib/tuist_web/live/connect_live.ex:172
+#: lib/tuist_web/live/connect_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Point it at this project"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:201
+#: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:188
+#: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "The test run shows up in the dashboard when it finishes."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:88
+#: lib/tuist_web/live/connect_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "using Mix"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "Add a tuist.toml file at your repository root."
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "using Cargo"
 msgstr ""

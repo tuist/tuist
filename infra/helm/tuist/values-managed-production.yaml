@@ -226,11 +226,6 @@ server:
     # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
-    # Kura on a rack node exports traces to the Alloy receiver at its tailnet
-    # name (infra/helm/k8s-monitoring values-production.yaml): it reaches no
-    # cluster Service.
-    - name: TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT
-      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4318/v1/traces
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -436,6 +431,12 @@ capi:
     enabled: true
     vrackID: pn-2024093
     cidr: 172.30.243.0/24
+
+# Global cold-cache gateway; production platform owns the matching wildcard DNS.
+kuraActivation:
+  enabled: true
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
 
 kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
@@ -1354,19 +1355,24 @@ rackFleet:
   # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
   # one re-pushes that mini's launchd config and needs an operator image
   # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
-  # 400 GiB of store-a's 928 GB /data holds one release of every image the
-  # rack runs plus the previous one while the rack rolls off it (a release of
-  # all nine catalog images is 404 GB of distinct blobs, 578 GB beside its
-  # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
-  # so both are on the rack before a mini asks.
+  #
+  # Kura takes precedence on store-a's disk for now: 64 GiB holds one runner
+  # image (55 to 62 GB compressed), the latest Xcode minor, 27.1, and leaves
+  # the ber1-runners Kura region room for its accounts' claims to grow. Other
+  # Xcode versions, and 27.1 itself for about a day after a new image while
+  # the old tag ages out, are pulled from ghcr.io. Move it to the next minor
+  # when one ships. Raise it again, and prewarm the busiest older versions
+  # beside it (about 160 GiB for two through a release change), once the
+  # site's storage nodes have more disk: a drive in store-a's spare M.2
+  # slots, or store-b.
   imageCache:
-    enabled: false
-    routeHosts: []
+    enabled: true
+    routeHosts: [ber1-runner-b01]
     nodes:
       - name: ber1-store-a
         address: 10.10.0.11
-    sizeGi: 400
-    prewarm: ["26.6", "27.0"]
+    sizeGi: 64
+    prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the
@@ -1572,6 +1578,11 @@ rackLinuxFleet:
       role: storage
       bootMAC: "38:05:25:3a:de:67"
       address: 10.10.0.11
+      # On the cluster's Cilium network at the site's address, so the
+      # ber1-runners Kura region replicates pod to pod with the accounts' other
+      # regions. The rack's one public IPv4 fits one such host; store-b waits
+      # for the site's own range.
+      publicAddress: 149.6.170.31
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
       amt: {activate: true}
@@ -2014,7 +2025,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 16
-    "27.1-rc":
+    "27.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

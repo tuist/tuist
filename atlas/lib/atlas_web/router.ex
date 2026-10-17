@@ -160,6 +160,11 @@ defmodule AtlasWeb.Router do
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
+    get "/me/time-off", TimeOffController, :index
+    post "/me/time-off", TimeOffController, :create
+    patch "/me/time-off/:id", TimeOffController, :update
+    delete "/me/time-off/:id", TimeOffController, :delete
+
     get "/me/llm-providers", LLMConnectionsController, :index
     put "/me/llm-providers/claude", LLMConnectionsController, :connect_claude
     post "/me/llm-providers/chatgpt/login", LLMConnectionsController, :start_chatgpt
@@ -261,6 +266,8 @@ defmodule AtlasWeb.Router do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
       live "/tasks", TasksLive, :index
+      live "/people/time-off", TimeOffLive, :index
+      live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show

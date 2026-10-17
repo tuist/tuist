@@ -17,12 +17,14 @@ connector:
 tailnetIngress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: tailnet-ingress-production
     tags:
       - "tag:tuist-k8s-production"
 
 macminiEgress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: macmini-egress-production
     tags:
       - "tag:tuist-k8s-production"
     # For the BER1 rack, which belongs to this cluster. Its Mac minis have no

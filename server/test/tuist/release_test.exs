@@ -31,6 +31,16 @@ defmodule Tuist.ReleaseTest do
       assert Release.check_clickhouse_parity() == :ok
     end
 
+    test "names every differing table when it raises" do
+      differing = Enum.map(1..60, &%{table: "table_#{&1}", source: %{"rows" => 1}, destination: %{"rows" => 0}})
+
+      stub(Parity, :compare, fn ->
+        {:ok, %{parity_report(%{missing_on_destination: [], only_on_destination: []}) | differing: differing}}
+      end)
+
+      assert_raise RuntimeError, ~r/table_60/, fn -> Release.check_clickhouse_parity() end
+    end
+
     test "raises when the destination's ledger is missing a version" do
       stub(Parity, :compare, fn ->
         {:ok, parity_report(%{missing_on_destination: [20_260_910_150_000], only_on_destination: []})}
@@ -45,6 +55,33 @@ defmodule Tuist.ReleaseTest do
       end)
 
       assert_raise RuntimeError, ~r/schema_migrations.*20260912090000/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
+
+  describe "check_clickhouse_parity/0 with a table only the destination holds" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    test "raises on schema drift even when every compared table agrees" do
+      # A migration dropped it on the source, and the additive reconcile never
+      # drops it on the destination.
+      stub(Parity, :compare, fn ->
+        {:ok,
+         %{
+           compared: 2,
+           skipped: [],
+           matching: ["build_runs", "test_case_runs"],
+           differing: [],
+           schema: %{missing_on_destination: [], missing_on_source: ["test_run_enumerated_tests"], differing_columns: []},
+           migrations: %{missing_on_destination: [], only_on_destination: []},
+           derived: %{compared: 0, matching: [], differing: []}
+         }}
+      end)
+
+      assert_raise RuntimeError, ~r/schema drift.*test_run_enumerated_tests/, fn -> Release.check_clickhouse_parity() end
     end
   end
 

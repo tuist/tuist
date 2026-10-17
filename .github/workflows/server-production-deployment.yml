@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - cli/**
       - mise/tasks/cli/**
+      - mise/utilities/install_static_linux_sdk.sh
       - .github/workflows/cli-release.yml
       - .github/workflows/cli-build-publish.yml
       - app/**
@@ -769,13 +770,10 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         # The processor parses .xcresult bundles from *all* customer
-        # runner profiles, so the Xcode here should be at least as new
-        # as the newest active runner-image profile (xcresulttool's
-        # JSON schema changes across Xcode majors). Promotion rule:
-        # when you bump the first entry in
-        # infra/runner-image/profiles.json, bump this too.
+        # runner profiles, so track the newest stable Xcode rather than
+        # following beta or RC profiles onto a prerelease toolchain.
         env:
-          XCODE_VERSION: "27.0"
+          XCODE_VERSION: "27.1"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"

@@ -1,6 +1,9 @@
 package linux
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -509,5 +512,84 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		if strings.Contains(withoutKata, unwanted) {
 			t.Errorf("cache-fleet render must not contain %q", unwanted)
 		}
+	}
+}
+
+// A manager restart between the SSH self-join and the status patch that records
+// it makes the next reconcile run the join again. On a live node that re-run
+// deletes Cilium's sysctl overrides and restarts containerd under its pods, so
+// a host that already joined as this node must skip it.
+func TestJoinedGuardSkipsOnlyACompletedJoinOfTheSameNode(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		marker        string
+		kubeletActive bool
+		skips         bool
+	}{
+		{"completed join of this node", "node-a\n", true, true},
+		{"no marker", "", true, false},
+		{"box re-adopted under another node", "node-old\n", true, false},
+		{"kubelet not running", "node-a\n", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			marker := filepath.Join(dir, "joined-node")
+			if tc.marker != "" {
+				if err := os.WriteFile(marker, []byte(tc.marker), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			kubeletStatus := "1"
+			if tc.kubeletActive {
+				kubeletStatus = "0"
+			}
+			script := "set -euo pipefail\nsystemctl() { return " + kubeletStatus + "; }\n" +
+				strings.ReplaceAll(joinedGuard("", "node-a"), joinedMarkerPath, marker) +
+				"echo RAN-JOIN\n"
+			output, err := exec.Command("bash", "-c", script).CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s: %v", output, err)
+			}
+			if ran := strings.Contains(string(output), "RAN-JOIN"); ran == tc.skips {
+				t.Fatalf("expected skip=%v, got:\n%s", tc.skips, output)
+			}
+		})
+	}
+}
+
+func TestRenderLinuxBootstrapScript_RecordsTheJoinLast(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "node-a", KubeconfigYAML: "apiVersion: v1\nkind: Config\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", PrivateNetworkVLAN: 3250,
+	})
+	syntax := exec.Command("bash", "-n")
+	syntax.Stdin = strings.NewReader(script)
+	if output, err := syntax.CombinedOutput(); err != nil {
+		t.Fatalf("invalid script: %s: %v", output, err)
+	}
+
+	guardIdx := strings.Index(script, joinedGuard("sudo ", "node-a"))
+	if guardIdx < 0 || guardIdx > strings.Index(script, "sudo mkdir -p /var/lib/kubelet") {
+		t.Fatalf("expected the joined guard before the first host change, got:\n%s", script)
+	}
+	if !strings.HasSuffix(script, "systemctl enable --now kubelet\n"+joinedMarker("sudo ", "node-a")) {
+		t.Fatalf("expected the joined marker right after the kubelet starts, at the end of the script, got:\n%s", script)
+	}
+}
+
+func TestJoinedMarkerWritesWhatTheGuardReads(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "tuist", "joined-node")
+	script := "set -euo pipefail\n" +
+		strings.ReplaceAll(strings.ReplaceAll(joinedMarker("", "node-a"), joinedMarkerPath, marker), "/var/lib/tuist", filepath.Dir(marker)) +
+		"systemctl() { return 0; }\n" +
+		strings.ReplaceAll(joinedGuard("", "node-a"), joinedMarkerPath, marker) +
+		"echo RAN-JOIN\n"
+	output, err := exec.Command("bash", "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s: %v", output, err)
+	}
+	if strings.Contains(string(output), "RAN-JOIN") {
+		t.Fatalf("expected the guard to accept the marker it follows, got:\n%s", output)
 	}
 }

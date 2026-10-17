@@ -305,6 +305,10 @@ test("origins on ocean texels move to the nearest drawn land within three degree
   assert.deepEqual(context.landPoint(-10, 5), context.ll2xyz(-10, 5));
   assert.equal(context.landPoint(-1, 5), context.landPoint(-1, 5));
 
+  // Small islands the 110m map omits are stamped in as land: an anchor
+  // there keeps its own position instead of sitting in open ocean.
+  assert.deepEqual(context.landPoint(144.79, 13.44), context.ll2xyz(144.79, 13.44));
+
   const [route] = context.originsFrom([{ lat: 5, lon: -1, to: { lat: 5, lon: 5 }, region: "eu-west", rate: 1 }]);
   assert.deepEqual(route.point, context.landPoint(-1, 5));
   assert.deepEqual(route.to, context.ll2xyz(5, 5));

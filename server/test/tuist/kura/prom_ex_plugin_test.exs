@@ -191,6 +191,22 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
     end
 
+    test "reports the private runner-cache regions too, which admission governs the same way" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "ber1-runners"] end)
+
+      stub(Capacity, :admission_headroom_gib, fn
+        %Regions{id: @region} -> 42
+        %Regions{id: "ber1-runners"} -> 7
+      end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 7}, %{region: "ber1-runners"}}
+    end
+
     test "reports zero when the region cannot be read, because admission then refuses every instance" do
       instance(account())
 

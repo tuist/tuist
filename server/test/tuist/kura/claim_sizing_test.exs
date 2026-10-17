@@ -1054,6 +1054,17 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context) == :none
     end
 
+    test "never shrinks an account under its plan's starting claim" do
+      # A 2Gi peak asks for 4Gi, and halving 16Gi lands on 8Gi, but an
+      # enterprise account starts at 16Gi.
+      rollups = fitting_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
+
+      assert ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "16Gi", rollups: rollups)) == :none
+
+      assert {:shrink, "16Gi", _evidence} =
+               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "32Gi", rollups: rollups))
+    end
+
     test "a day without snapshots breaks the idle streak" do
       rollups =
         30

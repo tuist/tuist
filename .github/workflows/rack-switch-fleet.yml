@@ -32,6 +32,7 @@ on:
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - infra/helm/tuist/rack-sites/**
@@ -49,6 +50,7 @@ on:
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - infra/helm/tuist/rack-sites/**
@@ -201,7 +203,8 @@ jobs:
           kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
           kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
           kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
-          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io
+          kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io crd/racksites.infrastructure.cluster.x-k8s.io
           for site in infra/rack-switch-fleet/sites/*.json; do
             name="$(basename "$site" .json)"
             namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"

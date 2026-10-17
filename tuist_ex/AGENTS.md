@@ -70,8 +70,9 @@ does not restore them. Put every OTP application used from a task back on the
 path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
 in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
 file and uses the command line tool's refresh lock path. With `--cover`, `mix tuist.test` reports line coverage (`Analytics.Coverage`)
-and the Git history with every run, so the formatter always runs in
-`{:defer, owner}` mode then. The formatter reads `cover`'s counters at
+with every run, and on CI or with `--cover` the Git history (`Analytics.GitHistory.enabled?/2`, off with
+`TUIST_GIT_UPLOAD_ENABLED=false`), so the formatter runs in `{:defer, owner}`
+mode then. The formatter reads `cover`'s counters at
 `suite_finished`: every test has run, and Mix's coverage tool has neither
 written its report nor, in an umbrella, restarted `cover` for the next
 application. It never wraps or replaces the project's `test_coverage` tool,
@@ -100,16 +101,32 @@ threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
+On a pull request's merge ref (`refs/pull/N/merge`), `Env.git_commit_sha/2`
+reports HEAD^2, the pull request's head, as the command line tool does, since
+the merge commit exists only in the checkout; a shallow checkout without that
+parent reports HEAD. When `GITHUB_SHA` (GitHub's merge commit) is set and is
+not HEAD, the workflow checked out another commit, and HEAD is reported.
+`GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
-compares what both report: the merge base with the CI provider's base branch
-(fetching it and deepening a shallow clone within the server's budget), the
-commits within the window (a shallow
-boundary's parents read from the commit objects), whether the checkout is
-dirty (`git status --porcelain`, untracked files included), and after the run
-the commits the server lacks, the branch head, and a clean checkout's file
-listing. Git's standard error is discarded and nothing here ever fails a run.
+compares what both report: the merge base with the CI provider's base branch,
+the base branch's commit, the commits within the window reachable from the
+head and from that commit when the checkout has it (a shallow boundary's
+parents read from the commit objects), and whether the checkout is dirty
+(`git status --porcelain`, untracked files included). What reaches the remote
+is `Git.history/4`'s `remote_access`: `:history` only with `--cover` (the base
+branch fetched and a shallow clone deepened within the server's budget until
+the merge base is found), `:base_head` otherwise (a checkout without the base
+branch gets its latest commit from one `git ls-remote`, killed at the budget),
+`:none` with `TUIST_GIT_UNSHALLOW_ENABLED=false`. Every remote call is a round
+trip whatever it transfers, which is why only coverage fetches.
+`GitHistory.publish/2` sends the commits the server lacks and the branch heads
+(the run's, and the base branch's when it differs, listed or not: it is how
+the default branch's head advances between its own runs) before the runs are
+submitted, since ingestion reads which commits the default branch reached;
+`GitHistory.upload_listing/2` sends a clean checkout's file listing after
+them, only with `--cover`. Git's standard error is discarded and nothing here ever fails a run.
 Server ingestion and
 dashboard presentation belong in `server/`.
 
@@ -155,6 +172,7 @@ dashboard presentation belong in `server/`.
   again before you change it.
 - `mix tuist.test --prepare-only` downloads a shard's uploaded build without starting the app or tests. Run any database setup in a separate process, then `--no-download` uses the prepared build (and fails when the application artifact is absent). Both flags require a shard index and cannot be combined. Keep `MIX_ENV=test` on cold bootstrap commands. `--scheme LABEL` identifies execution variants in the existing test-run scheme field, keeping different environments out of cross-run flakiness comparisons. Flags remain local to the wrapper, never forwarded to `mix test`.
 - Dependency caching is enabled with `tuist: [cache: true]`, selecting all structurally supported dependencies by default. Keyword options preserve automatic selection; `dependencies:` optionally restricts it and `exclude:` takes precedence. Absent/false/nil disables caching. Automatic structural selection does not prove hermeticity; additional macro inputs and mandatory side effects remain the user's responsibility. It runs before the wrapped compile. It uses Bazel's shared REAPI ActionCache/CAS, project-scoped token exchange, endpoint discovery and Kura analytics; a verified local snapshot is the fail-open fallback. Transport invariants live in [lib/tuist_ex/cache/reapi/AGENTS.md](lib/tuist_ex/cache/reapi/AGENTS.md). Use `mix tuist.setup --project account/project` for setup. It installs the ordinary three-step compile bootstrap and `tuist.test` aliases, preserves other aliases/options and standard Phoenix test preparation, and refuses unsupported custom actions or source shapes. Dynamic alias expressions must retain environment-specific test preparation rather than capturing setup's current environment. The source editor uses AST token locations, preserves comments, formats/validates before writing, and atomically replaces regular files while retaining permissions. No SDK function capture or evaluation snippet belongs in the quick-start. External SDK function captures are not cold-safe: OS workers do not load SDK modules in the parent. `compile.exs` remains packaged only for compatibility with the earlier evaluation alias; setup migrates that exact form without executing it. Use this alias to compile Tuist and its transport dependencies before other dependencies. The wrapper re-enables Mix's `deps.loadpaths` and `loadpaths` after cache preparation, preserving checks and local-chain compilation. Finish normal dependency loading before installing the application compiler tracer, and restore pre-existing code paths before reporter cleanup on both success and failure. Unselected fetched dependencies compile in batches. Transport channels own their process flags/links in supervised workers, not the compiler process. `upload: false` disables remote publication but is not an authorization boundary; cache writers remain trusted code producers. `DependencyCache` keeps compiler failures outside fail-open cache boundaries. Artifact/input invariants live in [lib/tuist_ex/cache/AGENTS.md](lib/tuist_ex/cache/AGENTS.md). The compile reporter emits dependency observations even for cache-only builds, but leaves ordinary idle builds unreported. Shared package setup belongs in `server/priv/docs/en/guides/get-started/elixir-project.md`; cache/build/test feature guides link back instead of duplicating aliases. The cache usage guide is `server/priv/docs/en/guides/features/cache/elixir.md`; input, portability and protocol details belong in `elixir-advanced.md` alongside it.
+- Cold sharding build jobs must enter through the generated compile alias with `MIX_ENV=test mix compile` before invoking `mix tuist.test.build`. Discovering an unloaded SDK task can compile dependencies before caching starts. Bootstrap regression tests cover both the ordinary alias and the legacy script in fresh test-environment VMs with parallel dependency compilation, and require a snapshot to be published and restored after deleting `_build`. The ordinary-alias test then discovers `tuist.test.build` in another process and verifies that it does not compile the cached dependency again; the legacy variant retains plain `mix compile` coverage.
 - Cache key input modeling traverses structs as maps without requiring `Enumerable`. Model regex configuration by source and options, not its compiled pattern, which can contain VM-local references on OTP 29. Other opaque runtime values still bypass caching. Keep cross-VM restore and regex source/options invalidation covered in `dependency_cache_test.exs`.
 - Mix task entry points and safe project setup: see [lib/mix/tasks/AGENTS.md](lib/mix/tasks/AGENTS.md).
 - Releases use the `tuist-ex` conventional commit scope and `tuist-ex@` tags.

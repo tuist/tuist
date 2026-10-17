@@ -73,4 +73,3 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     run grep -c '^CMD copy running-config startup-config$' "$bin/log"
     [ "$output" = "0" ]
 }
-
