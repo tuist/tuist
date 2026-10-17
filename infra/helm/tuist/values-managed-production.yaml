@@ -2136,6 +2136,28 @@ buildersFleet:
   externalSecrets:
     enabled: true
 
+# Firecracker sandboxes for coding-agent sessions, on the OVH RISE-L boxes that
+# also host the Linux runner pool. A small carve-out on every box: 8 GiB of its
+# 128 GB fits one running sandbox of the default 2x4096 shape and no larger
+# shape, and 100 GiB of disk holds four default sessions with a 10 GB
+# workspace, running or paused. The kata runner pools keep the rest. Accounts
+# reach sandboxes only through the `sandboxes` feature flag.
+sandboxes:
+  enabled: true
+  image:
+    tag: "sha-b59c51153dcf"
+  templateImage:
+    tag: "sha-56965cb61732"
+  nodePools:
+    - runners-linux
+  tolerations:
+    - key: tuist.dev/runner-tier
+      operator: Equal
+      value: bare-metal
+      effect: NoSchedule
+  memoryGiB: 8
+  diskGiB: 100
+
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
