@@ -9,6 +9,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   import TuistTestSupport.Fixtures.RunsFixtures
   import TuistTestSupport.Fixtures.ShardsFixtures
 
+  alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Builds
@@ -26,6 +27,42 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   alias Tuist.Tests
 
   describe "perform/1" do
+    test "the preview worker reloads the account ceiling and preserves metadata" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      expired =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -8, :day)
+        )
+
+      recent =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -6, :day)
+        )
+
+      {:ok, _account} = Accounts.update_account_retention(account, %{artifact_retention_days: 7})
+
+      expired_key =
+        AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: expired})
+
+      recent_key = AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: recent})
+
+      expect(Storage, :delete_objects, fn keys, %{id: id} ->
+        assert id == account.id
+        assert expired_key in keys
+        refute recent_key in keys
+        :ok
+      end)
+
+      assert :ok = perform_job(DeleteExpiredPreviewArtifactsWorker, %{"account_id" => account.id})
+      assert Repo.get!(AppBuild, expired.id)
+      assert Repo.get!(AppBuild, recent.id)
+    end
+
     test "the preview worker uses an explicit retention window" do
       project = project_fixture()
       account = project.account

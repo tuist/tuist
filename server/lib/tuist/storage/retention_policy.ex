@@ -43,10 +43,24 @@ defmodule Tuist.Storage.RetentionPolicy do
     end)
   end
 
+  def current_policy(%Account{} = account) do
+    {current_plan(account), account.artifact_retention_days}
+  end
+
+  def current_policies(accounts) do
+    plans = current_plans(accounts)
+    Map.new(accounts, &{&1.id, {Map.fetch!(plans, &1.id), &1.artifact_retention_days}})
+  end
+
   def retention_days(artifact_type, plan, override_days \\ nil)
 
   def retention_days(_artifact_type, _plan, override_days) when is_integer(override_days) and override_days > 0 do
     override_days
+  end
+
+  def retention_days(artifact_type, {plan, account_ceiling}, nil) do
+    days = retention_days(artifact_type, plan)
+    if is_nil(account_ceiling), do: days, else: min(days, account_ceiling)
   end
 
   def retention_days(artifact_type, plan, nil) do

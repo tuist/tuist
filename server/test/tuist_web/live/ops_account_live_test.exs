@@ -61,6 +61,47 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert {:ok, %{visibility: :private}} = Accounts.get_account_by_id(user.account.id)
   end
 
+  test "updates and clears account retention overrides", %{conn: conn, user: user} do
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "Plan default, up to 30 days"
+    assert html =~ "Default: 90 days"
+
+    lv
+    |> form("#retention-form", %{
+      "account" => %{"artifact_retention_days" => "7", "runner_log_retention_days" => "14"}
+    })
+    |> render_submit()
+
+    assert {:ok, %{artifact_retention_days: 7, runner_log_retention_days: 14}} =
+             Accounts.get_account_by_id(user.account.id)
+
+    lv
+    |> form("#retention-form", %{
+      "account" => %{"artifact_retention_days" => "", "runner_log_retention_days" => ""}
+    })
+    |> render_submit()
+
+    assert {:ok, %{artifact_retention_days: nil, runner_log_retention_days: nil}} =
+             Accounts.get_account_by_id(user.account.id)
+  end
+
+  test "rejects invalid retention overrides without changing the policy", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#retention-form", %{
+      "account" => %{"artifact_retention_days" => "0", "runner_log_retention_days" => "91"}
+    })
+    |> render_submit()
+
+    assert render(lv) =~ "must be greater than 0"
+    assert render(lv) =~ "must be less than or equal to 90"
+    refute render(lv) =~ "%{number}"
+
+    assert {:ok, %{artifact_retention_days: nil, runner_log_retention_days: nil}} =
+             Accounts.get_account_by_id(user.account.id)
+  end
+
   test "updates platform-specific runner concurrency limits", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 

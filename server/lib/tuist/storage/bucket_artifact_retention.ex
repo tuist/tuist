@@ -117,7 +117,7 @@ defmodule Tuist.Storage.BucketArtifactRetention do
     {skipped_accounts, managed_accounts} = split_custom_storage_accounts(accounts, target)
 
     managed_accounts
-    |> RetentionPolicy.current_plans()
+    |> RetentionPolicy.current_policies()
     |> Map.merge(Map.new(skipped_accounts, &{&1.id, :skip}))
   end
 
@@ -131,12 +131,14 @@ defmodule Tuist.Storage.BucketArtifactRetention do
 
     accounts =
       Account
-      |> where([account], account.name in ^account_handles)
+      |> join(:inner, [account], reservation in "account_handle_reservations", on: reservation.account_id == account.id)
+      |> where([_account, reservation], reservation.name in ^account_handles)
+      |> select([account, reservation], %{account | name: reservation.name})
       |> Repo.all()
 
     {skipped_accounts, managed_accounts} = split_custom_storage_accounts(accounts, target)
 
-    plans_by_account_id = RetentionPolicy.current_plans(managed_accounts)
+    plans_by_account_id = RetentionPolicy.current_policies(managed_accounts)
 
     managed_plans =
       account_values_by_handle(managed_accounts, fn account -> Map.fetch!(plans_by_account_id, account.id) end)
