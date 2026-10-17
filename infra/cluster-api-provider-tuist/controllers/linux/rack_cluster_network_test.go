@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -148,7 +149,7 @@ func TestRackLinuxMachineReachesAClusterNetworkNodeAtItsPublicAddress(t *testing
 	proxy := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "rack-linux-" + edgeUUID + "-kubelet", Namespace: "tailscale-operator"}}
 	objs := append(rackClusterObjects(true), host, machine, node, proxy, kubeletProxyPod("10.1.2.3", true))
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
-	h.reconcile(t)
+	m := h.reconcile(t)
 
 	got := h.node(t)
 	want := []corev1.NodeAddress{
@@ -158,8 +159,20 @@ func TestRackLinuxMachineReachesAClusterNetworkNodeAtItsPublicAddress(t *testing
 	if !reflect.DeepEqual(got.Status.Addresses, want) {
 		t.Fatalf("addresses %+v", got.Status.Addresses)
 	}
+	// Cilium binds its health responder to the node IP once, when it starts,
+	// so it must not be scheduled before the host holds the address.
+	if got.Labels[ciliumNoScheduleLabel] != "true" {
+		t.Fatal("the Cilium exclusion went before the host ran the configuration holding the address")
+	}
+
+	m.Status.Agent = &infrav1.RackNodeAgentStatus{AppliedHash: m.Status.NodeConfig.Hash, AppliedAt: &metav1.Time{Time: time.Now()}}
+	if err := h.c.Status().Update(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile(t)
+	got = h.node(t)
 	if _, ok := got.Labels[ciliumNoScheduleLabel]; ok {
-		t.Error("the node keeps the Cilium exclusion")
+		t.Error("the node keeps the Cilium exclusion once the host holds the address")
 	}
 	if got.Labels["tuist.dev/rack-storage"] != "ber1" {
 		t.Errorf("labels %v", got.Labels)

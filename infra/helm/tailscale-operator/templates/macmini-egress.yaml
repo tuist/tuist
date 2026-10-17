@@ -69,6 +69,9 @@ metadata:
 spec:
   type: egress
   replicas: {{ .Values.macminiEgress.proxyGroup.replicas }}
+  {{- with .Values.macminiEgress.proxyGroup.hostnamePrefix }}
+  hostnamePrefix: {{ . | quote }}
+  {{- end }}
   {{- if .Values.macminiEgress.proxyGroup.acceptRoutes }}
   proxyClass: {{ .Values.macminiEgress.proxyGroup.name }}-accept-routes
   {{- end }}

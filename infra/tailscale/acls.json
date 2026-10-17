@@ -283,14 +283,24 @@
 			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
-			// The in-cluster ClickHouse as a Tailscale Service, for when it is
-			// served by the `tailnet-ingress` ProxyGroup rather than a
-			// standalone proxy (clickhouse.managed.tailscale.proxyGroup, empty
-			// in every env today, so this grant is currently unused). A
-			// Service is addressed by its own VIP, which the tag grant above
-			// does not cover.
+			// The in-cluster ClickHouse as a Tailscale Service, served by the
+			// `tailnet-ingress` ProxyGroup rather than a standalone proxy
+			// (clickhouse.managed.tailscale.proxyGroup). A Service is
+			// addressed by its own VIP, which the tag grant above does not
+			// cover.
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["svc:tuist-clickhouse-production"],
+			"ip":  ["tcp:8123"],
+		},
+		{
+			// The same for staging's and canary's in-cluster ClickHouse.
+			"src": ["tag:tuist-macmini-staging"],
+			"dst": ["svc:tuist-clickhouse-staging"],
+			"ip":  ["tcp:8123"],
+		},
+		{
+			"src": ["tag:tuist-macmini-canary"],
+			"dst": ["svc:tuist-clickhouse-canary"],
 			"ip":  ["tcp:8123"],
 		},
 
@@ -683,6 +693,8 @@
 		// take it offline on each rollout.
 		"services": {
 			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-clickhouse-staging":    ["tag:tuist-k8s-staging"],
+			"svc:tuist-clickhouse-canary":     ["tag:tuist-k8s-canary"],
 		},
 	},
 

@@ -549,21 +549,26 @@ enum CLIRunner {
             try await Environment.withNetrc(netrc, quiet: cli.quiet) {
                 let directory: CLIPath
                 let scratchDirectory: CLIPath?
+                let cacheDirectory: CLIPath?
                 switch cli.command {
                 case let .resolve(options):
                     directory = options.packageDir
                     scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
                 case let .update(options):
                     directory = options.packageDir
                     scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
                 case let .restore(options):
                     directory = options.packageDir
                     scratchDirectory = options.scratchDir
+                    cacheDirectory = options.cacheDir
                 }
                 let package = canonicalPackageDir(commandPackageDir(cli: cli, paths: paths, commandPackageDir: directory))
                 let scratch = commandScratchDir(cli: cli, paths: paths, packageDir: package, commandScratchDir: scratchDirectory)
                 try await ManifestCache.withContext(
-                    packageDirectory: package, scratchDirectory: scratch
+                    packageDirectory: package, scratchDirectory: scratch,
+                    sharedCacheDirectory: cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDirectory)
                 ) {
                     try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
                 }

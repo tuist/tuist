@@ -45,6 +45,9 @@ metadata:
 spec:
   type: ingress
   replicas: {{ .Values.tailnetIngress.proxyGroup.replicas }}
+  {{- with .Values.tailnetIngress.proxyGroup.hostnamePrefix }}
+  hostnamePrefix: {{ . | quote }}
+  {{- end }}
   proxyClass: {{ .Values.tailnetIngress.proxyGroup.name }}-static-endpoints
   tags:
     {{- toYaml .Values.tailnetIngress.proxyGroup.tags | nindent 4 }}

@@ -29,17 +29,21 @@ enum ManifestCache {
     @TaskLocal static var toolchain: ToolchainIdentity?
     @TaskLocal static var scratchDirectory: URL?
     @TaskLocal static var rootPackageDirectory: URL?
+    @TaskLocal static var sharedCacheDirectory: URL?
 
     static func withContext<T>(
         packageDirectory: URL,
         scratchDirectory: URL?,
+        sharedCacheDirectory: URL? = nil,
         toolchain: ToolchainIdentity = ToolchainIdentity(),
         operation: () async throws -> T
     ) async throws -> T {
         return try await $toolchain.withValue(toolchain) {
             try await $rootPackageDirectory.withValue(packageDirectory.standardizedFileURL) {
                 try await $scratchDirectory.withValue(scratchDirectory ?? packageDirectory.appendingPathComponent(".build")) {
-                    try await operation()
+                    try await $sharedCacheDirectory.withValue(sharedCacheDirectory?.standardizedFileURL) {
+                        try await operation()
+                    }
                 }
             }
         }

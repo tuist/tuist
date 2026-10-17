@@ -23,6 +23,10 @@ spec:
       labels:
         app.kubernetes.io/name: {{ $name }}
     spec:
+      {{- with $activation.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 40
       securityContext:

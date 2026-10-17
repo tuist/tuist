@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,8 +31,12 @@ const cloudProviderUninitializedTaint = "node.cloudprovider.kubernetes.io/uninit
 // A cluster-network host is reached at its site's public address instead, for
 // the kubelet as for Cilium's tunnel, so that is its InternalIP, it has no
 // ExternalIP and no kubelet proxy, and its Node loses the Cilium exclusion it
-// registered with, which a kubelet never removes on its own.
-func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context, host *infrav1.RackLinuxHost, node *corev1.Node) error {
+// registered with, which a kubelet never removes on its own. It loses it only
+// once the host runs the configuration that holds the public address
+// (addressApplied): Cilium binds its health responder to the node IP once, when
+// it starts, and never again, so a Cilium that starts first stays unreachable
+// on 4240 until it restarts.
+func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context, host *infrav1.RackLinuxHost, node *corev1.Node, addressApplied bool) error {
 	clusterNetwork := host.Spec.ClusterNetwork
 	if clusterNetwork == nil {
 		if err := r.egress().ensureKubelet(ctx, r.Client, host); err != nil {
@@ -73,10 +78,11 @@ func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context,
 		}
 	}
 	_, excluded := node.Labels[ciliumNoScheduleLabel]
-	if len(taints) != len(node.Spec.Taints) || (clusterNetwork != nil && excluded) {
+	include := clusterNetwork != nil && excluded && addressApplied
+	if len(taints) != len(node.Spec.Taints) || include {
 		before := node.DeepCopy()
 		node.Spec.Taints = taints
-		if clusterNetwork != nil {
+		if include {
 			delete(node.Labels, ciliumNoScheduleLabel)
 		}
 		if err := r.Patch(ctx, node, client.MergeFrom(before)); err != nil {
@@ -107,4 +113,18 @@ func (r *RackLinuxMachineReconciler) machineForKubeletProxy(ctx context.Context,
 		}
 	}
 	return requests
+}
+
+// clusterAddressApplied is whether the host runs the configuration that holds
+// its public address: the one published carries the address's interface, and
+// the node agent, or the operator over SSH, applied exactly that one.
+func clusterAddressApplied(machine *infrav1.RackLinuxMachine) bool {
+	cfg := machine.Status.NodeConfig
+	if cfg == nil || !slices.ContainsFunc(cfg.Files, func(f infrav1.RackNodeFile) bool { return f.Path == rackClusterAddressNetdevPath }) {
+		return false
+	}
+	if agent := machine.Status.Agent; agent != nil && agent.AppliedHash == cfg.Hash {
+		return true
+	}
+	return machine.Status.HostConfigHash == cfg.Hash
 }

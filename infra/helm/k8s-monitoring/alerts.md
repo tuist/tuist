@@ -2783,7 +2783,6 @@ queue rather than on any particular cause.
 ```promql
 max by (cluster, env, queue) (
   tuist_oban_queue_oldest_available_age_seconds{
-    cluster=~"tuist-production|tuist-staging|tuist-canary",
     queue=~"process_xcresult|process_build"
   }
 ) > 900
@@ -2791,7 +2790,6 @@ max by (cluster, env, queue) (
 
 - Pending period: 5 minutes
 - Severity: critical
-- Grafana rule: `fg1efz3p68740a`
 - Summary: `No consumer is draining the {{ $labels.queue }} Oban queue in
   {{ $labels.cluster }}: the oldest job has been runnable for over 15
   minutes`
@@ -2802,8 +2800,6 @@ rather than the polling node's own producers. Every node running PromEx
 therefore reports it, including the always-healthy web pods, so the
 signal survives the complete loss of the deployment that consumes the
 queue. `max by` is required: the same gauge is reported once per pod.
-Only production emits it today, so the rule is silent in staging and
-canary, and the `cluster` matcher keeps the pentest cluster out.
 
 Age, not depth. A queue that is never empty because arrivals are served
 promptly and a queue with no consumer at all both sit at a non-zero
@@ -2840,7 +2836,6 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
-- Grafana rule: `bg1ewhe80qosgc`
 - Summary: `Oban queue-age telemetry is missing for
   {{ $labels.queue }} in {{ $labels.cluster }}`
 
@@ -3269,24 +3264,21 @@ release is up. This alert is the readiness probe the platform can't
 give us, expressed in the metrics pipeline instead.
 
 ```promql
-count by (cluster, env) (up{job="tuist-macos-pod-metrics"} == 0)
+count by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 0)
 unless on (cluster, env)
-sum by (cluster, env) (up{job="tuist-macos-pod-metrics"} == 1)
+sum by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 1)
 ```
 
 - Pending period: 10 minutes
 - Severity: critical
-- Grafana rule: `dg1ejbdu0vwu8e`
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down fleet-wide`
 
-Both rules are written to return a positive value when firing. Grafana
-rules here use a `> 0` threshold, and an expression ending in `== 0`
-returns 0 exactly when it matches, so it never fires.
-
-The `unless` keeps this distinct from `xcresult processor guest
-telemetry missing` below: it fires only when targets exist and every one
-of them is down, never when the job vanished from discovery.
+The expression counts down targets and drops any cluster with at least
+one target up, so it is positive when firing. That also keeps it
+distinct from `xcresult processor guest telemetry missing` below: with
+no targets at all there is nothing to count, so it never fires when the
+job vanished from discovery.
 
 Fleet-wide rather than per-target because that is what a rollout cannot
 produce. `xcresultProcessor.strategy` sets `maxSurge: 0` and the PDB
@@ -3296,19 +3288,52 @@ never a normal state, which is what lets the pending period stay at 10
 minutes despite a single VM cycle legitimately taking up to
 `progressDeadlineSeconds: 1800`.
 
+Production only, because that argument needs two replicas. Canary and
+staging run one, so every deploy takes their only guest down for a full
+VM replacement. Each server release ships a new `xcresult-processor-image`
+digest, so that replacement includes a cold image pull, and
+`tart_kubelet_image_pull_seconds` varies from about 4 to over 11 minutes
+between releases that change nothing in the image but the server
+release. A 683s pull on 2026-10-16 kept canary's guest down for 14
+minutes and fired this rule when it still covered every cluster. Those
+two clusters have their own rule below.
+
+### xcresult processor guest metrics unavailable in canary or staging
+
+```promql
+count by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 1)
+```
+
+- Pending period: 30 minutes
+- Severity: critical
+- Summary: `No xcresult processor is serving metrics in
+  {{ $labels.cluster }}. The queue consumer is down`
+
+The single-replica counterpart of the rule above. 30 minutes matches
+`progressDeadlineSeconds: 1800`: a guest that stays down longer than one
+full VM replacement is not a rollout. Replayed over 2026-10-02 to
+10-16, canary never stayed down longer than 14 minutes. Staging
+fired for its broken host-to-guest path (2026-10-07 to 10-13) and for a
+run of back-to-back staging deploys on 2026-10-16, which kept the guest
+down for 39 minutes.
+
+When it fires, check `tart_kubelet_image_pull_seconds` and
+`tart_kubelet_vm_provision_work_seconds` for the host before treating it
+as a BEAM failure: a pull still in progress means the replacement is
+slow, not broken.
+
 ### xcresult processor guest metrics unavailable on one host
 
 ```promql
-(
-  1 - min by (cluster, env, instance) (
-    min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
-  )
-) > 0
+min by (cluster, env, instance) (
+  min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
+) == 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
-- Grafana rule: `dg1ejbvirpslcc`
 - Summary: `xcresult processor on {{ $labels.instance }} is not serving
   metrics. The fleet is running below capacity`
 
@@ -3344,7 +3369,6 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
-- Grafana rule: `dg1ew04a5qfwge`
 - Summary: `xcresult processor scrape telemetry is missing in
   {{ $labels.cluster }}`
 
@@ -3357,32 +3381,21 @@ identity. Without this, every rule above silently evaluates to nothing.
 ### xcresult processor replicas unavailable
 
 ```promql
-max by (cluster, env, namespace, deployment) (
-  kube_deployment_spec_replicas{
-    namespace=~"tuist|tuist-staging|tuist-canary",
-    deployment="tuist-tuist-xcresult-processor"
-  }
-)
--
-max by (cluster, env, namespace, deployment) (
-  kube_deployment_status_replicas_available{
-    namespace=~"tuist|tuist-staging|tuist-canary",
-    deployment="tuist-tuist-xcresult-processor"
-  }
-)
-> 0
+kube_deployment_status_replicas_available{
+  namespace=~"tuist|tuist-staging|tuist-canary",
+  deployment="tuist-tuist-xcresult-processor"
+}
+<
+kube_deployment_spec_replicas{
+  namespace=~"tuist|tuist-staging|tuist-canary",
+  deployment="tuist-tuist-xcresult-processor"
+}
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
-- Summary: `{{ $values.A.Value | printf "%.0f" }} xcresult processor replica(s)
-  unavailable in {{ $labels.namespace }} ({{ $labels.cluster }})`
-- Grafana rule: `cg1efzyensg74a`
-
-The value is the number of missing replicas. Spec minus available, not
-`available < spec`: that form returns the available count, which is 0 in
-a total outage and never crosses a `> 0` threshold. `max by` keeps the
-two sides joined when kube-state-metrics moves to another pod.
+- Summary: `xcresult processor has unavailable replicas in
+  {{ $labels.namespace }}`
 
 Catches the scheduling half of the same outage: on 2026-08-12 one of the
 two replicas sat `Pending` for over four hours while the Deployment
@@ -3391,8 +3404,8 @@ reported `Available=True MinimumReplicasAvailable` and
 satisfied by `maxUnavailable` rather than by `readyReplicas ==
 spec.replicas`. Kubernetes considers that healthy; it is not.
 
-The readinessProbe tart-kubelet evaluates (`xcresultProcessor.readinessProbe`,
-on by default) also makes a replica that runs but cannot reach Postgres,
+With `xcresultProcessor.readinessProbe.enabled`, the probe tart-kubelet
+evaluates also makes a replica that runs but cannot reach Postgres,
 ClickHouse or its Oban queue count as unavailable here.
 
 Same 45-minute rationale as the per-host rule: a Tart VM replacement
@@ -6493,9 +6506,23 @@ in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 
 ### Rack power draw near its contracted limit
 
+The rule's draw, written `<rack draw>` below and expanded in Grafana:
+
 ```promql
-sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
-/ on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+sum by (site) (
+  capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"}
+  or (
+    (
+      capt_rackats_output_current_amps{cluster="tuist-production"}
+      * on (site, ats, output) capt_rackats_output_voltage_volts{cluster="tuist-production"}
+    )
+    unless on (site, ats) capt_rackpdu_chain{cluster="tuist-production"}
+  )
+)
+```
+
+```promql
+<rack draw> / on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0.8`
@@ -6505,7 +6532,7 @@ sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"
 - Summary: `{{ $labels.site }} rack draw is {{ humanize $values.B.Value }}W,
   {{ humanizePercentage $values.A.Value }} of its contracted power`
 
-The rule has a second query, `B`, which is the numerator alone, so the summary
+The rule has a second query, `B`, which is `<rack draw>` alone, so the summary
 can show the draw in watts. The divisor is the site's contracted power in
 effect. It comes from `contracted_power` in the site definition
 (`infra/rack-switch-fleet/sites/<site>.json`), as dated steps, and the RackSite
@@ -6528,17 +6555,25 @@ site definition changes. If the draw goes over the contracted power by up to
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
 
-The sum covers only what the PDUs meter. Loads plugged straight into
-`ber1-ats-1` (`ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the
-KVMs) are left out, because the RackATS controller exports input voltage,
-active source and transfer state but no output draw. So the real draw is
-higher than the rule shows. The facility's meter (NTT Berlin 2) is the
-authoritative reading. A PDU the operator cannot read drops all its outlet
-series, which makes the sum smaller. That case is covered by
-[Rack power equipment not observed](#rack-power-equipment-not-observed).
+The draw is every PDU outlet's active power, plus the output of each transfer
+switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
+directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
+reports draw, so a chain is never counted twice. A PDU that stops reporting
+hands its load back to its switch's meter. The transfer switches report only
+output current and voltage, so their part is current times voltage in VA,
+which is at least the real wattage. Their current comes in 0.1 A steps and
+reads coarsely at low load, off by a step or two. That is tens of VA against a
+threshold in kW. The facility's meter (NTT Berlin 2) is the authoritative
+reading.
 
-Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` shows
-which outlets grew.
+A switch the operator cannot read drops its output series, and so does a PDU
+its outlet series. Either makes the draw smaller, and
+[Rack power equipment not observed](#rack-power-equipment-not-observed) covers
+both.
+
+Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` and
+`capt_rackats_output_current_amps{site="ber1"}` show what grew.
 
 ### Rack has no contracted power
 

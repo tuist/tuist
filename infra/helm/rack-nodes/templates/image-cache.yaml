@@ -5,6 +5,8 @@
 {{- $repositories := required "rackFleet.imageCache.repositories names what the cache serves" $cache.repositories }}
 {{- range $node := (required "rackFleet.imageCache.nodes needs a storage node to run on" $cache.nodes) }}
 {{- $name := printf "%s-%s" $fleetName $node.name | trunc 63 | trimSuffix "-" }}
+{{- $sizeSuffix := printf "-%dgi" (int $cache.sizeGi) }}
+{{- $claimName := printf "%s%s" ($name | trunc (int (sub 63 (len $sizeSuffix))) | trimSuffix "-") $sizeSuffix }}
 {{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address }}
 {{- /*
 zot fetches an image of the repositories on its first manifest request and
@@ -64,10 +66,14 @@ data:
 # The cache's blobs, on the node's XFS /data under a project quota, so a
 # cache that fills cannot take the node's Kura region with it. Bound to the
 # node by the local-path class's WaitForFirstConsumer once the pod lands.
+#
+# Named after its size: a claim cannot shrink, so a new size is a new volume,
+# which the cache fills again from the upstream, and Helm deletes the old one
+# once the Deployment's Recreate has released it.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ $name }}
+  name: {{ $claimName }}
   namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "rackNodes.labels" $ | nindent 4 }}
@@ -200,7 +206,7 @@ spec:
             name: {{ $name }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ $name }}
+            claimName: {{ $claimName }}
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi

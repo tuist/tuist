@@ -151,17 +151,18 @@ func clusterNode(name, os string, excluded bool, addresses ...string) *corev1.No
 
 // The nodes that run Cilium are the Linux nodes without its exclusion: not
 // the macOS hosts, not the rack's bridge nodes, and only their IPv4
-// InternalIPs.
+// addresses, InternalIP or, on a Hetzner Cloud node, ExternalIP.
 func TestClusterNodeAddressesAreTheCiliumNodes(t *testing.T) {
 	nodes := []corev1.Node{
 		*clusterNode("eu-west-a", "linux", false, "51.68.54.127", "2001:db8::1"),
 		*clusterNode("hetzner-cp", "linux", false, "49.12.18.71"),
+		*externalOnlyNode("hetzner-md-0", "167.233.70.247"),
 		*clusterNode("ber1-store-a", "linux", false, "149.6.170.31"),
 		*clusterNode("ber1-edge-a", "linux", true, "100.102.176.95"),
 		*clusterNode("mini", "darwin", false, "100.66.118.128"),
 		*clusterNode("eu-west-b", "linux", false, "51.68.54.127"),
 	}
-	want := []string{"149.6.170.31", "49.12.18.71", "51.68.54.127"}
+	want := []string{"149.6.170.31", "167.233.70.247", "49.12.18.71", "51.68.54.127"}
 	if got := ClusterNodeAddresses(nodes); !slices.Equal(got, want) {
 		t.Fatalf("addresses %v, want %v", got, want)
 	}
@@ -214,4 +215,12 @@ func TestAgentSyncsNoSetsWithoutAny(t *testing.T) {
 	if len(host.stdin) != 0 {
 		t.Fatalf("synced %q", host.stdin)
 	}
+}
+
+// externalOnlyNode is a Hetzner Cloud node, which its cloud provider gives an
+// ExternalIP and no InternalIP.
+func externalOnlyNode(name, address string) *corev1.Node {
+	node := clusterNode(name, "linux", false)
+	node.Status.Addresses = []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: address}, {Type: corev1.NodeHostName, Address: name}}
+	return node
 }
