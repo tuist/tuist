@@ -374,6 +374,7 @@ defmodule Tuist.Application do
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          Tuist.Sandboxes.NodePresence,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
@@ -426,6 +427,7 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(kura_children())
+    |> Kernel.++(sandboxes_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
     # mode — see `RuntimeChildren.marketing_stats/1`.
@@ -550,6 +552,17 @@ defmodule Tuist.Application do
           id: Kura.Reconciler
         )
       ]
+    else
+      []
+    end
+  end
+
+  # Every web pod runs the manager; the pollers it starts are cluster
+  # singletons (`:global`), so the fleet polls each environment once.
+  # Tests drive the poller and manager directly.
+  defp sandboxes_children do
+    if Environment.web?() and not Environment.test?() do
+      [Tuist.Sandboxes.Anthropic.Supervisor]
     else
       []
     end
