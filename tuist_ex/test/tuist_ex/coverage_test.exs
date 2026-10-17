@@ -10,6 +10,8 @@ defmodule TuistEx.CoverageTest do
       for {app, key} <- [
             tuist_ex: :analytics_options,
             tuist_ex: :native_coverage,
+            tuist_ex: :coverage_summary,
+            tuist_ex: :coverage_lines,
             ex_unit: :formatters
           ],
           do: {app, key, Application.fetch_env(app, key)}
@@ -111,6 +113,47 @@ defmodule TuistEx.CoverageTest do
 
       assert_received {:mix_shell, :info, [message]}
       assert message =~ "Shard 1 runs part of the suite"
+    end
+  end
+
+  describe "after_suite/2" do
+    test "summarizes the counts the formatter read when the suite finished" do
+      # Started before the run counts natively, so it readies nothing here.
+      Application.put_env(:tuist_ex, :native_coverage, false)
+      {:ok, formatter} = GenServer.start_link(TuistEx.Coverage.Formatter, [])
+      allow(Counters, self(), formatter)
+      Application.put_env(:tuist_ex, :native_coverage, true)
+      Application.put_env(:tuist_ex, :coverage_summary, true)
+      # By the time Mix calls the after-suite function, Mimic has swapped its
+      # copies back and their counters read as never run.
+      stub(Counters, :module_lines, fn -> %{Demo.Copied => %{1 => false, 2 => false}} end)
+      expect(Counters, :module_lines, fn -> %{Demo.Copied => %{1 => true, 2 => true}} end)
+      GenServer.cast(formatter, {:suite_finished, %{}})
+      :sys.get_state(formatter)
+
+      TuistEx.Coverage.after_suite([threshold: 90], fn -> send(self(), :below) end)
+
+      refute_received :below
+      assert shell_output() =~ ~r/100\.00%.*Total/
+      assert Application.fetch_env(:tuist_ex, :coverage_lines) == :error
+    end
+
+    test "holds the run to the threshold" do
+      Application.put_env(:tuist_ex, :coverage_lines, %{Demo.Half => %{1 => true, 2 => false}})
+
+      TuistEx.Coverage.after_suite([threshold: 90], fn -> send(self(), :below) end)
+
+      assert_received :below
+    end
+
+    test "warns when the formatter never read the counts, and reads them now" do
+      Application.delete_env(:tuist_ex, :coverage_lines)
+      expect(Counters, :module_lines, fn -> %{Demo.Covered => %{1 => true}} end)
+
+      TuistEx.Coverage.after_suite(true, fn -> send(self(), :below) end)
+
+      refute_received :below
+      assert shell_output() =~ "formatter did not run"
     end
   end
 

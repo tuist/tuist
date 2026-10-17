@@ -92,7 +92,11 @@ defmodule TuistEx.Coverage do
   end
 
   defp native(opts) do
+    summary = Keyword.get(opts, :summary, true)
+    index = shard_index()
     Application.put_env(:tuist_ex, :native_coverage, true)
+    Application.put_env(:tuist_ex, :coverage_summary, summary != false and is_nil(index))
+    Application.delete_env(:tuist_ex, :coverage_lines)
     register_formatter()
 
     if Keyword.has_key?(project_options(), :output) do
@@ -102,24 +106,47 @@ defmodule TuistEx.Coverage do
       )
     end
 
-    fn ->
-      summary = Keyword.get(opts, :summary, true)
+    cond do
+      summary == false ->
+        fn -> :ok end
 
-      cond do
-        summary == false ->
-          :ok
-
-        index = shard_index() ->
+      index ->
+        fn ->
           Mix.shell().info(
             "\nShard #{index} runs part of the suite, so its coverage is neither " <>
               "summarized nor held to the threshold.\n"
           )
+        end
 
-        true ->
-          if summary(Counters.module_lines(), summary) == :below_threshold,
-            do: System.at_exit(fn _ -> exit({:shutdown, 3}) end)
-      end
+      true ->
+        fn -> after_suite(summary) end
     end
+  end
+
+  # The counts are the ones the formatter read when the suite finished: by
+  # the time Mix calls this, Mimic has swapped the modules it copied back,
+  # which resets their native counters.
+  @doc false
+  def after_suite(
+        summary,
+        below_threshold \\ fn -> System.at_exit(fn _ -> exit({:shutdown, 3}) end) end
+      ) do
+    lines =
+      case Application.fetch_env(:tuist_ex, :coverage_lines) do
+        {:ok, lines} ->
+          Application.delete_env(:tuist_ex, :coverage_lines)
+          lines
+
+        :error ->
+          Mix.shell().info(
+            "warning: TuistEx.Coverage's formatter did not run, so the modules Mimic copies " <>
+              "may count as uncovered. Keep ExUnit's configured formatters when setting your own."
+          )
+
+          Counters.module_lines()
+      end
+
+    if summary(lines, summary) == :below_threshold, do: below_threshold.()
   end
 
   defp fallback(compile_path, opts) do
@@ -217,7 +244,8 @@ defmodule TuistEx.Coverage do
   defmodule Formatter do
     @moduledoc false
 
-    # An ExUnit formatter only for its start: see `register_formatter/0`.
+    # Readies the run when ExUnit starts it (see `register_formatter/0`) and
+    # reads the counts for the summary when the suite finishes.
     use GenServer
 
     alias TuistEx.Analytics.Coverage, as: Counters
@@ -236,6 +264,14 @@ defmodule TuistEx.Coverage do
       end
 
       {:ok, nil}
+    end
+
+    def handle_cast({:suite_finished, _times}, state) do
+      if Application.get_env(:tuist_ex, :native_coverage, false) and
+           Application.get_env(:tuist_ex, :coverage_summary, false),
+         do: Application.put_env(:tuist_ex, :coverage_lines, Counters.module_lines())
+
+      {:noreply, state}
     end
 
     def handle_cast(_message, state), do: {:noreply, state}
