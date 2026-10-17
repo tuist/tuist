@@ -133,6 +133,54 @@ Git configuration, so checkout's local authentication does not reach their nativ
 SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
 never persist it or extend its host scope beyond github.com.
 
+## CLI dependency volumes
+
+macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
+volumes do not require the larger M4 shape. If host cache capacity is unavailable,
+each attachment falls back independently to an empty job-local directory; always
+run dependency installation and do not require a hit in ordinary jobs. Forks keep
+archive caches and copied dependencies because they cannot authenticate volume
+attachments. Linux and release/backport workflows have separate toolchain and
+runner requirements and are not part of this migration.
+
+Attach `.build` and `~/.cache/swifterpm` before installing dependencies. Workspace
+keys include the job, Xcode version and `Package.swift`; the source-cache key is
+shared across jobs for the same Xcode version. Do not key either on the lockfile:
+SwifterPM validates pinned versions and can reuse unchanged sources across updates.
+Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
+`--cached-directory-materialization=symlink` for mounted caches. Automatic CI mode
+copies sources even on a hit. Never archive these mounted paths. Set
+`TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
+do not invalidate manifest fingerprints. `Tuist.swift` uses plain
+`packageManifestEnvironment: .automatic`. This depends on the defaults and
+separate native-resolution authentication environment from PR #14162, shipped
+in the pinned CLI 4.214.0-canary.32.
+GitHub job/branch metadata and rotating credentials are excluded from cached
+manifest evaluation, while native dependency fetching retains known credentials.
+Keep platform/toolchain and application inputs visible, and always measure
+fresh-runner reuse: a volume hit alone is not evidence that manifest evaluation
+was skipped. The earlier 8.31-second measurement used explicit exclusions and
+must not be presented as validation of the automatic policy.
+
+Attach `~/Library/Caches/org.swift.swiftpm/manifests` directly as a third volume
+before any SwiftPM commands populate it. Its key is shared across jobs for the
+same Xcode version. Content-based manifest caches reuse unchanged root and local
+packages across fresh checkouts. Retaining SwiftPM's native manifest cache still
+avoids recompilation on misses and during forced lockfile validation. Keep SwiftPM configuration, security and authentication directories
+outside the volume. Forks keep their existing unmounted cache layout. Use the
+action's normal absent-or-empty path contract instead of relocating cache data
+with workflow scripts.
+
+By default, pull requests consume private snapshots without publishing. A volume
+admin can grant a same-repository PR branch writer permission for a dedicated
+experiment, paired with explicit `commit: 'true'`; grants apply to new attachments.
+Ordinary CLI jobs keep the default policy. First successful permitted jobs seed
+these new keys; measure subsequent jobs only after publication. Track queue time
+separately from dependency-install time. Smaller hosts have less cache capacity,
+so report actual attachments and hits separately from successful cold fallbacks.
+The three volumes publish independently; always run the installer even when all
+attachments are hits.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under

@@ -76,12 +76,13 @@ env:
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
+  TUIST_DEV_INSTANCE: "1"
 
 concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
+# Archive fallbacks: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
@@ -102,12 +103,31 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
       - uses: actions/cache/restore@v4
+        if: github.event.pull_request.head.repo.fork == true
         id: cache
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach CLI workspace volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
+          path: .build
+      - name: Attach SwifterPM source volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -120,7 +140,10 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=${{ github.event.pull_request.head.repo.fork == true && 'copy' || 'symlink' }}
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -139,12 +162,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
+        if: github.event.pull_request.head.repo.fork == true
         id: cache
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach CLI workspace volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
+          path: .build
+      - name: Attach SwifterPM source volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -157,7 +199,10 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=${{ github.event.pull_request.head.repo.fork == true && 'copy' || 'symlink' }}
       - name: Resolve registry replacements
         run: swift package resolve --replace-scm-with-registry
       - name: Build
@@ -178,14 +223,22 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - name: Attach CLI workspace volume
+        uses: tuist/cache-volume@v1
         with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach SwifterPM source volume
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -197,15 +250,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=symlink
       - name: Cache
         run: tuist cache
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-unit-tests:
     name: Unit Tests
@@ -223,12 +273,31 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
       - uses: actions/cache/restore@v4
+        if: github.event.pull_request.head.repo.fork == true
         id: cache
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach CLI workspace volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
+          path: .build
+      - name: Attach SwifterPM source volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -241,7 +310,10 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=${{ github.event.pull_request.head.repo.fork == true && 'copy' || 'symlink' }}
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
@@ -269,13 +341,22 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
+      - name: Attach CLI workspace volume
+        uses: tuist/cache-volume@v1
         with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach SwifterPM source volume
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -288,7 +369,10 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=symlink
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -318,13 +402,22 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
+      - name: Attach CLI workspace volume
+        uses: tuist/cache-volume@v1
         with:
+          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v1
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - name: Attach SwifterPM source volume
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/.cache/swifterpm
+      - name: Attach SwiftPM manifest volume
+        if: github.event.pull_request.head.repo.fork != true
+        uses: tuist/cache-volume@v1
+        with:
+          key: cli-macos-manifests-${{ hashFiles('.xcode-version') }}-v1
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -337,7 +430,10 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=symlink
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
