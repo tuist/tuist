@@ -838,7 +838,8 @@ test("a rising figure rolls every changed digit forward, so 9 to 0 is one notch 
   assert.deepEqual(show("200"), [2, 10, 10]);
   assert.deepEqual(show("209"), [2, 10, 19]);
   assert.deepEqual(show("210"), [2, 11, 10]);
-  assert.deepEqual(snaps, [9]);
+  // The first render snaps each digit to its value (1, 9, 9); the rest roll.
+  assert.deepEqual(snaps, [1, 9, 9, 9]);
 });
 
 test("a falling figure rolls every changed digit back, including 0 to 9", () => {
@@ -848,10 +849,11 @@ test("a falling figure rolls every changed digit back, including 0 to 9", () => 
   assert.deepEqual(show("199"), [1, 9, 9]);
   assert.deepEqual(show("099"), [0, 9, 9]);
   assert.deepEqual(show("098"), [0, 9, 8]);
-  assert.deepEqual(snaps, [10, 10]);
+  // The first render snaps each digit to its value (2, 1, 0); the rest roll.
+  assert.deepEqual(snaps, [2, 1, 0, 10, 10]);
 });
 
-test("a figure that gains a digit rebuilds its columns and rolls the new ones in from zero", () => {
+test("a figure that gains a digit rebuilds its columns and shows the new figure at once", () => {
   const { show, figure } = odometer();
   show("999");
   assert.equal(figure.dataset.shape, "###");

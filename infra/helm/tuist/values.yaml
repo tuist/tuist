@@ -1928,6 +1928,12 @@ rackLinuxFleet:
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
   #       activate: false        # default: amt.products decides
@@ -3930,6 +3936,7 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
+  nodeSelector: {}
   # Both protocols must share this load balancer. The main nginx class sends
   # Connection: close upstream, which Go correctly rejects on HTTP/2.
   ingressClassName: nginx-grpc

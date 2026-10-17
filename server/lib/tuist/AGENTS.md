@@ -34,6 +34,10 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- Test sharding declares concurrency separately from measuring it: `parallelizable_modules` covers suites within a module, and `concurrent_modules` covers modules alongside modules (ExUnit async modules or nextest binaries). Reuse `BinPacker.pack_concurrent/3` and the median concurrency from the latest 50 valid shard reports, with its longest-unit floor. Never substitute CPU count or configured worker limits for measured utilization. Missing modes, repeated shard reports, and modules outside the plan are excluded; without usable evidence, sum conservatively.
+- Cargo build/compilation ingestion and project-scoped reads: `server/lib/tuist/cargo/AGENTS.md`. Test insights and module-granularity sharding reuse the shared Tests and Shards contexts.
+- Sharded test-run UUIDs are canonical lowercase at the shared ingestion boundary. `shard_runs.test_run_id` is a String rather than a ClickHouse UUID, so status aggregation must also match historical uppercase Swift client IDs; otherwise completed shards can leave their merged run in progress.
+
 - Application startup and shutdown ordering: `server/lib/tuist/application/AGENTS.md`.
 
 - Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and

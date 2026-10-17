@@ -547,12 +547,36 @@ enum CLIRunner {
                 netrcConfiguration(cli: cli, paths: paths), environment: Environment.current
             )
             try await Environment.withNetrc(netrc, quiet: cli.quiet) {
-                try await runCommand(cli: cli, paths: paths)
+                let directory: CLIPath
+                let scratchDirectory: CLIPath?
+                let cacheDirectory: CLIPath?
+                switch cli.command {
+                case let .resolve(options):
+                    directory = options.packageDir
+                    scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
+                case let .update(options):
+                    directory = options.packageDir
+                    scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
+                case let .restore(options):
+                    directory = options.packageDir
+                    scratchDirectory = options.scratchDir
+                    cacheDirectory = options.cacheDir
+                }
+                let package = canonicalPackageDir(commandPackageDir(cli: cli, paths: paths, commandPackageDir: directory))
+                let scratch = commandScratchDir(cli: cli, paths: paths, packageDir: package, commandScratchDir: scratchDirectory)
+                try await ManifestCache.withContext(
+                    packageDirectory: package, scratchDirectory: scratch,
+                    sharedCacheDirectory: cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDirectory)
+                ) {
+                    try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
+                }
             }
         }
     }
 
-    private static func runCommand(cli: CLI, paths: CLIPathResolver) async throws {
+    private static func runCommand(cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL) async throws {
         switch cli.command {
         case let .resolve(options):
             try ensureWholePackageResolution(
@@ -564,7 +588,8 @@ enum CLIRunner {
             try await runResolutionCommand(
                 cli: cli,
                 paths: paths,
-                packageDir: options.packageDir,
+                package: package,
+                scratch: scratch,
                 cacheDir: options.cacheDir,
                 preferResolvedFile: true,
                 write: options.write,
@@ -578,7 +603,8 @@ enum CLIRunner {
             try await runResolutionCommand(
                 cli: cli,
                 paths: paths,
-                packageDir: options.packageDir,
+                package: package,
+                scratch: scratch,
                 cacheDir: options.cacheDir,
                 preferResolvedFile: false,
                 write: options.write,
@@ -588,13 +614,6 @@ enum CLIRunner {
         case let .restore(options):
             let cache = try await Cache(
                 root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
-            let package = canonicalPackageDir(
-                commandPackageDir(
-                    cli: cli, paths: paths, commandPackageDir: options.packageDir
-                ))
-            let scratch = commandScratchDir(
-                cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir
-            )
             let registryConfig = try await cliRegistryConfig(
                 cli: cli, paths: paths, package: package
             )
@@ -615,7 +634,8 @@ enum CLIRunner {
             )
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
         }
     }
@@ -623,7 +643,8 @@ enum CLIRunner {
     private static func runResolutionCommand(
         cli: CLI,
         paths: CLIPathResolver,
-        packageDir: CLIPath,
+        package: URL,
+        scratch: URL,
         cacheDir: CLIPath?,
         preferResolvedFile: Bool,
         write: Bool,
@@ -632,11 +653,6 @@ enum CLIRunner {
     ) async throws {
         let cacheRoot = try Cache.resolvedRoot(
             cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
-        let package = canonicalPackageDir(
-            commandPackageDir(cli: cli, paths: paths, commandPackageDir: packageDir))
-        let scratch = commandScratchDir(
-            cli: cli, paths: paths, packageDir: package, commandScratchDir: nil
-        )
         let readOnly =
             cli.forceResolvedVersions || cli.disableAutomaticResolution
                 || cli.onlyUseVersionsFromResolvedFile
@@ -741,7 +757,8 @@ enum CLIRunner {
             )
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
 
             // With the pins restored, confirm they still satisfy the manifest the

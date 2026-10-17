@@ -601,8 +601,14 @@ struct RestoreTests {
             ]
 
             try await writeCachedManifest(rootManifest, packageDir: package)
-            try await writeCachedManifest(localOneManifest, packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                localOneManifest, packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
@@ -864,16 +870,23 @@ struct RestoreTests {
             )
 
             let sourcePath = try cache.sourcePath(pin: pin)
-            try await writeCachedManifest(
-                binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
-                packageDir: sourcePath
+            try await writeMinimalPackageManifest(at: sourcePath, name: "Binary")
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "Binary", targets: [
+                    .binaryTarget(name: "Foo", url: "\(artifactURL)", checksum: "\(checksum)")
+                ])
+                """,
+                to: sourcePath.appendingPathComponent("Package.swift")
             )
             try await fileSystem.atomicWrite(
                 pin.revision(),
                 to: sourcePath.appendingPathComponent(
                     WorkspaceRestorer.sourceRevisionMarkerFilename)
             )
-            try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeMinimalPackageManifest(at: package, name: "Root")
 
             let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
             try await WorkspaceRestorer.restorePackage(
@@ -883,10 +896,11 @@ struct RestoreTests {
                 registryConfig: RegistryConfig(),
                 mirrors: MirrorConfig(),
                 resolved: resolved,
-                progress: nil
+                progress: nil,
+                disableSandbox: true
             )
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: true
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -945,16 +959,23 @@ struct RestoreTests {
             )
 
             let sourcePath = try cache.sourcePath(pin: pin)
-            try await writeCachedManifest(
-                binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
-                packageDir: sourcePath
+            try await writeMinimalPackageManifest(at: sourcePath, name: "Binary")
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "Binary", targets: [
+                    .binaryTarget(name: "Foo", url: "\(artifactURL)", checksum: "\(checksum)")
+                ])
+                """,
+                to: sourcePath.appendingPathComponent("Package.swift")
             )
             try await fileSystem.atomicWrite(
                 pin.revision(),
                 to: sourcePath.appendingPathComponent(
                     WorkspaceRestorer.sourceRevisionMarkerFilename)
             )
-            try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeMinimalPackageManifest(at: package, name: "Root")
 
             let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
             try await WorkspaceRestorer.restorePackage(
@@ -964,10 +985,11 @@ struct RestoreTests {
                 registryConfig: RegistryConfig(),
                 mirrors: MirrorConfig(),
                 resolved: resolved,
-                progress: nil
+                progress: nil,
+                disableSandbox: true
             )
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: true
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -1023,16 +1045,20 @@ struct RestoreTests {
             )
 
             let sourcePath = try cache.sourcePath(pin: pin)
+            try await writeMinimalPackageManifest(at: sourcePath, name: "Binary")
+            let checkout = scratch.appendingPathComponent("checkouts/binary")
+            try await fileSystem.replaceWithCachedDirectory(source: sourcePath, destination: checkout)
+            // The file URL exercises offline downloading below SwiftPM's HTTPS-only manifest validation.
             try await writeCachedManifest(
                 binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
-                packageDir: sourcePath
+                packageDir: checkout, disableSandbox: true
             )
             try await fileSystem.atomicWrite(
                 pin.revision(),
                 to: sourcePath.appendingPathComponent(
                     WorkspaceRestorer.sourceRevisionMarkerFilename)
             )
-            try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeMinimalPackageManifest(at: package, name: "Root")
 
             let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
             try await WorkspaceRestorer.restorePackage(
@@ -1042,7 +1068,8 @@ struct RestoreTests {
                 registryConfig: RegistryConfig(),
                 mirrors: MirrorConfig(),
                 resolved: resolved,
-                progress: nil
+                progress: nil,
+                disableSandbox: true
             )
 
             let artifactPath = scratch

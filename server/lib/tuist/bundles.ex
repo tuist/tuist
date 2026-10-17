@@ -436,6 +436,15 @@ defmodule Tuist.Bundles do
         _ -> query
       end
 
+    query =
+      case Keyword.get(opts, :supported_platforms) do
+        platforms when is_list(platforms) and platforms != [] ->
+          where(query, [b], fragment("hasAny(?, ?)", b.supported_platforms, ^Enum.map(platforms, &to_string/1)))
+
+        _ ->
+          query
+      end
+
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
 
@@ -444,7 +453,7 @@ defmodule Tuist.Bundles do
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -452,7 +461,7 @@ defmodule Tuist.Bundles do
 
     if is_nil(last_bundle) && fallback do
       query
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -746,6 +755,8 @@ defmodule Tuist.Bundles do
         last_project_bundle(project,
           git_branch: threshold.baseline_branch,
           name: bundle.name,
+          type: bundle.type,
+          supported_platforms: bundle.supported_platforms,
           fallback: false
         )
 

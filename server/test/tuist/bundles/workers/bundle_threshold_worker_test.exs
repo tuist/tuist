@@ -468,6 +468,63 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
+    test "compares the bundle carried in the job args against a baseline of the same type and platforms" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 5.0)
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        type: :app,
+        supported_platforms: [:ios_simulator],
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        type: :ipa,
+        supported_platforms: [:ios],
+        install_size: 100,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-02 00:00:00Z]
+      )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Client, :get_pull_request, fn _params -> {:ok, %{"head" => %{"sha" => "real-head-sha"}}} end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "success"
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/pull/1/merge",
+          "install_size" => 1000,
+          "download_size" => nil,
+          "type" => "app",
+          "supported_platforms" => ["ios_simulator"]
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
     test "skips when the bundle carried in the job args is not on a PR ref" do
       project =
         ProjectsFixtures.project_fixture(

@@ -30,6 +30,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// uploaded by the last `tuist generate`.
     case generationMetadata
 
+    case cargo
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -50,6 +52,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "SelectiveTests"
         case .generationMetadata:
             return "GenerationMetadata"
+        case .cargo:
+            return "Cargo"
         }
     }
 
@@ -86,12 +90,15 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             // Recomputed from the sources they were derived from: a manifest reload, one swiftc
             // invocation, a project generation.
             return .support(maxAge: 7 * Self.day)
-        case .plugins, .selectiveTests, .generationMetadata:
+        case .plugins, .selectiveTests, .generationMetadata, .cargo:
             // Refetched over the network, or read long after the run that wrote them, so these are
             // kept for as long as they plausibly stay relevant.
             return .support(maxAge: 30 * Self.day)
         }
     }
+
+    /// Cargo scopes action/blob entries by project. Evict the entries, not a perpetually hot project directory.
+    var entryGlob: String { self == .cargo ? "*/*/*" : "*" }
 
     /// The categories the shared support-cache budget bounds, in the order they are evicted:
     /// what costs the least to lose goes first.
@@ -101,6 +108,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         .editProjects,
         .generatedAutomationProjects,
         .projectDescriptionHelpers,
+        .cargo,
         .selectiveTests,
         .generationMetadata,
         .plugins,

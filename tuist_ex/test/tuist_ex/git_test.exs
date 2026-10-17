@@ -109,6 +109,76 @@ defmodule TuistEx.GitTest do
       # The clone's boundary commit keeps the parent its commit object names.
       assert Enum.find(history.commits, &(&1.sha == head)).parents != []
     end
+
+    test "reports the base branch's head and lists its commits", %{repo: repo} do
+      write!(repo, "a.ex", "a\n")
+      base = commit!(repo, "base")
+      git!(repo, ["checkout", "--quiet", "-b", "feature"])
+      write!(repo, "a.ex", "feature\n")
+      head = commit!(repo, "feature")
+      git!(repo, ["checkout", "--quiet", "main"])
+      write!(repo, "b.ex", "b\n")
+      base_head = commit!(repo, "landed")
+
+      assert {:ok, history} = Git.history(repo, head, "main")
+      assert history.merge_base_sha == base
+      assert history.base_head_sha == base_head
+      assert Enum.sort(Enum.map(history.commits, & &1.sha)) == Enum.sort([head, base_head, base])
+
+      assert {:ok, %{base_head_sha: nil}} = Git.history(repo, head, nil)
+    end
+
+    test "reads only what the checkout has without remote access", %{repo: repo} do
+      write!(repo, "a.ex", "a\n")
+      commit!(repo, "base")
+      git!(repo, ["checkout", "--quiet", "-b", "feature"])
+
+      for index <- 1..2 do
+        write!(repo, "a.ex", "a#{index}\n")
+        commit!(repo, "feature #{index}")
+      end
+
+      head = git!(repo, ["rev-parse", "HEAD"])
+      clone = repo <> "-clone"
+      on_exit(fn -> File.rm_rf!(clone) end)
+
+      git!(Path.dirname(repo), [
+        "clone",
+        "--quiet",
+        "--depth=1",
+        "--branch=feature",
+        "--single-branch",
+        "file://" <> repo,
+        clone
+      ])
+
+      assert {:ok, %{merge_base_sha: nil, base_head_sha: nil, fallback_reason: reason}} =
+               Git.history(clone, head, "main", %{remote_access: :none})
+
+      assert reason == "the base branch main is not in the checkout"
+      remote_main = git!(repo, ["rev-parse", "main"])
+
+      assert {:ok,
+              %{
+                merge_base_sha: nil,
+                base_head_sha: ^remote_main,
+                commits: [%{sha: ^head}],
+                fallback_reason: ^reason
+              }} = Git.history(clone, head, "main", %{remote_access: :base_head})
+
+      refute git!(clone, ["branch", "--remotes"]) =~ "origin/main"
+
+      git!(clone, ["fetch", "--quiet", "--depth=1", "origin", "+main:refs/remotes/origin/main"])
+      main = git!(clone, ["rev-parse", "origin/main"])
+
+      assert {:ok, %{merge_base_sha: nil, base_head_sha: ^main, fallback_reason: reason}} =
+               Git.history(clone, head, "main", %{remote_access: :none})
+
+      assert reason ==
+               "shallow clone: the merge base with main is not in the checkout"
+
+      assert git!(clone, ["rev-list", "--count", "HEAD"]) == "1"
+    end
   end
 
   test "dirty?/1 counts untracked files, as the command line tool does", %{repo: repo} do

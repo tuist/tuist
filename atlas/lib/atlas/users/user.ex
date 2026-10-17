@@ -8,10 +8,14 @@ defmodule Atlas.Users.User do
   alias Atlas.Letters.Letter
   alias Atlas.Support.Message, as: SupportMessage
   alias Atlas.Support.Thread, as: SupportThread
+  alias Atlas.TimeOff.Location
 
   schema "users" do
     field :email, :string
     field :name, :string
+
+    field :time_off_location_id, Atlas.UUIDv7, read_after_writes: true
+    belongs_to :time_off_location, Location, define_field: false
 
     many_to_many :roles, Role, join_through: UserRole, unique: true
 

@@ -747,7 +747,7 @@ defmodule Tuist.Tests do
     # report that dies in between leaves a pointer the next shard rebuilds
     # through, rather than a run no later shard can find.
     mapped_id = mapped_shard_test_run_id(project_id, shard_plan_id)
-    merged_id = mapped_id || Map.get(attrs, :id) || UUIDv7.generate()
+    merged_id = String.downcase(mapped_id || Map.get(attrs, :id) || UUIDv7.generate())
 
     if is_nil(mapped_id) do
       insert_shard_run(
@@ -981,8 +981,12 @@ defmodule Tuist.Tests do
   defp blank?(_), do: false
 
   defp latest_shard_statuses(test_run_id) do
+    # ShardRun stores this UUID as a String. Swift clients historically supplied
+    # uppercase IDs, while reading Test UUIDs returns their lowercase form.
+    ids = [String.downcase(test_run_id), String.upcase(test_run_id)]
+
     from(sr in ShardRun,
-      where: sr.test_run_id == ^test_run_id,
+      where: sr.test_run_id in ^ids,
       group_by: sr.shard_index,
       select: {sr.shard_index, fragment("argMax(?, ?)", sr.status, sr.inserted_at)}
     )

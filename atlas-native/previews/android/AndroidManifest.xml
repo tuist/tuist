@@ -7,5 +7,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="dev.tuist.atlas.preview.TimeOffPreviewActivity" android:exported="true" />
+        <activity android:name="dev.tuist.atlas.preview.WorkspacePreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

@@ -3,6 +3,9 @@ package racknode
 import (
 	"context"
 	"fmt"
+	"net"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +46,9 @@ type Agent struct {
 
 	applied   string
 	appliedAt time.Time
+
+	synced   string
+	syncedAt time.Time
 }
 
 func (a *Agent) now() time.Time {
@@ -64,8 +70,11 @@ func (a *Agent) Once(ctx context.Context) error {
 	}
 	cfg := machine.Status.NodeConfig
 	now := a.now()
-	if cfg == nil || (cfg.Hash == a.applied && now.Sub(a.appliedAt) < a.Reapply) {
+	if cfg == nil {
 		return nil
+	}
+	if cfg.Hash == a.applied && now.Sub(a.appliedAt) < a.Reapply {
+		return a.syncClusterNodeSets(ctx, cfg.ClusterNodeSets)
 	}
 
 	unlock, err := a.Host.Lock()
@@ -98,7 +107,13 @@ func (a *Agent) Once(ctx context.Context) error {
 	if err := a.Client.Status().Patch(ctx, machine, client.MergeFrom(orig)); err != nil {
 		return fmt.Errorf("report on RackLinuxMachine %s: %w", name, err)
 	}
-	return applyErr
+	if applyErr != nil || report.AppliedHash == "" {
+		return applyErr
+	}
+	// An apply reloads the sets' files, which keeps their elements, but the
+	// sets may be new.
+	a.synced = ""
+	return a.syncClusterNodeSets(ctx, cfg.ClusterNodeSets)
 }
 
 // machineName is the RackLinuxMachine the agent's Node belongs to, the last
@@ -114,4 +129,62 @@ func (a *Agent) machineName(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("Node %s is not a rack Linux node (providerID %q)", a.Node, node.Spec.ProviderID)
 	}
 	return parts[1], nil
+}
+
+// syncClusterNodeSets keeps the configuration's cluster node sets equal to the
+// cluster's Cilium nodes' addresses: when they change, and every Reapply to
+// repair drift. Each set is replaced in one nft transaction, so it is never
+// seen empty while it changes.
+func (a *Agent) syncClusterNodeSets(ctx context.Context, sets []infrav1.RackNodeNftSet) error {
+	if len(sets) == 0 {
+		return nil
+	}
+	nodes := &corev1.NodeList{}
+	if err := a.Client.List(ctx, nodes); err != nil {
+		return fmt.Errorf("list the cluster's nodes: %w", err)
+	}
+	addresses := ClusterNodeAddresses(nodes.Items)
+	key := strings.Join(addresses, ",")
+	now := a.now()
+	if key == a.synced && now.Sub(a.syncedAt) < a.Reapply {
+		return nil
+	}
+	if _, err := a.Host.Run(ctx, []byte(clusterNodeSetsScript(sets, addresses)), "nft", "-f", "-"); err != nil {
+		return fmt.Errorf("sync the cluster node sets: %w", err)
+	}
+	a.synced, a.syncedAt = key, now
+	return nil
+}
+
+// ClusterNodeAddresses are the IPv4 addresses of the nodes that run Cilium:
+// Linux nodes without the Cilium exclusion, sorted. Both InternalIPs and
+// ExternalIPs: a Hetzner Cloud node, the control plane's included, has only an
+// ExternalIP, which is where its tunnel and its API server's kubelet calls
+// come from.
+func ClusterNodeAddresses(nodes []corev1.Node) []string {
+	var addresses []string
+	for i := range nodes {
+		node := &nodes[i]
+		if node.Labels["kubernetes.io/os"] != "linux" || node.Labels["cilium.io/no-schedule"] == "true" {
+			continue
+		}
+		for _, address := range node.Status.Addresses {
+			if ip := net.ParseIP(address.Address); (address.Type == corev1.NodeInternalIP || address.Type == corev1.NodeExternalIP) && ip != nil && ip.To4() != nil {
+				addresses = append(addresses, ip.To4().String())
+			}
+		}
+	}
+	sort.Strings(addresses)
+	return slices.Compact(addresses)
+}
+
+func clusterNodeSetsScript(sets []infrav1.RackNodeNftSet, addresses []string) string {
+	var b strings.Builder
+	for _, set := range sets {
+		fmt.Fprintf(&b, "flush set %s %s %s\n", set.Family, set.Table, set.Name)
+		if len(addresses) > 0 {
+			fmt.Fprintf(&b, "add element %s %s %s { %s }\n", set.Family, set.Table, set.Name, strings.Join(addresses, ", "))
+		}
+	}
+	return b.String()
 }

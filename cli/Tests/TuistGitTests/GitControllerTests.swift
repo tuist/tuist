@@ -375,6 +375,50 @@ struct GitControllerTests {
         #expect(gitInfo.remoteURLOrigin == "https://github.com/tuist/tuist")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_checks_out_the_merge_commit() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_checks_out_another_commit_than_the_merge_commit() async throws {
+        // A workflow that checks out the pull request's head keeps GITHUB_REF at the merge ref.
+        // When that head is itself a merge commit, its second parent is not the pull request.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+        ]
+        stubPullRequestCheckout(path: path, head: "actual-pr-head-sha", secondParent: "main-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
+    }
+
+    private func stubPullRequestCheckout(path: AbsolutePath, head: String, secondParent: String) {
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "\(head)\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "\(secondParent)\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_reads_the_base_branch_and_pull_request_number()
         async throws
     {
