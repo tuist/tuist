@@ -266,5 +266,8 @@ removed. Keep the registry proxy, the resolve retry and the
 [its guidance](actions/install/AGENTS.md). It automatically uses a custom workspace
 volume when the runner client is available, or GitHub archives otherwise, with
 pinned dependency installation using the project's already-installed CLI.
-`workflows/install-action.yml` tests/packages changes and publishes only on an
-explicit main-branch dispatch after the distribution repository is bootstrapped.
+`workflows/install-action.yml` tests/packages changes and automatically publishes
+relevant main changes through the `install-action` release component after tests
+pass. Bootstrap the distribution repository and release credential first.
+Recover an unrecorded distribution from its original SOURCE_COMMIT before
+publishing newer source; never replace an immutable version.

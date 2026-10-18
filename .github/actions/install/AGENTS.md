@@ -1,7 +1,7 @@
 # Install action
 
 Source for the standalone `tuist/install` composite action. See
-`../../workflows/install-action.yml` for tests, packaging, and manual release.
+`../../workflows/install-action.yml` for tests, packaging, and automatic main-branch releases.
 
 - Select automatically: `tuist-cache-volume` on PATH or /__e uses volumes; otherwise
   compose `actions/cache@v4`. No backend input. Never archive mounted paths or
@@ -19,3 +19,9 @@ Source for the standalone `tuist/install` composite action. See
 - Keep distributions self-contained and never install/upgrade the CLI here.
 - Validate with `node --test .github/actions/install/action.test.mjs`, ShellCheck,
   and actionlint. Tests stub external tools and do not demonstrate live mounts.
+- Releases use the `install-action` component and `install-action@` source tags.
+  Keep version calculation, distribution publication, and monorepo recording in
+  that order. Recover any unrecorded distribution from its original SOURCE_COMMIT,
+  then dispatch queued changes. Never expose release credentials on PR events.
+- Run `bash scripts/release_test.sh` with git-cliff and jq for release changes;
+  it covers version selection, irrelevant changes, recovery, and stale sources.

@@ -142,11 +142,40 @@ shell entry points. The Install Action workflow tests the scripts and composite
 wiring, and packages a standalone artifact containing the action, scripts, README,
 license, and `SOURCE_COMMIT`.
 
-One-time setup: create the `tuist/install` distribution repository with an initial
-`main` commit and grant `TUIST_RELEASE_GITHUB_TOKEN` access. Then dispatch
-`install-action.yml` on `main` with a stable version such as `v1.0.0` to publish
-the tested checkout. Releases reuse the existing distribution publisher's atomic
-push, immutable version tags, and moving major tag. An identical-source retry is
-safe; a different source under an existing version is rejected. To retry after
-main advances, dispatch the original main run again. Tests and packaging also run
-on relevant pull requests and pushes; they never publish from pull requests.
+The monorepo is the source of truth; `tuist/install` contains only generated
+release files. Relevant pushes to `main` automatically publish after the test
+matrix passes. The `install-action` component in `mise/tasks/release/components.json`
+uses its own `install-action@` monorepo tags and starts at `1.0.0`. Conventional
+commits determine subsequent versions: fixes and maintenance get patch releases,
+features get minor releases, and breaking changes get major releases. Unrelated
+changes and retries with no unreleased changes do not publish new versions.
+
+The release job checks `TUIST_RELEASE_GITHUB_TOKEN` access to `tuist/install`,
+packages the tested source, and atomically pushes distribution `main`, the
+immutable full-version tag (for example `v1.0.0`), and the moving major alias
+(`v1`). It then records a GitHub Release and `install-action@1.0.0` tag in the
+monorepo. Pull requests never publish or receive the distribution credential.
+The first merge publishes `v1.0.0`; no version input or manual dispatch is needed.
+
+One-time setup requires a public `tuist/install` repository initialized on `main`
+and write access for the release credential. Repository rules must permit the
+publisher's distribution branch/tag updates. GitHub Marketplace listing is a
+separate optional operation; it is not required to use `tuist/install@v1`.
+
+If distribution publication succeeds but recording the monorepo release fails,
+the next run recovers the already-published version from its original
+`SOURCE_COMMIT`, even if main has advanced. It never repackages newer source under
+an existing version. After recording the recovered release, the workflow
+dispatches another main run to publish any queued changes. Publication rejects
+stale source and moving a major alias behind a newer release.
+
+For operational retries, rerun the failed workflow or dispatch without a version:
+
+```bash
+gh workflow run install-action.yml --repo tuist/tuist --ref main
+```
+
+Consumers can pin an earlier full-version tag or distribution commit to roll
+back. Publish a new version to repair a faulty release; do not replace an
+immutable version tag. A new major updates its own alias, leaving earlier major
+aliases available.

@@ -6,18 +6,17 @@ on:
       - .github/actions/install/**
       - .github/workflows/install-action.yml
       - ci/cache-volume/publish.sh
+      - mise/tasks/release/check.sh
+      - mise/tasks/release/components.json
   push:
     branches: [main]
     paths:
       - .github/actions/install/**
       - .github/workflows/install-action.yml
       - ci/cache-volume/publish.sh
+      - mise/tasks/release/check.sh
+      - mise/tasks/release/components.json
   workflow_dispatch:
-    inputs:
-      version:
-        description: Stable standalone version to publish, such as v1.0.0
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -45,11 +44,17 @@ jobs:
         with:
           node-version: '24'
       - run: node --test .github/actions/install/action.test.mjs
+      - uses: ./.github/actions/mise
+        if: matrix.os == 'ubuntu-latest' && matrix.hit == 'true' && matrix.backend == 'volume'
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
       - name: Check shell scripts and distribution publication
         if: matrix.os == 'ubuntu-latest' && matrix.hit == 'true' && matrix.backend == 'volume'
         run: |
-          shellcheck .github/actions/install/prepare.sh .github/actions/install/install.sh .github/actions/install/scripts/package.sh
+          shellcheck .github/actions/install/prepare.sh .github/actions/install/install.sh .github/actions/install/scripts/*.sh
           bash ci/cache-volume/publish_test.sh
+          bash .github/actions/install/scripts/release_test.sh
       - name: Prepare composite fixture
         shell: bash
         run: |
@@ -126,20 +131,70 @@ jobs:
           path: ${{ runner.temp }}/install-action/
 
   release:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+      - name: Reject stale release runs
+        run: |
+          latest=$(git tag -l 'install-action@*' --sort=-version:refname | head -n1)
+          if [[ -n "$latest" ]]; then
+            git merge-base --is-ancestor "$latest" HEAD
+          fi
+      - id: check
+        run: mise run --skip-tools release:check install-action
+      - name: Verify distribution credential access
+        if: steps.check.outputs.install-action-should-release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          gh api repos/tuist/install --jq '.permissions.push' | grep -qx true
       - uses: actions/checkout@v4
+        if: steps.check.outputs.install-action-should-release == 'true'
         with:
           repository: tuist/install
+          ref: main
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           fetch-depth: 0
           path: distribution
-      - run: bash .github/actions/install/scripts/package.sh "$RUNNER_TEMP/install-action"
-      - name: Publish immutable version and major alias
+      - name: Prepare or recover release
+        id: prepare
+        if: steps.check.outputs.install-action-should-release == 'true'
         env:
-          VERSION: ${{ inputs.version }}
-        run: bash ci/cache-volume/publish.sh "$RUNNER_TEMP/install-action" distribution "$VERSION" "$GITHUB_SHA"
+          VERSION: v${{ steps.check.outputs.install-action-next-version-number }}
+        run: bash .github/actions/install/scripts/prepare-release.sh "$VERSION" distribution "$RUNNER_TEMP/install-action"
+      - name: Publish immutable version and major alias
+        if: steps.check.outputs.install-action-should-release == 'true'
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.prepare.outputs.source-commit }}
+        run: bash ci/cache-volume/publish.sh "$RUNNER_TEMP/install-action" distribution "$VERSION" "$SOURCE_COMMIT"
+      - name: Record release in the monorepo
+        if: steps.check.outputs.install-action-should-release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ github.token }}
+          target_commitish: ${{ steps.prepare.outputs.source-commit }}
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          name: Install Action ${{ steps.prepare.outputs.version }}
+          body: |
+            [Tuist install action](https://github.com/tuist/install/tree/${{ steps.prepare.outputs.version }}), published from ${{ steps.prepare.outputs.source-commit }}.
+
+            The distribution includes an immutable version tag and a moving major alias.
+      - name: Release changes queued behind recovery
+        if: steps.prepare.outputs.source-commit != '' && steps.prepare.outputs.source-commit != github.sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run install-action.yml --ref main
