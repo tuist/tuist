@@ -505,19 +505,18 @@ extension CoverageMapping {
         for index in 0 ..< Int(UInt32(bigEndian: header.nfat_arch)) {
             let entry = MemoryLayout<fat_header>.size + index * stride
             let cpu: cpu_type_t
-            let slice: Range<Int>
+            let candidate: Range<Int>?
             if wide {
                 guard let arch: fat_arch_64 = data.structure(at: entry) else { break }
                 cpu = cpu_type_t(bigEndian: arch.cputype)
-                let offset = Int(UInt64(bigEndian: arch.offset))
-                slice = offset ..< offset + Int(UInt64(bigEndian: arch.size))
+                candidate = data.range(offset: UInt64(bigEndian: arch.offset), size: UInt64(bigEndian: arch.size))
             } else {
                 guard let arch: fat_arch = data.structure(at: entry) else { break }
                 cpu = cpu_type_t(bigEndian: arch.cputype)
-                let offset = Int(UInt32(bigEndian: arch.offset))
-                slice = offset ..< offset + Int(UInt32(bigEndian: arch.size))
+                candidate = data.range(offset: UInt64(UInt32(bigEndian: arch.offset)), size: UInt64(UInt32(bigEndian: arch.size)))
             }
-            guard slice.upperBound <= data.count else { continue }
+            // A slice that runs past the file, or whose size does not fit, is malformed and skipped.
+            guard let slice = candidate else { continue }
             if cpu == CPU_TYPE_ARM64 { return slice }
             if chosen == nil, cpu & CPU_ARCH_ABI64 != 0 { chosen = slice }
         }
@@ -540,11 +539,10 @@ extension CoverageMapping {
                     let offset = command + MemoryLayout<segment_command_64>.size + index * MemoryLayout<section_64>.size
                     guard let section: section_64 = image.structure(at: offset) else { break }
                     let name = withUnsafeBytes(of: section.sectname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-                    guard names.contains(name) else { continue }
-                    let start = base + Int(section.offset)
-                    let end = start + Int(section.size)
-                    guard end <= image.count else { continue }
-                    result[name] = image.subdata(in: image.startIndex + start ..< image.startIndex + end)
+                    guard names.contains(name),
+                          let range = image.range(offset: UInt64(base) + UInt64(section.offset), size: section.size)
+                    else { continue }
+                    result[name] = image.subdata(in: image.startIndex + range.lowerBound ..< image.startIndex + range.upperBound)
                 }
             }
             command += Int(load.cmdsize)
@@ -554,6 +552,15 @@ extension CoverageMapping {
 }
 
 extension Data {
+    /// `offset ..< offset + size` as a range of this data, checked in the unsigned domain before any
+    /// conversion: nil when the span runs past the end or either value does not fit, so a malformed
+    /// header is skipped rather than trapping on the conversion.
+    func range(offset: UInt64, size: UInt64) -> Range<Int>? {
+        let count = UInt64(count)
+        guard offset <= count, size <= count - offset else { return nil }
+        return Int(offset) ..< Int(offset + size)
+    }
+
     /// The C structure laid out at `offset`, byte for byte; nil when it would run past the end.
     func structure<T>(at offset: Int) -> T? {
         let start = startIndex + offset

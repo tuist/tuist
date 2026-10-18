@@ -93,6 +93,38 @@ struct CoverageMappingTests {
         return Data(header + body)
     }
 
+    /// A universal file in the 64-bit layout with one arm64 slice whose header claims `size` at `offset`.
+    private func universal64(offset: UInt64, size: UInt64, slice: Data) -> Data {
+        func big(_ value: UInt32) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        func big64(_ value: UInt64) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        let header = big(0xCAFE_BABF) + big(1)
+            + big(0x0100_000C) + big(0) + big64(offset) + big64(size) + big(3) + big(0)
+        return Data(header + Array(slice))
+    }
+
+    @Test(.inTemporaryDirectory) func refusesAUniversalFileWhoseSliceDoesNotFit() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let instrumented = archive(members: [image(section: "__llvm_covmap", payload: [1, 2])])
+        let headerSize: UInt64 = 40
+        // The size the header claims does not fit an `Int`, runs past the file, or is empty: none of
+        // them may trap, and none carries a mapping.
+        let oversized = directory.appending(component: "oversized")
+        let truncated = directory.appending(component: "truncated")
+        let empty = directory.appending(component: "empty")
+        let sound = directory.appending(component: "sound")
+        try universal64(offset: headerSize, size: .max, slice: instrumented).write(to: URL(fileURLWithPath: oversized.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count) + 1, slice: instrumented)
+            .write(to: URL(fileURLWithPath: truncated.pathString))
+        try universal64(offset: headerSize, size: 0, slice: instrumented).write(to: URL(fileURLWithPath: empty.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count), slice: instrumented)
+            .write(to: URL(fileURLWithPath: sound.pathString))
+
+        #expect(!CoverageMapping.carriesMapping(path: oversized.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: truncated.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: empty.pathString))
+        #expect(CoverageMapping.carriesMapping(path: sound.pathString))
+    }
+
     @Test(.inTemporaryDirectory) func tellsWhetherAProductCarriesACoverageMapping() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let instrumented = directory.appending(component: "Instrumented")
