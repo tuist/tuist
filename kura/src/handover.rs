@@ -23,6 +23,7 @@ use tracing::Instrument;
 const MAX_BATCH_RECORDS: usize = 32;
 const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
+pub(crate) const VERIFICATION_CONCURRENCY: usize = 4;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -284,14 +285,7 @@ async fn verify_inner(
         return Err("retained corpus not held".into());
     }
     if request.record.is_some() || !request.records.is_empty() {
-        let records = request.record.into_iter().chain(request.records);
-        let mut count = 0;
-        for expected in records {
-            verify_record(state, &expected)
-                .await
-                .map_err(|error| format!("{}; {error}", record_context(&expected)))?;
-            count += 1;
-        }
+        let count = verify_records(state, &request).await?;
         return Ok(
             serde_json::json!({"destination": authority.identity(), "verified_records": count}),
         );
@@ -380,6 +374,56 @@ async fn reconcile_retained_corpus(
                     BackfillPassOutcome::Failed { error, .. } => Err(format!("retained corpus reconciliation failed: {}", bounded_detail(&error))),
                     BackfillPassOutcome::Cancelled { .. } => Err("retained corpus reconciliation cancelled".into()),
                 };
+            }
+        }
+    }
+}
+
+async fn verify_records(state: &SharedState, request: &VerifyRequest) -> Result<usize, String> {
+    let request = std::sync::Arc::new(request.clone());
+    let mut records = request.record.iter().chain(&request.records).cloned();
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut count = 0;
+    let mut check = tokio::time::interval(Duration::from_millis(100));
+    loop {
+        require_current_destination(state, &request)?;
+        while tasks.len() < VERIFICATION_CONCURRENCY {
+            let Some(expected) = records.next() else {
+                break;
+            };
+            let state = state.clone();
+            let request = request.clone();
+            tasks.spawn(
+                async move {
+                    let _permit = state
+                        .runtime
+                        .authority
+                        .handover_verification
+                        .clone()
+                        .acquire_owned()
+                        .await
+                        .map_err(|_| "retained verification closed".to_string())?;
+                    require_current_destination(&state, &request)?;
+                    verify_record(&state, &expected)
+                        .await
+                        .map_err(|error| format!("{}; {error}", record_context(&expected)))
+                }
+                .in_current_span(),
+            );
+        }
+        if tasks.is_empty() {
+            return Ok(count);
+        }
+        // JoinSet owns every reader: cancellation, a rejected record, drain or
+        // the original deadline aborts unfinished tasks and releases permits.
+        // The shared semaphore also bounds overlapping/retried requests.
+        tokio::select! {
+            biased;
+            _ = check.tick() => require_current_destination(state, &request)?,
+            result = tasks.join_next() => {
+                result.expect("nonempty verification tasks")
+                    .map_err(|error| format!("retained verification task failed: {error}"))??;
+                count += 1;
             }
         }
     }
@@ -1847,6 +1891,73 @@ mod tests {
         assert!(verify_inner(state, wrong_destination).await.is_err());
         server.abort();
     }
+    #[tokio::test]
+    async fn queued_verification_cancels_at_deadline_or_disconnect_without_a_receipt() {
+        for deadline in [true, false] {
+            let ctx = test_context(|_| {}).await;
+            let state = &ctx.state;
+            state.store.delete_namespace("queued").await.unwrap();
+            let version = state
+                .store
+                .namespace_tombstone_version("queued")
+                .unwrap()
+                .unwrap();
+            let expected = record(
+                state,
+                BackfillRecordKind::NamespaceTombstone,
+                "queued",
+                version,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            let mut request = begin_request(state, "http://source".into());
+            request.begin = false;
+            request.receipt = None;
+            request.records = vec![expected; MAX_BATCH_RECORDS];
+            if deadline {
+                request.intent.deadline_ms = crate::utils::now_ms() + 50;
+                let mut grant = state.runtime.authority.intent().unwrap();
+                grant.handover = Some(request.intent.clone());
+                state.runtime.authority.install(grant).unwrap();
+            }
+            *state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+            let budget = state.runtime.authority.handover_verification.clone();
+            let held = budget
+                .clone()
+                .acquire_many_owned(VERIFICATION_CONCURRENCY as u32)
+                .await
+                .unwrap();
+            let verification = tokio::spawn(verify_response(state.clone(), request));
+            if deadline {
+                let error = tokio::time::timeout(Duration::from_secs(1), verification)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap_err();
+                assert!(error.1.contains("deadline mismatch"), "{error:?}");
+            } else {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                assert!(!verification.is_finished());
+                verification.abort();
+                assert!(verification.await.unwrap_err().is_cancelled());
+            }
+            drop(held);
+            let _all = tokio::time::timeout(
+                Duration::from_secs(1),
+                budget.acquire_many_owned(VERIFICATION_CONCURRENCY as u32),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert!(state.runtime.authority.barrier.lock().unwrap().is_none());
+            assert_eq!(
+                state.store.handover_hold.lock().unwrap().as_deref(),
+                Some("repair")
+            );
+        }
+    }
+
     #[tokio::test]
     async fn batches_require_complete_acknowledgments_and_legacy_requests_stay_individual() {
         let ctx = test_context(|_| {}).await;

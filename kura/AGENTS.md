@@ -18,6 +18,11 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   this acknowledgment never authorizes another replica. Handover batches must
   negotiate support, bound descriptors and referenced bytes, preserve ordered
   full-corpus verification, and retain the individual-record fallback.
+  Destination batches share a four-reader verification budget across requests.
+  Each reader streams 64 KiB at a time; the request owns its tasks and aborts
+  unfinished work on rejection, disconnect, drain or the original deadline.
+  A batch acknowledges only after every record passes; receipt ordering and
+  the mixed-version wire format remain unchanged.
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
