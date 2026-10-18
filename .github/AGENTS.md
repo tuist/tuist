@@ -259,3 +259,11 @@ recompiles every first-party module; the volume only spares the pinned
 third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
+
+## Generated-project dependency installation
+
+`actions/install/` implements the standalone `tuist/install` action; see
+[its guidance](actions/install/AGENTS.md). It composes a custom workspace volume
+with pinned dependency installation, using the project's already-installed CLI.
+`workflows/install-action.yml` tests/packages changes and publishes only on an
+explicit main-branch dispatch after the distribution repository is bootstrapped.

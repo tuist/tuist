@@ -1,0 +1,41 @@
+name: Tuist install
+description: Install pinned generated-project dependencies with a persistent workspace volume on Tuist Runners.
+branding:
+  icon: download
+  color: purple
+inputs:
+  path:
+    description: Project directory inside the checkout, relative to GITHUB_WORKSPACE or absolute.
+    default: .
+  cache-key:
+    description: Override the generated volume key, for example to share a compatible workspace between jobs.
+outputs:
+  cache-hit:
+    description: Whether the volume attached a saved snapshot. Installation always runs.
+    value: ${{ steps.volume.outputs.cache-hit }}
+  cache-path:
+    description: Absolute dependency-cache path for subsequent SwiftPM commands.
+    value: ${{ steps.prepare.outputs.cache-path }}
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      shell: bash
+      env:
+        TUIST_INSTALL_PATH: ${{ inputs.path }}
+        TUIST_INSTALL_CACHE_KEY: ${{ inputs.cache-key }}
+        TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_INSTALL_ACTION_PATH/prepare.sh"
+    - id: volume
+      uses: tuist/cache-volume@v1
+      with:
+        key: ${{ steps.prepare.outputs.key }}
+        path: ${{ steps.prepare.outputs.scratch-path }}
+    - name: Install dependencies
+      shell: bash
+      env:
+        TUIST_INSTALL_PROJECT_PATH: ${{ steps.prepare.outputs.project-path }}
+        TUIST_INSTALL_SCRATCH_PATH: ${{ steps.prepare.outputs.scratch-path }}
+        TUIST_INSTALL_CACHE_PATH: ${{ steps.prepare.outputs.cache-path }}
+        TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_INSTALL_ACTION_PATH/install.sh"
