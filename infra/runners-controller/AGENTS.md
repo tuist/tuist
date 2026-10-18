@@ -148,7 +148,10 @@ independent workqueues:
     deterministically so each pool's reconcile marks only its own runners
     (`tuist.dev/preempted-for: sandboxes`, event
     `RunnerPodPreemptedForSandboxes`). Runners executing a job are never
-    chosen; the growth then waits for them to finish. Daemon Pods are read
+    chosen; the growth then waits for them to finish. Retired runners are
+    remembered per node for `preemptionSettle`, because a retired Pod can
+    leave the API before the kubelet applies the growth, and the next tick
+    would otherwise retire another runner for it. Daemon Pods are read
     through the uncached `APIReader`, since the manager caches only the
     runners namespace; a failed read budgets the fleet without them.
   - macOS: budget = sum of allocatable memory across nodes labeled
