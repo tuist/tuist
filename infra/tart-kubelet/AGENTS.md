@@ -14,10 +14,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   cache" in `infra/rack-nodes/AGENTS.md`). Tart has no mirror support, so the
   host probes the mirror's manifest, pulls `<mirror>/<repo>@<digest>` with
   `--insecure`, and falls back to the image's own registry when the mirror is
-  down, lacks the image or fails the pull. A mirror still fetching the image
-  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
-  instead of blocking the single reconcile worker. The golden keeps the Pod
-  image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
+  down, slow, lacks the image or fails the pull. The mirror is a plain
+  registry that never fetches on a request, so a probe never waits on one.
+  The golden keeps the Pod image's name and the GC keeps mirror-pulled OCI
+  entries as their upstream's.
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
@@ -28,10 +28,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   tainted `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls
   the images of its fleet's macOS RunnerPools that keep a warm floor or have
   `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
-  Pod's first VM takes). An image the rack's image cache is still fetching
-  (`errMirrorSyncing`) is asked for again every 30 seconds, not skipped.
-  Decision: a taint, not a cordon, because the operator cordons rack hosts by
-  hand and tart-kubelet must never lift that. Runner Pods
+  Pod's first VM takes). Decision: a taint, not a cordon, because the operator
+  cordons rack hosts by hand and tart-kubelet must never lift that. Runner Pods
   do not tolerate it, and the runners-controller leaves tainted Nodes out of
   fleet capacity (`nodeFilterReason`), so the allocator agrees with the
   scheduler. A restart on a registered Node never taints or prewarms: that

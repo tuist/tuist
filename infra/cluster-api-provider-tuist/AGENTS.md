@@ -1462,6 +1462,14 @@ serve it, or once it was rebooted into it; otherwise its install is withdrawn
 and it is installed from a stick. `storage` has no layout yet. The `Installed`
 condition says which step a host is on.
 
+**The rack's VM image cache filler** (`cmd/rack-image-filler`,
+`internal/rackimagefiller`) runs from the operator's image beside the cache's
+registry on each storage node that `rackFleet.imageCache.nodes` names. It
+copies the runner images the cache holds from ghcr.io, planned against the
+volume's free space and a daily download budget, with a per-image backoff;
+see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`. Its tests
+run two in-memory registries (go-containerregistry's `pkg/registry`).
+
 **The rack's boot server** (`cmd/rack-boot`, `internal/rackboot`) runs from the
 operator's image as the rack-nodes chart's `<fleet>-boot` DaemonSet on each edge node of
 the site, with host networking. It binds TFTP and HTTP to the provisioning
@@ -2073,6 +2081,7 @@ infra/cluster-api-provider-tuist/
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-image-filler/  # fills the rack's VM image cache, run on a rack's storage nodes
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
 ├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password

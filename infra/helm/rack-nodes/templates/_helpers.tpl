@@ -27,32 +27,39 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- /*
-The prewarm set's tags, as JSON. Each is the tag the tuist
-chart's `tuist.macosRunnerImage` gives that Xcode's pools:
-`macos-<xcode-dashes>-<runnerImageSemver>` or the Xcode's `imageTag`
-override. An Xcode outside the catalog fails the render rather than
-prewarming an image no pool runs. Without a semver (a render outside a
-deploy, which resolves it) an Xcode without an override is skipped.
+The images the cache holds, in priority order, as JSON: for each
+`rackFleet.imageCache.xcodeVersions` entry, the image the tuist chart's
+`tuist.macosRunnerImage` gives that Xcode's pools,
+`<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>` or the
+Xcode's `imageTag` override. An Xcode outside the catalog, or a repository
+outside the cache's upstream, fails the render rather than holding an image
+no pool runs. Without a semver (a render outside a deploy, which resolves it)
+an Xcode without an override is skipped.
 */ -}}
-{{- define "rackNodes.imageCachePrewarmTags" -}}
-{{- $tags := list -}}
+{{- define "rackNodes.imageCacheImages" -}}
+{{- $images := list -}}
 {{- $catalog := list -}}
 {{- range (.Values.runnersFleet.xcodeVersions | default list) -}}
 {{- $catalog = append $catalog (.xcodeVersion | toString) -}}
 {{- end -}}
+{{- $repository := .Values.runnersFleet.runnerImageRepository | default "" -}}
+{{- $upstream := .Values.rackFleet.imageCache.upstream | default "" -}}
 {{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict -}}
-{{- range $xcode := (.Values.rackFleet.imageCache.prewarm | default list) -}}
+{{- range $xcode := (.Values.rackFleet.imageCache.xcodeVersions | default list) -}}
 {{- $xcode = $xcode | toString -}}
 {{- if not (has $xcode $catalog) -}}
-{{- fail (printf "rackFleet.imageCache.prewarm names Xcode %s, which is not in runnersFleet.xcodeVersions" $xcode) -}}
+{{- fail (printf "rackFleet.imageCache.xcodeVersions names Xcode %s, which is not in runnersFleet.xcodeVersions" $xcode) -}}
+{{- end -}}
+{{- if not (hasPrefix (printf "%s/" $upstream) $repository) -}}
+{{- fail (printf "runnersFleet.runnerImageRepository %q is not in rackFleet.imageCache.upstream %q" $repository $upstream) -}}
 {{- end -}}
 {{- $tag := dig $xcode "imageTag" "" $overrides -}}
 {{- if and (not $tag) $.Values.runnersFleet.runnerImageSemver -}}
 {{- $tag = printf "macos-%s-%s" ($xcode | replace "." "-") $.Values.runnersFleet.runnerImageSemver -}}
 {{- end -}}
 {{- with $tag -}}
-{{- $tags = append $tags . -}}
+{{- $images = append $images (printf "%s:%s" $repository .) -}}
 {{- end -}}
 {{- end -}}
-{{- $tags | uniq | toJson -}}
+{{- $images | uniq | toJson -}}
 {{- end -}}

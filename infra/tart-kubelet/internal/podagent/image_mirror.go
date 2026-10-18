@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -52,44 +50,24 @@ func (m ImageMirror) insecure() bool { return m.Endpoint.Scheme == "http" }
 
 // ImageSources picks where a golden base's image is pulled from: the first of
 // its mirrors that holds the image, else the upstream itself. Never failing to
-// fall back is the point: a mirror that is down, does not answer, holds
-// something else or fails the pull costs a slower pull from the upstream, and
-// never a VM.
+// fall back is the point: a mirror that is down, slow, does not hold the
+// image, holds something else or fails the pull costs a slower pull from the
+// upstream, and never a VM.
 type ImageSources struct {
 	Mirrors []ImageMirror
 	// HTTP is the client mirror probes use. Nil means a client with
 	// mirrorProbeTimeout as its timeout.
 	HTTP *http.Client
-	// SyncTimeout bounds how long a mirror that is still syncing an image is
-	// waited for before the host pulls from the upstream instead. Zero means
-	// defaultMirrorSyncTimeout.
-	SyncTimeout time.Duration
-
-	now     func() time.Time
-	mu      sync.Mutex
-	syncing map[string]time.Time
 }
 
 const (
-	// Bounds each request to a mirror. A mirror on the rack's own segment
-	// answers its ping in milliseconds and a manifest it holds as quickly, so
-	// a request that takes longer is either a mirror that is down or one that
-	// is fetching the image from the upstream.
-	mirrorProbeTimeout = 15 * time.Second
-	// A cold 60 GB image takes the cache about as long to fetch as it takes
-	// one mini today. Past this the host stops waiting and pulls from the
-	// upstream itself.
-	defaultMirrorSyncTimeout = 30 * time.Minute
-	ociManifestMediaType     = "application/vnd.oci.image.manifest.v1+json"
-	maxManifestBytes         = 4 << 20
+	// Bounds each request to a mirror. A mirror is a plain registry on the
+	// rack's own segment, which answers its ping and any manifest, held or
+	// not, in milliseconds; one that takes longer is treated as down.
+	mirrorProbeTimeout   = 10 * time.Second
+	ociManifestMediaType = "application/vnd.oci.image.manifest.v1+json"
+	maxManifestBytes     = 4 << 20
 )
-
-// errMirrorSyncing reports that a mirror is up but still fetching the image.
-// The Pod is requeued rather than the reconcile blocked: one reconcile worker
-// serves every Pod on the host. The mirror keeps syncing after the probe's
-// request is gone, and later probes join that same sync, so the image crosses
-// the WAN once however many hosts wait for it.
-var errMirrorSyncing = errors.New("the rack image cache is fetching the image; retrying")
 
 // imagePull is one place to pull an image from.
 type imagePull struct {
@@ -99,64 +77,35 @@ type imagePull struct {
 	mirror string
 }
 
-// sources returns the mirror pulls to try for image, in order. The upstream
-// is not among them; the caller falls back to it. When no mirror holds the
-// image but one is still fetching it within the sync timeout, the call
-// returns errMirrorSyncing, so no host pulls the image from the upstream
-// beside it. A mirror that holds the image is used even while another is
-// still fetching it.
-func (s *ImageSources) sources(ctx context.Context, image string) ([]imagePull, error) {
+// sources returns the mirror pulls to try for image, in order: each mirror of
+// the image's registry that holds it, by the digest it served. The upstream is
+// not among them; the caller falls back to it.
+func (s *ImageSources) sources(ctx context.Context, image string) []imagePull {
 	if s == nil || len(s.Mirrors) == 0 {
-		return nil, nil
+		return nil
 	}
 	registry, repository, reference, ok := splitImageRef(image)
 	if !ok {
-		return nil, nil
+		return nil
 	}
 	var pulls []imagePull
-	var syncing []ImageMirror
 	for _, mirror := range s.Mirrors {
 		if mirror.Upstream != registry {
 			continue
 		}
 		digest, err := s.probe(ctx, mirror, repository, reference)
-		switch {
-		case err == nil:
-			s.doneSyncing(mirror, image)
-			recordImageMirrorProbe("ok")
-			pulls = append(pulls, imagePull{
-				ref:      mirror.Endpoint.Host + "/" + repository + "@" + digest,
-				insecure: mirror.insecure(),
-				mirror:   mirror.Endpoint.String(),
-			})
-		case errors.Is(err, errMirrorSyncing):
-			syncing = append(syncing, mirror)
-		default:
-			s.doneSyncing(mirror, image)
+		if err != nil {
 			recordImageMirrorProbe(mirrorProbeResult(err))
-		}
-	}
-	if len(pulls) > 0 {
-		for range syncing {
-			recordImageMirrorProbe("syncing_bypassed")
-		}
-		return pulls, nil
-	}
-	// Every syncing mirror's wait starts on the same probe, so two mirrors
-	// fetching the image cost one sync timeout, not one each.
-	var waiting []string
-	for _, mirror := range syncing {
-		if s.waitedTooLong(mirror, image) {
-			recordImageMirrorProbe("sync_timeout")
 			continue
 		}
-		recordImageMirrorProbe("syncing")
-		waiting = append(waiting, mirror.Endpoint.String())
+		recordImageMirrorProbe("ok")
+		pulls = append(pulls, imagePull{
+			ref:      mirror.Endpoint.Host + "/" + repository + "@" + digest,
+			insecure: mirror.insecure(),
+			mirror:   mirror.Endpoint.String(),
+		})
 	}
-	if len(waiting) > 0 {
-		return nil, fmt.Errorf("%s from %s: %w", image, strings.Join(waiting, ", "), errMirrorSyncing)
-	}
-	return nil, nil
+	return pulls
 }
 
 var (
@@ -176,10 +125,7 @@ func mirrorProbeResult(err error) string {
 }
 
 // probe asks the mirror for the image's manifest and returns its digest, so
-// the pull that follows names exactly the manifest the mirror served. A
-// mirror that does not hold the image yet fetches all of it before it answers
-// a manifest request, which is what a request that times out against a
-// mirror that answers its ping means.
+// the pull that follows names exactly the manifest the mirror served.
 func (s *ImageSources) probe(ctx context.Context, mirror ImageMirror, repository, reference string) (string, error) {
 	client := s.HTTP
 	if client == nil {
@@ -196,10 +142,7 @@ func (s *ImageSources) probe(ctx context.Context, mirror ImageMirror, repository
 
 	resp, err := mirrorGet(ctx, client, mirror.Endpoint.JoinPath("v2", repository, "manifests", reference).String(), ociManifestMediaType)
 	if err != nil {
-		if isTimeout(err) {
-			return "", errMirrorSyncing
-		}
-		return "", err
+		return "", fmt.Errorf("%w: %v", errMirrorUnavailable, err)
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
@@ -211,10 +154,7 @@ func (s *ImageSources) probe(ctx context.Context, mirror ImageMirror, repository
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxManifestBytes+1))
 	if err != nil {
-		if isTimeout(err) {
-			return "", errMirrorSyncing
-		}
-		return "", err
+		return "", fmt.Errorf("%w: %v", errMirrorUnavailable, err)
 	}
 	if len(body) > maxManifestBytes {
 		return "", fmt.Errorf("manifest is larger than %d bytes", maxManifestBytes)
@@ -242,40 +182,6 @@ func mirrorGet(ctx context.Context, client *http.Client, target, accept string) 
 		req.Header.Set("Accept", accept)
 	}
 	return client.Do(req)
-}
-
-func isTimeout(err error) bool {
-	var netErr net.Error
-	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout())
-}
-
-func (s *ImageSources) waitedTooLong(mirror ImageMirror, image string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	if s.now != nil {
-		now = s.now()
-	}
-	if s.syncing == nil {
-		s.syncing = map[string]time.Time{}
-	}
-	key := mirror.String() + " " + image
-	since, ok := s.syncing[key]
-	if !ok {
-		s.syncing[key] = now
-		return false
-	}
-	timeout := s.SyncTimeout
-	if timeout <= 0 {
-		timeout = defaultMirrorSyncTimeout
-	}
-	return now.Sub(since) >= timeout
-}
-
-func (s *ImageSources) doneSyncing(mirror ImageMirror, image string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.syncing, mirror.String()+" "+image)
 }
 
 // mirroredRepositories returns the repository each mirror of repository's

@@ -34,3 +34,4 @@ runnersFleet:
   xcodeVersions: []
   xcodeOverrides: {}
   runnerImageSemver: ""
+  runnerImageRepository: ""

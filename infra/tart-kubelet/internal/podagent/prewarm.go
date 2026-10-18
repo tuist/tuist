@@ -3,7 +3,6 @@ package podagent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -57,14 +56,7 @@ type Prewarmer struct {
 	DiskFree func() (float64, error)
 	// Timeout overrides defaultPrewarmTimeout.
 	Timeout time.Duration
-	// SyncRetry is how often an image the rack's image cache is still
-	// fetching is asked for again. Zero means defaultPrewarmSyncRetry.
-	SyncRetry time.Duration
 }
-
-// defaultPrewarmSyncRetry matches the requeue a Pod gets while the image
-// cache fetches its image (errMirrorSyncing).
-const defaultPrewarmSyncRetry = 30 * time.Second
 
 // Start conforms to manager.Runnable. It never returns an error: a failed
 // prewarm only costs the first Pod of each image its pull.
@@ -99,7 +91,7 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 			break
 		}
 		started := time.Now()
-		name, materialized, err := p.ensureGolden(ctx, image)
+		name, materialized, err := p.Goldens.ensureGolden(ctx, image)
 		if err != nil {
 			logger.Error(err, "prewarm runner image", "image", image)
 			if ctx.Err() != nil {
@@ -206,26 +198,4 @@ func prewarmImages(pools []prewarmPool, fleet string) []string {
 		images[i] = c.image
 	}
 	return images
-}
-
-// ensureGolden materialises image, asking again while the rack's image cache
-// is still fetching it rather than moving on: the host would otherwise take
-// Pods without the image, and those Pods would wait on the same fetch. The
-// cache's own sync timeout and the prewarm timeout bound the wait.
-func (p *Prewarmer) ensureGolden(ctx context.Context, image string) (string, bool, error) {
-	retry := p.SyncRetry
-	if retry <= 0 {
-		retry = defaultPrewarmSyncRetry
-	}
-	for {
-		name, materialized, err := p.Goldens.ensureGolden(ctx, image)
-		if !errors.Is(err, errMirrorSyncing) {
-			return name, materialized, err
-		}
-		select {
-		case <-ctx.Done():
-			return "", false, err
-		case <-time.After(retry):
-		}
-	}
 }
