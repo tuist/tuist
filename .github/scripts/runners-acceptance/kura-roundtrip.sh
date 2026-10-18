@@ -49,7 +49,7 @@ classify() {
     2*) return 0 ;;
     000) fail "Kura data path" "${operation} did not complete: $(head -c 300 "${body}.err" 2>/dev/null)" ;;
   esac
-  if grep -qiE 'backend.unavailable|authentication backend' "${body}" 2>/dev/null || [ "${code}" = 503 ]; then
+  if grep -qiE 'authentication backend|backend.unavailable' "${body}" 2>/dev/null; then
     fail "Kura auth" "${operation} returned HTTP ${code}: Kura cannot validate tokens, so its introspection call to the server is failing: $(head -c 300 "${body}")"
   fi
   case "${code}" in
