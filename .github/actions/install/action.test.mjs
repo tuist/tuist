@@ -22,6 +22,7 @@ function fixture(t) {
     write(path.join(bin, name), `#!/bin/bash\nset -eu\n${content}\n`);
     fs.chmodSync(path.join(bin, name), 0o755);
   };
+  executable('tuist-cache-volume', 'exit 0');
   executable('swift', 'printf "%s\\n" "${FAKE_SWIFT_VERSION:-Swift 6.3}"');
   executable('xcodebuild', 'printf "%s\\n" "${FAKE_XCODE_VERSION:-Xcode 27}"');
   executable('tuist', `if [[ "$1" == version ]]; then
@@ -34,6 +35,7 @@ function fixture(t) {
   fi`);
   const env = {
     ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_WORKSPACE: workspace,
+    RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64',
     GITHUB_JOB: 'generate', GITHUB_OUTPUT: path.join(root, 'output'),
     TUIST_INSTALL_PATH: '.', TUIST_INSTALL_CACHE_KEY: '', SWIFTPM_BUILD_DIR: '',
     CAPTURE_ARGS: path.join(root, 'args'), CAPTURE_CWD: path.join(root, 'cwd'),
@@ -58,10 +60,11 @@ function fixture(t) {
     cwd: root, encoding: 'utf8', env: {
       ...env, TUIST_INSTALL_PROJECT_PATH: outputs['project-path'],
       TUIST_INSTALL_SCRATCH_PATH: outputs['scratch-path'],
-      TUIST_INSTALL_CACHE_PATH: outputs['cache-path'], ...overrides,
+      TUIST_INSTALL_CACHE_PATH: outputs['cache-path'],
+      TUIST_INSTALL_MATERIALIZATION: outputs.materialization, ...overrides,
     },
   });
-  return { root, workspace, write, env, pkg, prepare, install };
+  return { root, workspace, bin, write, env, pkg, prepare, install };
 }
 function success(result) { assert.equal(result.status, 0, result.stderr); return result.outputs; }
 
@@ -182,4 +185,52 @@ test('standalone package works outside the source checkout and never overwrites 
   assert.match(fs.readFileSync(path.join(output, 'SOURCE_COMMIT'), 'utf8'), /^[a-f0-9]{40}\n$/);
   success(f.install(success(f.prepare({}, output)), {}, output));
   assert.notEqual(pack().status, 0);
+});
+
+test('auto uses the volume client with symlinks; otherwise GitHub archives with copies', t => {
+  const f = fixture(t);
+  f.pkg();
+  const volume = success(f.prepare());
+  assert.equal(volume.backend, 'volume');
+  assert.equal(volume.materialization, 'symlink');
+  assert.equal(volume['archive-key'], '');
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  const archive = success(f.prepare());
+  assert.equal(archive.backend, 'github');
+  assert.equal(archive.materialization, 'copy');
+  assert.equal(archive['archive-path'], './.build');
+  success(f.install(archive));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--cached-directory-materialization=copy\0/);
+  assert.doesNotMatch(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_INSTALL_/m);
+});
+
+test('archive save key includes lockfile and platform; restore prefix survives pin changes', t => {
+  const f = fixture(t);
+  f.pkg('app');
+  f.write(path.join(f.workspace, 'app/Tuist.swift'));
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  const inputs = { TUIST_INSTALL_PATH: 'app', TUIST_INSTALL_CACHE_KEY: 'shared' };
+  const first = success(f.prepare(inputs));
+  assert.equal(first['archive-path'], './app/.build');
+  assert.equal(first['archive-prefix'], 'tuist-install-github-v1-macOS-ARM64-shared-');
+  assert.ok(first['archive-key'].startsWith(first['archive-prefix']));
+  f.write(path.join(f.workspace, 'app/Package.resolved'), 'updated pins');
+  const next = success(f.prepare(inputs));
+  assert.notEqual(next['archive-key'], first['archive-key']);
+  assert.equal(next['archive-prefix'], first['archive-prefix']);
+  assert.notEqual(success(f.prepare({ ...inputs, RUNNER_ARCH: 'X64' }))['archive-prefix'], first['archive-prefix']);
+  assert.notEqual(success(f.prepare({ ...inputs, RUNNER_OS: 'Linux' }))['archive-prefix'], first['archive-prefix']);
+  const moved = path.join(f.root, 'another-checkout');
+  fs.cpSync(f.workspace, moved, { recursive: true });
+  const restored = success(f.prepare({ ...inputs, GITHUB_WORKSPACE: moved }));
+  assert.equal(restored['archive-key'], next['archive-key']);
+  assert.equal(restored['archive-path'], next['archive-path']);
+});
+
+test('archive paths escape glob characters in literal package directories', t => {
+  const f = fixture(t);
+  f.pkg('app[1]*?');
+  f.write(path.join(f.workspace, 'app[1]*?/Tuist.swift'));
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'app[1]*?' }))['archive-path'], './app[[]1[]][*][?]/.build');
 });

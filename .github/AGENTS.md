@@ -263,7 +263,8 @@ removed. Keep the registry proxy, the resolve retry and the
 ## Generated-project dependency installation
 
 `actions/install/` implements the standalone `tuist/install` action; see
-[its guidance](actions/install/AGENTS.md). It composes a custom workspace volume
-with pinned dependency installation, using the project's already-installed CLI.
+[its guidance](actions/install/AGENTS.md). It automatically uses a custom workspace
+volume when the runner client is available, or GitHub archives otherwise, with
+pinned dependency installation using the project's already-installed CLI.
 `workflows/install-action.yml` tests/packages changes and publishes only on an
 explicit main-branch dispatch after the distribution repository is bootstrapped.

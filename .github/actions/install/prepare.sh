@@ -55,13 +55,14 @@ if (( major == 4 && minor == 214 && patch == 0 )) && [[ -n "$prerelease" ]]; the
 fi
 
 scratch="$package/.build"
+package_relative=${package#"$workspace"}
 key=${TUIST_INSTALL_CACHE_KEY:-}
 if [[ -z "$key" ]]; then
   toolchain=$(swift --version)
   if [[ $(uname -s) == Darwin ]]; then
     toolchain+=$'\n'$(xcodebuild -version)
   fi
-  package_relative=${package#"$workspace"}
+
   digest=$({
     printf '%s\0' "${GITHUB_JOB:?GITHUB_JOB is required}" "$toolchain" "$package_relative"
     cat "$package/Package.swift"
@@ -69,9 +70,31 @@ if [[ -z "$key" ]]; then
   key="tuist-install-v1-${digest%% *}"
 fi
 [[ "$key" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]*$ && ${#key} -le 200 ]] || fail 'cache-key must be 1–200 characters: letters, numbers, _, ., /, or -, starting with a letter or number.'
+backend=github
+materialization=copy
+if command -v tuist-cache-volume >/dev/null 2>&1 || [[ -x /__e/tuist-cache-volume ]]; then
+  backend=volume
+  materialization=symlink
+fi
+archive_path=$(printf '%s' ".${package_relative}/.build" | sed 's/[][?*]/[&]/g')
+archive_prefix=""
+archive_key=""
+if [[ "$backend" == github ]]; then
+  platform=${RUNNER_OS:?RUNNER_OS is required for GitHub caching}
+  architecture=${RUNNER_ARCH:?RUNNER_ARCH is required for GitHub caching}
+  [[ "$platform" =~ ^[a-zA-Z0-9_-]+$ && "$architecture" =~ ^[a-zA-Z0-9_-]+$ ]] || fail 'Invalid runner platform or architecture.'
+  lock_hash=$(shasum -a 256 < "$package/Package.resolved")
+  archive_prefix="tuist-install-github-v1-$platform-$architecture-$key-"
+  archive_key="$archive_prefix${lock_hash%% *}"
+fi
 {
   printf 'project-path=%s\n' "$project"
   printf 'scratch-path=%s\n' "$scratch"
   printf 'cache-path=%s\n' "$scratch/dependency-cache"
   printf 'key=%s\n' "$key"
+  printf 'backend=%s\n' "$backend"
+  printf 'materialization=%s\n' "$materialization"
+  printf 'archive-path=%s\n' "$archive_path"
+  printf 'archive-key=%s\n' "$archive_key"
+  printf 'archive-prefix=%s\n' "$archive_prefix"
 } >> "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"

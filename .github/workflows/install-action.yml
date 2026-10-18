@@ -32,8 +32,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         hit: ['true', 'false']
+        backend: [volume, github]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    env:
+      TEST_CACHE_KEY: install-action-test-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.backend }}-${{ matrix.hit }}
+      EXPECTED_BACKEND: ${{ matrix.backend }}
+      EXPECTED_MATERIALIZATION: ${{ matrix.backend == 'volume' && 'symlink' || 'copy' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,7 +46,7 @@ jobs:
           node-version: '24'
       - run: node --test .github/actions/install/action.test.mjs
       - name: Check shell scripts and distribution publication
-        if: matrix.os == 'ubuntu-latest' && matrix.hit == 'true'
+        if: matrix.os == 'ubuntu-latest' && matrix.hit == 'true' && matrix.backend == 'volume'
         run: |
           shellcheck .github/actions/install/prepare.sh .github/actions/install/install.sh .github/actions/install/scripts/package.sh
           bash ci/cache-volume/publish_test.sh
@@ -54,7 +59,7 @@ jobs:
           cat > "$RUNNER_TEMP/install-test-bin/tuist-cache-volume" <<'CLIENT'
           #!/bin/bash
           set -eu
-          [[ "$1" == --key && "$2" == install-action-test && "$3" == --path && "$4" == "$GITHUB_WORKSPACE/install-fixture/Tuist/.build" ]]
+          [[ "$1" == --key && "$2" == "$TEST_CACHE_KEY" && "$3" == --path && "$4" == "$GITHUB_WORKSPACE/install-fixture/Tuist/.build" ]]
           mkdir -p "$4"
           printf 'cache-hit=%s\n' "$CLIENT_HIT" >> "$GITHUB_OUTPUT"
           CLIENT
@@ -62,33 +67,62 @@ jobs:
           #!/bin/bash
           set -eu
           if [[ "$1" == version ]]; then echo 4.214.0-canary.36; exit; fi
-          [[ "$*" == "install --path $GITHUB_WORKSPACE/install-fixture --force-resolved-versions --scratch-path $GITHUB_WORKSPACE/install-fixture/Tuist/.build --cache-path $GITHUB_WORKSPACE/install-fixture/Tuist/.build/dependency-cache --cached-directory-materialization=symlink" ]]
-          [[ -d "$GITHUB_WORKSPACE/install-fixture/Tuist/.build" ]]
+          [[ "$*" == "install --path $GITHUB_WORKSPACE/install-fixture --force-resolved-versions --scratch-path $GITHUB_WORKSPACE/install-fixture/Tuist/.build --cache-path $GITHUB_WORKSPACE/install-fixture/Tuist/.build/dependency-cache --cached-directory-materialization=$EXPECTED_MATERIALIZATION" ]]
+          if [[ "$EXPECTED_BACKEND" == volume ]]; then
+            [[ -d "$GITHUB_WORKSPACE/install-fixture/Tuist/.build" ]]
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/install-fixture/Tuist/.build"
           touch "$RUNNER_TEMP/install-executed"
           CLI
+          if [[ "$EXPECTED_BACKEND" == github ]]; then
+            rm "$RUNNER_TEMP/install-test-bin/tuist-cache-volume"
+          fi
           chmod +x "$RUNNER_TEMP/install-test-bin/"*
           echo "$RUNNER_TEMP/install-test-bin" >> "$GITHUB_PATH"
+      - name: Prepare a GitHub archive hit
+        if: matrix.backend == 'github' && matrix.hit == 'true'
+        id: archive-plan
+        env:
+          TUIST_INSTALL_PATH: install-fixture
+          TUIST_INSTALL_CACHE_KEY: ${{ env.TEST_CACHE_KEY }}
+        run: |
+          bash .github/actions/install/prepare.sh
+          mkdir -p install-fixture/Tuist/.build
+          echo restored > install-fixture/Tuist/.build/archive-marker
+      - uses: actions/cache/save@v4
+        if: matrix.backend == 'github' && matrix.hit == 'true'
+        with:
+          path: ${{ steps.archive-plan.outputs.archive-path }}
+          key: ${{ steps.archive-plan.outputs.archive-key }}
+      - name: Remove the seeded fixture before restoring it
+        if: matrix.backend == 'github' && matrix.hit == 'true'
+        run: rm -r install-fixture/Tuist/.build
       - uses: ./.github/actions/install
         id: install
         env:
           CLIENT_HIT: ${{ matrix.hit }}
         with:
           path: install-fixture
-          cache-key: install-action-test
+          cache-key: ${{ env.TEST_CACHE_KEY }}
       - name: Verify composite outputs and unconditional installation
         shell: bash
         env:
           CACHE_HIT: ${{ steps.install.outputs.cache-hit }}
           CACHE_PATH: ${{ steps.install.outputs.cache-path }}
+          CACHE_BACKEND: ${{ steps.install.outputs.cache-backend }}
           EXPECTED_HIT: ${{ matrix.hit }}
         run: |
           test "$CACHE_HIT" = "$EXPECTED_HIT"
+          test "$CACHE_BACKEND" = "$EXPECTED_BACKEND"
           test "$CACHE_PATH" = "$GITHUB_WORKSPACE/install-fixture/Tuist/.build/dependency-cache"
           test -f "$RUNNER_TEMP/install-executed"
+          if [[ "$EXPECTED_BACKEND" == github && "$EXPECTED_HIT" == true ]]; then
+            test "$(cat install-fixture/Tuist/.build/archive-marker)" = restored
+          fi
       - run: bash .github/actions/install/scripts/package.sh "$RUNNER_TEMP/install-action"
       - uses: actions/upload-artifact@v4
         with:
-          name: install-action-${{ matrix.os }}-${{ matrix.hit }}
+          name: install-action-${{ matrix.os }}-${{ matrix.backend }}-${{ matrix.hit }}
           path: ${{ runner.temp }}/install-action/
 
   release:
