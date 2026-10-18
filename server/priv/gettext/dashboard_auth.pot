@@ -291,6 +291,7 @@ msgstr ""
 msgid "Tuist CLI is connected!"
 msgstr ""
 
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:26
 #: lib/tuist_web/live/sso_login_live.ex:61
@@ -576,6 +577,7 @@ msgstr ""
 msgid "Already linked"
 msgstr ""
 
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -691,4 +693,34 @@ msgstr ""
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "using Cargo"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Choose an organization"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_controller.ex:45
+#, elixir-autogen, elixir-format
+msgid "Choose an organization · Tuist"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Personal account"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to %{provider}."
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "You need administrator access to connect an integration."
 msgstr ""
