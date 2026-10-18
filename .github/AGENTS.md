@@ -259,3 +259,15 @@ recompiles every first-party module; the volume only spares the pinned
 third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
+
+## Generated-project dependency installation
+
+`actions/install/` implements the standalone `tuist/install` action; see
+[its guidance](actions/install/AGENTS.md). It automatically uses a custom workspace
+volume when the runner client is available, or GitHub archives otherwise, with
+pinned dependency installation using the project's already-installed CLI.
+`workflows/install-action.yml` tests/packages changes and automatically publishes
+relevant main changes through the `install-action` release component after tests
+pass. Bootstrap the distribution repository and release credential first.
+Recover an unrecorded distribution from its original SOURCE_COMMIT before
+publishing newer source; never replace an immutable version.
