@@ -99,10 +99,11 @@ while :; do
   if [ "${cacheable}" -gt 0 ] && [ "${hits}" = "${cacheable}" ]; then
     # The proxy logs its counters every ten seconds.
     for _ in $(seq 1 15); do
-      remote_hits="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | sed -n 's/.* remote_hits=\([0-9]*\).*/\1/p' | sort -n | tail -n 1)"
+      remote_hits="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | sed -n 's/.* remote_hits=\([0-9]*\).*/\1/p' | sort -n | tail -n 1 || true)"
       [ "${remote_hits:-0}" -gt 0 ] && break
       sleep 2
     done
+    [ "${remote_hits:-0}" -gt 0 ] || grep "proxy stats" "${state_dir}/cas.log" 2>/dev/null | tail -n 5 || true
     [ "${remote_hits:-0}" -gt 0 ] || fail "Cache hits" "the rebuild reported ${hits} hits but the cache proxy fetched none of them from ${TUIST_CACHE_ENDPOINT:-the server-resolved cache} (remote_hits=${remote_hits:-unknown}), so they were served locally"
     pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks, ${remote_hits} fetched from the remote cache (attempt ${attempt})"
     exit 0
