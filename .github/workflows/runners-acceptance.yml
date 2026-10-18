@@ -33,9 +33,6 @@ on:
         default: ""
   schedule:
     - cron: "23 * * * *"
-  push:
-    branches: [ci/runners-acceptance-gate]
-    paths: [.github/workflows/runners-acceptance.yml, .github/scripts/runners-acceptance/**]
 
 permissions: {}
 
@@ -69,7 +66,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              macos='[{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
+              macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
               linux='[{"name":"default","label":"tuist-linux"}]'
               ;;
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
