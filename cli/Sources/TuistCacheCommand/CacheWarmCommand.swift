@@ -104,7 +104,7 @@
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration, coverage: coverage)
                 return
             }
 

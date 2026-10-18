@@ -493,6 +493,7 @@ public enum EnvKey: String, CaseIterable {
 
     case hashCachePath = "TUIST_HASH_CACHE_PATH"
     case hashCacheConfiguration = "TUIST_HASH_CACHE_CONFIGURATION"
+    case hashCacheCoverage = "TUIST_HASH_CACHE_COVERAGE"
 
     // HASH TEST
 

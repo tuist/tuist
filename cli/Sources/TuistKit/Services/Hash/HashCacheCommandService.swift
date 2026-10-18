@@ -81,7 +81,8 @@ public struct HashCacheCommandService: HashCacheServicing {
 
     public func run(
         path: String?,
-        configuration: String?
+        configuration: String?,
+        coverage: Bool
     ) async throws {
         let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
@@ -115,7 +116,7 @@ public struct HashCacheCommandService: HashCacheServicing {
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: coverage ? .on : .off
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }

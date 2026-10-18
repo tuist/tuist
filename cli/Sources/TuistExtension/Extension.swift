@@ -3,7 +3,8 @@ import Foundation
 public protocol HashCacheServicing {
     func run(
         path: String?,
-        configuration: String?
+        configuration: String?,
+        coverage: Bool
     ) async throws
 }
 
@@ -25,7 +26,8 @@ public struct EmptyHashCacheService: HashCacheServicing {
     public init() {}
     public func run(
         path _: String?,
-        configuration _: String?
+        configuration _: String?,
+        coverage _: Bool
     ) async throws {}
 }
 
