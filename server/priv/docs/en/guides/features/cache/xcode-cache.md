@@ -148,11 +148,25 @@ This option applies on Xcode 27 and later and requires `enableCaching`. It does 
 
 The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
 
+### Packages added through `Project.packages` {#project-packages}
+
+Xcode builds the packages added through `Project.packages` from their own manifests, so they don't read the build settings of generated projects. Without those settings, their compilations use only the local cache, never the remote cache, and they and the targets that import them only hit it from the same checkout.
+
+On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the Xcode cache settings for these packages, including prefix mapping and the remote cache, to an xcconfig file inside the generated workspace. Build with `tuist xcodebuild`, `tuist build`, or `tuist test`, which apply it automatically:
+
+```bash
+tuist xcodebuild build -workspace App.xcworkspace -scheme App
+```
+
+If you invoke `xcodebuild` some other way, pass `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig` with `-xcconfig`. When the `XCODE_XCCONFIG_FILE` environment variable is already set, Tuist applies both files.
+
+Builds started from Xcode don't apply the file, so package compilations there keep path-dependent cache keys. The mappings expect the packages in Xcode's default checkout location, the `SourcePackages` directory of the workspace's derived data; with `-clonedSourcePackagesDirPath`, package sources stay unmapped. Packages integrated through `Tuist/Package.swift` don't need the file.
+
 ### Debugging generated projects {#debugging-generated-projects}
 
 With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
 
-On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.
+On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, `/^packages` for the [packages added through `Project.packages`](#project-packages), and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.
 
 Paths outside the Tuist root aren't mapped. The cache keys of a project outside the root depend on where it's checked out, so other checkouts and machines miss the cache for it. To keep its keys independent of the checkout location, turn the per-project mappings on in that project's manifest:
 
