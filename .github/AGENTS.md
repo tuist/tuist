@@ -282,6 +282,12 @@ production's rented fleet, the BER1 rack and the Linux pool.
 - The fixture is salted per run so the rebuild can only hit what that run
   published. Keep probe job names starting with `macOS ` or `Linux `; the
   watchdog finds the jobs it bounds by name.
+- Runner images export `XCODE_XCCONFIG_FILE`, pointing the compilation cache
+  store at the job's cache volume and outranking a command-line
+  `COMPILATION_CACHE_CAS_PATH`, so the probe unsets it and also requires the
+  cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
+  project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
+  `Fixture`, which matches case-insensitively on macOS.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
