@@ -7,6 +7,9 @@
 /// ```swift
 /// .testPlans([
 ///     .generated(name: "UnitTests", testTargets: allUnitTests),
+///     .generated(name: "Contract", testTargets: [
+///         .testableTarget(target: "ContractTests", selectedTags: ["contract"]),
+///     ]),
 ///     .path("TestPlans/Legacy.xctestplan"),
 /// ])
 /// ```
@@ -20,6 +23,10 @@ public enum TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// The associated `path` is a `Path`, which conforms to `ExpressibleByStringLiteral`, so
     /// string literals work directly (e.g. `.path("TestPlans/Foo.xctestplan")`). Glob patterns
     /// are supported — matching files are sorted and attached in that order.
+    ///
+    /// The `containerPath` entries inside the file are resolved relative to the project or
+    /// workspace root, not relative to the plan file, matching how Xcode resolves them, so a plan
+    /// kept in a subfolder still spells its container as `container:MyApp.xcodeproj`.
     case path(_ path: Path)
 
     /// Have Tuist generate a `.xctestplan` file from the given test targets.
