@@ -229,9 +229,9 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  The shapes and Xcode versions a profile can use, for API and agent clients.
+  The runner catalog: the shapes and Xcode versions a profile can use, for API and agent clients.
   """
-  def options do
+  def catalog do
     %{
       shapes:
         for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do

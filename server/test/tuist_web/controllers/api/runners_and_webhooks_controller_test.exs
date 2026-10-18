@@ -185,7 +185,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       response =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/accounts/#{account.name}/runners/profile-options")
+        |> get(~p"/api/accounts/#{account.name}/runners/catalog")
         |> json_response(:ok)
 
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in response["shapes"]

@@ -44,7 +44,7 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 {{runner_macos_xcode_versions}}
 
 > [!NOTE]
-> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile options` always show the shapes and Xcode versions currently available to your account, so treat them as the source of truth.
+> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile catalog` always show the shapes and Xcode versions currently available to your account, so treat them as the source of truth.
 
 ## Creating a profile {#creating-a-profile}
 
@@ -56,7 +56,7 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 You can also manage profiles from the command line. Creating, changing, and deleting profiles requires account administration, as in the dashboard, or an account token with the `account:runners:write` scope:
 
 ```bash
-tuist runner profile options
+tuist runner profile catalog
 tuist runner profile create linux-large --platform linux --vcpus 8 --memory-gb 32
 tuist runner profile update linux-large --vcpus 16 --memory-gb 32
 tuist runner profile delete linux-large --yes

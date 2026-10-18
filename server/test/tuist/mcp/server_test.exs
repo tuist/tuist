@@ -38,7 +38,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_job_logs" in tool_names
       assert "list_runner_workflows" in tool_names
       assert "list_runner_profiles" in tool_names
-      assert "list_runner_profile_options" in tool_names
+      assert "get_runner_catalog" in tool_names
       assert "create_runner_profile" in tool_names
       assert "update_runner_profile" in tool_names
       assert "delete_runner_profile" in tool_names

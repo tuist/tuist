@@ -726,7 +726,7 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
-        get "/profile-options", RunnersController, :index_profile_options
+        get "/catalog", RunnersController, :catalog
         get "/profiles", RunnersController, :index_profiles
         post "/profiles", RunnersController, :create_profile
         patch "/profiles/:profile_name", RunnersController, :update_profile

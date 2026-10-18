@@ -83,20 +83,20 @@ struct RunnerProfileCommandTests {
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func listsTheShapesAndXcodeVersionsProfilesCanUse() async throws {
-        let service = MockListRunnerProfileOptionsServicing()
-        let response: RunnerProfileOptionsResult = try RunnerVolumeTestData.decode("""
+        let service = MockGetRunnerCatalogServicing()
+        let response: RunnerCatalogResult = try RunnerVolumeTestData.decode("""
         {"shapes":[{"platform":"linux","vcpus":4,"memory_gb":8,"default":false},
                    {"platform":"macos","vcpus":6,"memory_gb":14,"default":true}],
          "xcode_versions":[{"xcode_version":"26.5","default":true},{"xcode_version":"26.4.1","default":false}]}
         """)
-        given(service).listRunnerProfileOptions(
+        given(service).getRunnerCatalog(
             accountHandle: .value("acme"),
             serverURL: .value(RunnerVolumeTestData.serverURL)
         ).willReturn(response)
-        let subject = RunnerProfileOptionsCommandService(
+        let subject = RunnerProfileCatalogCommandService(
             configLoader: try await RunnerVolumeTestData.configLoader(),
             serverEnvironmentService: RunnerVolumeTestData.serverEnvironmentService(),
-            listRunnerProfileOptionsService: service
+            getRunnerCatalogService: service
         )
 
         try await subject.run(account: "acme", path: "/project", json: false)

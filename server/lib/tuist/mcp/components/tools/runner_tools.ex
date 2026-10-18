@@ -296,7 +296,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     }
   end
 
-  def profile_options_schema do
+  def catalog_schema do
     %{
       "type" => "object",
       "properties" => %{
@@ -635,14 +635,14 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfiles do
   end
 end
 
-defmodule Tuist.MCP.Components.Tools.ListRunnerProfileOptions do
+defmodule Tuist.MCP.Components.Tools.GetRunnerCatalog do
   @moduledoc """
   List the machine shapes and Xcode versions runner profiles can use.
   """
 
   use Tuist.MCP.Tool,
-    name: "list_runner_profile_options",
-    title: "List Runner Profile Options",
+    name: "get_runner_catalog",
+    title: "Get Runner Catalog",
     read_only_hint: true,
     schema: %{
       "type" => "object",
@@ -652,7 +652,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfileOptions do
       "required" => ["account_handle"],
       "additionalProperties" => false
     },
-    output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_options_schema()
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.catalog_schema()
 
   alias Tuist.MCP.Components.Tools.RunnerTools
   alias Tuist.MCP.Tool, as: MCPTool
@@ -667,7 +667,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfileOptions do
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
          {:ok, _account} <- RunnerTools.authorize_account(arguments, conn.assigns) do
-      MCPTool.json_response(Profiles.options(), __MODULE__)
+      MCPTool.json_response(Profiles.catalog(), __MODULE__)
     else
       {:error, message} -> EMCP.Tool.error(message)
     end
@@ -713,7 +713,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use list_runner_profile_options for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
+      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use get_runner_catalog for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -775,7 +775,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from list_runner_profile_options. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do

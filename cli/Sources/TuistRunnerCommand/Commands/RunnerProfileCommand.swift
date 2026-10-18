@@ -9,7 +9,7 @@ public struct RunnerProfileCommand: AsyncParsableCommand {
             abstract: "Manage runner profiles: their machine shapes, Xcode versions, and the branches that save their cache volumes.",
             subcommands: [
                 RunnerProfileListCommand.self,
-                RunnerProfileOptionsCommand.self,
+                RunnerProfileCatalogCommand.self,
                 RunnerProfileCreateCommand.self,
                 RunnerProfileUpdateCommand.self,
                 RunnerProfileDeleteCommand.self,

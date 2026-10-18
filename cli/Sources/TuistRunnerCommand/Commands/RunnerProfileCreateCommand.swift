@@ -8,7 +8,7 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
 
     public static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Create a runner profile. Run 'tuist runner profile options' for the available shapes and Xcode versions."
+        abstract: "Create a runner profile. Run 'tuist runner profile catalog' for the available shapes and Xcode versions."
     )
 
     @Argument(

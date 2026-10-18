@@ -4388,70 +4388,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    RunnerProfileOptions:
-      properties:
-        shapes:
-          items:
-            properties:
-              default:
-                type: boolean
-                x-struct:
-                x-validate:
-              memory_gb:
-                type: integer
-                x-struct:
-                x-validate:
-              platform:
-                enum:
-                  - linux
-                  - macos
-                type: string
-                x-struct:
-                x-validate:
-              vcpus:
-                type: integer
-                x-struct:
-                x-validate:
-            required:
-              - platform
-              - vcpus
-              - memory_gb
-              - default
-            title: RunnerProfileShape
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        xcode_versions:
-          items:
-            properties:
-              default:
-                type: boolean
-                x-struct:
-                x-validate:
-              xcode_version:
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - xcode_version
-              - default
-            title: RunnerProfileXcodeVersion
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-      required:
-        - shapes
-        - xcode_versions
-      title: RunnerProfileOptions
-      type: object
-      x-struct:
-      x-validate:
     RunnerVolumePagination:
       additionalProperties: false
       properties:
@@ -4755,6 +4691,36 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
+      x-validate:
+    RunnerShape:
+      properties:
+        default:
+          type: boolean
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        platform:
+          enum:
+            - linux
+            - macos
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - platform
+        - vcpus
+        - memory_gb
+        - default
+      title: RunnerShape
+      type: object
+      x-struct:
       x-validate:
     WebhookTestCase:
       description: Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
@@ -6090,6 +6056,23 @@ components:
       title: XcodeCoverage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.XcodeCoverage
+      x-validate:
+    RunnerXcodeVersion:
+      properties:
+        default:
+          type: boolean
+          x-struct:
+          x-validate:
+        xcode_version:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - xcode_version
+        - default
+      title: RunnerXcodeVersion
+      type: object
+      x-struct:
       x-validate:
     RunnerShellSession:
       properties:
@@ -7608,23 +7591,6 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.DurationMetrics
       x-validate:
-    RunnerProfileXcodeVersion:
-      properties:
-        default:
-          type: boolean
-          x-struct:
-          x-validate:
-        xcode_version:
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - xcode_version
-        - default
-      title: RunnerProfileXcodeVersion
-      type: object
-      x-struct:
-      x-validate:
     CacheAccess:
       description: Account-scoped and project-scoped cache access handles
       properties:
@@ -7667,36 +7633,6 @@ components:
         - projects
         - payment_required
       title: CacheAccess
-      type: object
-      x-struct:
-      x-validate:
-    RunnerProfileShape:
-      properties:
-        default:
-          type: boolean
-          x-struct:
-          x-validate:
-        memory_gb:
-          type: integer
-          x-struct:
-          x-validate:
-        platform:
-          enum:
-            - linux
-            - macos
-          type: string
-          x-struct:
-          x-validate:
-        vcpus:
-          type: integer
-          x-struct:
-          x-validate:
-      required:
-        - platform
-        - vcpus
-        - memory_gb
-        - default
-      title: RunnerProfileShape
       type: object
       x-struct:
       x-validate:
@@ -10470,6 +10406,70 @@ components:
       minimum: 1
       title: BuildFilesIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    RunnerCatalog:
+      properties:
+        shapes:
+          items:
+            properties:
+              default:
+                type: boolean
+                x-struct:
+                x-validate:
+              memory_gb:
+                type: integer
+                x-struct:
+                x-validate:
+              platform:
+                enum:
+                  - linux
+                  - macos
+                type: string
+                x-struct:
+                x-validate:
+              vcpus:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - platform
+              - vcpus
+              - memory_gb
+              - default
+            title: RunnerShape
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        xcode_versions:
+          items:
+            properties:
+              default:
+                type: boolean
+                x-struct:
+                x-validate:
+              xcode_version:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - xcode_version
+              - default
+            title: RunnerXcodeVersion
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - shapes
+        - xcode_versions
+      title: RunnerCatalog
+      type: object
       x-struct:
       x-validate:
     MissingCommitsRequest:
@@ -31421,125 +31421,6 @@ paths:
       summary: List webhook endpoints for an account.
       tags:
         - Webhooks
-  /api/accounts/{account_handle}/runners/profile-options:
-    get:
-      callbacks: {}
-      description: Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
-      operationId: listRunnerProfileOptions
-      parameters:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  shapes:
-                    items:
-                      properties:
-                        default:
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        memory_gb:
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        platform:
-                          enum:
-                            - linux
-                            - macos
-                          type: string
-                          x-struct:
-                          x-validate:
-                        vcpus:
-                          type: integer
-                          x-struct:
-                          x-validate:
-                      required:
-                        - platform
-                        - vcpus
-                        - memory_gb
-                        - default
-                      title: RunnerProfileShape
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  xcode_versions:
-                    items:
-                      properties:
-                        default:
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        xcode_version:
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - xcode_version
-                        - default
-                      title: RunnerProfileXcodeVersion
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - shapes
-                  - xcode_versions
-                title: RunnerProfileOptions
-                type: object
-                x-struct:
-                x-validate:
-          description: Runner profile options
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Runners are not enabled
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
-          headers:
-            retry-after:
-              description: Whole seconds to wait before retrying.
-              schema:
-                type: string
-                x-struct:
-                x-validate:
-              style: simple
-            x-tuist-throttle-reason:
-              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
-              schema:
-                type: string
-                x-struct:
-                x-validate:
-              style: simple
-      summary: List the machine shapes and Xcode versions runner profiles can use.
-      tags:
-        - Runners
   /api/projects/{account_handle}/{project_handle}/notification-alerts:
     get:
       callbacks: {}
@@ -34133,6 +34014,125 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
+  /api/accounts/{account_handle}/runners/catalog:
+    get:
+      callbacks: {}
+      description: Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+      operationId: getRunnerCatalog
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  shapes:
+                    items:
+                      properties:
+                        default:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        platform:
+                          enum:
+                            - linux
+                            - macos
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - platform
+                        - vcpus
+                        - memory_gb
+                        - default
+                      title: RunnerShape
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  xcode_versions:
+                    items:
+                      properties:
+                        default:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        xcode_version:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - xcode_version
+                        - default
+                      title: RunnerXcodeVersion
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - shapes
+                  - xcode_versions
+                title: RunnerCatalog
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner catalog
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Runners are not enabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the machine shapes and Xcode versions runner profiles can use.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing:
     post:
       callbacks: {}

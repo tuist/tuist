@@ -81,26 +81,26 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
     }
 }
 
-protocol RunnerProfileOptionsCommandServicing {
+protocol RunnerProfileCatalogCommandServicing {
     func run(account: String?, path: String?, json: Bool) async throws
 }
 
-struct RunnerProfileOptionsCommandService: RunnerProfileOptionsCommandServicing {
+struct RunnerProfileCatalogCommandService: RunnerProfileCatalogCommandServicing {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fullHandleService: FullHandleServicing
-    private let listRunnerProfileOptionsService: ListRunnerProfileOptionsServicing
+    private let getRunnerCatalogService: GetRunnerCatalogServicing
 
     init(
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        listRunnerProfileOptionsService: ListRunnerProfileOptionsServicing = ListRunnerProfileOptionsService()
+        getRunnerCatalogService: GetRunnerCatalogServicing = GetRunnerCatalogService()
     ) {
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.fullHandleService = fullHandleService
-        self.listRunnerProfileOptionsService = listRunnerProfileOptionsService
+        self.getRunnerCatalogService = getRunnerCatalogService
     }
 
     func run(account: String?, path: String?, json: Bool) async throws {
@@ -111,7 +111,7 @@ struct RunnerProfileOptionsCommandService: RunnerProfileOptionsCommandServicing 
             serverEnvironmentService: serverEnvironmentService,
             fullHandleService: fullHandleService
         )
-        let response = try await listRunnerProfileOptionsService.listRunnerProfileOptions(
+        let response = try await getRunnerCatalogService.getRunnerCatalog(
             accountHandle: accountHandle,
             serverURL: serverURL
         )
@@ -124,11 +124,11 @@ struct RunnerProfileOptionsCommandService: RunnerProfileOptionsCommandServicing 
                 shape.platform == .macos ? "macOS" : "Linux",
                 String(shape.vcpus),
                 "\(shape.memory_gb) GB",
-                shape._default ? "Default" : "",
+                shape._default ? "✓" : "",
             ]
         }
         try await Noora.current.paginatedTable(
-            headers: ["Platform", "vCPU", "RAM", ""],
+            headers: ["Platform", "vCPU", "RAM", "Default"],
             pageSize: max(rows.count, 1),
             totalPages: 1,
             startPage: 0,

@@ -6,10 +6,10 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.CreateRunnerProfile
   alias Tuist.MCP.Components.Tools.DeleteRunnerProfile
+  alias Tuist.MCP.Components.Tools.GetRunnerCatalog
   alias Tuist.MCP.Components.Tools.GetRunnerJob
   alias Tuist.MCP.Components.Tools.GetWebhookEndpoint
   alias Tuist.MCP.Components.Tools.ListRunnerJobs
-  alias Tuist.MCP.Components.Tools.ListRunnerProfileOptions
   alias Tuist.MCP.Components.Tools.ListRunnerProfiles
   alias Tuist.MCP.Components.Tools.ListWebhookEndpoints
   alias Tuist.MCP.Components.Tools.UpdateRunnerProfile
@@ -196,7 +196,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> :ok end)
 
       assert %{"content" => [%{"text" => text}]} =
-               ListRunnerProfileOptions.call(conn, %{"account_handle" => account.name})
+               GetRunnerCatalog.call(conn, %{"account_handle" => account.name})
 
       assert %{"shapes" => shapes, "xcode_versions" => xcode_versions} = JSON.decode!(text)
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in shapes

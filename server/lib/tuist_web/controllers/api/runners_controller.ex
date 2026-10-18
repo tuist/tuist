@@ -36,7 +36,7 @@ defmodule TuistWeb.API.RunnersController do
               :index_job_logs,
               :index_workflows,
               :index_profiles,
-              :index_profile_options
+              :catalog
             ]
 
   tags ["Runners"]
@@ -252,14 +252,14 @@ defmodule TuistWeb.API.RunnersController do
     }
   }
 
-  @profile_options_schema %Schema{
-    title: "RunnerProfileOptions",
+  @catalog_schema %Schema{
+    title: "RunnerCatalog",
     type: :object,
     properties: %{
       shapes: %Schema{
         type: :array,
         items: %Schema{
-          title: "RunnerProfileShape",
+          title: "RunnerShape",
           type: :object,
           properties: %{
             platform: %Schema{type: :string, enum: ["linux", "macos"]},
@@ -273,7 +273,7 @@ defmodule TuistWeb.API.RunnersController do
       xcode_versions: %Schema{
         type: :array,
         items: %Schema{
-          title: "RunnerProfileXcodeVersion",
+          title: "RunnerXcodeVersion",
           type: :object,
           properties: %{
             xcode_version: %Schema{type: :string},
@@ -566,23 +566,23 @@ defmodule TuistWeb.API.RunnersController do
     end
   end
 
-  operation(:index_profile_options,
+  operation(:catalog,
     summary: "List the machine shapes and Xcode versions runner profiles can use.",
     description:
       "Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.",
-    operation_id: "listRunnerProfileOptions",
+    operation_id: "getRunnerCatalog",
     parameters: @account_parameters,
     responses: %{
-      ok: {"Runner profile options", "application/json", @profile_options_schema},
+      ok: {"Runner catalog", "application/json", @catalog_schema},
       forbidden: {"Forbidden", "application/json", Error},
       not_found: {"Runners are not enabled", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
-  def index_profile_options(%{assigns: %{selected_account: account}} = conn, _params) do
+  def catalog(%{assigns: %{selected_account: account}} = conn, _params) do
     if FeatureFlags.runners_enabled?(account) do
-      json(conn, Profiles.options())
+      json(conn, Profiles.catalog())
     else
       runners_unavailable(conn)
     end

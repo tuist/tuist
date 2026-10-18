@@ -705,13 +705,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/webhooks`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/webhooks/get(listWebhookEndpoints)`.
     func listWebhookEndpoints(_ input: Operations.listWebhookEndpoints.Input) async throws -> Operations.listWebhookEndpoints.Output
-    /// List the machine shapes and Xcode versions runner profiles can use.
-    ///
-    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/profile-options`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)`.
-    func listRunnerProfileOptions(_ input: Operations.listRunnerProfileOptions.Input) async throws -> Operations.listRunnerProfileOptions.Output
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -802,6 +795,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    func getRunnerCatalog(_ input: Operations.getRunnerCatalog.Input) async throws -> Operations.getRunnerCatalog.Output
     /// Find which commits have no file listing stored yet.
     ///
     /// Given commit SHAs, returns the ones whose file listing (every file of the commit's tree with its blob) the server lacks, so a clean checkout uploads it once per commit. The listing is what coverage is measured against, where the project's tracked files are read, and what evidence reuse compares.
@@ -2875,21 +2875,6 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List the machine shapes and Xcode versions runner profiles can use.
-    ///
-    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/profile-options`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)`.
-    public func listRunnerProfileOptions(
-        path: Operations.listRunnerProfileOptions.Input.Path,
-        headers: Operations.listRunnerProfileOptions.Input.Headers = .init()
-    ) async throws -> Operations.listRunnerProfileOptions.Output {
-        try await listRunnerProfileOptions(Operations.listRunnerProfileOptions.Input(
-            path: path,
-            headers: headers
-        ))
-    }
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -3115,6 +3100,21 @@ extension APIProtocol {
     ) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
         try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    public func getRunnerCatalog(
+        path: Operations.getRunnerCatalog.Input.Path,
+        headers: Operations.getRunnerCatalog.Input.Headers = .init()
+    ) async throws -> Operations.getRunnerCatalog.Output {
+        try await getRunnerCatalog(Operations.getRunnerCatalog.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -10430,96 +10430,6 @@ public enum Components {
                 ])
             }
         }
-        /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions`.
-        public struct RunnerProfileOptions: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload`.
-            public struct shapesPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload/default`.
-                public var _default: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload/memory_gb`.
-                public var memory_gb: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload/platform`.
-                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case linux = "linux"
-                    case macos = "macos"
-                }
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload/platform`.
-                public var platform: Components.Schemas.RunnerProfileOptions.shapesPayloadPayload.platformPayload
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapesPayload/vcpus`.
-                public var vcpus: Swift.Int
-                /// Creates a new `shapesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - _default:
-                ///   - memory_gb:
-                ///   - platform:
-                ///   - vcpus:
-                public init(
-                    _default: Swift.Bool,
-                    memory_gb: Swift.Int,
-                    platform: Components.Schemas.RunnerProfileOptions.shapesPayloadPayload.platformPayload,
-                    vcpus: Swift.Int
-                ) {
-                    self._default = _default
-                    self.memory_gb = memory_gb
-                    self.platform = platform
-                    self.vcpus = vcpus
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case _default = "default"
-                    case memory_gb
-                    case platform
-                    case vcpus
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapes`.
-            public typealias shapesPayload = [Components.Schemas.RunnerProfileOptions.shapesPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/shapes`.
-            public var shapes: Components.Schemas.RunnerProfileOptions.shapesPayload
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/xcode_versionsPayload`.
-            public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/xcode_versionsPayload/default`.
-                public var _default: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/xcode_versionsPayload/xcode_version`.
-                public var xcode_version: Swift.String
-                /// Creates a new `xcode_versionsPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - _default:
-                ///   - xcode_version:
-                public init(
-                    _default: Swift.Bool,
-                    xcode_version: Swift.String
-                ) {
-                    self._default = _default
-                    self.xcode_version = xcode_version
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case _default = "default"
-                    case xcode_version
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/xcode_versions`.
-            public typealias xcode_versionsPayload = [Components.Schemas.RunnerProfileOptions.xcode_versionsPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileOptions/xcode_versions`.
-            public var xcode_versions: Components.Schemas.RunnerProfileOptions.xcode_versionsPayload
-            /// Creates a new `RunnerProfileOptions`.
-            ///
-            /// - Parameters:
-            ///   - shapes:
-            ///   - xcode_versions:
-            public init(
-                shapes: Components.Schemas.RunnerProfileOptions.shapesPayload,
-                xcode_versions: Components.Schemas.RunnerProfileOptions.xcode_versionsPayload
-            ) {
-                self.shapes = shapes
-                self.xcode_versions = xcode_versions
-            }
-            public enum CodingKeys: String, CodingKey {
-                case shapes
-                case xcode_versions
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination`.
         public struct RunnerVolumePagination: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/current_page`.
@@ -10941,6 +10851,46 @@ public enum Components {
                 case sso_enforced
                 case sso_organization_id
                 case sso_provider
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerShape`.
+        public struct RunnerShape: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/default`.
+            public var _default: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case macos = "macos"
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/platform`.
+            public var platform: Components.Schemas.RunnerShape.platformPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `RunnerShape`.
+            ///
+            /// - Parameters:
+            ///   - _default:
+            ///   - memory_gb:
+            ///   - platform:
+            ///   - vcpus:
+            public init(
+                _default: Swift.Bool,
+                memory_gb: Swift.Int,
+                platform: Components.Schemas.RunnerShape.platformPayload,
+                vcpus: Swift.Int
+            ) {
+                self._default = _default
+                self.memory_gb = memory_gb
+                self.platform = platform
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _default = "default"
+                case memory_gb
+                case platform
+                case vcpus
             }
         }
         /// Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
@@ -12938,6 +12888,29 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case files
                 case partial
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion`.
+        public struct RunnerXcodeVersion: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion/default`.
+            public var _default: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion/xcode_version`.
+            public var xcode_version: Swift.String
+            /// Creates a new `RunnerXcodeVersion`.
+            ///
+            /// - Parameters:
+            ///   - _default:
+            ///   - xcode_version:
+            public init(
+                _default: Swift.Bool,
+                xcode_version: Swift.String
+            ) {
+                self._default = _default
+                self.xcode_version = xcode_version
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _default = "default"
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
@@ -15111,29 +15084,6 @@ public enum Components {
                 case trend
             }
         }
-        /// - Remark: Generated from `#/components/schemas/RunnerProfileXcodeVersion`.
-        public struct RunnerProfileXcodeVersion: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileXcodeVersion/default`.
-            public var _default: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileXcodeVersion/xcode_version`.
-            public var xcode_version: Swift.String
-            /// Creates a new `RunnerProfileXcodeVersion`.
-            ///
-            /// - Parameters:
-            ///   - _default:
-            ///   - xcode_version:
-            public init(
-                _default: Swift.Bool,
-                xcode_version: Swift.String
-            ) {
-                self._default = _default
-                self.xcode_version = xcode_version
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _default = "default"
-                case xcode_version
-            }
-        }
         /// Account-scoped and project-scoped cache access handles
         ///
         /// - Remark: Generated from `#/components/schemas/CacheAccess`.
@@ -15173,46 +15123,6 @@ public enum Components {
                 case payment_failed
                 case payment_required
                 case projects
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/RunnerProfileShape`.
-        public struct RunnerProfileShape: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileShape/default`.
-            public var _default: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileShape/memory_gb`.
-            public var memory_gb: Swift.Int
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileShape/platform`.
-            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case linux = "linux"
-                case macos = "macos"
-            }
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileShape/platform`.
-            public var platform: Components.Schemas.RunnerProfileShape.platformPayload
-            /// - Remark: Generated from `#/components/schemas/RunnerProfileShape/vcpus`.
-            public var vcpus: Swift.Int
-            /// Creates a new `RunnerProfileShape`.
-            ///
-            /// - Parameters:
-            ///   - _default:
-            ///   - memory_gb:
-            ///   - platform:
-            ///   - vcpus:
-            public init(
-                _default: Swift.Bool,
-                memory_gb: Swift.Int,
-                platform: Components.Schemas.RunnerProfileShape.platformPayload,
-                vcpus: Swift.Int
-            ) {
-                self._default = _default
-                self.memory_gb = memory_gb
-                self.platform = platform
-                self.vcpus = vcpus
-            }
-            public enum CodingKeys: String, CodingKey {
-                case _default = "default"
-                case memory_gb
-                case platform
-                case vcpus
             }
         }
         /// The page number to return.
@@ -18792,6 +18702,96 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildFilesIndexPage`.
         public typealias BuildFilesIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RunnerCatalog`.
+        public struct RunnerCatalog: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload`.
+            public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/default`.
+                public var _default: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/memory_gb`.
+                public var memory_gb: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/platform`.
+                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case linux = "linux"
+                    case macos = "macos"
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/platform`.
+                public var platform: Components.Schemas.RunnerCatalog.shapesPayloadPayload.platformPayload
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `shapesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - _default:
+                ///   - memory_gb:
+                ///   - platform:
+                ///   - vcpus:
+                public init(
+                    _default: Swift.Bool,
+                    memory_gb: Swift.Int,
+                    platform: Components.Schemas.RunnerCatalog.shapesPayloadPayload.platformPayload,
+                    vcpus: Swift.Int
+                ) {
+                    self._default = _default
+                    self.memory_gb = memory_gb
+                    self.platform = platform
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case _default = "default"
+                    case memory_gb
+                    case platform
+                    case vcpus
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapes`.
+            public typealias shapesPayload = [Components.Schemas.RunnerCatalog.shapesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapes`.
+            public var shapes: Components.Schemas.RunnerCatalog.shapesPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload`.
+            public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload/default`.
+                public var _default: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload/xcode_version`.
+                public var xcode_version: Swift.String
+                /// Creates a new `xcode_versionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - _default:
+                ///   - xcode_version:
+                public init(
+                    _default: Swift.Bool,
+                    xcode_version: Swift.String
+                ) {
+                    self._default = _default
+                    self.xcode_version = xcode_version
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case _default = "default"
+                    case xcode_version
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versions`.
+            public typealias xcode_versionsPayload = [Components.Schemas.RunnerCatalog.xcode_versionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versions`.
+            public var xcode_versions: Components.Schemas.RunnerCatalog.xcode_versionsPayload
+            /// Creates a new `RunnerCatalog`.
+            ///
+            /// - Parameters:
+            ///   - shapes:
+            ///   - xcode_versions:
+            public init(
+                shapes: Components.Schemas.RunnerCatalog.shapesPayload,
+                xcode_versions: Components.Schemas.RunnerCatalog.xcode_versionsPayload
+            ) {
+                self.shapes = shapes
+                self.xcode_versions = xcode_versions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case shapes
+                case xcode_versions
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/MissingCommitsRequest`.
         public struct MissingCommitsRequest: Codable, Hashable, Sendable {
             /// The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped.
@@ -78050,411 +78050,6 @@ public enum Operations {
             }
         }
     }
-    /// List the machine shapes and Xcode versions runner profiles can use.
-    ///
-    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/profile-options`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)`.
-    public enum listRunnerProfileOptions {
-        public static let id: Swift.String = "listRunnerProfileOptions"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The account handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/path/account_handle`.
-                public var account_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The account handle.
-                public init(account_handle: Swift.String) {
-                    self.account_handle = account_handle
-                }
-            }
-            public var path: Operations.listRunnerProfileOptions.Input.Path
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerProfileOptions.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerProfileOptions.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.listRunnerProfileOptions.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            public init(
-                path: Operations.listRunnerProfileOptions.Input.Path,
-                headers: Operations.listRunnerProfileOptions.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload`.
-                        public struct shapesPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload/default`.
-                            public var _default: Swift.Bool
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload/memory_gb`.
-                            public var memory_gb: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload/platform`.
-                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                case linux = "linux"
-                                case macos = "macos"
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload/platform`.
-                            public var platform: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapesPayload/vcpus`.
-                            public var vcpus: Swift.Int
-                            /// Creates a new `shapesPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - _default:
-                            ///   - memory_gb:
-                            ///   - platform:
-                            ///   - vcpus:
-                            public init(
-                                _default: Swift.Bool,
-                                memory_gb: Swift.Int,
-                                platform: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload,
-                                vcpus: Swift.Int
-                            ) {
-                                self._default = _default
-                                self.memory_gb = memory_gb
-                                self.platform = platform
-                                self.vcpus = vcpus
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case _default = "default"
-                                case memory_gb
-                                case platform
-                                case vcpus
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapes`.
-                        public typealias shapesPayload = [Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.shapesPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/shapes`.
-                        public var shapes: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.shapesPayload
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/xcode_versionsPayload`.
-                        public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/xcode_versionsPayload/default`.
-                            public var _default: Swift.Bool
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/xcode_versionsPayload/xcode_version`.
-                            public var xcode_version: Swift.String
-                            /// Creates a new `xcode_versionsPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - _default:
-                            ///   - xcode_version:
-                            public init(
-                                _default: Swift.Bool,
-                                xcode_version: Swift.String
-                            ) {
-                                self._default = _default
-                                self.xcode_version = xcode_version
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case _default = "default"
-                                case xcode_version
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/xcode_versions`.
-                        public typealias xcode_versionsPayload = [Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.xcode_versionsPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/json/xcode_versions`.
-                        public var xcode_versions: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.xcode_versionsPayload
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - shapes:
-                        ///   - xcode_versions:
-                        public init(
-                            shapes: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.shapesPayload,
-                            xcode_versions: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload.xcode_versionsPayload
-                        ) {
-                            self.shapes = shapes
-                            self.xcode_versions = xcode_versions
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case shapes
-                            case xcode_versions
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/200/content/application\/json`.
-                    case json(Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.listRunnerProfileOptions.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listRunnerProfileOptions.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.listRunnerProfileOptions.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Runner profile options
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.listRunnerProfileOptions.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.listRunnerProfileOptions.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listRunnerProfileOptions.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.listRunnerProfileOptions.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// Forbidden
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listRunnerProfileOptions.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.listRunnerProfileOptions.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listRunnerProfileOptions.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.listRunnerProfileOptions.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Runners are not enabled
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.listRunnerProfileOptions.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.listRunnerProfileOptions.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct TooManyRequests: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/429/headers`.
-                public struct Headers: Sendable, Hashable {
-                    /// Whole seconds to wait before retrying.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/429/headers/retry-after`.
-                    public var retry_hyphen_after: Swift.String?
-                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/429/headers/x-tuist-throttle-reason`.
-                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
-                    /// Creates a new `Headers`.
-                    ///
-                    /// - Parameters:
-                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
-                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
-                    public init(
-                        retry_hyphen_after: Swift.String? = nil,
-                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
-                    ) {
-                        self.retry_hyphen_after = retry_hyphen_after
-                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
-                    }
-                }
-                /// Received HTTP response headers
-                public var headers: Operations.listRunnerProfileOptions.Output.TooManyRequests.Headers
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/429/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profile-options/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listRunnerProfileOptions.Output.TooManyRequests.Body
-                /// Creates a new `TooManyRequests`.
-                ///
-                /// - Parameters:
-                ///   - headers: Received HTTP response headers
-                ///   - body: Received HTTP response body
-                public init(
-                    headers: Operations.listRunnerProfileOptions.Output.TooManyRequests.Headers = .init(),
-                    body: Operations.listRunnerProfileOptions.Output.TooManyRequests.Body
-                ) {
-                    self.headers = headers
-                    self.body = body
-                }
-            }
-            /// You've made too many unauthorized requests.
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profile-options/get(listRunnerProfileOptions)/responses/429`.
-            ///
-            /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Operations.listRunnerProfileOptions.Output.TooManyRequests)
-            /// The associated value of the enum case if `self` is `.tooManyRequests`.
-            ///
-            /// - Throws: An error if `self` is not `.tooManyRequests`.
-            /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Operations.listRunnerProfileOptions.Output.TooManyRequests {
-                get throws {
-                    switch self {
-                    case let .tooManyRequests(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "tooManyRequests",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -86004,6 +85599,411 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.generateCacheArtifactMultipartUploadURL.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    public enum getRunnerCatalog {
+        public static let id: Swift.String = "getRunnerCatalog"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getRunnerCatalog.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerCatalog.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerCatalog.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRunnerCatalog.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getRunnerCatalog.Input.Path,
+                headers: Operations.getRunnerCatalog.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload`.
+                        public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/default`.
+                            public var _default: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/memory_gb`.
+                            public var memory_gb: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case macos = "macos"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/platform`.
+                            public var platform: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/vcpus`.
+                            public var vcpus: Swift.Int
+                            /// Creates a new `shapesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - _default:
+                            ///   - memory_gb:
+                            ///   - platform:
+                            ///   - vcpus:
+                            public init(
+                                _default: Swift.Bool,
+                                memory_gb: Swift.Int,
+                                platform: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload,
+                                vcpus: Swift.Int
+                            ) {
+                                self._default = _default
+                                self.memory_gb = memory_gb
+                                self.platform = platform
+                                self.vcpus = vcpus
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case _default = "default"
+                                case memory_gb
+                                case platform
+                                case vcpus
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapes`.
+                        public typealias shapesPayload = [Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapes`.
+                        public var shapes: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload`.
+                        public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload/default`.
+                            public var _default: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload/xcode_version`.
+                            public var xcode_version: Swift.String
+                            /// Creates a new `xcode_versionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - _default:
+                            ///   - xcode_version:
+                            public init(
+                                _default: Swift.Bool,
+                                xcode_version: Swift.String
+                            ) {
+                                self._default = _default
+                                self.xcode_version = xcode_version
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case _default = "default"
+                                case xcode_version
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versions`.
+                        public typealias xcode_versionsPayload = [Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versions`.
+                        public var xcode_versions: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - shapes:
+                        ///   - xcode_versions:
+                        public init(
+                            shapes: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayload,
+                            xcode_versions: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayload
+                        ) {
+                            self.shapes = shapes
+                            self.xcode_versions = xcode_versions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case shapes
+                            case xcode_versions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner catalog
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRunnerCatalog.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRunnerCatalog.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRunnerCatalog.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRunnerCatalog.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Runners are not enabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getRunnerCatalog.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getRunnerCatalog.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRunnerCatalog.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRunnerCatalog.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRunnerCatalog.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRunnerCatalog.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRunnerCatalog.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
