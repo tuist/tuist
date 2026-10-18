@@ -152,53 +152,6 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_asks_the_hasher_for_the_runs_coverage_variant() async throws {
-        let path = try temporaryPath()
-
-        // Given
-        subject = TargetsToCacheBinariesGraphMapper(
-            config: config,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
-            configuration: "Debug",
-            cacheGraphMutator: cacheGraphMutator,
-            cacheStorage: cacheStorage,
-            coverage: .scheme("App")
-        )
-        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
-        let project = Project.test(path: path, targets: [framework])
-        let graph = Graph.test(name: "input", projects: [path: project])
-        given(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .any,
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any,
-                coverage: .any
-            )
-            .willReturn([:])
-        given(cacheStorage).fetch(.any, cacheCategory: .any).willReturn([:])
-        given(cacheGraphMutator)
-            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
-            .willReturn(graph)
-
-        // When
-        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        verify(cacheGraphContentHasher)
-            .contentHashes(
-                for: .any,
-                configuration: .value("Debug"),
-                defaultConfiguration: .any,
-                excludedTargets: .any,
-                destination: .any,
-                coverage: .value(.scheme("App"))
-            )
-            .called(1)
-    }
-
     func test_map_when_all_binaries_are_fetched_successfully() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)
@@ -865,6 +818,41 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             b: GraphTarget(path: path, target: bFramework, project: project),
             c: GraphTarget(path: path, target: cFramework, project: project)
         )
+    }
+
+    @Test(.inTemporaryDirectory) func map_asksTheHasherForTheRunsCoverageVariant() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage,
+            coverage: .scheme("App")
+        )
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [framework])
+        let graph = Graph.test(name: "input", projects: [path: project])
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .any
+            )
+            .willReturn([:])
+        given(cacheStorage).fetch(.any, cacheCategory: .any).willReturn([:])
+        given(cacheGraphMutator)
+            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(graph)
+
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        verify(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .value(.scheme("App"))
+            )
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory) func map_reusesPrecomputedHashes_insteadOfHashingTheGraph() async throws {
