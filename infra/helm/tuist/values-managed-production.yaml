@@ -1356,18 +1356,16 @@ rackFleet:
   # one re-pushes that mini's launchd config and needs an operator image
   # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
   #
-  # Kura takes precedence on store-a's disk for now: 64 GiB holds one runner
-  # image (55 to 62 GB compressed), the latest Xcode minor, 27.1, and leaves
-  # the ber1-runners Kura region room for its accounts' claims to grow. Other
-  # Xcode versions, and 27.1 itself for about a day after a new image while
-  # the old tag ages out, are pulled from ghcr.io. Move it to the next minor
-  # when one ships. Raise it again, and prewarm the busiest older versions
-  # beside it (about 160 GiB for two through a release change), once the
-  # site's storage nodes have more disk: a drive in store-a's spare M.2
-  # slots, or store-b.
+  # Off until the site's storage nodes have more disk (a drive in store-a's
+  # spare M.2 slots, or store-b): Kura takes precedence on store-a. zot stages
+  # a whole image before writing it into storage, so fetching one needs about
+  # twice its size (a 58.8 GiB image needs ~118 GiB), plus the previous tag
+  # while it ages out (`keepPulledWithin`). At 64 GiB every fetch of 27.1 ran
+  # out of space and was retried, 2026-10-16 17:40 to 10-18, ~200 GB/h over
+  # the WAN.
   imageCache:
-    enabled: true
-    routeHosts: [ber1-runner-b01]
+    enabled: false
+    routeHosts: []
     nodes:
       - name: ber1-store-a
         address: 10.10.0.11
