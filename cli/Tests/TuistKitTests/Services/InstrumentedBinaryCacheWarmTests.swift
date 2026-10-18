@@ -43,6 +43,7 @@ struct InstrumentedBinaryCacheWarmTests {
                 + #"-coverage-prefix-map "/tmp/checkout=/TUIST_SOURCE_ROOT" "#
                 + #"-coverage-prefix-map "/private/tmp/checkout=/TUIST_SOURCE_ROOT""#,
             "OTHER_CFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_$(TUIST_BINARY_CACHE_COVERAGE))",
+            "OTHER_CPLUSPLUSFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_$(TUIST_BINARY_CACHE_COVERAGE))",
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=-fprofile-update=atomic "
                 + #""-fcoverage-prefix-map=/tmp/checkout=/TUIST_SOURCE_ROOT" "#
                 + #""-fcoverage-prefix-map=/private/tmp/checkout=/TUIST_SOURCE_ROOT""#,

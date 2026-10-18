@@ -56,6 +56,9 @@ enum InstrumentedBinaryCacheWarm {
             "OTHER_SWIFT_FLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_\(marker))",
             "TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=\(swiftFlags.joined(separator: " "))",
             "OTHER_CFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_\(marker))",
+            // C++ inherits the C flags through `OTHER_CPLUSPLUSFLAGS`'s default only; a target that
+            // sets it would otherwise compile with coverage but without the mapping and the atomic counters.
+            "OTHER_CPLUSPLUSFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_\(marker))",
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=\(cFlags.joined(separator: " "))",
         ]
     }
