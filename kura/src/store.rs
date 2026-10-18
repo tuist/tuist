@@ -4162,7 +4162,6 @@ impl Store {
             // Retirement is durable. The supervised worker must finish its
             // bounded metadata/file cleanup even if the authority deadline
             // cancels this waiter before the last chunk commits.
-            self.disk_pressure_requested.fetch_max(1, Ordering::AcqRel);
             self.disk_pressure_notify.notify_one();
         }
         self.finish_segment_retirement(&mut recovery).await
@@ -4209,6 +4208,13 @@ impl Store {
             }
             let requested = self.disk_pressure_requested.load(Ordering::Acquire);
             if requested == 0 {
+                let mut recovery = self.disk_pressure_reclamation.lock().await;
+                if let Err(error) = self.finish_segment_retirement(&mut recovery).await {
+                    tracing::warn!(
+                        error,
+                        "retired segment cleanup failed; retaining pending cleanup"
+                    );
+                }
                 continue;
             }
             match self.reclaim_segment_headroom(requested).await {
