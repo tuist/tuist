@@ -11,6 +11,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
 fixture="$(cd "$(dirname "$0")/project" && pwd)"
+# Resolved inside the checkout: the project is copied out of it, where mise's
+# shim no longer finds the repository's pinned version.
+tuist="$(mise which tuist 2>/dev/null || command -v tuist)"
 work="${RUNNER_TEMP:-$(mktemp -d)}/runners-acceptance"
 rm -rf "${work}"
 mkdir -p "${work}"
@@ -19,8 +22,8 @@ cd "${work}/project"
 printf 'public let salt = "%s-%s-%s-%s"\n' "${GITHUB_RUN_ID:-local}" "${GITHUB_RUN_ATTEMPT:-0}" \
   "${RUNNER_NAME:-$(hostname)}" "$(date +%s)" > Sources/Core/Salt.swift
 
-tuist setup cache > "${work}/setup.log" 2>&1 || { cat "${work}/setup.log"; fail "Xcode cache setup" "tuist setup cache failed"; }
-tuist generate --no-open > "${work}/generate.log" 2>&1 || { cat "${work}/generate.log"; fail "Xcode cache setup" "tuist generate failed"; }
+"${tuist}" setup cache > "${work}/setup.log" 2>&1 || { cat "${work}/setup.log"; fail "Xcode cache setup" "tuist setup cache failed"; }
+"${tuist}" generate --no-open > "${work}/generate.log" 2>&1 || { cat "${work}/generate.log"; fail "Xcode cache setup" "tuist generate failed"; }
 pass "tuist setup cache started the cache proxy and tuist generate wired the fixture to it"
 
 state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/tuist"
