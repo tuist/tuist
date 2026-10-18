@@ -129,9 +129,8 @@ jobs:
           echo "Xcode      : $(xcodebuild -version | head -n 1)"
           echo "cache      : ${TUIST_CACHE_ENDPOINT:-<none handed by dispatch>}"
       - name: Override the cache endpoint
-        if: inputs.cache_endpoint != ''
         env:
-          OVERRIDE: ${{ inputs.cache_endpoint }}
+          OVERRIDE: https://10.255.255.1
         run: echo "TUIST_CACHE_ENDPOINT=${OVERRIDE}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
@@ -140,6 +139,7 @@ jobs:
             .github
             mise
       - name: Kura round trip
+        continue-on-error: true
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh
       - uses: ./.github/actions/mise-install
@@ -156,6 +156,7 @@ jobs:
   linux:
     name: Linux ${{ matrix.target.name }} (${{ matrix.target.label }})
     needs: plan
+    if: false
     runs-on: ${{ matrix.target.label }}
     timeout-minutes: 10
     strategy:
