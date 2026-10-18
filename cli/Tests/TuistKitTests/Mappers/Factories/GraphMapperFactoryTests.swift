@@ -242,43 +242,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_cache_marks_repository_projects_after_binary_replacement_when_warming_with_coverage() {
-            // Given
-            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
-
-            // When
-            let got = subject.binaryCacheWarming(
-                config: .test(),
-                targets: [.iOS: includedTargets],
-                cacheSources: includedTargets,
-                configuration: "Debug",
-                cacheStorage: cacheStorage,
-                coverage: .on
-            )
-
-            // Then
-            XCTAssertContainsElementOfType(
-                got, InstrumentedBinaryCacheWarmGraphMapper.self, after: TargetsToCacheBinariesGraphMapper.self
-            )
-        }
-
-        func test_cache_does_not_mark_projects_when_warming_without_coverage() {
-            // Given
-            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
-
-            // When
-            let got = subject.binaryCacheWarming(
-                config: .test(),
-                targets: [.iOS: includedTargets],
-                cacheSources: includedTargets,
-                configuration: "Debug",
-                cacheStorage: cacheStorage
-            )
-
-            // Then
-            XCTAssertFalse(got.contains { $0 is InstrumentedBinaryCacheWarmGraphMapper })
-        }
-
         func test_cache_contains_the_generate_cacheable_schemes_graph_mapper() {
             // Given
             let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
@@ -957,6 +920,37 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let schemesMapperIndex = try #require(got.lastIndex(where: { $0 is GenerateCacheableSchemesGraphMapper }))
             let cacheReplacementIndex = try #require(got.firstIndex(where: { $0 is TargetsToCacheBinariesGraphMapper }))
             #expect(schemesMapperIndex > cacheReplacementIndex)
+        }
+
+        @Test func binaryCacheWarming_marksTheRepositoryBinariesAfterCacheReplacement_whenWarmingWithCoverage() throws {
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring(),
+                coverage: .on
+            )
+
+            let markerIndex = try #require(got.firstIndex(where: { $0 is InstrumentedBinaryCacheWarmGraphMapper }))
+            let cacheReplacementIndex = try #require(got.firstIndex(where: { $0 is TargetsToCacheBinariesGraphMapper }))
+            #expect(markerIndex > cacheReplacementIndex)
+        }
+
+        @Test func binaryCacheWarming_marksNothing_whenWarmingWithoutCoverage() {
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring()
+            )
+
+            #expect(!got.contains { $0 is InstrumentedBinaryCacheWarmGraphMapper })
         }
     }
 #endif
