@@ -143,43 +143,34 @@ archive caches and copied dependencies because they cannot authenticate volume
 attachments. Linux and release/backport workflows have separate toolchain and
 runner requirements and are not part of this migration.
 
-Attach `.build` and `~/.cache/swifterpm` before installing dependencies. Workspace
-keys include the job, Xcode version and `Package.swift`; the source-cache key is
-shared across jobs for the same Xcode version. Do not key either on the lockfile:
-SwifterPM validates pinned versions and can reuse unchanged sources across updates.
-Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
-`--cached-directory-materialization=symlink` for mounted caches. Automatic CI mode
-copies sources even on a hit. Never archive these mounted paths. Set
-`TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
-do not invalidate manifest fingerprints. `Tuist.swift` uses plain
-`packageManifestEnvironment: .automatic`. This depends on the defaults and
-separate native-resolution authentication environment from PR #14162, shipped
-in the pinned CLI 4.214.0-canary.32.
-GitHub job/branch metadata and rotating credentials are excluded from cached
-manifest evaluation, while native dependency fetching retains known credentials.
+Attach one `.build` volume before installing dependencies, and pass
+`--cache-path "$PWD/.build/dependency-cache"` to `tuist install` and the macOS
+SwiftPM resolve/build commands. The released CLI must include #14304 so internal
+manifest dumps honor that path too. Workspace state, downloaded sources, and
+native compiled manifests then share one snapshot. Use the v2 workspace keys
+for this layout; keys include job, Xcode version and `Package.swift`, not the
+lockfile. Caches are job-scoped rather than shared across different jobs.
+Keep `--force-resolved-versions` and select symlink materialization for mounted
+caches; forks retain archive caching and copied dependencies. Never archive a
+mounted path. Keep configuration, security and authentication outside the cache.
+
+Set `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development
+settings do not invalidate manifest fingerprints. `Tuist.swift` uses plain
+`packageManifestEnvironment: .automatic`, backed by #14162's released filtering
+and separate native-resolution authentication. #14156's content-based manifest
+caches reuse unchanged root and local packages across fresh checkout timestamps.
 Keep platform/toolchain and application inputs visible, and always measure
-fresh-runner reuse: a volume hit alone is not evidence that manifest evaluation
-was skipped. The earlier 8.31-second measurement used explicit exclusions and
-must not be presented as validation of the automatic policy.
+fresh-runner reuse: a volume hit alone does not prove evaluation was skipped.
+The historical 8.31-second result used explicit exclusions and a larger runner;
+it is not a benchmark of this single-volume layout or the automatic policy.
 
-Attach `~/Library/Caches/org.swift.swiftpm/manifests` directly as a third volume
-before any SwiftPM commands populate it. Its key is shared across jobs for the
-same Xcode version. Content-based manifest caches reuse unchanged root and local
-packages across fresh checkouts. Retaining SwiftPM's native manifest cache still
-avoids recompilation on misses and during forced lockfile validation. Keep SwiftPM configuration, security and authentication directories
-outside the volume. Forks keep their existing unmounted cache layout. Use the
-action's normal absent-or-empty path contract instead of relocating cache data
-with workflow scripts.
-
-By default, pull requests consume private snapshots without publishing. A volume
-admin can grant a same-repository PR branch writer permission for a dedicated
-experiment, paired with explicit `commit: 'true'`; grants apply to new attachments.
-Ordinary CLI jobs keep the default policy. First successful permitted jobs seed
-these new keys; measure subsequent jobs only after publication. Track queue time
-separately from dependency-install time. Smaller hosts have less cache capacity,
-so report actual attachments and hits separately from successful cold fallbacks.
-The three volumes publish independently; always run the installer even when all
-attachments are hits.
+Ordinary PR jobs consume private snapshots without publishing. Successful
+permitted jobs seed the new keys; measure warm jobs only after publication.
+Always run installation on hits to validate the current lockfile. Track queue
+time separately, and distinguish actual attachment/hits from empty-directory
+fallback. Retaining only an external source/native-manifest cache is possible,
+but rebuilds workspace state and manifest JSON; benchmark it separately before
+changing the retained layout.
 
 ## Bazel and Mix cache volumes
 

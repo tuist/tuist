@@ -106,31 +106,25 @@ Use `packageManifestEnvironment: .all` to preserve the complete process environm
 
 #### Faster warm installations on persistent runners
 
-For generated projects using `tuist install`, retain these directories between macOS jobs:
+For generated projects using `tuist install`, keep the dependency cache inside the package's `.build` directory. Retaining that one directory preserves workspace state, downloaded sources, cached manifest JSON, and native compiled manifests together.
 
-| Directory | Retained contents |
-| --- | --- |
-| `.build` beside `Package.swift` | Dependency workspace state and manifest caches. For `Tuist/Package.swift`, retain `Tuist/.build`. |
-| `~/.cache/swifterpm` | Downloaded package sources. The default is `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. |
-| `~/Library/Caches/org.swift.swiftpm/manifests` | Native SwiftPM compiled manifests, reused when native evaluation is needed. |
-
-Pass the source-cache path explicitly and select symlink materialization to reuse checkouts without copying them into each job's workspace:
+Pass the dependency-cache path explicitly and select symlink materialization to reuse checkouts without copying them into each job's workspace:
 
 ```bash
 tuist install --force-resolved-versions \
-  --cache-path "$HOME/.cache/swifterpm" \
+  --cache-path "$PWD/.build/dependency-cache" \
   --cached-directory-materialization=symlink
 ```
 
 Keep running installation on cache hits: retained state may not contain the current commit's pinned dependencies. Leave `packageManifestEnvironment` at its `.automatic` default; refreshed checkout timestamps and ordinary GitHub job metadata do not require a custom exclusion list.
 
-On a persistent machine, keep the mutable `.build` directory isolated per worktree, as described below.
+This command assumes `Package.swift` is at the repository root. For `Tuist/Package.swift`, use `$PWD/Tuist/.build/dependency-cache` and retain `Tuist/.build`. Cleaning `.build` also clears its dependency caches. For local development across worktrees, shared caches can avoid downloading the same sources repeatedly; keep mutable workspace state isolated as described below.
 
 #### Dependency cache volumes on Tuist Runners {#dependency-cache-volumes}
 
-On Tuist Runners, use <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> to retain all three directories across fresh macOS jobs. Keep the default `.automatic` manifest environment.
+On Tuist Runners, use <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> to retain the package's `.build` directory across fresh macOS jobs. Keep the default `.automatic` manifest environment.
 
-The following example assumes `Tuist/Package.swift`, a committed `Tuist/Package.resolved`, and Tuist pinned in `mise.toml`. The cache behavior described here is available in `4.214.0-canary.33`; pin that release or a later release containing these changes. Select your normal macOS runner profile; a larger runner is not required for cache volumes.
+The following example assumes `Tuist/Package.swift`, a committed `Tuist/Package.resolved`, and Tuist pinned in `mise.toml`. The consolidated cache behavior described here is available in `4.214.0-canary.36`; pin that release or a later release containing these changes. Select your normal macOS runner profile; a larger runner is not required for cache volumes.
 
 ```yaml
 name: Generate project
@@ -155,27 +149,19 @@ jobs:
         with:
           key: generated-workspace-${{ github.job }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Tuist/Package.swift') }}
           path: Tuist/.build
-      - uses: tuist/cache-volume@v1
-        with:
-          key: generated-sources-${{ steps.toolchain.outputs.key }}
-          path: ~/.cache/swifterpm
-      - uses: tuist/cache-volume@v1
-        with:
-          key: generated-manifests-${{ steps.toolchain.outputs.key }}
-          path: ~/Library/Caches/org.swift.swiftpm/manifests
       - name: Install dependencies
         run: |
           tuist install --force-resolved-versions \
-            --cache-path "$HOME/.cache/swifterpm" \
+            --cache-path "$PWD/Tuist/.build/dependency-cache" \
             --cached-directory-materialization=symlink
       - run: tuist generate --no-open
 ```
 
-If `Package.swift` is at the repository root, use `.build` and `hashFiles('Package.swift')` instead. Keep the mounted workspace path consistent with any custom scratch-directory setting. Ignore the workspace symlink without a trailing slash in `.gitignore`, for example `Tuist/.build`.
+If `Package.swift` is at the repository root, use `.build`, `--cache-path "$PWD/.build/dependency-cache"`, and `hashFiles('Package.swift')` instead. Keep the mounted workspace path consistent with any custom scratch-directory setting. Ignore the workspace symlink without a trailing slash in `.gitignore`, for example `Tuist/.build`.
 
-The workspace key separates jobs and package structure; the source and compiled-manifest caches can be shared across jobs using the same toolchain. Keep `Package.resolved` out of the keys so unchanged dependencies remain reusable when other pins change. Always run installation with `--force-resolved-versions`, including on cache hits, to validate the current lockfile. Each volume is saved independently.
+The volume key separates jobs, toolchains, and package structure. Sources and compiled manifests are retained with each job's workspace instead of shared across different jobs. Keep `Package.resolved` out of the keys so unchanged dependencies remain reusable when other pins change. Always run installation with `--force-resolved-versions`, including on cache hits, to validate the current lockfile.
 
-Attach the volumes before any command populates these paths, and remove archive-cache restore/save steps for the same directories. The first eligible successful default-branch run seeds the volumes; subsequent jobs can reuse them under the <.localized_link href="/guides/features/runners/cache-volumes#saving-changes">normal saving policy</.localized_link>. If storage is unavailable, the action warns and supplies an empty job-local directory, and installation populates it normally.
+Attach the volume before any command populates `.build`, and remove archive-cache restore/save steps for that directory. The first eligible successful default-branch run seeds the volume; subsequent jobs can reuse it under the <.localized_link href="/guides/features/runners/cache-volumes#saving-changes">normal saving policy</.localized_link>. If storage is unavailable, the action warns and supplies an empty job-local directory, and installation populates it normally.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
