@@ -108,7 +108,7 @@ Use `packageManifestEnvironment: .all` to preserve the complete process environm
 
 For generated projects, use [tuist/install](https://github.com/tuist/install) to install pinned dependencies and retain their caches with one step. On Tuist Runners, the action attaches a <.localized_link href="/guides/features/runners/cache-volumes">cache volume</.localized_link> and reuses package sources through symlinks. On other runners, it automatically uses GitHub's archive cache and copies sources so the archive remains usable across checkouts. No cache-provider input is needed.
 
-Pin Tuist `4.214.0-canary.36` or newer in `mise.toml` and commit `Package.resolved` beside your package manifest. The action uses the already-installed CLI; install your tools and configure private-package authentication before it runs. Keep `packageManifestEnvironment` at its `.automatic` default.
+Commit `Package.resolved` beside your package manifest. The action uses the already-installed CLI; install your tools and configure private-package authentication before it runs. Keep `packageManifestEnvironment` at its `.automatic` default.
 
 ```yaml
 name: Generate project
