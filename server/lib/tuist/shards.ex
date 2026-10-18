@@ -11,12 +11,15 @@ defmodule Tuist.Shards do
   alias Tuist.Accounts.Account
   alias Tuist.Builds
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias Tuist.Shards.BinPacker
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
+  alias Tuist.Shards.Workflows
   alias Tuist.Storage
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -32,6 +35,7 @@ defmodule Tuist.Shards do
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params) do
+    project = Repo.preload(project, :account)
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
@@ -86,16 +90,20 @@ defmodule Tuist.Shards do
       inserted_at: now
     }
 
-    {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
+    plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)
 
-    insert_shard_targets(
-      plan,
-      project.id,
-      assignment_shards,
-      granularity,
-      now,
-      module_inventory(params, units, granularity)
-    )
+    {modules, suites} =
+      shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
+
+    plan =
+      if FeatureFlags.postgres_shard_plans_enabled?(project.account) or Workflows.owns_reference?(project.id, reference) do
+        Workflows.create(plan, modules, suites)
+      else
+        {:ok, plan} = IngestRepo.insert(plan)
+        if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
+        if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
+        plan
+      end
 
     %{
       plan: plan,
@@ -105,7 +113,13 @@ defmodule Tuist.Shards do
   end
 
   def get_shard_plan(id) do
-    case read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end) do
+    plan =
+      case Workflows.get(id) do
+        nil -> read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end)
+        workflow -> Workflows.to_plan(workflow)
+      end
+
+    case plan do
       nil -> {:error, :not_found}
       plan -> {:ok, plan}
     end
@@ -237,7 +251,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
+  defp shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -252,10 +266,10 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    {rows, []}
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
+  defp shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
     suite_rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -277,15 +291,13 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if suite_rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
-
     # Record the products each shard must download. Regular shards need only their assigned suites'
     # modules; the catch-all shard runs everything not skipped, so it downloads the full built-module
     # inventory (which includes targets that have no suite history and therefore no planned suites).
-    insert_suite_download_modules(plan, project_id, shards, module_inventory, now)
+    {suite_download_modules(plan, project_id, shards, module_inventory, now), suite_rows}
   end
 
-  defp insert_suite_download_modules(plan, project_id, shards, module_inventory, now) do
+  defp suite_download_modules(plan, project_id, shards, module_inventory, now) do
     catch_all_index = plan.shard_count - 1
 
     rows =
@@ -309,11 +321,11 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    rows
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
-    plan = read_plan(fn -> IngestRepo.preload(plan, :modules) end)
+    plan = preload_plan(plan, :modules)
 
     modules =
       plan.modules
@@ -324,7 +336,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = read_plan(fn -> IngestRepo.preload(plan, [:test_suites, :modules]) end)
+    plan = preload_plan(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
@@ -383,6 +395,13 @@ defmodule Tuist.Shards do
   defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
+    case Workflows.get_by_reference(project_id, reference) do
+      nil -> get_legacy_plan(project_id, reference)
+      workflow -> Workflows.to_plan(workflow)
+    end
+  end
+
+  defp get_legacy_plan(project_id, reference) do
     read_plan(fn ->
       IngestRepo.one(
         from(s in ShardPlan,
@@ -396,6 +415,13 @@ defmodule Tuist.Shards do
   end
 
   defp get_plan_by_id(project_id, plan_id) do
+    case Workflows.get(plan_id, project_id) do
+      nil -> get_legacy_plan_by_id(project_id, plan_id)
+      workflow -> Workflows.to_plan(workflow)
+    end
+  end
+
+  defp get_legacy_plan_by_id(project_id, plan_id) do
     read_plan(fn ->
       IngestRepo.one(
         from(s in ShardPlan,
@@ -407,6 +433,11 @@ defmodule Tuist.Shards do
     end)
   end
 
+  defp preload_plan(%ShardPlan{authority: :postgres} = plan, _preloads), do: plan
+  defp preload_plan(plan, preloads), do: read_plan(fn -> IngestRepo.preload(plan, preloads) end)
+
+  # Compatibility for legacy plans only. This bypasses migration mirror lag,
+  # not replication lag inside the writer's deployment.
   # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
   # that took the write. `ClickHouseRepo` can route reads to the in-cluster ClickHouse
   # (`Tuist.ClickHouse.ReadRoute`), which only has the rows once `IngestRepo`'s detached mirror

@@ -34,6 +34,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Shards.ShardRun
+  alias Tuist.Shards.Workflows
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
@@ -61,6 +62,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
   alias Tuist.Webhooks.Dispatcher
@@ -293,7 +295,7 @@ defmodule Tuist.Tests do
             limit: 1
           )
 
-        case ClickHouseRepo.one(query) do
+        case Workflows.get_test(uuid) || ClickHouseRepo.one(query) do
           nil ->
             {:error, :not_found}
 
@@ -315,6 +317,7 @@ defmodule Tuist.Tests do
             test =
               test
               |> Repo.preload(pg_preloads)
+              |> attach_workflow_plans()
               |> ClickHouseRepo.preload(ch_preloads)
               |> dedupe_run_destinations()
 
@@ -324,6 +327,20 @@ defmodule Tuist.Tests do
       :error ->
         {:error, :not_found}
     end
+  end
+
+  defp attach_workflow_plans(%Test{} = test) do
+    [test] = attach_workflow_plans([test])
+    test
+  end
+
+  defp attach_workflow_plans(tests) when is_list(tests) do
+    ids = tests |> Enum.map(& &1.shard_plan_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    plans = if ids == [], do: %{}, else: Workflows.plans(ids)
+
+    Enum.map(tests, fn test ->
+      if plan = Map.get(plans, test.shard_plan_id), do: %{test | shard_plan: plan}, else: test
+    end)
   end
 
   # `test_run_destinations` has no uniqueness constraint, and a row is written
@@ -393,7 +410,7 @@ defmodule Tuist.Tests do
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
 
-    results = ClickHouseRepo.preload(results, [:shard_plan])
+    results = results |> attach_workflow_plans() |> ClickHouseRepo.preload([:shard_plan])
 
     {results, meta}
   end
@@ -731,11 +748,124 @@ defmodule Tuist.Tests do
   end
 
   defp create_or_update_sharded_test(attrs) do
-    shard_plan_id = Map.fetch!(attrs, :shard_plan_id)
+    with {:ok, plan} <- Shards.get_shard_plan(Map.fetch!(attrs, :shard_plan_id)),
+         true <- plan.project_id == Map.fetch!(attrs, :project_id) do
+      if plan.authority == :postgres do
+        create_postgres_sharded_test(attrs, plan)
+      else
+        create_legacy_sharded_test(attrs, plan)
+      end
+    else
+      false -> {:error, :not_found}
+      error -> error
+    end
+  end
+
+  defp create_postgres_sharded_test(attrs, plan) do
+    shard_index = Map.get(attrs, :shard_index) || 0
+
+    if shard_index < 0 or shard_index >= plan.shard_count do
+      {:error, :invalid_shard_index}
+    else
+      ingest_workflow_shard(attrs, plan, shard_index)
+    end
+  end
+
+  defp ingest_workflow_shard(attrs, plan, shard_index) do
+    stress = Map.get(attrs, :stress_new_tests)
+
+    run_attrs =
+      attrs
+      |> Map.merge(StressNewTests.run_attrs(stress))
+      |> Map.put(:id, plan.merged_test_run_id)
+      |> Map.put(:shard_plan_id, plan.id)
+      |> Map.put(:build_run_id, Map.get(attrs, :build_run_id) || plan.build_run_id)
+      |> Map.put(:gradle_build_id, Map.get(attrs, :gradle_build_id) || plan.gradle_build_id)
+      |> Map.put(:git_repository_id, repository_id(attrs))
+      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+
+    with {:ok, test} <- %Test{} |> Test.create_changeset(run_attrs) |> Ecto.Changeset.apply_action(:insert) do
+      test_modules = Map.get(attrs, :test_modules, [])
+      test = merge_shard_metadata(test, Workflows.get_test(plan.merged_test_run_id) || %{})
+      test = %{test | is_flaky: test.is_flaky or (test.is_ci and has_any_flaky_test_case?(test_modules))}
+      create_run_destinations(test, Map.get(attrs, :run_destinations, []))
+      create_run_errors(test, Map.get(attrs, :run_errors, []))
+      StressNewTests.insert_candidates(test, stress)
+      coverage = Coverage.rows(test.project_id, Map.get(attrs, :coverage))
+      record_coverage_data(test, attrs, coverage, shard_index, plan.shard_count)
+
+      {_newly_flaky, test_case_runs} =
+        create_test_modules(
+          test,
+          test_modules,
+          shard_index,
+          plan,
+          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
+        )
+
+      # Completion must not get ahead of node-local buffers: another replica
+      # can take over immediately after this transaction commits.
+      flush_workflow_facts()
+
+      result =
+        Workflows.record_report(
+          plan,
+          shard_index,
+          test.status,
+          test.duration,
+          fn previous, statuses ->
+            merge_workflow_snapshot(previous, test, attrs, test_case_runs, statuses, plan.shard_count)
+          end,
+          ran_at: DateTime.from_naive!(test.ran_at, "Etc/UTC")
+        )
+
+      with {:ok, merged_test} <- result do
+        run_test_followups(merged_test, test_case_runs, plan)
+        {:ok, %{merged_test | test_case_runs: test_case_runs}}
+      end
+    end
+  end
+
+  defp merge_workflow_snapshot(previous, test, attrs, test_case_runs, statuses, shard_count) do
+    merged = merge_shard_metadata(previous || test, attrs)
+    reported_count = Enum.count(statuses, &(&1 not in ["processing", "in_progress"]))
+    status = if shard_count == 1, do: hd(statuses), else: merged_shard_status(statuses, reported_count, shard_count)
+
+    merged
+    |> Map.put(:status, status)
+    |> Map.put(:duration, max(merged.duration, test.duration))
+    |> Map.put(:is_flaky, merged.is_flaky or test.is_flaky or flaky_run?(test, test_case_runs))
+    |> Map.put(
+      :coverage_evidence_status,
+      Coverage.Evidence.merge_status(merged.coverage_evidence_status, test.coverage_evidence_status)
+    )
+    |> Map.merge(StressNewTests.merge_run_attrs(merged, Map.get(attrs, :stress_new_tests)))
+  end
+
+  defp flush_workflow_facts do
+    Enum.each(
+      [
+        TestCase.Buffer,
+        TestModuleRun.Buffer,
+        TestSuiteRun.Buffer,
+        TestRunDestination.Buffer,
+        TestRunError.Buffer,
+        TestRunStressCandidate.Buffer,
+        TestCaseRun.Buffer,
+        TestCaseRunArgument.Buffer,
+        TestCaseFailure.Buffer,
+        TestCaseRunRepetition.Buffer,
+        TestCaseRunAttachment.Buffer,
+        TestCaseEvent.Buffer
+      ],
+      fn buffer -> :ok = buffer.flush() end
+    )
+  end
+
+  defp create_legacy_sharded_test(attrs, shard_plan) do
+    shard_plan_id = shard_plan.id
     project_id = Map.fetch!(attrs, :project_id)
     test_modules = Map.get(attrs, :test_modules, [])
-
-    {:ok, shard_plan} = Shards.get_shard_plan(shard_plan_id)
     expected_shard_count = shard_plan.shard_count
 
     shard_index = Map.get(attrs, :shard_index)
@@ -1042,6 +1172,7 @@ defmodule Tuist.Tests do
   defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
   defp flaky_run?(_test, _test_case_runs), do: false
 
+  defp mark_test_run_as_flaky(test, _flaky?, %{authority: :postgres}), do: test
   defp mark_test_run_as_flaky(test, false, _shard_plan), do: test
   defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?, _shard_plan), do: test
 
@@ -4689,6 +4820,8 @@ defmodule Tuist.Tests do
   def expire_stale_in_progress_test_runs do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -@stale_run_window_hours, :hour)
     now = NaiveDateTime.utc_now()
+    Workflows.reconcile_pending()
+    Workflows.expire_stale(DateTime.from_naive!(six_hours_ago, "Etc/UTC"))
 
     # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
     # selection across parts so duplicates can be merged. That defeats the
@@ -4715,11 +4848,18 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(& &1.id)
 
+    owned_plan_ids =
+      latest_candidate_runs
+      |> Enum.map(& &1.shard_plan_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Workflows.owned_ids()
+
     stale_runs =
-      Enum.filter(
-        latest_candidate_runs,
-        &(&1.status == "in_progress" and NaiveDateTime.before?(&1.inserted_at, six_hours_ago))
-      )
+      Enum.filter(latest_candidate_runs, fn run ->
+        run.status == "in_progress" and NaiveDateTime.before?(run.inserted_at, six_hours_ago) and
+          not MapSet.member?(owned_plan_ids, run.shard_plan_id)
+      end)
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

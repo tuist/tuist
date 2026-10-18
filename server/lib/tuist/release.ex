@@ -19,6 +19,8 @@ defmodule Tuist.Release do
     oban_jobs
     oban_peers
     test_case_run_flaky_corrections
+    shard_workflows
+    shard_workflow_shards
     bazel_test_invocations
     bazel_test_results
     bazel_test_summaries

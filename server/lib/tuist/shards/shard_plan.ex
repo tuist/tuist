@@ -16,6 +16,8 @@ defmodule Tuist.Shards.ShardPlan do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    field :authority, Ecto.Enum, values: [:clickhouse, :postgres], default: :clickhouse, virtual: true
+    field :merged_test_run_id, Ecto.UUID, virtual: true
 
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false

@@ -134,10 +134,7 @@ defmodule Tuist.Shards.Analytics do
   defp shard_count_percentiles(project_id, start_datetime, end_datetime) do
     result =
       ClickHouseRepo.one(
-        from(s in ShardPlan,
-          where: s.project_id == ^project_id,
-          where: s.inserted_at >= ^start_datetime,
-          where: s.inserted_at <= ^end_datetime,
+        from(s in subquery(unique_plans(project_id, start_datetime, end_datetime)),
           select: %{
             p50: fragment("round(quantile(0.50)(?), 1)", s.shard_count),
             p90: fragment("round(quantile(0.90)(?), 1)", s.shard_count),
@@ -156,10 +153,7 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.inserted_at >= ^start_datetime,
-        where: s.inserted_at <= ^end_datetime,
+      from(s in subquery(unique_plans(project_id, start_datetime, end_datetime)),
         group_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
@@ -173,11 +167,20 @@ defmodule Tuist.Shards.Analytics do
   end
 
   defp shard_balance_sessions(project_id, start_datetime, end_datetime) do
-    ClickHouseRepo.all(
+    latest_reports =
       from(sr in ShardRun,
         where: sr.project_id == ^project_id,
-        where: sr.ran_at >= ^start_datetime,
-        where: sr.ran_at <= ^end_datetime,
+        where: sr.ran_at >= ^start_datetime and sr.ran_at <= ^end_datetime,
+        group_by: [sr.shard_plan_id, sr.test_run_id, sr.shard_index],
+        select: %{
+          shard_plan_id: sr.shard_plan_id,
+          duration: fragment("argMax(?, ?)", sr.duration, sr.inserted_at),
+          ran_at: max(sr.ran_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(sr in subquery(latest_reports),
         group_by: sr.shard_plan_id,
         having: count() > 1,
         select: %{
@@ -284,10 +287,7 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.inserted_at >= ^start_datetime,
-        where: s.inserted_at <= ^end_datetime,
+      from(s in subquery(unique_plans(project_id, start_datetime, end_datetime)),
         group_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
@@ -300,13 +300,21 @@ defmodule Tuist.Shards.Analytics do
 
   defp avg_shard_count_in_range(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.inserted_at >= ^start_datetime,
-        where: s.inserted_at <= ^end_datetime,
+      from(s in subquery(unique_plans(project_id, start_datetime, end_datetime)),
         select: fragment("round(avg(?), 1)", s.shard_count)
       )
     ) || 0
+  end
+
+  # Workflow projections are delivered at least once, including after the
+  # destination's block-deduplication window has expired.
+  defp unique_plans(project_id, start_datetime, end_datetime) do
+    from(s in ShardPlan,
+      where: s.project_id == ^project_id,
+      where: s.inserted_at >= ^start_datetime and s.inserted_at <= ^end_datetime,
+      distinct: true,
+      select: %{id: s.id, shard_count: s.shard_count, inserted_at: s.inserted_at}
+    )
   end
 
   def trend(opts) do

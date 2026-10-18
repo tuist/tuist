@@ -10,11 +10,16 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.Bazel.Workers.ProcessProfileWorker
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
   alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias Tuist.FeatureFlags
   alias Tuist.GitHistory
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Processor.BuildProcessor
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Shards
+  alias Tuist.Shards.Workers.ProjectWorkflowWorker
+  alias Tuist.Shards.Workflows
+  alias Tuist.Tests
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -90,6 +95,37 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     subscribe(context.project, "test_run.failed")
 
     assert :ok == process_xcresult_as_processor(context, "failure")
+    assert_enqueued(worker: FanoutWorker, args: %{"event_name" => "test_run.failed"})
+  end
+
+  test "PostgreSQL-owned shard reports and failure projection use deployed processor privileges", %{project: project} do
+    stub(FeatureFlags, :postgres_shard_plans_enabled?, fn _ -> true end)
+    subscribe(project, "test_run.failed")
+
+    %{plan: plan} =
+      Shards.create_shard_plan(project, %{reference: "processor", modules: ["AppTests"], shard_total: 1})
+
+    ProcessorRole.as_processor(fn ->
+      assert {:ok, test} =
+               Tests.create_test(%{
+                 id: Ecto.UUID.generate(),
+                 project_id: project.id,
+                 account_id: project.account_id,
+                 shard_plan_id: plan.id,
+                 shard_index: 0,
+                 status: "failure",
+                 duration: 100,
+                 is_ci: false,
+                 build_system: "xcode",
+                 ran_at: NaiveDateTime.utc_now(),
+                 test_modules: []
+               })
+
+      assert test.id == plan.merged_test_run_id
+      assert Workflows.get_test(test.id).status == "failure"
+      assert :ok = ProjectWorkflowWorker.perform(%Oban.Job{args: %{"workflow_id" => plan.id, "project_id" => project.id}})
+    end)
+
     assert_enqueued(worker: FanoutWorker, args: %{"event_name" => "test_run.failed"})
   end
 
