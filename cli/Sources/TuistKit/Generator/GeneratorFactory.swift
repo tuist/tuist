@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistCache
 import TuistConfig
 import TuistCore
 import TuistGenerator
@@ -37,7 +38,8 @@ public protocol GeneratorFactorying {
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?,
-        schemeName: String?
+        schemeName: String?,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -98,7 +100,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?,
-        schemeName: String? = nil
+        schemeName: String? = nil,
+        coverage _: BinaryCacheCoverage = .off
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -233,7 +236,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String?
+            schemeName: String?,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -341,7 +345,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            coverage: BinaryCacheCoverage = .off
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -365,7 +370,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 destination: destination,
-                schemeName: schemeName
+                schemeName: schemeName,
+                coverage: coverage
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
             return Generator(

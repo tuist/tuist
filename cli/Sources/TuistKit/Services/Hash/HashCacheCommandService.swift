@@ -114,7 +114,8 @@ public struct HashCacheCommandService: HashCacheServicing {
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
