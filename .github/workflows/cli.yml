@@ -100,11 +100,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -117,10 +112,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -138,11 +132,6 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -155,10 +144,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Resolve registry replacements
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
@@ -179,11 +167,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -195,10 +178,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Cache
         run: tuist cache
 
@@ -217,11 +199,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -234,10 +211,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
@@ -265,11 +241,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -282,10 +253,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -315,11 +285,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -332,10 +297,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -401,21 +365,15 @@ jobs:
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
-      - name: Attach CLI workspace volume
-        uses: tuist/cache-volume@v1
-        with:
-          key: cli-macos-workspace-cli-acceptance-tests-build-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
-          path: .build
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install Tuist dependencies
-        run: |
-          tuist install --force-resolved-versions \
-            --cache-path "$PWD/.build/dependency-cache" \
-            --cached-directory-materialization=symlink
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation

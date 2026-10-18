@@ -145,18 +145,20 @@ separate from the built-in account-wide cache policy. Retained contents must be
 safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
-Attach one `.build` volume before installing dependencies, and pass
-`--cache-path "$PWD/.build/dependency-cache"` to `tuist install` and the macOS
-SwiftPM resolve/build commands. The released CLI must include #14304 so internal
-manifest dumps honor that path too. Workspace state, downloaded sources, and
-native compiled manifests then share one snapshot. Use the v2 workspace keys
-for this layout; keys include job, Xcode version and `Package.swift`, not the
-lockfile. Caches are job-scoped; the fork acceptance job reads the acceptance-build
-key so it can reuse a snapshot seeded by default-branch runs. Keep
-`--force-resolved-versions` and symlink materialization for all macOS installs,
-including forks. Never archive a mounted path. Keep configuration, security and
-authentication outside the cache, and preserve fork guards for Tuist login, setup,
-and enterprise sources.
+Use the released `tuist/install@v1` action after tool installation and authentication.
+It combines one package-relative `.build` volume with forced installation, explicit
+scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
+use its automatic GitHub archive/copy backend. Do not add a second cache step.
+The macOS native SwiftPM resolve/build commands use the same
+`--cache-path "$PWD/.build/dependency-cache"`. The released CLI must include #14304
+so internal manifest dumps honor that path too. Keep the existing v2 workspace
+keys through the action's `cache-key` input: they include job, Xcode version and
+`Package.swift`, not the lockfile. The fork acceptance job uses the acceptance-build
+key so default-branch runs can seed it. Preserve fork guards for Tuist login,
+setup, and enterprise sources; installation itself remains unconditional.
+Keep configuration, security, and authentication outside the cache. Mise's
+postinstall hook skips dependency installation on CI so it does not populate the
+volume target before the action runs.
 
 Set `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development
 settings do not invalidate manifest fingerprints. `Tuist.swift` uses plain
