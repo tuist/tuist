@@ -39,13 +39,8 @@ versions of source-listed records are preserved. Listing failure reclaims nothin
 the existing supervised cleanup finishes any durable retirement after cancellation.
 Mixed segments still follow normal rotation and the original deadline: this does
 not guarantee convergence for every physical layout or increase the ring budget.
-Handover then verifies every retained record in negotiated bounded batches.
-The destination runs at most four readers across all verification requests,
-each streaming 64 KiB chunks, so hashing can use the existing CPU allowance.
-The request owns those tasks: rejection, disconnect, drain or the original
-deadline aborts unfinished readers. Every record must pass before the batch
-acknowledges; source receipt order and the mixed-version protocol stay intact.
-Handover persists matching receipts and
+Handover then verifies every retained record in negotiated bounded batches,
+persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
 evidence and accepts an unreplicated tail. See the
 [authority and recovery runbook](../../infra/kura-controller/serving-authority.md)
