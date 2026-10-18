@@ -138,10 +138,12 @@ never persist it or extend its host scope beyond github.com.
 macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
 volumes do not require the larger M4 shape. If host cache capacity is unavailable,
 each attachment falls back independently to an empty job-local directory; always
-run dependency installation and do not require a hit in ordinary jobs. Forks keep
-archive caches and copied dependencies because they cannot authenticate volume
-attachments. Linux and release/backport workflows have separate toolchain and
-runner requirements and are not part of this migration.
+run dependency installation and do not require a hit in ordinary jobs. Forks use
+the same custom volumes: the runner's verified job identity authorizes attachment
+without workflow credentials, and the server forbids fork publication. This is
+separate from the built-in account-wide cache policy. Retained contents must be
+safe for fork contributors to read. Linux and release/backport workflows have
+separate toolchain and runner requirements and are not part of this migration.
 
 Attach one `.build` volume before installing dependencies, and pass
 `--cache-path "$PWD/.build/dependency-cache"` to `tuist install` and the macOS
@@ -149,10 +151,12 @@ SwiftPM resolve/build commands. The released CLI must include #14304 so internal
 manifest dumps honor that path too. Workspace state, downloaded sources, and
 native compiled manifests then share one snapshot. Use the v2 workspace keys
 for this layout; keys include job, Xcode version and `Package.swift`, not the
-lockfile. Caches are job-scoped rather than shared across different jobs.
-Keep `--force-resolved-versions` and select symlink materialization for mounted
-caches; forks retain archive caching and copied dependencies. Never archive a
-mounted path. Keep configuration, security and authentication outside the cache.
+lockfile. Caches are job-scoped; the fork acceptance job reads the acceptance-build
+key so it can reuse a snapshot seeded by default-branch runs. Keep
+`--force-resolved-versions` and symlink materialization for all macOS installs,
+including forks. Never archive a mounted path. Keep configuration, security and
+authentication outside the cache, and preserve fork guards for Tuist login, setup,
+and enterprise sources.
 
 Set `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development
 settings do not invalidate manifest fingerprints. `Tuist.swift` uses plain
