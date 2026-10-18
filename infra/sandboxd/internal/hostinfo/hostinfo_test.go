@@ -76,3 +76,47 @@ func TestReadCgroupValueWalksUpToTheNearestLimit(t *testing.T) {
 		t.Fatal("a root without the file must report no limit")
 	}
 }
+
+func TestReclaimCgroupAsksForTheExcessOverTarget(t *testing.T) {
+	root := t.TempDir()
+	leaf := "/kubepods.slice/pod.slice/container.scope"
+	if err := os.MkdirAll(filepath.Join(root, leaf), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(root, leaf, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("memory.max", "17179869184\n")
+	write("memory.current", "10737418240\n")
+	write("memory.reclaim", "")
+
+	got := ReclaimCgroup(root, leaf, 8589934592)
+	asked, err := os.ReadFile(filepath.Join(root, leaf, "memory.reclaim"))
+	if err != nil {
+		t.Fatalf("memory.reclaim not written: %v", err)
+	}
+	if string(asked) != "2147483648" {
+		t.Fatalf("asked to reclaim %q, want the 2 GiB above target", asked)
+	}
+	if got.MemoryBytes != 17179869184 || got.UsedBytes != 10737418240 {
+		t.Fatalf("result = %+v", got)
+	}
+}
+
+func TestReclaimCgroupLeavesACgroupUnderTargetAlone(t *testing.T) {
+	root := t.TempDir()
+	leaf := "/container.scope"
+	if err := os.MkdirAll(filepath.Join(root, leaf), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, leaf, "memory.current"), []byte("1048576\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ReclaimCgroup(root, leaf, 8589934592)
+	if _, err := os.Stat(filepath.Join(root, leaf, "memory.reclaim")); !os.IsNotExist(err) {
+		t.Fatalf("memory.reclaim must not be written under target, stat err = %v", err)
+	}
+}

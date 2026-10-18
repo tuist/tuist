@@ -130,6 +130,27 @@ independent workqueues:
     failures still use the independent per-pool target so a transient
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
+
+    Sandbox daemons (`infra/sandboxd`, namespace from
+    `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that
+    predates it ignores the chart setting it) share these nodes. Their
+    memory is subtracted from the budget after the reserve fraction: the
+    larger of each daemon Pod's request and what the kubelet allocated,
+    which is what the scheduler counts. The Tuist server resizes those Pods
+    in place, growing a node's carve-out when sandboxes need more than the
+    floor and shrinking it back once they pause, so warm pools shrink while
+    a carve-out is grown and refill when it shrinks. When the kubelet defers
+    a growth (`PodResizePending`, reason `Deferred`) for lack of room, the
+    autoscaler retires idle warm runners on that node ahead of the cooldown
+    (`controllers/sandboxes.go`): the same eligibility as cross-pool
+    preemption, oldest warm first until their memory covers what the growth
+    waits for less what runners already leaving the node free, planned
+    deterministically so each pool's reconcile marks only its own runners
+    (`tuist.dev/preempted-for: sandboxes`, event
+    `RunnerPodPreemptedForSandboxes`). Runners executing a job are never
+    chosen; the growth then waits for them to finish. Daemon Pods are read
+    through the uncached `APIReader`, since the manager caches only the
+    runners namespace; a failed read budgets the fleet without them.
   - macOS: budget = sum of allocatable memory across nodes labeled
     `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
     unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is

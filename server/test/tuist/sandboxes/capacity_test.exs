@@ -4,10 +4,12 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxNode
 
   @mib 1024 * 1024
   @gib 1024 * @mib
@@ -360,6 +362,204 @@ defmodule Tuist.Sandboxes.CapacityTest do
       agent_environment = agent_environment_fixture(template: template)
 
       assert Capacity.admissible?(agent_environment, "sesn_new")
+    end
+  end
+
+  describe "elastic carve-outs" do
+    # Floor 8 GiB, ceiling 16 GiB; the daemon reports the floor until the
+    # stubbed resize applies a new limit, as the kubelet would.
+    defp connect_elastic(template, overrides \\ %{}) do
+      name = node_name()
+
+      connect(
+        name,
+        template,
+        Map.merge(
+          %{
+            capacity: %{memory_bytes: 8 * @gib, cpus: 16},
+            elastic: %{pod_name: "sandboxd-#{name}", memory_floor_bytes: 8 * @gib, memory_ceiling_bytes: 16 * @gib}
+          },
+          overrides
+        )
+      )
+    end
+
+    defp resident(template, node, memory_mb \\ 4096) do
+      sandbox_fixture(
+        template: template,
+        state: :running,
+        node_name: node,
+        residency_work_id: "w#{TuistTestSupport.Utilities.unique_integer()}",
+        memory_mb: memory_mb
+      )
+    end
+
+    # The kubelet applying the resize: the daemon reports the new limit.
+    defp apply_resizes(node) do
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> ^node, bytes ->
+        :ok = Nodes.update(node, %{capacity: %{memory_bytes: bytes, cpus: 16}})
+        {:ok, %{}}
+      end)
+    end
+
+    defp node_info(node) do
+      {:ok, _pid, info} = Nodes.lookup(node)
+      Map.put(info, :name, node)
+    end
+
+    test "grows the carve-out in whole GiB when nothing fits and places into it", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      apply_resizes(node)
+      sandbox = new_sandbox(template)
+
+      # Two 4160 MiB guests plus the 512 MiB reserve need 8.63 GiB.
+      assert {:ok, ^node} = Capacity.place(sandbox)
+      assert %Sandbox{node_name: ^node} = Repo.reload!(sandbox)
+      assert %SandboxNode{memory_limit_bytes: limit, pod_name: "sandboxd-" <> ^node} = Repo.get(SandboxNode, node)
+      assert limit == 9 * @gib
+      assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
+    end
+
+    test "pauses idle sandboxes before it grows", %{template: template} do
+      node = connect_elastic(template)
+      idle = sandbox_fixture(template: template, state: :running, node_name: node, memory_mb: 4096)
+      idle_id = idle.id
+      expect(Nodes, :call, fn ^node, "pause", %{sandbox_id: ^idle_id}, _opts -> {:ok, %{}} end)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert {:ok, ^node} = Capacity.place(new_sandbox(template))
+      assert %Sandbox{state: :paused} = Repo.reload!(idle)
+    end
+
+    test "refuses without resizing when the ceiling cannot hold the newcomer", %{template: template} do
+      node = connect_elastic(template)
+      for _ <- 1..3, do: resident(template, node)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      # 4 x 4160 MiB + 512 MiB is past the 16 GiB ceiling.
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+      refute Repo.get(SandboxNode, node)
+    end
+
+    test "leaves a growth the kubelet defers asked for and refuses the placement meanwhile", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      sandbox = new_sandbox(template)
+
+      assert {:error, :no_capacity} = Capacity.place(sandbox)
+      assert %Sandbox{node_name: nil} = Repo.reload!(sandbox)
+      assert %SandboxNode{memory_limit_bytes: limit} = Repo.get(SandboxNode, node)
+      assert limit == 9 * @gib
+      # Budgeted against what the node reports until the growth lands.
+      assert Capacity.memory_limit_bytes(node_info(node)) == 8 * @gib
+    end
+
+    test "does not grow a node whose daemon reports no ceiling above its floor", %{template: template} do
+      node = connect(node_name(), template, %{capacity: %{memory_bytes: 8 * @gib, cpus: 16}})
+      resident(template, node)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+    end
+
+    test "grows the node a paused sandbox resumes on", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      apply_resizes(node)
+      paused = sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096)
+
+      assert {:ok, %Sandbox{state: :resuming}} = Capacity.admit(paused)
+      assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
+    end
+
+    test "admits a work item once a growth for it is reported, and not before", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      agent_environment = agent_environment_fixture(template: template)
+      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      refute Capacity.admissible?(agent_environment, "sesn_new")
+
+      apply_resizes(node)
+      assert Capacity.admissible?(agent_environment, "sesn_new")
+    end
+
+    test "budgets against the size asked for while a shrink is pending, and ignores a row of an earlier Pod",
+         %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 10 * @gib, nil)
+      assert Capacity.memory_limit_bytes(node_info(node)) == 10 * @gib
+
+      insert_row(node, "sandboxd-replaced", 9 * @gib, nil)
+      assert Capacity.memory_limit_bytes(node_info(node)) == 12 * @gib
+    end
+
+    test "shrinks a grown carve-out to the floor once its sandboxes no longer need it", %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 12 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
+      resident(template, node)
+      target = 8 * @gib - 256 * @mib
+
+      expect(Nodes, :call, fn ^node, "reclaim", %{target_bytes: ^target}, _opts -> {:ok, %{}} end)
+
+      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", _pod, bytes ->
+        assert bytes == 8 * @gib
+        {:ok, %{}}
+      end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 8 * @gib
+      assert %SandboxNode{memory_limit_bytes: ^limit} = Repo.get(SandboxNode, node)
+    end
+
+    test "keeps what running sandboxes need when it shrinks", %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 16 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 16 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
+      for _ <- 1..2, do: resident(template, node)
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      # Two 4160 MiB guests plus the reserve round up to 9 GiB.
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 9 * @gib
+    end
+
+    test "holds a carve-out grown a moment ago", %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 12 * @gib, DateTime.utc_now(:second))
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert :unchanged = Capacity.shrink(node_info(node))
+    end
+
+    test "retries a shrink the kubelet has not applied yet", %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 8 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+
+      expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, bytes ->
+        assert bytes == 8 * @gib
+        {:ok, %{}}
+      end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 8 * @gib
+    end
+
+    test "leaves a carve-out at its floor alone", %{template: template} do
+      node = connect_elastic(template)
+      insert_row(node, "sandboxd-" <> node, 8 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert :unchanged = Capacity.shrink(node_info(node))
+    end
+
+    defp insert_row(node, pod_name, limit, grown_at) do
+      %SandboxNode{}
+      |> SandboxNode.changeset(%{name: node, pod_name: pod_name, memory_limit_bytes: limit, grown_at: grown_at})
+      |> Repo.insert!(on_conflict: :replace_all, conflict_target: :name)
     end
   end
 end

@@ -14,7 +14,9 @@ a separate substrate on the same nodes. The DaemonSet Pod reserves
 `sandboxes.memoryGiB` for guests (request equals limit) under a PriorityClass
 with `preemptionPolicy: Never`: runner Pods carry no priority and become
 job-owning in place, so the daemon must never evict one. On a full node it
-waits, first in the scheduling queue, for a job to finish.
+waits, first in the scheduling queue, for a job to finish. With
+`sandboxes.maxMemoryGiB` above it, `memoryGiB` is only the floor of an elastic
+carve-out the server resizes in place (see "Server side").
 
 ## Pieces
 
@@ -195,6 +197,7 @@ Node to server:
 ```
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
+ "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N},
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
@@ -205,7 +208,7 @@ Node to server:
 {"type":"event","event":"worker_exited","sandbox_id":"...","exit_code":0,"duration_ms":1234}
 {"type":"event","event":"sandbox_died","sandbox_id":"...","reason":"..."}
 {"type":"event","event":"template_ready","name":"default","tag":"..."}
-{"type":"report","sandboxes":[...same shape as hello...],"memory":{"used_bytes":N},"disk":{...same shape as hello...}}
+{"type":"report","capacity":{...same shape as hello...},"sandboxes":[...same shape as hello...],"memory":{"used_bytes":N},"disk":{...same shape as hello...}}
 ```
 
 Server to node:
@@ -219,6 +222,7 @@ Server to node:
 {"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
+{"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
 ```
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
@@ -226,6 +230,14 @@ its result (`data.exit_code`). `start_worker` results as soon as the worker
 process is running; `worker_exited` follows as an event. Credentials travel
 only in `start_worker` args, are handed to the guest over vsock, and are never
 written to the node's disk by the daemon.
+
+The daemon rereads its cgroup's memory limit every second and sends a
+`report` as soon as it changes, so a resize of its Pod reaches the server's
+budget without waiting out the 30 s interval. `reclaim` writes the excess over
+`target_bytes` to the cgroup's `memory.reclaim` and answers the limit and
+what the cgroup still charges; the server sends it before shrinking the Pod,
+because the kubelet will not lower a limit below current usage and paused
+guests leave page cache behind.
 
 ## Worker inside the guest
 
@@ -262,6 +274,20 @@ acknowledged by the server's poller; the worker never polls.
   the reservation holds however the sandboxes later fill them. The
   poller leaves a work item unacknowledged when its sandbox would not fit
   anywhere, so the queue holds it until a pause frees memory.
+- A node whose `hello.elastic` carries a ceiling above its floor has an
+  elastic carve-out (`sandboxes.maxMemoryGiB` in the chart). The Pod starts
+  at the floor; when nothing fits even after pausing idle sandboxes, the
+  server grows the Pod's memory in place through its `resize` subresource,
+  in whole GiB up to the ceiling, records the size it asked for in
+  `sandbox_nodes`, and places once the daemon reports the new limit. The
+  kubelet applies a growth that fits the node at once and defers one that
+  does not; the runners controller then retires idle warm runners on that
+  node, and the scheduler, which counts the requested size, places no runner
+  Pod into the room meanwhile. Placements budget against the smaller of the
+  reported limit and the size asked for. A minute-by-minute job shrinks a
+  carve-out back toward what its running sandboxes hold, never below the
+  floor, three minutes after its last growth: it lowers the size asked for
+  under the node lock, sends `reclaim`, then resizes the Pod.
 - A sandbox left running without a residency (created or resumed through
   the API, or used by an exec) is paused after the same grace period of
   idleness; a residency starting meanwhile supersedes the pending pause.
@@ -325,6 +351,8 @@ agent so the manager runs end to end without KVM).
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
+| `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
+| `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |

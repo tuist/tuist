@@ -51,8 +51,9 @@ type Config struct {
 }
 
 type Client struct {
-	cfg    Config
-	events chan protocol.Event
+	cfg       Config
+	events    chan protocol.Event
+	reportNow chan struct{}
 
 	mu        sync.Mutex
 	conn      *websocket.Conn
@@ -72,7 +73,7 @@ func New(cfg Config) *Client {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
-	return &Client{cfg: cfg, events: make(chan protocol.Event, eventQueueSize)}
+	return &Client{cfg: cfg, events: make(chan protocol.Event, eventQueueSize), reportNow: make(chan struct{}, 1)}
 }
 
 // Emit queues an event for the server. Events survive a reconnect; when
@@ -92,6 +93,16 @@ func (c *Client) Emit(event protocol.Event) {
 			c.cfg.Log.Warn("event queue full, dropping oldest", "event", dropped.Event, "sandbox", dropped.SandboxID)
 		default:
 		}
+	}
+}
+
+// ReportNow sends a report ahead of the interval, coalescing with one
+// already pending. A report missed while disconnected is replaced by the
+// next session's hello.
+func (c *Client) ReportNow() {
+	select {
+	case c.reportNow <- struct{}{}:
+	default:
 	}
 }
 
@@ -284,14 +295,25 @@ func (c *Client) pushLoop(ctx context.Context) error {
 				return fmt.Errorf("sending event: %w", err)
 			}
 		case <-ticker.C:
-			if c.cfg.Report == nil {
-				continue
+			if err := c.sendReport(ctx); err != nil {
+				return err
 			}
-			report := c.cfg.Report()
-			report.Type = protocol.FrameReport
-			if err := c.send(ctx, report); err != nil {
-				return fmt.Errorf("sending report: %w", err)
+		case <-c.reportNow:
+			if err := c.sendReport(ctx); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+func (c *Client) sendReport(ctx context.Context) error {
+	if c.cfg.Report == nil {
+		return nil
+	}
+	report := c.cfg.Report()
+	report.Type = protocol.FrameReport
+	if err := c.send(ctx, report); err != nil {
+		return fmt.Errorf("sending report: %w", err)
+	}
+	return nil
 }

@@ -387,6 +387,43 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "resize_sandbox_daemon_memory/4" do
+    @tag :tmp_dir
+    test "patches the daemon container's memory request and limit through the resize subresource", %{
+      tmp_dir: tmp_dir
+    } do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :patch
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc/resize"
+
+        assert {"content-type", "application/strategic-merge-patch+json"} in request_opts[:headers]
+
+        assert JSON.decode!(request_opts[:body]) == %{
+                 "spec" => %{
+                   "containers" => [
+                     %{
+                       "name" => "sandboxd",
+                       "resources" => %{
+                         "requests" => %{"memory" => "12884901888"},
+                         "limits" => %{"memory" => "12884901888"}
+                       }
+                     }
+                   ]
+                 }
+               }
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "sandboxd-abc"}}}}
+      end)
+
+      assert {:ok, %{"metadata" => %{"name" => "sandboxd-abc"}}} =
+               Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 12_884_901_888, opts)
+    end
+  end
+
   describe "create_token_review/2" do
     @tag :tmp_dir
     test "returns the SA principal when the token is authenticated and audience-bound", %{tmp_dir: tmp_dir} do

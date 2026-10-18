@@ -2427,6 +2427,14 @@ sandboxes:
   # sandboxes paused first. Size it from concurrent active turns, not from
   # the number of sessions: paused sandboxes cost disk, not memory.
   memoryGiB: 16
+  # With a ceiling above memoryGiB, memoryGiB becomes the floor of an elastic
+  # carve-out. When sandboxes need more, the server grows the daemon Pod's
+  # memory in place, in whole GiB, up to this ceiling: into memory no Pod
+  # requests right away, or into room the runners controller frees on that
+  # node by retiring idle warm runners (never ones running a job). Once
+  # sandboxes pause it shrinks the Pod back, and the runner pools' budget,
+  # which counts the daemon's memory, grows again. 0 keeps memoryGiB fixed.
+  maxMemoryGiB: 0
   cpu: "2"
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of

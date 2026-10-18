@@ -856,9 +856,10 @@ buildersFleet:
     enabled: false
 
 # Firecracker sandboxes for coding-agent sessions, on the OVH RISE-S that also
-# hosts the Linux runner pool. A small carve-out: 8 GiB of memory fits one
-# running sandbox of the default 2x4096 shape and no larger shape, and 50 GiB
-# of disk holds two default sessions with a 10 GB workspace, running or paused.
+# hosts the Linux runner pool. A small carve-out: 8 GiB of memory always fits
+# one running sandbox of the default 2x4096 shape, and grows up to 24 GiB when
+# sandboxes need more and the box has memory no running job holds. 50 GiB of
+# disk holds two default sessions with a 10 GB workspace, running or paused.
 # The kata runner pools keep the rest of the box. Accounts reach sandboxes only
 # through the `sandboxes` feature flag.
 sandboxes:
@@ -875,6 +876,7 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   memoryGiB: 8
+  maxMemoryGiB: 24
   diskGiB: 50
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.

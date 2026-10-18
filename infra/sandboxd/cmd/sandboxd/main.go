@@ -60,6 +60,17 @@ func main() {
 	templateBootTimeout := durationEnv(logger, "TEMPLATE_BOOT_TIMEOUT", template.DefaultBootTimeout)
 	shutdownTimeout := durationEnv(logger, "SHUTDOWN_TIMEOUT", 60*time.Second)
 	templateWorkspaceGB := intEnv(logger, "TEMPLATE_WORKSPACE_GB", template.DefaultWorkspaceGB)
+	memoryFloorGiB := intEnv(logger, "MEMORY_FLOOR_GIB", 0)
+	memoryCeilingGiB := intEnv(logger, "MEMORY_CEILING_GIB", 0)
+	if memoryFloorGiB < 0 || memoryCeilingGiB < 0 {
+		logger.Error("MEMORY_FLOOR_GIB and MEMORY_CEILING_GIB must not be negative", "floor", memoryFloorGiB, "ceiling", memoryCeilingGiB)
+		os.Exit(1)
+	}
+	elastic := protocol.Elastic{
+		PodName:            os.Getenv("POD_NAME"),
+		MemoryFloorBytes:   uint64(memoryFloorGiB) << 30,   //nolint:gosec // Checked non-negative above.
+		MemoryCeilingBytes: uint64(memoryCeilingGiB) << 30, //nolint:gosec // Checked non-negative above.
+	}
 	diskBudgetGiB := intEnv(logger, "DISK_BUDGET_GIB", 0)
 	if diskBudgetGiB < 0 {
 		logger.Error("DISK_BUDGET_GIB must not be negative", "value", diskBudgetGiB)
@@ -237,7 +248,7 @@ func main() {
 			URL: serverURL, NodeName: nodeName, TokenPath: tokenPath, Log: logger,
 			Hello: func() protocol.Hello {
 				return protocol.Hello{
-					DaemonVersion: version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Disk: diskReport(),
+					DaemonVersion: version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(),
 				}
 			},
@@ -247,7 +258,7 @@ func main() {
 				metrics.MemoryUsedBytes.Set(float64(used))
 				metrics.DiskSandboxesBytes.Set(float64(report.SandboxesBytes))
 				metrics.DiskAvailableBytes.Set(float64(report.AvailableBytes))
-				return protocol.Report{Sandboxes: manager.List(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
+				return protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: manager.List(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
 			},
 			Handler: func(ctx context.Context, cmd protocol.Command, stream func(protocol.Stream)) protocol.Result {
 				return sandbox.Dispatch(ctx, manager, cmd, stream)
@@ -257,6 +268,11 @@ func main() {
 			serverClient.Run(ctx)
 			close(serverDone)
 		}()
+		go watchMemoryLimit(ctx, capacity.MemoryBytes, func(limit uint64) {
+			metrics.MemoryBudgetBytes.Set(float64(limit))
+			logger.Info("memory limit changed", "memory_bytes", limit)
+			serverClient.ReportNow()
+		})
 	} else {
 		close(serverDone)
 		logger.Info("SERVER_URL not set; running admin-only")
@@ -335,4 +351,28 @@ func durationEnv(logger *slog.Logger, key string, fallback time.Duration) time.D
 		os.Exit(1)
 	}
 	return parsed
+}
+
+// memoryLimitPollInterval is how often the daemon rereads its cgroup's
+// memory limit. The server resizes the Pod in place and waits for the new
+// limit to be reported before it places a guest into it.
+const memoryLimitPollInterval = time.Second
+
+// watchMemoryLimit calls changed whenever the cgroup's memory limit moves
+// away from the last value seen.
+func watchMemoryLimit(ctx context.Context, initial uint64, changed func(uint64)) {
+	ticker := time.NewTicker(memoryLimitPollInterval)
+	defer ticker.Stop()
+	last := initial
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if limit := hostinfo.Capacity().MemoryBytes; limit != last {
+				last = limit
+				changed(limit)
+			}
+		}
+	}
 }
