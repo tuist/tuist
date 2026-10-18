@@ -51,6 +51,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
+                 "/substrate",
                  "/tests"
                ] ++ @comparison_paths ++ @build_system_paths
              )
@@ -64,6 +65,62 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       refute markdown =~ "<script"
       refute markdown =~ "<html"
     end
+  end
+
+  test "substrate connects fragmented tools without requiring compute migration or feature parity" do
+    markdown = MarketingMarkdown.get("/substrate")
+
+    assert markdown =~ "# Tuist: the developer velocity substrate"
+    refute markdown =~ "productivity"
+    assert markdown =~ "not just a CI save/restore step"
+    assert markdown =~ "separate services and contracts"
+    assert markdown =~ "Tuist also meters feature usage"
+    assert markdown =~ "not a claim that every CI provider lacks"
+    assert markdown =~ "native toolchain understanding"
+    assert markdown =~ "## One platform, instead of piecing it together"
+    assert markdown =~ "rather than serving only as a connector over other vendors"
+    assert markdown =~ "without standardizing every team's toolchain"
+    assert markdown =~ "not just fewer contracts"
+    assert markdown =~ "Choose the build system that fits your team, your project, and how you want to work"
+    assert markdown =~ "Insights, test optimization, caching, and compute are core platform capabilities"
+    assert markdown =~ "not an add-on reserved for our runners"
+    assert markdown =~ "or that consolidation guarantees lower costs"
+    assert markdown =~ "moving compute is a separate choice, not a prerequisite"
+    assert markdown =~ "Supported capabilities vary by toolchain"
+    assert markdown =~ "## Fluid environments, a shared foundation"
+    assert markdown =~ "a sandbox supplied by an agent platform"
+
+    for name <- ["Local environments", "CI environments", "Agentic coding environments"] do
+      assert markdown =~ name
+    end
+
+    assert markdown =~ "not a promise of universal sandbox integration or cache portability"
+    assert markdown =~ "compatible inputs, toolchains, platforms"
+    assert markdown =~ "not a claim that every shared-module edit"
+    assert markdown =~ "Rust compilation caching is experimental"
+    assert markdown =~ "reuse across different checkout paths is not supported yet"
+    assert markdown =~ "measure feedback time, reliability, and resource use"
+  end
+
+  test "substrate stages link to documented features with explicit requirements" do
+    markdown = MarketingMarkdown.get("/substrate")
+
+    for feature <- [
+          "build-insights",
+          "test-insights",
+          "selective-testing",
+          "test-insights/flaky-tests",
+          "cache",
+          "test-sharding",
+          "runners"
+        ] do
+      assert markdown =~ "/en/docs-markdown/guides/features/" <> feature
+    end
+
+    assert markdown =~ "requires generated Xcode projects"
+    assert markdown =~ "capabilities vary by toolchain"
+    assert markdown =~ "bring compute into the same platform and are currently invite-only"
+    assert markdown =~ "managed compute is not required"
   end
 
   test "links to documentation that exists in the checkout" do

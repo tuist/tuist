@@ -88,10 +88,15 @@ developers_items = [
   }
 ]
 
-# Ordered for the dropdown's column-flow 2-column grid: left column is
-# About/Public dashboard/Customers, right column
-# Slack/Newsletter/GitHub/Community forum.
+# Ordered for the dropdown's column-flow 2-column grid: approach/company
+# links in the left column, community links in the right column.
 resources_items = [
+  %{
+    icon: :versions,
+    title: dgettext("marketing", "Our approach"),
+    subtitle: dgettext("marketing", "Developer productivity, through every layer"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/substrate")
+  },
   %{
     icon: :users,
     title: dgettext("marketing", "About"),

@@ -1,0 +1,314 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-substrate">
+    <header data-part="hero">
+      <div data-part="hero-copy">
+        <span data-part="eyebrow">{dgettext("marketing", "The Velocity Substrate")}</span>
+        <h1>
+          {dgettext("marketing", "Developer velocity,")}
+          <em>{dgettext("marketing", "through every layer.")}</em>
+        </h1>
+        <p data-part="lead">
+          {dgettext(
+            "marketing",
+            "Build and test insights, caching, and compute in one platform. Help your teams ship with less waiting and less repeated work, without replacing the tools they build with."
+          )}
+        </p>
+        <a href="#approach" data-part="text-link">
+          {dgettext("marketing", "See our approach")} <span aria-hidden="true">↓</span>
+        </a>
+      </div>
+      <figure data-part="stack" aria-labelledby="substrate-stack-caption">
+        <figcaption id="substrate-stack-caption" data-part="diagram-label">
+          {dgettext("marketing", "The system behind every build and test")}
+        </figcaption>
+        <ol data-part="stack-layers">
+          <li>
+            <span data-part="layer-number">01</span>
+            <div>
+              <strong>{dgettext("marketing", "Action")}</strong>
+              <span>{dgettext("marketing", "Build. Test. Validate.")}</span>
+            </div>
+            <span data-part="layer-symbol" aria-hidden="true">↗</span>
+          </li>
+          <li>
+            <span data-part="layer-number">02</span>
+            <div>
+              <strong>{dgettext("marketing", "Project")}</strong>
+              <span>{dgettext("marketing", "Code. Modules. Dependencies.")}</span>
+            </div>
+            <span data-part="layer-symbol" aria-hidden="true">◇</span>
+          </li>
+          <li>
+            <span data-part="layer-number">03</span>
+            <div>
+              <strong>{dgettext("marketing", "Build system")}</strong>
+              <span>{dgettext("marketing", "Decide what needs to run.")}</span>
+            </div>
+            <span data-part="layer-symbol" aria-hidden="true">⋈</span>
+          </li>
+          <li>
+            <span data-part="layer-number">04</span>
+            <div>
+              <strong>{dgettext("marketing", "Infrastructure")}</strong>
+              <span>{dgettext("marketing", "Compute. Environments. Storage.")}</span>
+            </div>
+            <span data-part="layer-symbol" aria-hidden="true">▦</span>
+          </li>
+        </ol>
+        <p data-part="stack-note">
+          <span data-part="connection-dot" aria-hidden="true"></span>
+          {dgettext("marketing", "Tuist connects the layers. It doesn’t replace them.")}
+        </p>
+      </figure>
+    </header>
+
+    <section data-part="thesis" aria-labelledby="substrate-thesis-title">
+      <span data-part="eyebrow">{dgettext(
+        "marketing",
+        "Invest in less work, not just faster machines"
+      )}</span>
+      <h2 id="substrate-thesis-title">
+        {dgettext("marketing", "Buying more compute is easy. Needing less takes understanding.")}
+      </h2>
+      <div data-part="editorial-copy">
+        <p>
+          {dgettext(
+            "marketing",
+            "Faster machines can help. But if teams are repeating work or rebuilding more than a change requires, more capacity can increase spend without fixing the cause."
+          )}
+        </p>
+        <p>
+          {dgettext(
+            "marketing",
+            "Compute is straightforward to sell. Understanding each project and build system takes deeper investment, and helping you use less compute is a different economic goal from selling more of it."
+          )}
+        </p>
+        <p data-part="conclusion">
+          {dgettext(
+            "marketing",
+            "We also offer compute. Our starting point is to help you understand and reduce unnecessary work, wherever you choose to run it."
+          )}
+        </p>
+      </div>
+    </section>
+
+    <section data-part="breadth" aria-labelledby="substrate-breadth-title">
+      <div data-part="section-heading">
+        <span data-part="eyebrow">{dgettext("marketing", "One platform across your organization")}</span>
+        <h2 id="substrate-breadth-title">
+          {dgettext("marketing", "One platform, instead of piecing it together.")}
+        </h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "Separate tools for build insights, test reliability, caching, and compute leave your organization managing the contracts, integrations, and gaps between them."
+          )}
+        </p>
+        <p>
+          {dgettext(
+            "marketing",
+            "Choose the build system that fits your team, your project, and how you want to work. Tuist brings these capabilities together with native toolchain understanding, so your platform can be shared without forcing every team to build the same way."
+          )}
+        </p>
+      </div>
+      <div data-part="breadth-map">
+        <div
+          data-part="toolchains"
+          aria-label={dgettext("marketing", "Build systems and languages")}
+        >
+          <span data-part="toolchain">
+            <span data-part="toolchain-icon" aria-hidden="true"><.icon name="brand_apple" /></span>
+            Xcode
+          </span>
+          <span data-part="toolchain">
+            <span data-part="toolchain-icon" aria-hidden="true"><.icon name="brand_gradle" /></span>
+            Gradle
+          </span>
+          <span data-part="toolchain">
+            <span data-part="toolchain-icon" aria-hidden="true"><.icon name="brand_bazel" /></span>
+            Bazel
+          </span>
+          <span data-part="toolchain">
+            <span data-part="toolchain-icon" aria-hidden="true"><.icon name="brand_elixir" /></span>
+            Elixir
+          </span>
+          <span data-part="toolchain">
+            <span data-part="toolchain-icon" aria-hidden="true"><.icon name="brand_rust" /></span>
+            Rust
+          </span>
+        </div>
+        <div data-part="shared-foundation">
+          <span data-part="connection-dot" aria-hidden="true"></span>
+          <strong>Tuist</strong>
+          <span data-part="platform-summary">{dgettext(
+            "marketing",
+            "One platform for developer velocity."
+          )}</span>
+          <ul
+            data-part="platform-capabilities"
+            aria-label={dgettext("marketing", "Platform capabilities")}
+          >
+            <li>{dgettext("marketing", "Build and test insights")}</li>
+            <li>{dgettext("marketing", "Test optimization")}</li>
+            <li>{dgettext("marketing", "Shared caching")}</li>
+            <li>{dgettext("marketing", "Compute")}</li>
+          </ul>
+        </div>
+        <div data-part="environments" aria-label={dgettext("marketing", "Execution environments")}>
+          <span>{dgettext("marketing", "Local environments")}</span>
+          <span>{dgettext("marketing", "CI environments")}</span>
+          <span>{dgettext("marketing", "Agentic coding environments")}</span>
+        </div>
+      </div>
+      <div data-part="environment-portability" aria-labelledby="substrate-portability-title">
+        <h3 id="substrate-portability-title">
+          {dgettext("marketing", "Change environments, not your foundation.")}
+        </h3>
+        <div data-part="editorial-copy">
+          <p>
+            {dgettext(
+              "marketing",
+              "Work can move from a laptop to CI to a sandbox provided by an agent platform. Caching and insights should follow the project, rather than be tied to the provider hosting a particular run."
+            )}
+          </p>
+          <p>
+            {dgettext(
+              "marketing",
+              "Caching is a core part of Tuist, not an add-on reserved for our runners. Your teams can share cached work across supported environments, including infrastructure you run yourself or buy elsewhere."
+            )}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="approach" data-part="principles" aria-labelledby="substrate-principles-title">
+      <div data-part="section-heading">
+        <span data-part="eyebrow">{dgettext("marketing", "How to get started")}</span>
+        <h2 id="substrate-principles-title">
+          {dgettext("marketing", "Project first. Environment second.")}
+        </h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "Start with insights or caching on your existing infrastructure. Moving compute is a separate choice, not a prerequisite."
+          )}
+        </p>
+      </div>
+      <ol data-part="principle-steps">
+        <li>
+          <span data-part="layer-number">01</span>
+          <h3>{dgettext("marketing", "Understand")}</h3>
+          <p>
+            {dgettext(
+              "marketing",
+              "See where teams lose time to slow builds, failed tests, and repeated work."
+            )}
+          </p>
+          <ul data-part="feature-links">
+            <li>
+              <a href={localized_href("https://tuist.dev/en/docs/guides/features/build-insights")}>
+                {dgettext("marketing", "Build Insights")}
+              </a>
+            </li>
+            <li>
+              <a href={localized_href("https://tuist.dev/en/docs/guides/features/test-insights")}>
+                {dgettext("marketing", "Test Insights")}
+              </a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <span data-part="layer-number">02</span>
+          <h3>{dgettext("marketing", "Improve")}</h3>
+          <p>
+            {dgettext(
+              "marketing",
+              "Use that evidence to simplify project structure and address unreliable tests. Your team makes the changes; insights guide them."
+            )}
+          </p>
+          <ul data-part="feature-links">
+            <li>
+              <a href={
+                localized_href(
+                  "https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests"
+                )
+              }>
+                {dgettext("marketing", "Flaky-test management")}
+              </a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <span data-part="layer-number">03</span>
+          <h3>{dgettext("marketing", "Reuse")}</h3>
+          <p>
+            {dgettext(
+              "marketing",
+              "Reuse compatible build outputs and previous successful test runs, so unchanged work does not have to run again."
+            )}
+          </p>
+          <ul data-part="feature-links">
+            <li>
+              <a href={localized_href("https://tuist.dev/en/docs/guides/features/cache")}>
+                {dgettext("marketing", "Remote caching")}
+              </a>
+            </li>
+            <li>
+              <a href={
+                localized_href("https://tuist.dev/en/docs/guides/features/selective-testing")
+              }>
+                {dgettext("marketing", "Selective testing")}
+              </a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <span data-part="layer-number">04</span>
+          <h3>{dgettext("marketing", "Execute")}</h3>
+          <p>
+            {dgettext(
+              "marketing",
+              "Distribute the remaining tests and run builds on infrastructure designed for the work. Bring execution into the same platform as your insights and caching."
+            )}
+          </p>
+          <ul data-part="feature-links">
+            <li>
+              <a href={localized_href("https://tuist.dev/en/docs/guides/features/test-sharding")}>
+                {dgettext("marketing", "Test sharding")}
+              </a>
+            </li>
+            <li>
+              <a href={localized_href("https://tuist.dev/en/docs/guides/features/runners")}>
+                {dgettext("marketing", "Runners")}
+              </a>
+              <span data-part="feature-requirement">{dgettext("marketing", "Invite-only")}</span>
+            </li>
+          </ul>
+        </li>
+      </ol>
+    </section>
+
+    <section data-part="closing" aria-labelledby="substrate-closing-title">
+      <span data-part="eyebrow">{dgettext("marketing", "Start small")}</span>
+      <h2 id="substrate-closing-title">
+        {dgettext("marketing", "Start with one team. Expand with evidence.")}
+      </h2>
+      <p>
+        {dgettext(
+          "marketing",
+          "Pick a representative build or test workflow. Measure feedback time, reliability, and resource use, then improve the bottleneck. Expand when the results justify it, not because the platform requires a migration."
+        )}
+      </p>
+      <div data-part="closing-actions">
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          variant="primary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+        <a href={localized_href("https://tuist.dev/en/docs/")} data-part="text-link">
+          {dgettext("marketing", "Explore the docs")} <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

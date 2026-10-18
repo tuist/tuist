@@ -19,10 +19,10 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
 
-  plug :assign_default_head_tags
-  plug :put_agent_discovery_links when action in [:home]
-  plug :put_resp_header_cache_control
-  plug :put_resp_header_server
+  plug(:assign_default_head_tags)
+  plug(:put_agent_discovery_links when action in [:home])
+  plug(:put_resp_header_cache_control)
+  plug(:put_resp_header_server)
 
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
@@ -812,6 +812,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/previews",
     "/download",
     "/about",
+    "/substrate",
     "/brand",
     "/newsletter"
   ]
@@ -1046,6 +1047,25 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
 
     render(conn, :pricing, layout: false)
+  end
+
+  def substrate(conn, _params) do
+    conn
+    |> assign(:head_title, dgettext("marketing", "The Velocity Substrate · Tuist"))
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Build and test insights, caching, and compute in one platform. Improve developer velocity without replacing the tools your teams build with."
+      )
+    )
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {"Tuist", Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "The Velocity Substrate"), Tuist.Environment.app_url(path: ~p"/substrate")}
+      ])
+    )
+    |> render(:substrate, layout: false)
   end
 
   def compute(conn, _params) do
