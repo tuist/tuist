@@ -77,7 +77,8 @@
                     target: target,
                     includeExternalDependencies: inspectType == .implicit,
                     excludeAppDependenciesForTests: inspectType == .redundant,
-                    excludeEmbeddableWatchApps: inspectType == .redundant
+                    excludeEmbeddableWatchApps: inspectType == .redundant,
+                    excludeMacOSEmbeddedProducts: inspectType == .redundant
                 )
 
                 let observedImports = switch inspectType {
@@ -99,7 +100,8 @@
             target: GraphTarget,
             includeExternalDependencies: Bool,
             excludeAppDependenciesForTests: Bool,
-            excludeEmbeddableWatchApps: Bool
+            excludeEmbeddableWatchApps: Bool,
+            excludeMacOSEmbeddedProducts: Bool
         ) -> Set<String> {
             let targetDependencies = if includeExternalDependencies {
                 graphTraverser
@@ -115,6 +117,19 @@
                 }
                 .filter { dependency in
                     dependency.target.product != .macro
+                }
+                .filter { dependency in
+                    guard excludeMacOSEmbeddedProducts,
+                          target.target.product == .app,
+                          target.target.supports(.macOS)
+                    else { return true }
+
+                    switch dependency.target.product {
+                    case .app, .commandLineTool, .systemExtension, .xpc:
+                        return false
+                    default:
+                        return true
+                    }
                 }
                 .filter { dependency in
                     switch target.target.product {
