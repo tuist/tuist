@@ -10,7 +10,7 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
-fixture="$(cd "$(dirname "$0")/fixture" && pwd)"
+fixture="$(cd "$(dirname "$0")/project" && pwd)"
 work="${RUNNER_TEMP:-$(mktemp -d)}/runners-acceptance"
 rm -rf "${work}"
 mkdir -p "${work}"
