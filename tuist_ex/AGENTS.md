@@ -72,24 +72,38 @@ in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credentia
 file and uses the command line tool's refresh lock path. With `--cover`, `mix tuist.test` reports line coverage (`Analytics.Coverage`)
 with every run, and on CI or with `--cover` the Git history (`Analytics.GitHistory.enabled?/2`, off with
 `TUIST_GIT_UPLOAD_ENABLED=false`), so the formatter runs in `{:defer, owner}`
-mode then. The formatter reads `cover`'s counters at
+mode then. The formatter reads the counters at
 `suite_finished`: every test has run, and Mix's coverage tool has neither
 written its report nor, in an umbrella, restarted `cover` for the next
-application. It never wraps or replaces the project's `test_coverage` tool,
-so `mix test`'s report, threshold and excoveralls keep working. A run is
+application. A run is
 partial only when its own arguments pick tests; the files a shard appends are
-not counted. `mix tuist.test.build --cover` recompiles the build's modules
-from their debug info with `line_coverage` (`Coverage.instrument/1`; the
-Elixir compiler skips the pass that adds the counters), keeping chunks only
-Elixir writes, and marks the build. A shard of it switches the runtime to line
+not counted. Every `--cover` run, sharded or not, counts natively: it compiles
+the project as `mix test` would, recompiles the modules from their debug info
+with `line_coverage` (`Coverage.instrument/1`; the Elixir compiler skips the
+pass that adds the counters), keeping chunks only Elixir writes and skipping
+modules that already carry the counters, so `mix tuist.test.build --cover`
+does it once for every shard. It then switches the runtime to line
 counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
 boot only to explicitly loaded code, so every module of the build is loaded
 then, before the application starts) and drops Mix's `--cover` and
-`--export-coverage`; the
+`--export-coverage`. It then does what Mix's tool would print and enforce
+itself: the formatter reads `Coverage.module_lines/1` at `suite_finished`
+(Mimic swaps its copies back after the suite) into the deferred payload, and
+the task prints Mix's per-module summary (`Analytics.CoverageSummary`) after
+the run and registers `exit({:shutdown, 3})` below `summary: [threshold: N]`
+(90 by default; `summary: false` turns both off); shards get neither, retries
+keep the first run's counts, and a project setting `:output` is warned that no
+HTML is written. An
+umbrella's root, a runtime without the JIT, and a project that sets its own
+`test_coverage` tool (excoveralls) keep Mix's tool and read `cover`'s
+counters; a shard doing so exports instead of meeting the threshold. The
 formatter's `init`, which runs after the test helper and before any test,
-cover compiles only the modules Mimic marked to copy (Mimic carries a cover
-compiled module's counts across its swaps, while a reload resets native
-counters), and the snapshot merges `cover`'s counts with the native ones of
+cover compiles only the modules Mimic marked to copy (`Mimic.Coordinator` on
+Mimic 2.4+, `Mimic.Server` before) and has Mimic swap them right away
+(`Mimic.calls(module, :module_info, 0)`), as `Mimic.copy` does for a module
+Mix's tool already compiled: at a later first stub, Mimic would export the
+calls made before it until after the suite (Mimic carries a cover compiled
+module's counts across its swaps, while a reload resets native counters), and the snapshot merges `cover`'s counts with the native ones of
 every other module of the build, loading those the run never did. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
 test paths are test code. A line belongs to the function whose clause head

@@ -37,16 +37,28 @@ defmodule Mix.Tasks.Tuist.Test do
   process. Then use `--no-download` to run the shard against that prepared
   build. Both options require a shard index.
 
-  With `--cover`, a shard of a build `mix tuist.test.build --cover`
-  instrumented counts lines with the runtime's native counters, which the
-  task switches on: Mix's coverage tool, and with it its report, is left out,
-  and only the modules Mimic copies are cover compiled. A runtime without the
-  JIT cannot count natively and uses Mix's coverage tool; on a shard, that
-  tool exports the coverage (`--export-coverage shard-<index>`, unless one is
-  given) instead of holding the shard to the project's threshold.
+  On a shard that uses Mix's coverage tool (see "Coverage"), the tool exports
+  the coverage (`--export-coverage shard-<index>`, unless one is given)
+  instead of holding the shard to the project's threshold.
 
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
+
+  ## Coverage
+
+  With `--cover`, the run's line coverage is reported with it. The task
+  compiles the project, recompiles the modules a compile wrote since the last
+  run with the runtime's native line counters (a build
+  `mix tuist.test.build --cover` made needs none), switches the counters on
+  and counts with them. Mix's coverage tool, which would compile every module
+  for `cover` again, is left out; only the modules Mimic copies are cover
+  compiled. Its summary and threshold are kept: the task prints each
+  module's coverage once the suite finishes and fails the run (exit status 3)
+  below `test_coverage: [summary: [threshold: N]]`, 90 unless set
+  (`summary: false` turns both off). A shard is never held to the threshold.
+  No HTML report is written, and setting `:output` warns. An umbrella's root, a project
+  that sets its own `test_coverage` tool, such as excoveralls, and a runtime
+  without the JIT, which cannot count natively, use Mix's coverage tool.
 
   ## Retrying failed tests
 
@@ -68,6 +80,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Coverage
+  alias TuistEx.Analytics.CoverageSummary
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
@@ -211,30 +224,68 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  # A shard of a build `mix tuist.test.build --cover` instrumented counts with
-  # the runtime's native line counters, without Mix's coverage tool, which
-  # would compile every module for `cover` again. A run that is no shard keeps
-  # Mix's tool, its report and threshold, even on a build instrumented in place.
+  # A run with coverage counts with the runtime's native line counters,
+  # without Mix's coverage tool, which would compile every module for `cover`
+  # again. The project is compiled first, as `mix test` would, and what the
+  # compile wrote is instrumented: a build `mix tuist.test.build --cover`
+  # instrumented needs nothing. An umbrella's root, whose children each run
+  # their own suite, a project that sets its own coverage tool, such as
+  # excoveralls, which reads `cover`, and a runtime that cannot count
+  # natively keep Mix's tool.
   defp native_coverage(options, test_args) do
     cond do
-      options[:coverage] != true or options[:prepare_only] == true or
-          is_nil(options[:shard_index]) ->
+      options[:coverage] != true or options[:prepare_only] == true or Mix.Project.umbrella?() ->
         {options, test_args}
 
-      not Coverage.native_build?(Mix.Project.compile_path()) ->
+      get_in(Mix.Project.config(), [:test_coverage, :tool]) not in [nil, Mix.Tasks.Test.Coverage] ->
         {options, test_args}
 
-      not Coverage.enable_native(Mix.Project.compile_path()) ->
+      not :code.coverage_support() ->
         Mix.shell().info(
-          "warning: the build was instrumented for native coverage, but this runtime cannot count " <>
-            "natively (it needs the JIT). Mix's coverage tool runs instead."
+          "warning: this runtime cannot count coverage natively (it needs the JIT). " <>
+            "Mix's coverage tool runs instead."
         )
 
         {options, test_args}
 
       true ->
-        Mix.shell().info("Tuist: counting coverage natively in the instrumented build")
-        {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
+        if "--no-compile" not in test_args do
+          Application.put_env(
+            :tuist_ex,
+            :analytics_options,
+            Keyword.take(options, [:url, :project])
+          )
+
+          Mix.Task.run("compile", test_args -- ["--warnings-as-errors"])
+        end
+
+        compile_path = Mix.Project.compile_path()
+        Coverage.instrument([compile_path, Mix.Project.consolidation_path()])
+
+        if Coverage.enable_native(compile_path) do
+          warn_if_coverage_output()
+
+          options =
+            Keyword.merge(options,
+              coverage_native: true,
+              coverage_summary: CoverageSummary.options(options[:shard_index])
+            )
+
+          {options, Coverage.without_cover(test_args)}
+        else
+          {options, test_args}
+        end
+    end
+  end
+
+  # Mix's coverage tool writes an HTML report to `:output`; counting natively
+  # writes none.
+  defp warn_if_coverage_output do
+    if Keyword.has_key?(Mix.Project.config()[:test_coverage] || [], :output) do
+      Mix.shell().info(
+        "warning: counting coverage natively writes no HTML report, so :output is not used. " <>
+          "Run with --export-coverage and then mix test.coverage for one."
+      )
     end
   end
 
@@ -268,7 +319,7 @@ defmodule Mix.Tasks.Tuist.Test do
     try do
       run_test(test_args)
     after
-      submit_runs(ExUnitFormatter.take_deferred(), [], options, history)
+      submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), [], options, history)
     end
   end
 
@@ -276,8 +327,9 @@ defmodule Mix.Tasks.Tuist.Test do
     configure(Keyword.put(options, :mode, {:defer, self()}))
     history = collect_history(options)
     suite = run_suite(test_args)
-    # One per suite that ran: an umbrella runs one for each application.
-    deferred = ExUnitFormatter.take_deferred()
+    # One per suite that ran: an umbrella runs one for each application. The
+    # first run's coverage is the run's: retries never carry `--cover`.
+    deferred = summarize_coverage(ExUnitFormatter.take_deferred())
 
     # A suite cut short by `--max-failures` left tests unrun. Retrying the
     # failures it did reach could pass and hide the ones it never got to, so
@@ -292,6 +344,17 @@ defmodule Mix.Tasks.Tuist.Test do
 
     if suite == :failed, do: fail(test_args)
     :ok
+  end
+
+  # A run counting natively leaves Mix's coverage tool out, so its summary
+  # and threshold are printed and checked here, from the counts the formatter
+  # read when the suite finished.
+  defp summarize_coverage(deferred) do
+    Enum.map(deferred, fn {payload, opts, aborted?} ->
+      {lines, payload} = Map.pop(payload, :coverage_lines)
+      if lines, do: CoverageSummary.report(lines, opts[:coverage_summary])
+      {payload, opts, aborted?}
+    end)
   end
 
   # The commits and branch heads go up before the runs, whose ingestion reads

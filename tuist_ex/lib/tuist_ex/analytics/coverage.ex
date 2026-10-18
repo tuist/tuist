@@ -1,10 +1,11 @@
 defmodule TuistEx.Analytics.Coverage do
   @moduledoc false
 
-  # The line coverage of a `mix test --cover` run, read from Erlang's `cover`
-  # and shaped as the server's `coverage` block: one entry per source file of
-  # the repository, with the OTP application it belongs to, whether it is test
-  # code, and how many times each executable line ran.
+  # The line coverage of a `mix tuist.test --cover` run, read from the
+  # runtime's native line counters and Erlang's `cover`, and shaped as the
+  # server's `coverage` block: one entry per source file of the repository,
+  # with the OTP application it belongs to, whether it is test code, and how
+  # many times each executable line ran.
   #
   # The counters are read by the formatter when the suite finishes: every test
   # has run, and Mix's own coverage tool has not yet turned them into its
@@ -100,12 +101,37 @@ defmodule TuistEx.Analytics.Coverage do
     end
   end
 
+  @doc """
+  Whether each executable line of each of the project's modules ran, by
+  module, as Mix's coverage tool summarizes them: Mimic's copies count as
+  their originals, and the modules the configuration ignores are left out.
+  """
+  def module_lines(config \\ Mix.Project.config()) do
+    ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
+
+    case line_entries(config) do
+      nil ->
+        %{}
+
+      {entries, _calls} ->
+        entries
+        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
+        |> Enum.reduce(%{}, fn {{module, line}, count}, acc ->
+          Map.update(acc, original(module), %{line => count > 0}, fn lines ->
+            Map.update(lines, line, count > 0, &(&1 or count > 0))
+          end)
+        end)
+        |> Map.reject(fn {module, _lines} -> ignored?(module, ignored) end)
+    end
+  end
+
   # The counters `cover` holds and, in a runtime counting natively, those of
   # the project's modules `cover` did not compile: a build `instrument/1`
   # prepared counts in its own code. Nil when nothing counts.
   defp line_entries(config) do
     cover? = Process.whereis(:cover_server) != nil
-    native? = :code.get_coverage_mode() != :none
+    # Without the JIT the runtime has no coverage mode to ask about: asking raises.
+    native? = :code.coverage_support() and :code.get_coverage_mode() != :none
 
     if cover? or native? do
       {cover_entries, compiled, calls} =
@@ -141,38 +167,41 @@ defmodule TuistEx.Analytics.Coverage do
         do: beam |> Path.basename(".beam") |> String.to_atom()
   end
 
-  @native_marker ".tuist-native-coverage"
-
   @doc """
-  Recompiles the modules of a build in `ebin` from their debug info with the
-  runtime's native line counters, as `cover` does at the start of every run,
-  so that a run counting natively (`enable_native/1`) needs to compile
-  nothing. The Elixir compiler leaves the counters out
-  even when asked for them, which is why this starts from the debug info.
-  The module keeps its own debug info, which protocol consolidation reads,
-  and the chunks only Elixir writes, such as the docs doctests read. A
-  module without debug info stays as it was and is listed in the marker the
-  build carries, so `native_build?/1` can tell the build is ready. Returns
-  how many modules were instrumented and the ones that could not be.
+  Recompiles the modules in the build directories `dirs`, the compile path
+  and the consolidated protocols', from their debug info with the
+  runtime's native line counters, so that a run counting natively
+  (`enable_native/1`) compiles nothing for `cover`, which recompiles every
+  module at the start of each run. A module that already carries the
+  counters is left as it is, so only what a compile wrote since is
+  recompiled. The Elixir compiler leaves the counters out even when asked
+  for them, which is why this starts from the debug info. The module keeps
+  its own debug info, which protocol consolidation reads, and the chunks
+  only Elixir writes, such as the docs doctests read. A module without debug
+  info stays as it was. Returns how many modules were instrumented and the
+  ones that could not be.
   """
-  def instrument(ebin) do
+  def instrument(dirs) do
     results =
-      ebin
-      |> Path.join("*.beam")
-      |> Path.wildcard()
+      dirs
+      |> List.wrap()
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "*.beam")))
       |> Task.async_stream(&{&1, instrument_beam(&1)}, timeout: :infinity, ordered: false)
       |> Enum.map(fn {:ok, result} -> result end)
 
-    skipped = for {path, false} <- results, do: Path.basename(path)
-    File.write!(Path.join(ebin, @native_marker), Enum.join(skipped, "\n"))
-    {length(results) - length(skipped), skipped}
+    {Enum.count(results, &(elem(&1, 1) == :instrumented)),
+     for({path, :skipped} <- results, do: Path.basename(path))}
   end
 
   defp instrument_beam(path) do
     beam = String.to_charlist(path)
 
-    with {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}, compile_info: info]}} <-
-           :beam_lib.chunks(beam, [:abstract_code, :compile_info]),
+    # Decoding Elixir's debug info is the costly part, so a module that
+    # already carries the counters is told apart by its compile options first.
+    with {:ok, {_module, [compile_info: info]}} <- :beam_lib.chunks(beam, [:compile_info]),
+         false <- :line_coverage in (info[:options] || []),
+         {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}]}} <-
+           :beam_lib.chunks(beam, [:abstract_code]),
          {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
@@ -183,9 +212,10 @@ defmodule TuistEx.Analytics.Coverage do
              chunks ++ Enum.reject(original, &MapSet.member?(ids, elem(&1, 0)))
            ) do
       File.write!(path, binary)
-      true
+      :instrumented
     else
-      _ -> false
+      true -> :already
+      _ -> :skipped
     end
   end
 
@@ -194,31 +224,6 @@ defmodule TuistEx.Analytics.Coverage do
   defp native_options(info) do
     options = Enum.reject(info[:options] || [], &(&1 in [:from_core, :no_core_prepare, :binary]))
     [:binary, :line_coverage, :debug_info, {:source, info[:source]} | options]
-  end
-
-  @doc """
-  Whether `instrument/1` prepared the build in `ebin`: every module it could
-  instrument still carries the counters, which a later compile would drop.
-  """
-  def native_build?(ebin) do
-    marker = Path.join(ebin, @native_marker)
-
-    with {:ok, contents} <- File.read(marker),
-         skipped = MapSet.new(String.split(contents, "\n", trim: true)),
-         [_ | _] = beams <- Path.wildcard(Path.join(ebin, "*.beam")) do
-      beams
-      |> Enum.reject(&MapSet.member?(skipped, Path.basename(&1)))
-      |> Enum.all?(&instrumented?/1)
-    else
-      _ -> false
-    end
-  end
-
-  defp instrumented?(path) do
-    case :beam_lib.chunks(String.to_charlist(path), [:compile_info]) do
-      {:ok, {_module, [compile_info: info]}} -> :line_coverage in (info[:options] || [])
-      _ -> false
-    end
   end
 
   @doc """
@@ -252,17 +257,18 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   Readies a run of an instrumented build once the test helper has run and
-  before any test does: the modules Mimic will copy are cover compiled.
-  Mimic swaps a module out the first time a test stubs it and back in after
-  the suite, and reloading a module resets its native counters; for a cover
-  compiled one it carries the counts across the swaps itself.
+  before any test does: the modules Mimic will copy are cover compiled and
+  swapped for Mimic's copies, as they are when Mix's coverage tool compiled
+  them before the test helper ran. Mimic swaps a module back after the suite,
+  and reloading a module resets its native counters; for a cover compiled one
+  it carries the counts across the swaps itself.
   """
   def prepare_native(config \\ Mix.Project.config()) do
-    case mimic_beams(config) do
+    case mimic_modules(config) do
       [] ->
         :ok
 
-      beams ->
+      modules ->
         Mix.ensure_application!(:tools)
 
         case :cover.start() do
@@ -270,24 +276,36 @@ defmodule TuistEx.Analytics.Coverage do
           {:error, {:already_started, _pid}} -> :ok
         end
 
-        Enum.each(beams, &:cover.compile_beam/1)
+        Enum.each(modules, fn {module, beam} ->
+          :cover.compile_beam(beam)
+          # Swapped now, as `Mimic.copy` does for a cover compiled module, and
+          # not at the first stub, which would export the calls made before
+          # it and only bring them back after the suite.
+          Mimic.calls(module, :module_info, 0)
+        end)
     end
   end
 
-  defp mimic_beams(config) do
-    if mimic?() do
-      for beam <- config |> Mix.Project.compile_path() |> Path.join("*.beam") |> Path.wildcard(),
-          module = beam |> Path.basename(".beam") |> String.to_atom(),
-          Mimic.Server.marked_to_copy?(module),
-          do: String.to_charlist(beam)
-    else
-      []
+  defp mimic_modules(config) do
+    case mimic_coordinator() do
+      nil ->
+        []
+
+      coordinator ->
+        for beam <- config |> Mix.Project.compile_path() |> Path.join("*.beam") |> Path.wildcard(),
+            module = beam |> Path.basename(".beam") |> String.to_atom(),
+            coordinator.marked_to_copy?(module),
+            do: {module, String.to_charlist(beam)}
     end
   end
 
-  defp mimic? do
-    Code.ensure_loaded?(Mimic.Server) and function_exported?(Mimic.Server, :marked_to_copy?, 1) and
-      Process.whereis(Mimic.Server) != nil
+  # Mimic 2.4 moved what it marks to copy from `Mimic.Server` to
+  # `Mimic.Coordinator`.
+  defp mimic_coordinator do
+    Enum.find([Mimic.Coordinator, Mimic.Server], fn coordinator ->
+      Code.ensure_loaded?(coordinator) and function_exported?(coordinator, :marked_to_copy?, 1) and
+        Process.whereis(coordinator) != nil
+    end)
   end
 
   @doc """
@@ -311,8 +329,8 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
-  The arguments for `mix test` without Mix's own coverage tool, which a run of
-  an instrumented build does not need: it would compile every module again.
+  The arguments for `mix test` without Mix's own coverage tool, which a run
+  counting natively does not need: it would compile every module again.
   """
   def without_cover(["--cover" | rest]), do: without_cover(rest)
   def without_cover(["--export-coverage", _name | rest]), do: without_cover(rest)
