@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -230,12 +231,21 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	if err := r.List(ctx, &pods, client.InNamespace(pool.Namespace), client.HasLabels{"tuist.dev/runner-pool"}); err != nil {
 		return false, fmt.Errorf("list runner pods: %w", err)
 	}
+	retired := r.retiredForSandboxes(now)
 	freeing := map[string]int64{}
+	for node, runners := range retired {
+		for _, runner := range runners {
+			freeing[node] += runner.memory
+		}
+	}
 	candidates := map[string][]sandboxCandidate{}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		node := pod.Spec.NodeName
 		if _, ok := deficits[node]; !ok {
+			continue
+		}
+		if _, remembered := retired[node][pod.UID]; remembered {
 			continue
 		}
 		if !isAlive(pod) {
@@ -282,6 +292,7 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		if err := r.Patch(ctx, pod, patch); err != nil && !apierrors.IsNotFound(err) {
 			return false, fmt.Errorf("mark pod %s for a sandbox growth: %w", pod.Name, err)
 		}
+		r.rememberRetiredForSandboxes(pod, now)
 	}
 
 	current := pool.Spec.Replicas
@@ -301,4 +312,49 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	logger.Info("retiring idle runners for a sandbox carve-out's growth",
 		"from", current, "to", target, "pods", len(mine), "nodes", len(deficits))
 	return true, nil
+}
+
+// retiredRunner is a runner retired for a sandbox growth, remembered after
+// it is gone: a retired Pod can leave the API before the kubelet has applied
+// the growth it made room for, and without the memory the next tick would
+// see the same growth waiting and retire another runner for it.
+type retiredRunner struct {
+	memory int64
+	at     time.Time
+}
+
+// retiredForSandboxes returns the runners retired for sandbox growths within
+// preemptionSettle, by node, dropping older ones.
+func (r *AutoscalerReconciler) retiredForSandboxes(now time.Time) map[string]map[types.UID]retiredRunner {
+	r.sandboxMu.Lock()
+	defer r.sandboxMu.Unlock()
+	out := map[string]map[types.UID]retiredRunner{}
+	for node, runners := range r.sandboxRetired {
+		for uid, runner := range runners {
+			if now.Sub(runner.at) >= preemptionSettle {
+				delete(runners, uid)
+				continue
+			}
+			if out[node] == nil {
+				out[node] = map[types.UID]retiredRunner{}
+			}
+			out[node][uid] = runner
+		}
+		if len(runners) == 0 {
+			delete(r.sandboxRetired, node)
+		}
+	}
+	return out
+}
+
+func (r *AutoscalerReconciler) rememberRetiredForSandboxes(pod *corev1.Pod, now time.Time) {
+	r.sandboxMu.Lock()
+	defer r.sandboxMu.Unlock()
+	if r.sandboxRetired == nil {
+		r.sandboxRetired = map[string]map[types.UID]retiredRunner{}
+	}
+	if r.sandboxRetired[pod.Spec.NodeName] == nil {
+		r.sandboxRetired[pod.Spec.NodeName] = map[types.UID]retiredRunner{}
+	}
+	r.sandboxRetired[pod.Spec.NodeName][pod.UID] = retiredRunner{memory: podMemory(pod), at: now}
 }

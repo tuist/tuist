@@ -242,3 +242,31 @@ func TestAutoscaler_LeavesRunnersAloneWithoutADeferredGrowth(t *testing.T) {
 		t.Fatalf("marked = %v, want none", marked)
 	}
 }
+
+func TestAutoscaler_RemembersARetiredRunnerAfterItLeavesTheAPI(t *testing.T) {
+	pool := linuxFleetPool("linux-8gb", 2, 8192, 0, 10)
+	r, c := sandboxFixture(t,
+		pool,
+		linuxNode("node-a", 64),
+		sandboxDaemonPod("sandboxd-a", "node-a", 9, 8, true),
+		idleLinuxRunner("idle-old", pool.Name, "node-a", 8, time.Hour),
+		idleLinuxRunner("idle-young", pool.Name, "node-a", 8, 10*time.Minute),
+	)
+
+	reconcileOnce(t, r, pool.Name)
+	if marked := markedPods(t, c, pool.Name); fmt.Sprint(marked) != "[idle-old=sandboxes]" {
+		t.Fatalf("marked = %v, want the oldest idle runner", marked)
+	}
+
+	// The retired Pod is gone before the kubelet applies the growth.
+	gone := &corev1.Pod{}
+	_ = c.Get(context.Background(), client.ObjectKey{Namespace: "tuist-runners", Name: "idle-old"}, gone)
+	if err := c.Delete(context.Background(), gone); err != nil {
+		t.Fatal(err)
+	}
+
+	reconcileOnce(t, r, pool.Name)
+	if marked := markedPods(t, c, pool.Name); len(marked) != 0 {
+		t.Fatalf("marked = %v, want no second runner for the same 1 GiB growth", marked)
+	}
+}
