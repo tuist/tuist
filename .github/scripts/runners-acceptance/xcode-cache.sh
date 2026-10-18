@@ -45,7 +45,10 @@ check_cache_errors() {
 build() {
   local name="$1" started pid status
   started=$(date +%s)
-  xcodebuild build \
+  # The runner image points XCODE_XCCONFIG_FILE at a compilation cache store on
+  # the job's cache volume, which outranks the per-build CAS path below and
+  # would serve the rebuild locally.
+  env -u XCODE_XCCONFIG_FILE xcodebuild build \
     -workspace RunnersAcceptance.xcworkspace \
     -scheme Feature \
     -destination 'generic/platform=macOS' \
@@ -94,7 +97,14 @@ while :; do
   check_cache_errors
   [ -n "${cacheable:-}" ] || fail "Xcode cache setup" "the rebuild printed no compilation cache summary"
   if [ "${cacheable}" -gt 0 ] && [ "${hits}" = "${cacheable}" ]; then
-    pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks (attempt ${attempt})"
+    # The proxy logs its counters every ten seconds.
+    for _ in $(seq 1 15); do
+      remote_hits="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | sed -n 's/.* remote_hits=\([0-9]*\).*/\1/p' | sort -n | tail -n 1)"
+      [ "${remote_hits:-0}" -gt 0 ] && break
+      sleep 2
+    done
+    [ "${remote_hits:-0}" -gt 0 ] || fail "Cache hits" "the rebuild reported ${hits} hits but the cache proxy fetched none of them from ${TUIST_CACHE_ENDPOINT:-the server-resolved cache} (remote_hits=${remote_hits:-unknown}), so they were served locally"
+    pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks, ${remote_hits} fetched from the remote cache (attempt ${attempt})"
     exit 0
   fi
   if [ "$(date +%s)" -ge "${deadline}" ] || [ "${attempt}" -ge 4 ]; then
