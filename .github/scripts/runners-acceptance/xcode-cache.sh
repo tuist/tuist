@@ -38,11 +38,14 @@ check_cache_errors() {
   fail "Kura data path" "the build or the cache proxy logged a cache error: ${line}"
 }
 
-# Sets hits and cacheable from xcodebuild's own summary line.
+# Sets hits and cacheable from xcodebuild's own summary line. A healthy build of
+# the project takes seconds, while a cache that answers nothing stalls every
+# lookup wave for minutes before missing, so a build past BUILD_TIMEOUT_SECONDS
+# is stopped and reported as a stall rather than waited out.
 build() {
-  local name="$1" started
+  local name="$1" started pid status
   started=$(date +%s)
-  if ! xcodebuild build \
+  xcodebuild build \
     -workspace RunnersAcceptance.xcworkspace \
     -scheme Feature \
     -destination 'generic/platform=macOS' \
@@ -50,7 +53,22 @@ build() {
     COMPILATION_CACHE_CAS_PATH="${work}/cas-${name}" \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO \
-    > "${work}/${name}.log" 2>&1; then
+    > "${work}/${name}.log" 2>&1 &
+  pid=$!
+  while kill -0 "${pid}" 2>/dev/null; do
+    if [ $(($(date +%s) - started)) -ge "${BUILD_TIMEOUT_SECONDS:-120}" ]; then
+      kill "${pid}" 2>/dev/null || true
+      wait "${pid}" 2>/dev/null || true
+      tail -n 30 "${work}/${name}.log"
+      tail -n 30 "${state_dir}/cas.log" 2>/dev/null || true
+      check_cache_errors
+      fail "Kura data path" "the ${name} build stalled for ${BUILD_TIMEOUT_SECONDS:-120}s, where a healthy one takes seconds; the cache at ${TUIST_CACHE_ENDPOINT:-the server-resolved endpoint} is not answering"
+    fi
+    sleep 2
+  done
+  status=0
+  wait "${pid}" || status=$?
+  if [ "${status}" -ne 0 ]; then
     tail -n 60 "${work}/${name}.log"
     check_cache_errors
     fail "Xcode build" "the ${name} build failed"
