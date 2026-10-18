@@ -3,6 +3,7 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.Origin
   alias Tuist.Origin.Client
@@ -41,6 +42,66 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
+  test "skips the chooser when only the personal account is eligible", %{conn: conn, user: user} do
+    member = AccountsFixtures.organization_fixture()
+    Accounts.add_user_to_organization(user, member)
+
+    conn = get(conn, ~p"/integrations/installation")
+
+    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
+    assert get_session(conn, :integration_installation) == nil
+    assert {:ok, %{installation_id: "12345"}} = VCS.get_github_app_installation_for_account(user.account.id)
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(member.account.id)
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+  end
+
+  test "rechecks authorization before automatically connecting the only eligible account", %{conn: conn, user: user} do
+    account_id = user.account.id
+    user_id = user.id
+
+    expect(Authorization, :authorize, fn :account_update, %{id: ^user_id}, %{id: ^account_id} -> :ok end)
+
+    expect(Authorization, :authorize, fn :account_update, %{id: ^user_id}, %{id: ^account_id} ->
+      {:error, :forbidden}
+    end)
+
+    assert_raise BadRequestError, fn -> get(conn, ~p"/integrations/installation") end
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(account_id)
+  end
+
+  test "automatically connects Origin only after revalidating the receipt", %{conn: conn, user: user, pending: pending} do
+    stub(Environment, :origin_app_id, fn -> "app_tuist" end)
+    conn = put_session(conn, :integration_installation, %{pending | provider: :origin, proof: "receipt"})
+
+    expect(Signatures, :verify_receipt, fn "receipt", nil ->
+      {:ok, %{"sub" => "i_verified", "namespace_id" => "ns_test"}}
+    end)
+
+    expect(Client, :get_installation, fn "i_verified" ->
+      {:ok,
+       %{"id" => "i_verified", "appId" => "app_tuist", "target" => %{"id" => "ns_test"}, "scopes" => Client.scopes()}}
+    end)
+
+    conn = get(conn, ~p"/integrations/installation")
+
+    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
+    assert get_session(conn, :integration_installation) == nil
+    assert [%{installation_id: "i_verified"}] = Origin.list_installations(user.account.id)
+  end
+
+  test "rejects expired Origin receipts even when the chooser would be skipped", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
+    conn = put_session(conn, :integration_installation, %{pending | provider: :origin, proof: "expired"})
+    expect(Signatures, :verify_receipt, fn "expired", nil -> {:error, :invalid_origin_receipt} end)
+    reject(&Client.get_installation/1)
+
+    assert_raise BadRequestError, fn -> get(conn, ~p"/integrations/installation") end
+    assert Origin.list_installations(user.account.id) == []
+  end
+
   test "connects GitHub to the selected organization and consumes the pending installation", %{conn: conn, user: user} do
     org = AccountsFixtures.organization_fixture(creator: user)
     conn = post(conn, ~p"/integrations/installation", account_id: to_string(org.account.id))
@@ -58,6 +119,10 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
         client_url: "https://github.example.com",
         private_key: "pending-ghes-private-key"
       )
+
+    assert_raise BadRequestError, ~r/different GitHub host/, fn ->
+      get(conn, ~p"/integrations/installation")
+    end
 
     assert_raise BadRequestError, ~r/different GitHub host/, fn ->
       post(conn, ~p"/integrations/installation", account_id: to_string(user.account.id))
@@ -120,6 +185,8 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
   test "does not transfer installations already attached to another account", %{conn: conn, user: user} do
     other = AccountsFixtures.account_fixture()
     VCSFixtures.github_app_installation_fixture(account_id: other.id, installation_id: "12345")
+
+    assert_raise BadRequestError, fn -> get(conn, ~p"/integrations/installation") end
 
     assert_raise BadRequestError, fn ->
       post(conn, ~p"/integrations/installation", account_id: to_string(user.account.id))

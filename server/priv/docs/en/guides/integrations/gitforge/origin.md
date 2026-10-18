@@ -15,7 +15,7 @@ Installing the app does not run builds or tests. Your existing workflows continu
 
 An administrator of the Tuist account should open **Settings → Integrations**, choose **Connect** in the Origin card, and approve access in Cursor. Choose the Origin account or namespace and repositories that Tuist should access, then return to Tuist. The connection belongs to the Tuist account, not an individual project.
 
-You can also install the app directly from Origin. After approving access, log in to Tuist if needed and choose the organization to connect. Only organizations you administer and your personal account are available. If you start from Tuist, the organization is already selected and this step is skipped.
+You can also install the app directly from Origin. After approving access, log in to Tuist if needed and choose the organization to connect. Only organizations you administer and your personal account are available. If only one account is available, Tuist connects it automatically without showing the chooser. If you start from Tuist, the organization is already selected and this step is skipped.
 
 Choose **Add new project connection** to open the repository selection modal. Select an unconnected Tuist project and one of the repositories discovered from the connected Origin account, then choose **Create Connection**. If multiple Origin accounts are connected, choose the account first. Only native Origin repositories are available for connection. Tuist verifies pull-request access again before connecting the project and adopts the repository's default branch.
 

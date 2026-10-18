@@ -157,7 +157,7 @@ msgid "Invalid GitHub app installation. Please try again."
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:132
-#: lib/tuist_web/controllers/integration_installation_controller.ex:105
+#: lib/tuist_web/controllers/integration_installation_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
 msgstr ""
@@ -3206,7 +3206,7 @@ msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Out
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:98
-#: lib/tuist_web/controllers/integration_installation_controller.ex:65
+#: lib/tuist_web/controllers/integration_installation_controller.ex:87
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub App registered for a different GitHub host."
 msgstr ""

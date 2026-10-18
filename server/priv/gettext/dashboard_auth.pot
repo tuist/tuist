@@ -700,7 +700,7 @@ msgstr ""
 msgid "Choose an organization"
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_controller.ex:45
+#: lib/tuist_web/controllers/integration_installation_controller.ex:53
 #, elixir-autogen, elixir-format
 msgid "Choose an organization · Tuist"
 msgstr ""
