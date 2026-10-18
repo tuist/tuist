@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
@@ -35,6 +36,11 @@ const (
 
 	maxExecStreamBytes = 2 << 20
 )
+
+// reclaimMemory serves the reclaim command the server sends before it
+// shrinks the daemon's Pod. A variable so tests do not touch the host's
+// cgroup.
+var reclaimMemory = hostinfo.Reclaim
 
 // Dispatch runs one command and returns its single result. stream receives
 // exec output frames before the result.
@@ -152,6 +158,12 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 			return protocol.ErrorResult(cmd.ID, err)
 		}
 		return protocol.OKResult(cmd.ID, info)
+	case protocol.OpReclaim:
+		var args protocol.ReclaimArgs
+		if err := decode(&args); err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		return protocol.OKResult(cmd.ID, reclaimMemory(args.TargetBytes))
 	default:
 		return protocol.ErrorResult(cmd.ID, fmt.Errorf("unknown op %q", cmd.Op))
 	}

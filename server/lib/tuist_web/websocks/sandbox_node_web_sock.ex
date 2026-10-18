@@ -25,6 +25,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
   defp empty_info do
     %{
       capacity: %{},
+      elastic: %{},
       memory: %{},
       disk: %{},
       templates: [],
@@ -182,6 +183,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
   defp merge_info(info, frame) do
     info
     |> maybe_merge(:capacity, frame["capacity"], &capacity/1)
+    |> maybe_merge(:elastic, frame["elastic"], &elastic/1)
     |> maybe_merge(:memory, frame["memory"], &memory/1)
     |> maybe_merge(:disk, frame["disk"], &disk/1)
     |> maybe_merge(:templates, frame["templates"], &templates/1)
@@ -195,6 +197,16 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp capacity(%{} = capacity), do: %{memory_bytes: capacity["memory_bytes"], cpus: capacity["cpus"]}
   defp capacity(_capacity), do: %{}
+
+  defp elastic(%{} = elastic) do
+    %{
+      pod_name: elastic["pod_name"],
+      memory_floor_bytes: elastic["memory_floor_bytes"],
+      memory_ceiling_bytes: elastic["memory_ceiling_bytes"]
+    }
+  end
+
+  defp elastic(_elastic), do: %{}
 
   defp memory(%{} = memory), do: %{used_bytes: memory["used_bytes"]}
   defp memory(_memory), do: %{}

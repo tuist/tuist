@@ -28,6 +28,7 @@ const (
 	OpStartWorker = "start_worker"
 	OpStopWorker  = "stop_worker"
 	OpStatus      = "status"
+	OpReclaim     = "reclaim"
 )
 
 const (
@@ -53,6 +54,27 @@ type Envelope struct {
 type Capacity struct {
 	MemoryBytes uint64 `json:"memory_bytes"`
 	CPUs        int    `json:"cpus"`
+}
+
+// Elastic describes how far the server may resize the daemon's Pod: from
+// the floor the chart requests up to the ceiling, in place, through the
+// Pod's resize subresource. A zero ceiling, or one not above the floor,
+// keeps the memory limit fixed.
+type Elastic struct {
+	PodName            string `json:"pod_name,omitempty"`
+	MemoryFloorBytes   uint64 `json:"memory_floor_bytes,omitempty"`
+	MemoryCeilingBytes uint64 `json:"memory_ceiling_bytes,omitempty"`
+}
+
+type ReclaimArgs struct {
+	TargetBytes uint64 `json:"target_bytes"`
+}
+
+// ReclaimResult is the cgroup after a reclaim: its limit and what it still
+// charges, page cache included.
+type ReclaimResult struct {
+	MemoryBytes uint64 `json:"memory_bytes"`
+	UsedBytes   uint64 `json:"used_bytes"`
 }
 
 // DiskReport describes the filesystem behind the data directory and what
@@ -108,6 +130,7 @@ type Hello struct {
 	DaemonVersion      string         `json:"daemon_version"`
 	FirecrackerVersion string         `json:"firecracker_version"`
 	Capacity           Capacity       `json:"capacity"`
+	Elastic            Elastic        `json:"elastic"`
 	Disk               DiskReport     `json:"disk"`
 	Templates          []TemplateInfo `json:"templates"`
 	Sandboxes          []SandboxInfo  `json:"sandboxes"`
@@ -144,8 +167,12 @@ type MemoryReport struct {
 	UsedBytes uint64 `json:"used_bytes"`
 }
 
+// Report is sent periodically and as soon as the daemon's memory limit
+// changes, so a resize reaches the server's budget without waiting out the
+// interval.
 type Report struct {
 	Type      string        `json:"type"`
+	Capacity  Capacity      `json:"capacity"`
 	Sandboxes []SandboxInfo `json:"sandboxes"`
 	Memory    MemoryReport  `json:"memory"`
 	Disk      DiskReport    `json:"disk"`

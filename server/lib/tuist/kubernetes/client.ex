@@ -392,6 +392,27 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Resizes a sandboxd Pod's memory in place through the Pod's `resize`
+  subresource, request and limit together so the Pod keeps its QoS class.
+  The kubelet applies a resize that fits the node at once and defers one
+  that does not until room frees; the scheduler counts the requested size
+  either way, so no runner Pod is placed into memory a pending growth
+  claims. The server SA is granted `pods/resize: [get, patch]` in the
+  sandboxes namespace.
+  """
+  def resize_sandbox_daemon_memory(namespace, name, bytes, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
+    quantity = Integer.to_string(bytes)
+    resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
+
+    request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}/resize",
+      opts: opts,
+      body: JSON.encode!(%{spec: %{containers: [%{name: "sandboxd", resources: resources}]}}),
+      headers: [{"content-type", "application/strategic-merge-patch+json"}]
+    )
+  end
+
+  @doc """
   Deletes a runner Pod and its same-named per-Pod ServiceAccount.
   The runner-pool reconciler creates the two as RunnerPool siblings
   sharing one name (not parent/child), so deleting the Pod alone

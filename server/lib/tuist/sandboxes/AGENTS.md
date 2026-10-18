@@ -48,9 +48,26 @@ consumer is Claude Managed Agents `self_hosted` environments.
   Rows decide rather than the report, which lags: a delete frees its
   reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
-  filesystem. `admissible?/2` is the side-effect-free check the poller
-  runs before acknowledging a work item. A node that reports no capacity
-  or no disk budget is not budgeted on that resource.
+  filesystem. `admissible?/2` is the check the poller runs before
+  acknowledging a work item. A node that reports no capacity or no disk
+  budget is not budgeted on that resource.
+- Elastic carve-outs (`Capacity.grow/3`, `Capacity.shrink/1`): a node whose
+  daemon reports `elastic` with a ceiling above its floor is grown in place
+  when nothing fits after pausing idle sandboxes, in whole GiB up to the
+  ceiling, through `Tuist.Kubernetes.Client.resize_sandbox_daemon_memory/3`
+  (the server SA holds `pods/resize` in the sandboxes namespace). The size
+  asked for is a `Tuist.Sandboxes.SandboxNode` row (`sandbox_nodes`) keyed by
+  node and pod name; placements budget against the smaller of it and the
+  reported limit, so a growth is only used once the daemon reports it and a
+  shrink stops placements first. `admissible?/2` asks for a growth and admits
+  the item if the node reports it within 2.5 s, which keeps the poller inside
+  the queue's 5 s acknowledgement; a deferred growth stays asked for and the
+  item stays queued. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
+  minute) shrinks carve-outs back toward what their running sandboxes hold,
+  never below the floor and only three minutes after the last growth,
+  sending the daemon `reclaim` before the resize because the kubelet refuses
+  to lower a limit below current usage; it also retries a shrink the kubelet
+  has not applied and cancels a deferred growth no longer needed.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
   (`connected_nodes/0`) read from
   `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`

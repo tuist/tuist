@@ -101,6 +101,15 @@ type AutoscalerReconciler struct {
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
+
+	// SandboxesNamespace is where sandbox daemons run, whose memory is
+	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
+	// when the chart runs no sandboxes.
+	SandboxesNamespace string
+
+	// APIReader is an uncached reader for the sandbox daemons, which live
+	// outside the namespace the manager caches. Nil falls back to Client.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -159,6 +168,16 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	current := pool.Spec.Replicas
 	now := r.now()
+
+	// A sandbox carve-out's growth waiting for room on a node outranks the
+	// idle warm runners there, whatever the cooldown.
+	preempted, err := r.preemptForSandboxGrowth(ctx, pool, fleet, now, logger)
+	if err != nil {
+		logger.Error(err, "retire idle runners for a sandbox growth; will retry")
+	}
+	if preempted {
+		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+	}
 
 	switch {
 	case desired == current:
@@ -657,10 +676,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	var total int64
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
+	included := map[string]bool{}
 	for i := range nodes.Items {
 		if nodeFilterReason(&nodes.Items[i]) != "" {
 			continue
 		}
+		included[nodes.Items[i].Name] = true
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -670,7 +691,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	if reserve <= 0 {
 		reserve = defaultMemReserveFraction
 	}
-	return int64(float64(total) * reserve), nil
+	// Sandbox daemons' carve-outs are Pod requests the reserve fraction does
+	// not cover, and they move: counting them here is what hands memory to
+	// the warm pools when a carve-out shrinks and takes it back when one
+	// grows.
+	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(r.sandboxDaemons(ctx), included)
+	return max(budget, 0), nil
 }
 
 // macosFleetAllocatableMemory sums allocatable memory across the Mac

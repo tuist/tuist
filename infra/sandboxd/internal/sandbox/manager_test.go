@@ -952,3 +952,30 @@ func TestDispatchStopsStreamingExecOutputPastTheLimit(t *testing.T) {
 		t.Fatalf("streamed %d bytes, want exactly %d", streamed, maxExecStreamBytes)
 	}
 }
+
+func TestDispatchReclaimsTheCgroupDownToTheTarget(t *testing.T) {
+	var asked uint64
+	original := reclaimMemory
+	reclaimMemory = func(target uint64) protocol.ReclaimResult {
+		asked = target
+		return protocol.ReclaimResult{MemoryBytes: 16 << 30, UsedBytes: 5 << 30}
+	}
+	t.Cleanup(func() { reclaimMemory = original })
+
+	cmd := protocol.Command{Type: protocol.FrameCommand, ID: "c-reclaim", Op: protocol.OpReclaim, Args: json.RawMessage(`{"target_bytes":8589934592}`)}
+	res := Dispatch(context.Background(), &fakeOps{}, cmd, nil)
+	if !res.OK || res.ID != "c-reclaim" {
+		t.Fatalf("reclaim result %+v", res)
+	}
+	if asked != 8<<30 {
+		t.Fatalf("reclaimed down to %d, want 8 GiB", asked)
+	}
+	if got := res.Data.(protocol.ReclaimResult); got.MemoryBytes != 16<<30 || got.UsedBytes != 5<<30 {
+		t.Fatalf("reclaim data %+v", got)
+	}
+
+	missing := protocol.Command{Type: protocol.FrameCommand, ID: "c-reclaim", Op: protocol.OpReclaim}
+	if res := Dispatch(context.Background(), &fakeOps{}, missing, nil); res.OK {
+		t.Fatalf("a reclaim without a target must fail, got %+v", res)
+	}
+}

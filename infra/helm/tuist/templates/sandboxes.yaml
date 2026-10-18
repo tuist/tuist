@@ -47,6 +47,77 @@ metadata:
     app.kubernetes.io/component: sandboxes
 automountServiceAccountToken: false
 ---
+# The server resizes daemon Pods in place: it grows a node's carve-out when
+# sandboxes need more memory than the floor, and shrinks it back once they
+# pause, so the memory goes back to runner Pods.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-resizer") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods/resize]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-resizer") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-resizer") }}
+{{- if .Values.runnersFleet.enabled }}
+---
+# The runners controller reads daemon Pods to keep their memory out of the
+# Linux fleet's budget, and to retire idle warm runners on a node where a
+# carve-out's growth waits for room.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-reader") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-reader") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandboxes
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "sandboxes-reader") }}
+{{- end }}
+---
 # The daemon shares nodes with runner Pods, which carry no priority, and a
 # runner Pod becomes job-owning in place. A preempting priority would let the
 # scheduler, or the kubelet admitting a critical Pod, evict a customer build to
@@ -166,6 +237,17 @@ spec:
               value: {{ .Values.sandboxes.prebuildShapes | quote }}
             - name: ALLOWED_SHAPES
               value: {{ .Values.sandboxes.allowedShapes | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # The server grows this Pod's memory in place, from the floor it
+            # starts at up to the ceiling, as sandboxes need it, and shrinks it
+            # back once they pause.
+            - name: MEMORY_FLOOR_GIB
+              value: {{ .Values.sandboxes.memoryGiB | quote }}
+            - name: MEMORY_CEILING_GIB
+              value: {{ max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
             - name: METRICS_ADDR
@@ -183,6 +265,13 @@ spec:
             # placement for the jailer: the same reasons the datapath agents
             # run privileged rather than with a capabilities-only grant.
             privileged: true
+          # Resized in place by the server; restarting the daemon would kill
+          # every running guest.
+          resizePolicy:
+            - resourceName: memory
+              restartPolicy: NotRequired
+            - resourceName: cpu
+              restartPolicy: NotRequired
           resources:
             requests:
               cpu: {{ .Values.sandboxes.cpu | quote }}

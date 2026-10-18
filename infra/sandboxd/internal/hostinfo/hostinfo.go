@@ -47,6 +47,36 @@ func MemoryUsed() uint64 {
 // namespace the path is "/" and the file sits at the root. A limit of
 // "max" at the leaf falls through to the ancestors when walkUp is set,
 // since the pod slice carries the limit the container itself may lack.
+// Reclaim asks the kernel to bring the daemon's cgroup down to target
+// bytes through cgroup v2's memory.reclaim, so a shrink of the Pod's memory
+// limit is not refused for page cache the guests left behind (the kubelet
+// will not lower a limit below current usage). Anonymous memory of running
+// guests cannot be reclaimed without swap; the cgroup then stays above
+// target, which the result shows.
+func Reclaim(target uint64) protocol.ReclaimResult {
+	data, err := os.ReadFile(procSelfCgroup)
+	if err != nil {
+		return protocol.ReclaimResult{MemoryBytes: Capacity().MemoryBytes, UsedBytes: MemoryUsed()}
+	}
+	return ReclaimCgroup(cgroupRoot, ParseCgroupPath(string(data)), target)
+}
+
+// ReclaimCgroup is Reclaim against an explicit cgroupfs root and path.
+func ReclaimCgroup(root, path string, target uint64) protocol.ReclaimResult {
+	used, _ := ReadCgroupValue(root, path, "memory.current", false)
+	if used > target {
+		// EAGAIN means the kernel reclaimed less than asked; what it did
+		// reclaim stays reclaimed, and the result reports the rest.
+		if file, err := os.OpenFile(filepath.Join(root, path, "memory.reclaim"), os.O_WRONLY, 0); err == nil {
+			_, _ = file.WriteString(strconv.FormatUint(used-target, 10))
+			_ = file.Close()
+		}
+		used, _ = ReadCgroupValue(root, path, "memory.current", false)
+	}
+	limit, _ := ReadCgroupValue(root, path, "memory.max", true)
+	return protocol.ReclaimResult{MemoryBytes: limit, UsedBytes: used}
+}
+
 func cgroupValue(file string, walkUp bool) (uint64, bool) {
 	data, err := os.ReadFile(procSelfCgroup)
 	if err != nil {

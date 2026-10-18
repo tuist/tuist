@@ -30,15 +30,34 @@ defmodule Tuist.Sandboxes.Capacity do
   advisory lock. The reservation is the row itself: `node_name` set on a
   creating sandbox, or the `resuming` state on a paused one, both of
   which the reserved sums count.
+
+  A node whose daemon reports a memory ceiling above its floor has an
+  elastic carve-out: the daemon's Pod starts at the floor, and when
+  nothing fits even after pausing idle sandboxes the Pod's memory is grown
+  in place, in whole GiB, up to the ceiling. The kubelet applies a growth
+  that fits the node at once and defers one that does not until room
+  frees, which the runners controller provides by retiring idle warm
+  runners on that node; the scheduler counts the requested size either
+  way, so runner Pods cannot take room a growth is waiting for. The size
+  the server asked for is a `Tuist.Sandboxes.SandboxNode` row, and
+  placements budget against the smaller of it and the limit the node
+  reports, so a growth is used only once the daemon reports it and a
+  shrink stops placements before the kubelet applies it. Grown carve-outs
+  shrink back toward what their running sandboxes hold a while after
+  their last growth (`shrink_carve_outs/0`), which hands the memory back
+  to the runner pools.
   """
 
   import Ecto.Query
 
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxNode
 
   require Logger
 
@@ -57,16 +76,69 @@ defmodule Tuist.Sandboxes.Capacity do
   @charged_states [:creating, :resuming, :running]
   @placed_states [:creating, :resuming, :running, :paused]
   @advisory_lock_namespace 7_302
+  # Elastic carve-outs move in whole GiB.
+  @carve_out_step_bytes @gib
+  # A grown carve-out shrinks no sooner than this after its last growth, so
+  # a burst of turns does not resize the Pod back and forth.
+  @shrink_hold_seconds 180
+  # How long a placement or resume waits for a growth to be reported, and
+  # how long the poller's admission check does before it leaves a work item
+  # queued: it must still acknowledge within the queue's five seconds.
+  @grow_wait_ms 15_000
+  @admission_grow_wait_ms 2_500
+  # Below the new limit, so the kubelet's check that usage fits passes.
+  @shrink_reclaim_margin_bytes 256 * @mib
 
   def charge_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
 
   def pause_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib
 
-  def memory_budget_bytes(%{capacity: %{memory_bytes: total}}) when is_integer(total) and total > 0 do
-    max(total - @daemon_reserve_bytes, 0)
+  def memory_budget_bytes(node) do
+    case memory_limit_bytes(node) do
+      nil -> :unbounded
+      limit -> max(limit - @daemon_reserve_bytes, 0)
+    end
   end
 
-  def memory_budget_bytes(_node), do: :unbounded
+  @doc """
+  The memory limit placements on the node budget against: what the node
+  reports, capped on an elastic node by what the server last asked its Pod
+  for. `nil` for a node that reports no limit.
+  """
+  def memory_limit_bytes(node) do
+    with reported when is_integer(reported) <- reported_limit(node) do
+      case asked_limit(node) do
+        asked when is_integer(asked) -> min(reported, asked)
+        nil -> reported
+      end
+    end
+  end
+
+  @doc """
+  Whether the node's carve-out can be resized: its daemon names its Pod and
+  reports a ceiling above its floor.
+  """
+  def elastic?(%{elastic: %{pod_name: pod_name, memory_floor_bytes: floor, memory_ceiling_bytes: ceiling}})
+      when is_binary(pod_name) and pod_name != "" and is_integer(floor) and is_integer(ceiling) and ceiling > floor,
+      do: true
+
+  def elastic?(_node), do: false
+
+  defp reported_limit(%{capacity: %{memory_bytes: total}}) when is_integer(total) and total > 0, do: total
+  defp reported_limit(_node), do: nil
+
+  # What the server last asked this node's current Pod for. A row naming
+  # another Pod predates a restart, which starts the Pod at the floor again.
+  defp asked_limit(%{name: name, elastic: %{pod_name: pod_name}} = node) when is_binary(name) do
+    if elastic?(node) do
+      case Repo.get(SandboxNode, name) do
+        %SandboxNode{pod_name: ^pod_name, memory_limit_bytes: limit} -> limit
+        _other -> nil
+      end
+    end
+  end
+
+  defp asked_limit(_node), do: nil
 
   @doc """
   Bytes charged to the node by sandboxes that hold or are about to hold
@@ -224,13 +296,30 @@ defmodule Tuist.Sandboxes.Capacity do
         {:ok, node_name}
 
       nil ->
-        with {:ok, node} <- most_reclaimable(ranked, charge),
-             :ok <- reclaim(node, charge),
-             :ok <- reserve.(node) do
-          {:ok, node.name}
-        else
-          _no_room -> {:error, :no_capacity}
+        case place_by_reclaiming(ranked, charge, reserve) do
+          {:ok, node_name} -> {:ok, node_name}
+          {:error, :no_capacity} -> place_by_growing(ranked, charge, reserve)
         end
+    end
+  end
+
+  defp place_by_reclaiming(ranked, charge, reserve) do
+    with {:ok, node} <- most_reclaimable(ranked, charge),
+         :ok <- reclaim(node, charge),
+         :ok <- reserve.(node) do
+      {:ok, node.name}
+    else
+      _no_room -> {:error, :no_capacity}
+    end
+  end
+
+  defp place_by_growing(ranked, charge, reserve) do
+    with {:ok, node} <- most_growable(ranked, charge),
+         {:ok, grown} <- grow(node, charge, wait_ms(:grow_wait_ms)),
+         :ok <- reserve.(grown) do
+      {:ok, grown.name}
+    else
+      _no_room -> {:error, :no_capacity}
     end
   end
 
@@ -238,7 +327,8 @@ defmodule Tuist.Sandboxes.Capacity do
   Reserves memory on the sandbox's own node for a resume and marks the
   row `resuming`. A node that is not connected is not budgeted here; the
   resume command reports it. Pauses idle sandboxes on the node when the
-  paused one does not fit as is.
+  paused one does not fit as is, and grows an elastic node's carve-out
+  when that is not enough.
   """
   def admit(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     charge = charge_bytes(sandbox)
@@ -246,12 +336,13 @@ defmodule Tuist.Sandboxes.Capacity do
     case Nodes.await_lookup(node_name) do
       {:ok, _pid, info} ->
         node = Map.put(info, :name, node_name)
-        reserve = fn -> reserve(node, charge, fn -> mark_resuming(sandbox) end) end
+        reserve = fn node -> reserve(node, charge, fn -> mark_resuming(sandbox) end) end
 
         with true <- disk_space?(node, sandbox),
-             :no_capacity <- reserve.(),
-             :ok <- reclaim(node, charge),
-             :ok <- reserve.() do
+             :no_capacity <- reserve.(node),
+             {:error, :no_capacity} <- reclaim_and_reserve(node, charge, reserve),
+             {:ok, grown} <- grow(node, charge, wait_ms(:grow_wait_ms)),
+             :ok <- reserve.(grown) do
           {:ok, Repo.reload!(sandbox)}
         else
           :ok -> {:ok, Repo.reload!(sandbox)}
@@ -267,26 +358,255 @@ defmodule Tuist.Sandboxes.Capacity do
   Whether a work item for the session could be placed right now, without
   reserving anything: the poller leaves an item queued when its sandbox
   would not fit anywhere, so the queue rather than a forced stop holds it
-  until a pause frees memory. Sessions whose sandbox already holds memory
-  and environments with no connected node at all are admissible; the
-  latter fail on dispatch as before.
+  until a pause frees memory. When only a growth of an elastic node's
+  carve-out would fit it, the growth is asked for here and the item is
+  admissible if the node reports it within a couple of seconds; a growth
+  the kubelet defers stays asked for, and the item, left queued, fits once
+  the node has room. Sessions whose sandbox already holds memory and
+  environments with no connected node at all are admissible; the latter
+  fail on dispatch as before.
   """
   def admissible?(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-      %Sandbox{state: state} when state in @charged_states ->
+      %Sandbox{state: state} when state in @charged_states -> true
+      %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) -> resumable?(sandbox)
+      _new -> placeable?(agent_environment)
+    end
+  end
+
+  defp resumable?(%Sandbox{node_name: node_name} = sandbox) do
+    case Nodes.lookup(node_name) do
+      {:ok, _pid, info} ->
+        node = Map.put(info, :name, node_name)
+        memory_room?(node, sandbox) or grown_in_time?(node, sandbox)
+
+      {:error, :not_connected} ->
+        true
+    end
+  end
+
+  defp placeable?(agent_environment) do
+    case ready_nodes(agent_environment.template) do
+      [] ->
         true
 
-      %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) ->
+      nodes ->
+        with_disk = Enum.filter(nodes, &disk_room?(&1, agent_environment))
+        Enum.any?(with_disk, &memory_room?(&1, agent_environment)) or grown_in_time?(with_disk, agent_environment)
+    end
+  end
+
+  defp grown_in_time?(nodes, sized) when is_list(nodes) do
+    case nodes |> Enum.filter(&disk_space?(&1, sized)) |> most_growable(charge_bytes(sized)) do
+      {:ok, node} -> grown_in_time?(node, sized)
+      {:error, :no_capacity} -> false
+    end
+  end
+
+  defp grown_in_time?(node, sized) do
+    disk_space?(node, sized) and match?({:ok, _node}, grow(node, charge_bytes(sized), wait_ms(:admission_grow_wait_ms)))
+  end
+
+  @doc """
+  Grows an elastic node's carve-out so `charge` more bytes fit on top of
+  what its sandboxes hold, rounded up to whole GiB and capped at the
+  node's ceiling, and waits up to `wait_ms` for the daemon to report the
+  new limit. Returns `{:ok, node}` with the node's fresh report,
+  `{:pending, limit}` when the kubelet has not applied the growth in time
+  (it stays asked for and applies once the node has room), or
+  `{:error, reason}` when the ceiling cannot hold it or the resize failed.
+  """
+  def grow(%{name: node_name} = node, charge, wait_ms) when is_integer(charge) and is_integer(wait_ms) do
+    if elastic?(node) do
+      with {:ok, limit} <- ask_for_growth(node, charge),
+           :ok <- resize(node, limit) do
+        await_limit(node_name, limit, wait_ms)
+      end
+    else
+      {:error, :no_capacity}
+    end
+  end
+
+  defp ask_for_growth(%{name: node_name, elastic: elastic} = node, charge) do
+    fn ->
+      lock(node_name)
+      needed = reserved_bytes(node_name) + charge + @daemon_reserve_bytes
+      if needed > elastic.memory_ceiling_bytes, do: Repo.rollback(:no_capacity)
+
+      current = max(asked_limit(node) || 0, reported_limit(node) || 0)
+      limit = needed |> round_up_to_step() |> min(elastic.memory_ceiling_bytes) |> max(current)
+
+      %SandboxNode{}
+      |> SandboxNode.changeset(%{
+        name: node_name,
+        pod_name: elastic.pod_name,
+        memory_limit_bytes: limit,
+        grown_at: DateTime.utc_now(:second)
+      })
+      |> Repo.insert!(
+        on_conflict: {:replace, [:pod_name, :memory_limit_bytes, :grown_at, :updated_at]},
+        conflict_target: :name
+      )
+
+      limit
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, limit} -> {:ok, limit}
+      {:error, :no_capacity} -> {:error, :no_capacity}
+    end
+  end
+
+  defp await_limit(node_name, limit, wait_ms) do
+    Nodes.await(
+      fn ->
         case Nodes.lookup(node_name) do
-          {:ok, _pid, info} -> memory_room?(Map.put(info, :name, node_name), sandbox)
-          {:error, :not_connected} -> true
+          {:ok, _pid, info} ->
+            node = Map.put(info, :name, node_name)
+            if (reported_limit(node) || 0) >= limit, do: {:ok, node}, else: {:retry, {:pending, limit}}
+
+          {:error, :not_connected} ->
+            {:retry, {:pending, limit}}
+        end
+      end,
+      wait_ms
+    )
+  end
+
+  defp resize(%{name: node_name, elastic: %{pod_name: pod_name}}, limit) do
+    case KubernetesClient.resize_sandbox_daemon_memory(Environment.sandboxes_namespace(), pod_name, limit) do
+      {:ok, _pod} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: resizing a node's carve-out failed",
+          node: node_name,
+          pod: pod_name,
+          memory_bytes: limit,
+          reason: inspect(reason)
+        )
+
+        {:error, :resize_failed}
+    end
+  end
+
+  @doc """
+  Shrinks every grown carve-out back toward what its running sandboxes
+  hold, never below the floor, once a few minutes have passed since its
+  last growth, and retries a shrink the kubelet has not applied yet. Run
+  every minute by `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker`.
+  """
+  def shrink_carve_outs do
+    Nodes.connected_nodes()
+    |> Enum.filter(&elastic?/1)
+    |> Enum.map(&{&1.name, shrink(&1)})
+  end
+
+  @doc """
+  Lowers the size asked for first, under the node's lock, so no placement
+  counts on the memory being released; then asks the daemon to reclaim
+  page cache below the new limit (the kubelet will not lower a limit below
+  current usage) and resizes the Pod. A shrink below a growth the kubelet
+  deferred cancels it.
+  """
+  def shrink(%{name: node_name} = node) do
+    case lower_limit(node) do
+      {:ok, limit} ->
+        reclaim_cgroup(node_name, limit)
+
+        with :ok <- resize(node, limit) do
+          Logger.info("sandboxes: shrank a node's carve-out", node: node_name, memory_bytes: limit)
         end
 
-      _new ->
-        case ready_nodes(agent_environment.template) do
-          [] -> true
-          nodes -> Enum.any?(nodes, &(memory_room?(&1, agent_environment) and disk_room?(&1, agent_environment)))
+        {:ok, limit}
+
+      :unchanged ->
+        :unchanged
+    end
+  end
+
+  defp lower_limit(%{name: node_name, elastic: elastic} = node) do
+    fn ->
+      lock(node_name)
+
+      with %SandboxNode{pod_name: pod_name} = row <- Repo.get(SandboxNode, node_name),
+           true <- pod_name == elastic.pod_name,
+           false <- held?(row) do
+        needed = reserved_bytes(node_name) + @daemon_reserve_bytes
+
+        target =
+          needed |> round_up_to_step() |> max(elastic.memory_floor_bytes) |> min(row.memory_limit_bytes)
+
+        cond do
+          target < row.memory_limit_bytes ->
+            row |> SandboxNode.changeset(%{memory_limit_bytes: target}) |> Repo.update!()
+            target
+
+          (reported_limit(node) || 0) > row.memory_limit_bytes ->
+            row.memory_limit_bytes
+
+          true ->
+            Repo.rollback(:unchanged)
         end
+      else
+        _not_shrinkable -> Repo.rollback(:unchanged)
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, limit} -> {:ok, limit}
+      {:error, :unchanged} -> :unchanged
+    end
+  end
+
+  defp held?(%SandboxNode{grown_at: nil}), do: false
+
+  defp held?(%SandboxNode{grown_at: grown_at}) do
+    DateTime.diff(DateTime.utc_now(), grown_at, :second) < @shrink_hold_seconds
+  end
+
+  defp reclaim_cgroup(node_name, limit) do
+    target = max(limit - @shrink_reclaim_margin_bytes, 0)
+
+    case Nodes.call(node_name, "reclaim", %{target_bytes: target}, timeout: 10_000) do
+      {:ok, _cgroup} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not reclaim a node's page cache before a shrink",
+          node: node_name,
+          reason: inspect(reason)
+        )
+    end
+  end
+
+  defp wait_ms(:grow_wait_ms),
+    do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:grow_wait_ms, @grow_wait_ms)
+
+  defp wait_ms(:admission_grow_wait_ms) do
+    :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:admission_grow_wait_ms, @admission_grow_wait_ms)
+  end
+
+  defp round_up_to_step(bytes), do: div(bytes + @carve_out_step_bytes - 1, @carve_out_step_bytes) * @carve_out_step_bytes
+
+  defp most_growable(nodes, charge) do
+    nodes
+    |> Enum.filter(&elastic?/1)
+    |> Enum.map(&{&1, &1.elastic.memory_ceiling_bytes - @daemon_reserve_bytes - reserved_bytes(&1.name)})
+    |> Enum.filter(fn {_node, room} -> room >= charge end)
+    |> Enum.max_by(fn {_node, room} -> room end, fn -> nil end)
+    |> case do
+      {node, _room} -> {:ok, node}
+      nil -> {:error, :no_capacity}
+    end
+  end
+
+  defp reclaim_and_reserve(node, charge, reserve) do
+    with :ok <- reclaim(node, charge),
+         :ok <- reserve.(node) do
+      :ok
+    else
+      _no_room -> {:error, :no_capacity}
     end
   end
 

@@ -264,3 +264,49 @@ var errUnknown = errorString("unknown op")
 type errorString string
 
 func (e errorString) Error() string { return string(e) }
+
+func TestReportNowSendsAReportAheadOfTheInterval(t *testing.T) {
+	fs := &fakeServer{sessions: make(chan *session, 2)}
+	srv := httptest.NewServer(fs)
+	defer srv.Close()
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("tok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var limit atomicLimit
+	limit.set(8 << 30)
+	c := New(Config{
+		URL: "http" + strings.TrimPrefix(srv.URL, "http"), NodeName: "node-a", TokenPath: tokenPath,
+		Hello: func() protocol.Hello { return protocol.Hello{Capacity: protocol.Capacity{MemoryBytes: limit.get()}} },
+		Report: func() protocol.Report {
+			return protocol.Report{Capacity: protocol.Capacity{MemoryBytes: limit.get()}, Sandboxes: []protocol.SandboxInfo{}}
+		},
+		Handler: func(context.Context, protocol.Command, func(protocol.Stream)) protocol.Result {
+			return protocol.Result{}
+		},
+		ReportInterval: time.Hour, MinBackoff: 10 * time.Millisecond, MaxBackoff: 50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx)
+
+	s := <-fs.sessions
+	if _, ok := s.next(t).(*protocol.Hello); !ok {
+		t.Fatal("expected hello")
+	}
+	limit.set(12 << 30)
+	c.ReportNow()
+	report, ok := s.next(t).(*protocol.Report)
+	if !ok || report.Capacity.MemoryBytes != 12<<30 {
+		t.Fatalf("report %+v, want the new 12 GiB limit long before the hourly interval", report)
+	}
+}
+
+type atomicLimit struct {
+	mu    sync.Mutex
+	value uint64
+}
+
+func (a *atomicLimit) set(v uint64) { a.mu.Lock(); a.value = v; a.mu.Unlock() }
+
+func (a *atomicLimit) get() uint64 { a.mu.Lock(); defer a.mu.Unlock(); return a.value }

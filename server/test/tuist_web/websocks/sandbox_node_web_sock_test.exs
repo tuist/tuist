@@ -269,4 +269,38 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
 
     assert :ok = SandboxNodeWebSock.terminate(:normal, state)
   end
+
+  test "a hello's elastic carve-out and a report's new memory limit reach the node's presence", %{
+    node_name: node_name,
+    state: state
+  } do
+    elastic = %{
+      "pod_name" => "sandboxd-abc",
+      "memory_floor_bytes" => 8_589_934_592,
+      "memory_ceiling_bytes" => 34_359_738_368
+    }
+
+    {:ok, state} = SandboxNodeWebSock.handle_in(text(hello(node_name, %{"elastic" => elastic})), state)
+    assert eventually(fn -> Nodes.connected?(node_name) end)
+
+    assert [
+             %{
+               elastic: %{
+                 pod_name: "sandboxd-abc",
+                 memory_floor_bytes: 8_589_934_592,
+                 memory_ceiling_bytes: 34_359_738_368
+               }
+             } = node
+           ] = Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))
+
+    assert Capacity.elastic?(node)
+
+    report = %{"type" => "report", "capacity" => %{"memory_bytes" => 12_884_901_888, "cpus" => 32}, "sandboxes" => []}
+    assert {:ok, state} = SandboxNodeWebSock.handle_in(text(report), state)
+
+    assert [%{capacity: %{memory_bytes: 12_884_901_888}, elastic: %{pod_name: "sandboxd-abc"}}] =
+             Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))
+
+    assert :ok = SandboxNodeWebSock.terminate(:normal, state)
+  end
 end
