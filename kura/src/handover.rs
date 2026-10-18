@@ -829,6 +829,189 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retained_repair_reclaims_destination_only_segments_before_fetching() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+        use std::sync::{Arc, atomic::AtomicUsize};
+
+        for listing_fails in [false, true] {
+            let source = test_context(|_| {}).await;
+            let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+            let mut resident_id = String::new();
+            let mut resident_segment = String::new();
+            for ctx in [&source, &target] {
+                ctx.state
+                    .store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        "shared",
+                        "application/octet-stream",
+                        b"shared",
+                        3000,
+                    )
+                    .await
+                    .unwrap();
+                resident_id = crate::utils::artifact_storage_id(
+                    ArtifactProducer::Gradle,
+                    "test-tenant",
+                    "ios",
+                    "shared",
+                );
+                resident_segment = ctx
+                    .state
+                    .store
+                    .manifest(&resident_id)
+                    .unwrap()
+                    .unwrap()
+                    .segment_id
+                    .unwrap();
+            }
+            target
+                .state
+                .store
+                .install_segment_state_for_testing(SegmentState {
+                    old: vec![SegmentReference::new(resident_segment.clone(), 1)],
+                    new: vec![SegmentReference::new("divergent".into(), 2)],
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            target
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "destination-only",
+                    "application/octet-stream",
+                    b"extra",
+                    1,
+                )
+                .await
+                .unwrap();
+            let extra_id = crate::utils::artifact_storage_id(
+                ArtifactProducer::Gradle,
+                "test-tenant",
+                "ios",
+                "destination-only",
+            );
+            target
+                .state
+                .store
+                .install_segment_state_for_testing(SegmentState {
+                    old: vec![SegmentReference::new(resident_segment, 1)],
+                    current: vec![SegmentReference::new("divergent".into(), 2)],
+                    new: vec![SegmentReference::new("active".into(), 3)],
+                })
+                .await
+                .unwrap();
+            target
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "active-only",
+                    "application/octet-stream",
+                    b"active",
+                    1,
+                )
+                .await
+                .unwrap();
+            source
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "missing",
+                    "application/octet-stream",
+                    b"missing",
+                    1000,
+                )
+                .await
+                .unwrap();
+            source.state.store.run_backfill_index_build().unwrap();
+            let bodies = Arc::new(AtomicUsize::new(0));
+            let count = bodies.clone();
+            let destination = target.state.clone();
+            let checked_extra = extra_id.clone();
+            let checked_resident = resident_id.clone();
+            let app = crate::http::router(source.state.clone()).layer(axum::middleware::from_fn(
+                move |request: axum::extract::Request, next: axum::middleware::Next| {
+                    let destination = destination.clone();
+                    let extra = checked_extra.clone();
+                    let resident = checked_resident.clone();
+                    let count = count.clone();
+                    async move {
+                        if listing_fails && request.uri().path() == "/_internal/backfill/entries" {
+                            return axum::response::IntoResponse::into_response(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                            );
+                        }
+                        if request.uri().path() == "/_internal/backfill/bodies" {
+                            count.fetch_add(1, Ordering::SeqCst);
+                            assert!(
+                                destination.store.manifest(&extra).unwrap().is_none(),
+                                "reclaim destination-only storage before downloading missing bodies"
+                            );
+                            assert!(
+                                destination.store.manifest(&resident).unwrap().is_some(),
+                                "never evict shared retained data to make room"
+                            );
+                        }
+                        next.run(request).await
+                    }
+                },
+            ));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let request = begin_request(
+                &target.state,
+                format!("http://{}", listener.local_addr().unwrap()),
+            );
+            *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let result = verify_inner(&target.state, request).await;
+            if listing_fails {
+                assert!(result.is_err());
+                assert!(target.state.store.manifest(&extra_id).unwrap().is_some());
+                assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+                assert_eq!(bodies.load(Ordering::SeqCst), 0);
+            } else {
+                result.unwrap();
+                assert_eq!(bodies.load(Ordering::SeqCst), 1);
+                for entry in source
+                    .state
+                    .store
+                    .backfill_index_page(None, 10)
+                    .unwrap()
+                    .entries
+                {
+                    let expected = record(
+                        &source.state,
+                        entry.kind,
+                        &entry.record_id,
+                        entry.version_ms,
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap();
+                    verify_record(&target.state, &expected).await.unwrap();
+                }
+            }
+            assert!(target.state.store.manifest(&resident_id).unwrap().is_some());
+            let active = crate::utils::artifact_storage_id(
+                ArtifactProducer::Gradle,
+                "test-tenant",
+                "ios",
+                "active-only",
+            );
+            assert!(target.state.store.manifest(&active).unwrap().is_some());
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
     async fn retained_repair_revisits_records_evicted_after_their_presence_check() {
         use crate::{
             segment::{reference::SegmentReference, state::SegmentState},

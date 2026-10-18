@@ -4109,6 +4109,65 @@ impl Store {
         SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
     }
 
+    pub(crate) async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
+        let mut recovery = self.disk_pressure_reclamation.lock().await;
+        self.finish_segment_retirement(&mut recovery).await?;
+        let _refresh = self.segment_refresh_lock.lock().await;
+        let _exclusive = self.segment_write_barrier.write().await;
+        let _writer = self.segment_write_lock.lock().await;
+        let snapshot = self.segment_state_snapshot();
+        Ok(snapshot
+            .generations
+            .keys()
+            .filter(|id| !self.is_active_segment(id) && !self.segment_is_pinned(id))
+            .cloned()
+            .collect())
+    }
+
+    // Called only after a complete named-source walk excluded every locally
+    // retained source record from this sealed segment. Rotation still uses its
+    // normal FIFO policy and unchanged capacity; this removes destination-only
+    // segments first instead of repairing the shared corpus that FIFO evicts.
+    pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
+        let mut recovery = self.disk_pressure_reclamation.lock().await;
+        self.finish_segment_retirement(&mut recovery).await?;
+        {
+            let _refresh = self.segment_refresh_lock.lock().await;
+            let _exclusive = self.segment_write_barrier.write().await;
+            let _writer = self.segment_write_lock.lock().await;
+            let snapshot = self.segment_state_snapshot();
+            let Some(segment) = snapshot
+                .state
+                .old
+                .iter()
+                .chain(&snapshot.state.current)
+                .chain(&snapshot.state.new)
+                .find(|segment| segment.segment_id == segment_id)
+                .cloned()
+            else {
+                return Ok(());
+            };
+            if self.is_active_segment(segment_id) || self.segment_is_pinned(segment_id) {
+                return Ok(());
+            }
+            let bytes = try_path_size_bytes(&self.segment_path(segment_id)).unwrap_or(0);
+            self.mutate_segment_state(|state| state.remove_segment(segment_id))
+                .await?;
+            recovery.pending = Some(PressureRetirement {
+                segment,
+                bytes,
+                available_before: self.available_segment_disk_bytes().unwrap_or(0),
+                reason: "handover",
+            });
+            // Retirement is durable. The supervised worker must finish its
+            // bounded metadata/file cleanup even if the authority deadline
+            // cancels this waiter before the last chunk commits.
+            self.disk_pressure_requested.fetch_max(1, Ordering::AcqRel);
+            self.disk_pressure_notify.notify_one();
+        }
+        self.finish_segment_retirement(&mut recovery).await
+    }
+
     // Rotation only admits allocation and wakes the worker. It must never wait
     // for reclamation while holding the writer barrier (or a promotion pin).
     fn check_segment_headroom(&self, incoming_size: u64) -> Result<(), String> {
@@ -4255,20 +4314,39 @@ impl Store {
                 segment: candidate,
                 bytes,
                 available_before: available,
+                reason: "disk_pressure",
             });
         }
-        let pending = recovery.pending.as_ref().expect("pending retirement");
+        self.finish_segment_retirement(&mut recovery).await?;
+        Ok(self
+            .available_segment_disk_bytes()
+            .is_some_and(|available| available >= target))
+    }
+
+    async fn finish_segment_retirement(
+        &self,
+        recovery: &mut PressureReclamation,
+    ) -> Result<(), String> {
+        let Some(pending) = recovery.pending.as_ref() else {
+            return Ok(());
+        };
         let artifacts = self
             .evict_segment_with_write_locks(&pending.segment.segment_id, true)
             .await
             .map_err(|error| error.to_string())?;
-        self.record_segment_eviction(&pending.segment, artifacts, pending.bytes, "disk_pressure");
+        self.record_segment_eviction(&pending.segment, artifacts, pending.bytes, pending.reason);
+        if pending.reason == "handover" {
+            tracing::info!(segment_id=%pending.segment.segment_id, bytes=pending.bytes, artifacts,
+                "Reclaimed destination-only segment before retained repair");
+        }
         let available = self.available_segment_disk_bytes();
-        if available.is_none_or(|available| available <= pending.available_before) {
+        if pending.reason == "disk_pressure"
+            && available.is_none_or(|available| available <= pending.available_before)
+        {
             recovery.no_progress_at = Some(available.unwrap_or(pending.available_before));
         }
         recovery.pending = None;
-        Ok(available.is_some_and(|available| available >= target))
+        Ok(())
     }
 
     fn pin_segment(&self, segment_id: &str) -> Arc<SegmentPin> {
@@ -11175,6 +11253,7 @@ struct PressureRetirement {
     segment: SegmentReference,
     bytes: u64,
     available_before: u64,
+    reason: &'static str,
 }
 
 #[derive(Default)]
@@ -18262,6 +18341,115 @@ mod tests {
             "the republished entry survived its blob: an earlier chunk's dedup \
              skipped it, leaving it pointing at a blob this eviction removed"
         );
+    }
+
+    #[tokio::test]
+    async fn cancelled_handover_reclamation_respects_pins_and_finishes_retirement() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "extra",
+                "application/octet-stream",
+                b"extra",
+            )
+            .await
+            .unwrap();
+        let segment = manifest.segment_id.unwrap();
+        assert!(
+            !store
+                .handover_reclaim_candidates()
+                .await
+                .unwrap()
+                .contains(&segment)
+        );
+        store.age_every_segment_for_test();
+        let pin = store.pin_segment(&segment);
+        assert!(
+            !store
+                .handover_reclaim_candidates()
+                .await
+                .unwrap()
+                .contains(&segment)
+        );
+        store.reclaim_handover_segment(&segment).await.unwrap();
+        assert!(store.manifest(&manifest.artifact_id).unwrap().is_some());
+        drop(pin);
+        assert!(
+            store
+                .handover_reclaim_candidates()
+                .await
+                .unwrap()
+                .contains(&segment)
+        );
+
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let finished = Arc::new(tokio::sync::Notify::new());
+        let (release, receiver) = std::sync::mpsc::channel();
+        {
+            let entered = entered.clone();
+            let receiver = StdMutex::new(receiver);
+            let mut hooks = store.eviction_commits.lock().unwrap();
+            hooks.before_commit = Some(Arc::new(move || {
+                entered.notify_one();
+                receiver
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10))
+                    .unwrap();
+            }));
+            let finished = finished.clone();
+            hooks.after_commit = Some(Arc::new(move || finished.notify_one()));
+        }
+        let task = tokio::spawn({
+            let store = store.clone();
+            let segment = segment.clone();
+            async move { store.reclaim_handover_segment(&segment).await }
+        });
+        tokio::time::timeout(Duration::from_secs(5), entered.notified())
+            .await
+            .unwrap();
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(
+            store
+                .disk_pressure_reclamation
+                .lock()
+                .await
+                .pending
+                .is_some()
+        );
+        release.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(5), finished.notified())
+            .await
+            .unwrap();
+        {
+            let mut hooks = store.eviction_commits.lock().unwrap();
+            hooks.before_commit = None;
+            hooks.after_commit = None;
+        }
+        let worker = tokio::spawn({
+            let store = store.clone();
+            async move { store.run_segment_reclamation_worker().await }
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while store
+                .disk_pressure_reclamation
+                .lock()
+                .await
+                .pending
+                .is_some()
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(store.manifest(&manifest.artifact_id).unwrap().is_none());
+        assert!(!store.segment_path(&segment).exists());
+        worker.abort();
     }
 
     #[tokio::test]
