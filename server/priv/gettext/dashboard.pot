@@ -3156,6 +3156,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:337
 #: lib/tuist_web/live/mix_build_live.ex:342
+#: lib/tuist_web/live/mix_cache_live.ex:318
 #, elixir-autogen, elixir-format
 msgid "Not cached"
 msgstr ""
