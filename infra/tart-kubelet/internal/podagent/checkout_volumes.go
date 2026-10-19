@@ -63,6 +63,8 @@ type Checkouts struct {
 	mu      sync.Mutex
 	locks   map[string]*sync.Mutex
 	pending map[string]checkoutTask
+	// waiting holds builds refused for disk room until a reconcile retries them.
+	waiting map[string]checkoutTask
 	busy    map[string]bool
 	queue   chan string
 	ready   bool
@@ -237,6 +239,7 @@ func (c *Checkouts) Enqueue(task checkoutTask) bool {
 	if c.pending == nil {
 		c.pending = map[string]checkoutTask{}
 	}
+	delete(c.waiting, task.Scope)
 	_, queued := c.pending[task.Scope]
 	c.pending[task.Scope] = task
 	if queued {
@@ -279,6 +282,18 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 	done := cachevolumes.Observer(observeCustomCache).Start(operation, "remote")
 	err := c.build(ctx, task, cold, meta, room)
 	done(err)
+	if errors.Is(err, cachevolumes.ErrCapacity) {
+		// The requesting job usually holds the room; every reconcile retries until the token expires.
+		c.mu.Lock()
+		if c.waiting == nil {
+			c.waiting = map[string]checkoutTask{}
+		}
+		if _, queued := c.pending[task.Scope]; !queued {
+			c.waiting[task.Scope] = task
+		}
+		c.mu.Unlock()
+		return
+	}
 	if err != nil {
 		log.FromContext(ctx).Error(err, "checkout master not updated", "operation", operation)
 	}
@@ -536,6 +551,13 @@ func (c *Checkouts) masters() []checkoutMaster {
 func (c *Checkouts) Maintain() {
 	if c == nil {
 		return
+	}
+	c.mu.Lock()
+	waiting := c.waiting
+	c.waiting = nil
+	c.mu.Unlock()
+	for _, task := range waiting {
+		c.Enqueue(task)
 	}
 	for _, master := range c.masters() {
 		if c.now().Sub(master.used) > checkoutIdleFor {

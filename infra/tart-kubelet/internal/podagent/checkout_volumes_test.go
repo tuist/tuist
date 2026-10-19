@@ -442,3 +442,48 @@ func TestCheckoutRefreshesAreThrottledUnlessTheJobCommitIsNew(t *testing.T) {
 		t.Fatal("a new job commit must still be fetched")
 	}
 }
+
+func TestCheckoutBuildRefusedForRoomIsRetriedByMaintain(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	full := true
+	c.Room = func(context.Context, uint64) (func(), error) {
+		if full {
+			return nil, cachevolumes.ErrCapacity
+		}
+		return func() {}, nil
+	}
+	c.process(context.Background(), checkoutTestTask())
+	if c.Master(checkoutTestScope, 1) != "" || len(c.queue) != 0 {
+		t.Fatal("a build without room ran or was queued straight away")
+	}
+
+	full = false
+	c.Maintain()
+	if len(c.queue) != 1 {
+		t.Fatal("maintain did not retry the refused build")
+	}
+	c.process(context.Background(), c.pending[<-c.queue])
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("the retried build made no master")
+	}
+	c.Maintain()
+	if len(c.queue) != 0 {
+		t.Fatal("a finished build was retried again")
+	}
+}
+
+func TestCheckoutNewerRequestReplacesAWaitingBuild(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, cachevolumes.ErrCapacity }
+	c.process(context.Background(), checkoutTestTask())
+
+	newer := checkoutTestTask()
+	newer.Token = "ghs_newer"
+	c.Enqueue(newer)
+	c.Maintain()
+	if len(c.queue) != 1 || c.pending[checkoutTestScope].Token != "ghs_newer" {
+		t.Fatal("the waiting build was not replaced by the newer request")
+	}
+}
