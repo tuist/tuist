@@ -53,6 +53,12 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   Their IDs are client-chosen and project-scoped: the get tools take
   `account_handle`, `project_handle` and the ID and authorize project build-read.
   Never add an ID-only lookup for them.
+- `connect_project_repository` and `disconnect_project_repository` share
+  `VCS.connect_github_repository/3`, `VCS.disconnect_github_repository/1`
+  and `VCS.connect_github_repository_error/2` with the REST endpoint. They
+  authorize project `:update`, and linking only accepts repositories in the
+  account's GitHub App installation list, never a repository an installation
+  token merely can read.
 - Code coverage tools (`get_coverage`, `list_coverage_files`,
   `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
   derive their output schemas from `Tests.Coverage.Schemas` through

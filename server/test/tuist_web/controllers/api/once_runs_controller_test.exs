@@ -94,6 +94,28 @@ defmodule TuistWeb.API.OnceRunsControllerTest do
              }
     end
 
+    test "counts lost runs as failures, as they are shown", %{conn: conn, project: project, path: path} do
+      lost = run(project, finalization: "lost", exit_status: nil)
+      failed = run(project, exit_status: 1, started_at: ~U[2026-09-30 10:00:00.000000Z])
+      run(project, exit_status: 0)
+
+      response = conn |> get(path <> "?status=failure") |> json_response(200)
+
+      assert response["runs"] |> Enum.map(& &1["run_id"]) |> Enum.sort() == Enum.sort([lost, failed])
+      assert Enum.all?(response["runs"], &(&1["status"] == "failure"))
+    end
+
+    test "returns an empty page past the last one", %{conn: conn, project: project, path: path} do
+      run(project, [])
+
+      response = conn |> get(path <> "?page=3") |> json_response(200)
+
+      assert response["runs"] == []
+
+      assert %{"current_page" => 3, "total_pages" => 1, "has_next_page" => false, "has_previous_page" => true} =
+               response["pagination_metadata"]
+    end
+
     test "rejects unknown kinds", %{conn: conn, path: path} do
       assert conn |> get(path <> "?kind=deploy") |> json_response(400)
     end

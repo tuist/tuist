@@ -57,18 +57,8 @@ defmodule Tuist.MCP.Components.Tools.ConnectProjectRepository do
       {:ok, connection} ->
         {:ok, %{provider: Atom.to_string(connection.provider), repository_full_handle: connection.repository_full_handle}}
 
-      {:error, {:already_connected, connection}} ->
-        {:error,
-         "The project is already linked to #{connection.repository_full_handle}. Unlink it with `disconnect_project_repository` before linking another repository."}
-
-      {:error, :github_app_not_installed} ->
-        {:error, "The account has no GitHub App installation. Install it from the account's integrations settings."}
-
-      {:error, :repository_not_accessible} ->
-        {:error, "The account's GitHub App installation can't access #{handle}."}
-
-      {:error, %Ecto.Changeset{}} ->
-        {:error, "The project couldn't be linked to #{handle}."}
+      {:error, reason} ->
+        {:error, VCS.connect_github_repository_error(reason, handle)}
     end
   end
 

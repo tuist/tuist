@@ -367,7 +367,12 @@ defmodule Tuist.OnceEvents.Analytics do
     do: where(query, [r], r.finalization == "finalized" and r.exit_status == 0)
 
   defp apply_flop_filter(%{field: :status, op: :==, value: "failure"}, query),
-    do: where(query, [r], r.finalization == "finalized" and r.exit_status != 0)
+    do:
+      where(
+        query,
+        [r],
+        r.finalization == "lost" or (r.finalization == "finalized" and (is_nil(r.exit_status) or r.exit_status != 0))
+      )
 
   defp apply_flop_filter(%{field: :git_branch, op: :==, value: branch}, query) when is_binary(branch),
     do: where(query, [r], r.git_branch == ^branch)

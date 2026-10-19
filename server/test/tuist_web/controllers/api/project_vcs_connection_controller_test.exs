@@ -219,6 +219,109 @@ defmodule TuistWeb.API.ProjectVCSConnectionControllerTest do
       assert json_response(conn, :conflict)["message"] =~ "acme/other"
     end
 
+    test "points to the dashboard when the project is linked through Origin", %{
+      conn: conn,
+      user: user,
+      account: account,
+      project: project
+    } do
+      stub(Tuist.Environment, :origin_app_id, fn -> "app_tuist" end)
+
+      stub(Tuist.Origin.Client, :get_installation, fn "i_test" ->
+        {:ok,
+         %{
+           "id" => "i_test",
+           "appId" => "app_tuist",
+           "target" => %{"id" => "ns_test"},
+           "scopes" => Tuist.Origin.Client.scopes()
+         }}
+      end)
+
+      {:ok, origin_installation} =
+        Tuist.Origin.attach_installation(account, %{"sub" => "i_test", "namespace_id" => "ns_test"})
+
+      {:ok, _} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :origin,
+          repository_full_handle: "acme/rocket",
+          origin_app_installation_id: origin_installation.id
+        })
+
+      reject(&Client.list_installation_repositories/2)
+
+      conn = conn |> as_user(user) |> put(vcs_path(account, project), %{repository_full_handle: "acme/app"})
+
+      assert json_response(conn, :conflict)["message"] =~ "through Origin"
+    end
+
+    test "reports GitHub being unreachable separately from an inaccessible repository", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account,
+      project: project
+    } do
+      VCSFixtures.github_app_installation_fixture(account: organization)
+      stub(Client, :list_installation_repositories, fn _installation, _opts -> {:error, :timeout} end)
+
+      conn = conn |> as_user(user) |> put(vcs_path(account, project), %{repository_full_handle: "acme/app"})
+
+      assert json_response(conn, :bad_gateway)["message"] =~ "couldn't reach GitHub"
+      refute Tuist.Repo.get_by(VCSConnection, project_id: project.id)
+    end
+
+    test "finds a repository added to the installation after its repositories were cached", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account,
+      project: project
+    } do
+      VCSFixtures.github_app_installation_fixture(account: organization)
+
+      Client
+      |> expect(:list_installation_repositories, fn _installation, _opts ->
+        {:ok, %{meta: %{next_url: nil}, repositories: [repository("acme/other")]}}
+      end)
+      |> expect(:list_installation_repositories, fn _installation, _opts ->
+        {:ok, %{meta: %{next_url: nil}, repositories: [repository("acme/other"), repository("acme/app")]}}
+      end)
+
+      conn = conn |> as_user(user) |> put(vcs_path(account, project), %{repository_full_handle: "acme/app"})
+
+      assert json_response(conn, :ok)["repository_full_handle"] == "acme/app"
+    end
+
+    test "answers from the winning link when a concurrent link to the same repository wins the race", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account,
+      project: project
+    } do
+      installation = VCSFixtures.github_app_installation_fixture(account: organization)
+      stub_installation_repositories([repository("acme/app")])
+
+      expect(Projects, :create_vcs_connection, fn attrs ->
+        {:ok, _} =
+          call_original(Projects, :create_vcs_connection, [
+            %{
+              project_id: project.id,
+              provider: :github,
+              repository_full_handle: "acme/app",
+              github_app_installation_id: installation.id
+            }
+          ])
+
+        call_original(Projects, :create_vcs_connection, [attrs])
+      end)
+
+      conn = conn |> as_user(user) |> put(vcs_path(account, project), %{repository_full_handle: "acme/app"})
+
+      assert json_response(conn, :ok) == %{"provider" => "github", "repository_full_handle" => "acme/app"}
+    end
+
     test "rejects a malformed repository handle", %{conn: conn, user: user, account: account, project: project} do
       conn = conn |> as_user(user) |> put(vcs_path(account, project), %{repository_full_handle: "not a repository"})
 

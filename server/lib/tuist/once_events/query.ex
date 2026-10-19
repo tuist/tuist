@@ -4,6 +4,7 @@ defmodule Tuist.OnceEvents.Query do
   alias Tuist.OnceEvents.Analytics
 
   def list_runs(project_id, params) do
+    page = Map.get(params, "page", 1)
     page_size = Map.get(params, "page_size", 20)
 
     filters =
@@ -18,19 +19,23 @@ defmodule Tuist.OnceEvents.Query do
           filters: filters,
           order_by: [:started_at, :id],
           order_directions: [:desc, :desc],
-          page: Map.get(params, "page", 1),
+          page: page,
           page_size: page_size
         },
         commands: params["kind"],
         is_ci: params["is_ci"]
       )
 
+    # list_invocations clamps a page past the end to the last page; an API
+    # page past the end is empty, as it is for Cargo and Mix builds.
+    runs = if page > meta.current_page, do: [], else: runs
+
     %{
       runs: Enum.map(runs, &run/1),
       pagination_metadata: %{
-        has_next_page: meta.current_page < meta.total_pages,
-        has_previous_page: meta.current_page > 1,
-        current_page: meta.current_page,
+        has_next_page: page < meta.total_pages,
+        has_previous_page: page > 1,
+        current_page: page,
         page_size: page_size,
         total_count: meta.total_count,
         total_pages: meta.total_pages

@@ -55,7 +55,8 @@ defmodule TuistWeb.API.ProjectVCSConnectionController do
       unprocessable_entity:
         {"The account has no GitHub App installation, or the installation can't access the repository",
          "application/json", Error},
-      too_many_requests: Responses.authorization_throttled()
+      too_many_requests: Responses.authorization_throttled(),
+      bad_gateway: {"GitHub couldn't be reached to check the installation's repositories", "application/json", Error}
     }
   )
 
@@ -64,32 +65,16 @@ defmodule TuistWeb.API.ProjectVCSConnectionController do
       {:ok, connection} ->
         json(conn, serialize(connection))
 
-      {:error, {:already_connected, connection}} ->
+      {:error, reason} ->
         conn
-        |> put_status(:conflict)
-        |> json(%{
-          message:
-            "The project is already linked to #{connection.repository_full_handle}. Unlink it before linking another repository."
-        })
-
-      {:error, :github_app_not_installed} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{
-          message: "The account has no GitHub App installation. Install it from the account's integrations settings."
-        })
-
-      {:error, :repository_not_accessible} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{message: "The account's GitHub App installation can't access #{handle}."})
-
-      {:error, %Ecto.Changeset{}} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{message: "The project couldn't be linked to #{handle}."})
+        |> put_status(error_status(reason))
+        |> json(%{message: VCS.connect_github_repository_error(reason, handle)})
     end
   end
+
+  defp error_status({:already_connected, _connection}), do: :conflict
+  defp error_status(:github_unavailable), do: :bad_gateway
+  defp error_status(_reason), do: :unprocessable_entity
 
   operation(:delete,
     summary: "Unlink a project from its GitHub repository.",
