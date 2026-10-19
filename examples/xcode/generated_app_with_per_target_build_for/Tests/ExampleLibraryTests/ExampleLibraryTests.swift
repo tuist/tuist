@@ -1,8 +1,8 @@
 import ExampleLibrary
-import XCTest
+import Testing
 
-final class ExampleLibraryTests: XCTestCase {
-    func test_greeting() {
-        XCTAssertEqual(Greeting.message, "Hello from ExampleLibrary")
+struct ExampleLibraryTests {
+    @Test func greeting() {
+        #expect(Greeting.message == "Hello from ExampleLibrary")
     }
 }

@@ -21,12 +21,13 @@ extension XcodeGraph.BuildAction {
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
+        var seenTargets: Set<XcodeGraph.TargetReference> = []
         let targets: [XcodeGraph.TargetReference] = try manifest.targets.map {
-            .init(
+            XcodeGraph.TargetReference(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                 name: $0.targetName
             )
-        }
+        }.filter { seenTargets.insert($0).inserted }
         let buildFor = try mapBuildFor(
             manifest.buildFor,
             generatorPaths: generatorPaths
@@ -43,8 +44,8 @@ extension XcodeGraph.BuildAction {
     }
 }
 
-private extension XcodeGraph.BuildAction {
-    static func mapBuildFor(
+extension XcodeGraph.BuildAction {
+    fileprivate static func mapBuildFor(
         _ buildFor: [ProjectDescription.TargetReference: Set<ProjectDescription.BuildActionTarget.BuildFor>],
         generatorPaths: GeneratorPaths
     ) throws -> [XcodeGraph.TargetReference: Set<XcodeGraph.BuildAction.BuildFor>] {
@@ -65,8 +66,8 @@ private extension XcodeGraph.BuildAction {
     }
 }
 
-private extension ProjectDescription.BuildActionTarget.BuildFor {
-    var graphBuildFor: XcodeGraph.BuildAction.BuildFor {
+extension ProjectDescription.BuildActionTarget.BuildFor {
+    fileprivate var graphBuildFor: XcodeGraph.BuildAction.BuildFor {
         switch self {
         case .analyzing:
             return .analyzing

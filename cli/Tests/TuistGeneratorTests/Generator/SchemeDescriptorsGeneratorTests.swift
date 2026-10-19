@@ -70,61 +70,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildImplicitDependencies, true)
     }
 
-    func test_schemeBuildAction_withPerTargetBuildForOptions() throws {
-        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
-        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
-        let targetReference = TargetReference(projectPath: projectPath, name: "App")
-        let scheme = Scheme.test(
-            buildAction: BuildAction(
-                targets: [targetReference],
-                buildFor: [targetReference: [.analyzing, .archiving, .profiling, .running]]
-            )
-        )
-        let app = Target.test(name: "App", product: .app)
-        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app])
-        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
-
-        let got = try subject.schemeBuildAction(
-            scheme: scheme,
-            graphTraverser: graphTraverser,
-            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: [
-                xcodeProjPath: generatedProject(targets: [app], projectPath: "\(xcodeProjPath)"),
-            ]
-        )
-
-        XCTAssertEqual(
-            try XCTUnwrap(got).buildActionEntries.first?.buildFor,
-            [.analyzing, .archiving, .profiling, .running]
-        )
-    }
-
-    func test_schemeBuildAction_withExplicitlyEmptyBuildForOptions() throws {
-        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
-        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
-        let targetReference = TargetReference(projectPath: projectPath, name: "App")
-        let scheme = Scheme.test(
-            buildAction: BuildAction(
-                targets: [targetReference],
-                buildFor: [targetReference: []]
-            )
-        )
-        let app = Target.test(name: "App", product: .app)
-        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app])
-        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
-
-        let got = try subject.schemeBuildAction(
-            scheme: scheme,
-            graphTraverser: graphTraverser,
-            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: [
-                xcodeProjPath: generatedProject(targets: [app], projectPath: "\(xcodeProjPath)"),
-            ]
-        )
-
-        XCTAssertEqual(try XCTUnwrap(got).buildActionEntries.first?.buildFor, [])
-    }
-
     func test_schemeBuildAction_findImplicitDependenciesFalse() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -2870,5 +2815,60 @@ struct SchemeDescriptorsGeneratorCodeCoverageTests {
                 )
             )
         })
+    }
+}
+
+struct SchemeDescriptorsGeneratorBuildForTests {
+    @Test func perTargetBuildForOptions() throws {
+        try expectBuildFor(
+            options: [.analyzing, .archiving, .profiling, .running],
+            expected: [.analyzing, .archiving, .profiling, .running]
+        )
+    }
+
+    @Test func explicitlyEmptyBuildForOptions() throws {
+        try expectBuildFor(options: [], expected: [])
+    }
+
+    @Test func defaultBuildForOptions() throws {
+        try expectBuildFor(options: nil, expected: [.analyzing, .archiving, .profiling, .running, .testing])
+    }
+
+    private func expectBuildFor(
+        options: Set<BuildAction.BuildFor>?,
+        expected: [XCScheme.BuildAction.Entry.BuildFor]
+    ) throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let appReference = TargetReference(projectPath: projectPath, name: "App")
+        let testsReference = TargetReference(projectPath: projectPath, name: "AppTests")
+        var buildAction = BuildAction(
+            targets: [appReference, testsReference],
+            buildFor: [testsReference: [.testing]]
+        )
+        buildAction.buildFor[appReference] = options
+        let scheme = Scheme.test(buildAction: buildAction)
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app, tests])
+        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: xcodeProjPath,
+            targets: ["App": PBXNativeTarget(name: "App"), "AppTests": PBXNativeTarget(name: "AppTests")],
+            name: "Project"
+        )
+
+        let got = try SchemeDescriptorsGenerator().schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: [xcodeProjPath: generatedProject]
+        )
+
+        let result = try #require(got)
+        #expect(result.buildActionEntries.count == 2)
+        #expect(result.buildActionEntries[0].buildFor == expected)
+        #expect(result.buildActionEntries[1].buildFor == [.testing])
     }
 }

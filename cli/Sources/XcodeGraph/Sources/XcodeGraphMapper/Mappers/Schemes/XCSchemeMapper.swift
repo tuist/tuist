@@ -67,12 +67,16 @@ struct XCSchemeMapper: SchemeMapping {
     ) throws -> BuildAction? {
         guard let action else { return nil }
 
-        let entries = try action.buildActionEntries.map { entry -> (target: TargetReference, buildFor: Set<BuildAction.BuildFor>) in
+        let entries = try action.buildActionEntries.map { entry -> (
+            target: TargetReference,
+            buildFor: Set<BuildAction.BuildFor>
+        ) in
             let target = try mapTargetReference(buildableReference: entry.buildableReference, graphType: graphType)
             let buildFor = mapBuildFor(entry.buildFor)
             return (target, buildFor)
         }
-        let targets = entries.map(\.target)
+        var seenTargets: Set<TargetReference> = []
+        let targets = entries.map(\.target).filter { seenTargets.insert($0).inserted }
         let defaultBuildFor = Set(BuildAction.BuildFor.allCases)
         let mergedBuildFor = Dictionary(
             entries.map { ($0.target, $0.buildFor) },

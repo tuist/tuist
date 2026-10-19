@@ -70,6 +70,7 @@ struct BuildActionManifestMapperTests {
                     target: "Feature",
                     buildFor: [.running]
                 ),
+                .target("App", buildFor: []),
                 .project(
                     path: .relativeToManifest("../Feature/."),
                     target: "Feature",
@@ -87,6 +88,9 @@ struct BuildActionManifestMapperTests {
             projectPath: temporaryDirectory.appending(component: "Feature"),
             name: "Feature"
         )
+        let appTarget = XcodeGraph.TargetReference(projectPath: manifestDirectory, name: "App")
+        #expect(subject.targets == [featureTarget, appTarget])
         #expect(subject.buildFor[featureTarget] == [.running, .testing])
+        #expect(subject.buildFor[appTarget] == [])
     }
 }

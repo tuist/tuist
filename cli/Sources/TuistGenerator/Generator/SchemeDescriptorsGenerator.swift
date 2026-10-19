@@ -1182,8 +1182,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 }
 
-private extension BuildAction.BuildFor {
-    var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
+extension BuildAction.BuildFor {
+    fileprivate var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
         switch self {
         case .analyzing:
             return .analyzing

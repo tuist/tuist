@@ -138,6 +138,7 @@ struct XCSchemeMapperTests {
         let mappedAction = try #require(mapped.buildAction)
         let mappedTarget = try #require(mappedAction.targets.first)
 
+        #expect(mappedAction.targets == [mappedTarget])
         #expect(mappedAction.buildFor[mappedTarget] == [.running, .testing])
     }
 
