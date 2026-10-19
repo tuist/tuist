@@ -44,10 +44,10 @@ extension WorkspacePrebuilts {
                 guard files?.contains(where: { $0.pathExtension == "json" }) == true else { continue }
                 candidates.append((pin, identity, version, cached))
             }
-            // SwiftPM skips prebuilts altogether when the cache holds this marker.
             let disabled = try await ignoringFailures {
                 try await fileSystem.exists(cache.appendingPathComponent("noprebuilts").absolutePath)
             }
+            // SwiftPM skips prebuilts altogether when the cache holds that marker.
             guard !candidates.isEmpty, disabled != true, let name = try await name() else { return [] }
 
             var restored: [[String: Any]] = []

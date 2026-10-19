@@ -835,8 +835,9 @@ struct RestoreTests {
                 prebuiltName: current, package: package, scratch: scratch, pins: [pin], cache: cache, mirrors: mirrors
             )
 
+            let artifact = scratch.appendingPathComponent("prebuilts/swift-syntax/603.0.0/\(current)-MacroSupport")
             #expect(try await recordedPrebuiltPaths(scratchDir: scratch).isEmpty)
-            #expect(try await !fileSystem.exists(scratch.appendingPathComponent("prebuilts/swift-syntax/603.0.0/\(current)-MacroSupport").absolutePath))
+            #expect(try await !fileSystem.exists(artifact.absolutePath))
         }
     }
 
