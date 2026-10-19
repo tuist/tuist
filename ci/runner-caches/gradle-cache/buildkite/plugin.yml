@@ -1,0 +1,7 @@
+name: Tuist Gradle cache
+description: Keep Gradle's dependency and wrapper caches across jobs on Tuist Linux and macOS runners.
+author: https://github.com/tuist
+requirements: [bash]
+configuration:
+  type: object
+  additionalProperties: false

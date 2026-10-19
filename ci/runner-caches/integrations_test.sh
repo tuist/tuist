@@ -65,3 +65,39 @@ cmp "$source_dir/xcode-cache/gitlab/package.sh" "$source_dir/module-cache/gitlab
 diff <(sed 's/xcode/module/' "$source_dir/xcode-cache/buildkite/hooks/pre-command") "$source_dir/module-cache/buildkite/hooks/pre-command"
 diff <(sed 's/xcode/module/' "$source_dir/xcode-cache/gitlab/xcode-cache.yml") "$source_dir/module-cache/gitlab/module-cache.yml"
 echo 'ok: the two caches differ only by name'
+
+# Gradle: every entry point attaches the same volume and writes the same init
+# script as the GitHub action.
+cat > "$fixture/bin/tuist-cache-volume" <<'CLIENT'
+#!/bin/bash
+printf '%s\n' "$@" > "$CAPTURE_ARGS"
+exit "${CLIENT_EXIT:-0}"
+CLIENT
+chmod +x "$fixture/bin/tuist-cache-volume"
+sed -n "/<<'GROOVY'$/,/^GROOVY$/p" "$source_dir/../../.github/actions/gradle-cache/setup.sh" | sed '1d;$d' > "$fixture/expected-init"
+[[ -s "$fixture/expected-init" ]]
+sed -n 's/^      //p' "$source_dir/gradle-cache/gitlab/gradle-cache.yml" > "$fixture/gradle-gitlab.sh"
+gradle_hook="$source_dir/gradle-cache/buildkite/hooks/pre-command"
+
+run_gradle() {
+  rm -rf "$fixture/gradle-home"
+  (cd "$fixture" && HOME="$fixture/gradle-home" PATH="$fixture/bin:/usr/bin:/bin" "$1" -c '. "$1"; echo after' _ "$2")
+}
+for entry in "bash $gradle_hook" "bash $fixture/gradle-gitlab.sh" "sh $fixture/gradle-gitlab.sh"; do
+  read -r shell script <<< "$entry"
+  [[ $(run_gradle "$shell" "$script") == *after ]]
+  printf '%s\n' --key gradle --path "$fixture/gradle-home/.gradle/caches" --path "$fixture/gradle-home/.gradle/wrapper" > "$fixture/expected-args"
+  cmp "$fixture/expected-args" "$CAPTURE_ARGS"
+  cmp "$fixture/expected-init" "$fixture/gradle-home/.gradle/init.d/tuist-gradle-cache.gradle"
+
+  [[ $(CLIENT_EXIT=2 run_gradle "$shell" "$script" 2> "$fixture/err") == *after ]]
+  grep -q '^Warning:' "$fixture/err"
+  [[ ! -e "$fixture/gradle-home/.gradle/init.d" ]]
+done
+echo 'ok: Gradle entry points attach the cache and install the cleanup init script'
+
+bash "$source_dir/gradle-cache/buildkite/package.sh" "$fixture/gradle-buildkite"
+[[ -x "$fixture/gradle-buildkite/hooks/pre-command" ]]
+bash "$source_dir/gradle-cache/gitlab/package.sh" "$fixture/gradle-gitlab"
+[[ -f "$fixture/gradle-gitlab/gradle-cache.yml" ]]
+echo 'ok: Gradle packages are self-contained'

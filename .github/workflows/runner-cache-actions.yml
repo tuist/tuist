@@ -5,6 +5,7 @@ on:
     paths:
       - .github/actions/xcode-cache/**
       - .github/actions/module-cache/**
+      - .github/actions/gradle-cache/**
       - ci/runner-caches/**
       - infra/runner-image/tuist-runner-cache
       - infra/runner-image/runner-caches_test.sh
@@ -14,6 +15,7 @@ on:
     paths:
       - .github/actions/xcode-cache/**
       - .github/actions/module-cache/**
+      - .github/actions/gradle-cache/**
       - ci/runner-caches/**
       - infra/runner-image/tuist-runner-cache
       - infra/runner-image/runner-caches_test.sh
@@ -32,6 +34,7 @@ jobs:
           persist-credentials: false
       - run: bash .github/actions/xcode-cache/action_test.sh
       - run: bash .github/actions/module-cache/action_test.sh
+      - run: bash .github/actions/gradle-cache/action_test.sh
       - run: bash infra/runner-image/runner-caches_test.sh
       - run: bash ci/runner-caches/integrations_test.sh
       - name: Actions share their scripts
@@ -49,10 +52,21 @@ jobs:
           printf 'TUIST_TEST_%s_CACHE=on\n' "${2^^}"
           HELPER
           chmod +x "$RUNNER_TEMP/helper-bin/tuist-runner-cache"
+          cat > "$RUNNER_TEMP/helper-bin/tuist-cache-volume" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          [[ "$1" == --key && "$2" == gradle ]]
+          printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
+          CLIENT
+          chmod +x "$RUNNER_TEMP/helper-bin/tuist-cache-volume"
           echo "$RUNNER_TEMP/helper-bin" >> "$GITHUB_PATH"
       - uses: ./.github/actions/xcode-cache
       - uses: ./.github/actions/module-cache
+      - uses: ./.github/actions/gradle-cache
+        id: gradle
       - name: Verify exported environment
         run: |
           test "$TUIST_TEST_XCODE_CACHE" = on
           test "$TUIST_TEST_MODULE_CACHE" = on
+          test "${{ steps.gradle.outputs.cache-hit }}" = true
+          test -f "$HOME/.gradle/init.d/tuist-gradle-cache.gradle"
