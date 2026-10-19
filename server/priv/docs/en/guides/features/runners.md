@@ -71,7 +71,7 @@ Your current limits are shown alongside each chart. If your workflows regularly 
 />
   <.home_card
     title="Cache volumes"
-    details="Keep dependency directories between Linux jobs with a private writable copy for each run."
+    details="Keep the Xcode, module and Gradle caches and any other directory between jobs, with a private writable copy for each run."
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>

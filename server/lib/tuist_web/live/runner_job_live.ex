@@ -78,7 +78,12 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
-         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id,
+             include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(selected_account)
+           )
+         )
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
@@ -172,7 +177,9 @@ defmodule TuistWeb.RunnerJobLive do
           type="secondary"
           size="large"
           title={
-            dgettext("dashboard_runners", "%{volume} ran out of space", volume: usage.volume.key)
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
           }
           description={
             dgettext(
@@ -189,7 +196,7 @@ defmodule TuistWeb.RunnerJobLive do
           row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
         >
           <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
-            <.text_cell label={usage.volume.key} />
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
           </:col>
           <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
             <.badge_cell

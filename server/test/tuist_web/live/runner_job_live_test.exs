@@ -10,6 +10,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -2068,9 +2070,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   end
 
   test "flags a volume that a failed job filled as the likely cause" do
-    volume = %Tuist.Runners.CacheVolumes.Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
 
-    usage = %Tuist.Runners.CacheVolumes.Usage{
+    usage = %Usage{
       volume_id: volume.id,
       volume: volume,
       warm: true,
@@ -2090,6 +2092,29 @@ defmodule TuistWeb.RunnerJobLiveTest do
     roomy = %{usage | size_bytes: 10_000_000_000}
     html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
     refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
+  test "names managed volumes after the caches they hold" do
+    builtin = %Volume{id: Ecto.UUID.generate(), key: "tuist-cache", builtin_name: "tuist-cache"}
+    gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
+
+    usages =
+      for volume <- [builtin, gradle] do
+        %Usage{
+          volume_id: volume.id,
+          volume: volume,
+          warm: true,
+          size_bytes: 19_427_938_304,
+          capacity_bytes: 19_503_599_616
+        }
+      end
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
+
+    assert html =~ "Xcode and module caches"
+    assert html =~ "Gradle cache ran out of space"
+    refute html =~ "tuist-cache"
+    refute html =~ "tuist-gradle"
   end
 
   defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
