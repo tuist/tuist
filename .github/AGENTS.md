@@ -133,6 +133,51 @@ Git configuration, so checkout's local authentication does not reach their nativ
 SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
 never persist it or extend its host scope beyond github.com.
 
+## CLI dependency volumes
+
+macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
+volumes do not require the larger M4 shape. If host cache capacity is unavailable,
+each attachment falls back independently to an empty job-local directory; always
+run dependency installation and do not require a hit in ordinary jobs. Forks use
+the same custom volumes: the runner's verified job identity authorizes attachment
+without workflow credentials, and the server forbids fork publication. This is
+separate from the built-in account-wide cache policy. Retained contents must be
+safe for fork contributors to read. Linux and release/backport workflows have
+separate toolchain and runner requirements and are not part of this migration.
+
+Use the released `tuist/install@v1` action after tool installation and authentication.
+It combines one package-relative `.build` volume with forced installation, explicit
+scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
+use its automatic GitHub archive/copy backend. Do not add a second cache step.
+The macOS native SwiftPM resolve/build commands use the same
+`--cache-path "$PWD/.build/dependency-cache"`. The released CLI must include #14304
+so internal manifest dumps honor that path too. Keep the existing v2 workspace
+keys through the action's `cache-key` input: they include job, Xcode version and
+`Package.swift`, not the lockfile. The fork acceptance job uses the acceptance-build
+key so default-branch runs can seed it. Preserve fork guards for Tuist login,
+setup, and enterprise sources; installation itself remains unconditional.
+Keep configuration, security, and authentication outside the cache. Mise's
+postinstall hook skips dependency installation on CI so it does not populate the
+volume target before the action runs.
+
+Set `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development
+settings do not invalidate manifest fingerprints. `Tuist.swift` uses plain
+`packageManifestEnvironment: .automatic`, backed by #14162's released filtering
+and separate native-resolution authentication. #14156's content-based manifest
+caches reuse unchanged root and local packages across fresh checkout timestamps.
+Keep platform/toolchain and application inputs visible, and always measure
+fresh-runner reuse: a volume hit alone does not prove evaluation was skipped.
+The historical 8.31-second result used explicit exclusions and a larger runner;
+it is not a benchmark of this single-volume layout or the automatic policy.
+
+Ordinary PR jobs consume private snapshots without publishing. Successful
+permitted jobs seed the new keys; measure warm jobs only after publication.
+Always run installation on hits to validate the current lockfile. Track queue
+time separately, and distinguish actual attachment/hits from empty-directory
+fallback. Retaining only an external source/native-manifest cache is possible,
+but rebuilds workspace state and manifest JSON; benchmark it separately before
+changing the retained layout.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
