@@ -63,6 +63,9 @@ Add `KURA_E2E_LIVE_WRITE_CHURN=1` to the full-ring preparation workload to keep
 rewriting 2 MiB records until Quiescing rejects writes. Preserve the same source
 keys and bytes so the held-corpus check still verifies every retained body. A
 preparation success must not replace the final repair, hold or matching receipt.
+`KURA_E2E_PREPARATION_DEADLINE_MS` may shorten only this simulator phase for a
+bounded failure comparison; the default remains 20 minutes and the final barrier
+remains five minutes. Record any shortened deadline with the measurements.
 Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
 of old destination-only data. Assert it stays absent on the source, then require
 an eviction-triggered repair revisit and matching full-corpus receipts before

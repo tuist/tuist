@@ -32,6 +32,7 @@ assert(
 const f = await fixture(image, "active", output);
 const retained = [];
 const preparationSessions = [];
+let preparationChannelsAt = 0;
 const preparationKey = "live-preparation";
 const preparationQuery = "?tenant_id=default&namespace_id=segmented-handover";
 const preparationWrite = (i) =>
@@ -220,17 +221,21 @@ try {
   }
   if (prepare) {
     // Seeding may outlive normal connection aging. Establish the channels for
-    // this transition now, prove writes while Serving, and never replace them.
+    // preparation now; keep the last proven set once Quiescing starts.
     for (const address of f.urls) {
       const session = http2.connect(address);
       session.on("error", () => {});
       preparationSessions.push(session);
     }
+    preparationChannelsAt = Date.now();
     assert.equal((await preparationWrite(0)).status, 204);
   }
   const startHandover = Date.now();
   result.barrier = await handover(f, {
     deadlineMs: 300000,
+    preparationDeadlineMs: Number(
+      process.env.KURA_E2E_PREPARATION_DEADLINE_MS ?? 1200000,
+    ),
     prepare: prepare
       ? async () => {
           if (liveChurn && !churn)
@@ -238,6 +243,18 @@ try {
               churnError = error;
             });
           assert.equal(churnError, undefined);
+          if (Date.now() - preparationChannelsAt > 45000) {
+            // The fixture still owns a Serving grant here. Prove these channels
+            // now and retain the last proven set through Quiescing and transfer.
+            for (const session of preparationSessions) session.destroy();
+            preparationSessions.length = 0;
+            for (const address of f.urls) {
+              const session = http2.connect(address);
+              session.on("error", () => {});
+              preparationSessions.push(session);
+            }
+            preparationChannelsAt = Date.now();
+          }
           for (const replica of [0, 1]) {
             assert.equal(
               (await preparationWrite(replica)).status,
