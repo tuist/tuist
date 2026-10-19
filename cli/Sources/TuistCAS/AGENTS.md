@@ -1,6 +1,6 @@
 # TuistCAS (CLI Module)
 
-This module resolves cache URLs for the CLI and the compilation-cache proxy, and records local Xcode cache setup configuration.
+This module resolves cache URLs for the CLI and the compilation-cache proxy, and owns the stable Xcode cache proxy launcher.
 The Xcode compilation-cache transport lives in `cas-plugin/`.
 
 ## Responsibilities
@@ -9,7 +9,7 @@ The Xcode compilation-cache transport lives in `cas-plugin/`.
 - Recognize the exact hosted server URLs and derive their stable hostname without any discovery request. Other servers use `GET /api/cache/endpoint`, which returns one main URL; do not choose between addresses or probe latency. Validate handles before composing DNS names.
 - Cache self-hosted endpoint configuration in process for the response max-age (at most 60 seconds); never record demand or poll provisioning during URL resolution. Actual cache requests wake archived hosted instances through the shared activation gateway; authentication and provisioning are server responsibilities.
 
-- `XcodeCacheInstallationStore` uses injected `FileSysteming`, asynchronous persistence/metadata operations, and `AbsolutePath` for filesystem paths. Its `cas-install.json` records only the setup Tuist version, LaunchAgent/program modification times, Xcode build version, and whether a plugin was installed. Invalidate it before setup or teardown changes; record it only after successful setup. Trust its version only while both modification times still match. Read the actual executable and Xcode directory from the LaunchAgent, without copying its credentials. Generation remains read-only and version-based, not a binary comparison or runtime health check. Suppress upgrade warnings for a verified newer setup, but still report Xcode changes or missing files. A retained plugin without an agent or manifest stays silent after teardown.
+- `XcodeCacheInstallationStore` uses injected `FileSysteming`, asynchronous persistence, and `AbsolutePath`. `cas-launcher.sh` is a stable `/bin/sh` entry point that execs the CLI named by `cas-launch-target.json`, preserving launchd's arguments and credentials. The pointer contains only the executable and Tuist version. Serialize semantic-version comparisons and atomic writes under cancellable `cas-launcher.lock`; never move backward or switch live equal-version installations. Generation may only advance an already installed launcher, never install, authenticate, replace the plugin, or restart a service. A corrupt pointer must not authorize a downgrade. Teardown removes the launcher before its pointer under the same lock so generation cannot resurrect it, and retains the stable plugin.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

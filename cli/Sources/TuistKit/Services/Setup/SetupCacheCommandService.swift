@@ -107,7 +107,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private let installationStore: XcodeCacheInstallationStoring
 
     init(
-        launchAgentService: LaunchAgentServicing = LaunchAgentService(),
+        launchAgentService: LaunchAgentServicing = LaunchAgentService(executablePath: "/bin/sh"),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
@@ -430,7 +430,6 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         // Serialize setups that honor this lock. Older CLIs and active builds
         // do not participate, so setup must still run only when builds are idle.
         try await withFileLock(at: installationDirectory.appending(component: "cas-setup.lock")) {
-            try await installationStore.invalidate()
             // Register before starting the proxy, whose startup snapshot must use
             // the project's trunk and upload policy from its very first request.
             try await registerSource(
@@ -440,16 +439,32 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 upload: config.xcodeCache.upload,
                 storeSizeLimit: config.xcodeCache.storeSizeLimit
             )
+            guard let executable = Environment.current.currentExecutablePath() else {
+                throw LaunchAgentServiceError.missingExecutablePath
+            }
+            let selected = try await installationStore.update(
+                executable: executable,
+                tuistVersion: Constants.version,
+                onlyIfInstalled: false
+            )
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
-            casPlugin = try await installCASPlugin()
-            do {
-                try await installationStore.record(
-                    pluginInstalled: casPlugin != nil,
-                    xcodeBuildVersion: try? await xcodeController.selectedBuildVersion(),
-                    tuistVersion: Constants.version
-                )
-            } catch {
-                Logger.current.debug("Could not record the Xcode Cache installation: \(error.localizedDescription)")
+            if selected {
+                // Generation may have selected a newer CLI while readiness was
+                // pending. Share the pointer/proxy refresh lock through the copy.
+                try await withFileLock(at: installationDirectory.appending(component: "cas-launcher.lock")) {
+                    let targetPath = installationDirectory.appending(component: "cas-launch-target.json")
+                    if try await fileSystem.exists(targetPath) {
+                        let target: [String: String] = try await fileSystem.readJSONFile(at: targetPath)
+                        guard target["tuistVersion"] == Constants.version else {
+                            let installed = Environment.current.casPluginInstallPath()
+                            casPlugin = try await fileSystem.exists(installed) ? installed : nil
+                            return
+                        }
+                    }
+                    casPlugin = try await installCASPlugin()
+                }
+            } else if try await fileSystem.exists(Environment.current.casPluginInstallPath()) {
+                casPlugin = Environment.current.casPluginInstallPath()
             }
         }
         return casPlugin
@@ -473,7 +488,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     /// Copies the CAS plugin that ships with this Tuist to `casPluginInstallPath()` and
     /// returns that path, or `nil` when this Tuist ships no plugin.
     ///
-    /// Refreshed on every setup, like the proxy, so both come from the same Tuist. The
+    /// Called under the launcher lock only while this Tuist is still selected. The
     /// new copy is swapped in with `rename`, so a compiler that has the old plugin
     /// loaded keeps running on it.
     private func installCASPlugin() async throws -> AbsolutePath? {
@@ -530,7 +545,12 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private func installProxy(fullHandle: String, serverURL: URL) async throws {
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
 
-        var programArguments = ["cache-proxy", "--url", serverURL.absoluteString]
+        let directory = Environment.current.casPluginInstallPath().parentDirectory
+        var programArguments = [
+            directory.appending(component: "cas-launcher.sh").pathString,
+            directory.appending(component: "cas-launch-target.json").pathString,
+            "cache-proxy", "--url", serverURL.absoluteString,
+        ]
         if let accountHandle {
             programArguments.append(contentsOf: ["--account", accountHandle])
         }
@@ -613,6 +633,12 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             environmentVariables["TUIST_CAS_PREFETCH"] = "keys"
         }
 
+        for key in ["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_UPSTREAM_PLUGIN"] {
+            if let value = Environment.current.variables[key] {
+                environmentVariables[key] = value
+            }
+        }
+
         // The proxy loads its CAS plugin from this Xcode once, when it starts, and
         // launchd would otherwise hand it the system-wide selection even when this
         // job selected another Xcode through `DEVELOPER_DIR`. Passing it also makes
@@ -639,7 +665,13 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         // by itself (the upload policy included). Reinstalling the proxy then
         // changes nothing but its process, and puts the job through a bootout
         // for nothing.
-        let launchInputs = await proxyLaunchInputs(developerDirectory: developerDirectory)
+        // The pointer is intentionally not a launch input: the running proxy adopts
+        // it only after its requests and publications drain, without a setup restart.
+        var launchInputs = [directory.appending(component: "cas-launcher.sh")]
+        if let developerDirectory {
+            let upstream = developerDirectory.appending(components: "usr", "lib", "libToolchainCASPlugin.dylib")
+            if try await fileSystem.exists(upstream) { launchInputs.append(upstream) }
+        }
         if await launchAgentService.isLaunchAgentCurrent(
             label: label,
             plistFileName: "\(label).plist",
@@ -662,21 +694,5 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             socketPath: socketPath,
             displacing: displacedProcessIdentifier
         )
-    }
-
-    /// The files the proxy reads once, when it starts: its own binary, and the CAS
-    /// plugin of the Xcode it resolves.
-    private func proxyLaunchInputs(developerDirectory: AbsolutePath?) async -> [AbsolutePath] {
-        var inputs: [AbsolutePath] = []
-        if let proxy = try? await resourceLocator.casProxy() {
-            inputs.append(proxy)
-        }
-        if let developerDirectory {
-            let plugin = developerDirectory.appending(components: "usr", "lib", "libToolchainCASPlugin.dylib")
-            if (try? await fileSystem.exists(plugin)) == true {
-                inputs.append(plugin)
-            }
-        }
-        return inputs
     }
 }

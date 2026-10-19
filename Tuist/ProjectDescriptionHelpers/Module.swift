@@ -2158,6 +2158,7 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.environment.targetName),

@@ -1064,6 +1064,7 @@ var targets: [Target] = [
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             "TuistCAS",
             "TuistEnvironment",
+            "TuistProcess",
             "TuistServer",
             "TuistTesting",
             mockableDependency,

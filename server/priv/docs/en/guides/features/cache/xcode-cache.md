@@ -41,19 +41,19 @@ To set up the cache on the CI, make sure you are <.localized_link href="/guides/
 
 ### Updating the cache components {#updating-the-cache-components}
 
-Upgrading the Tuist CLI alone does not update the installed cache plugin or the running cache proxy. The proxy also uses the setup-time CLI for startup, configuration, and credentials, so a CLI-only change can matter even when the plugin and proxy binaries are unchanged. After upgrading Tuist, or switching or updating Xcode (including an update at the same path), refresh the setup with the intended Tuist and Xcode versions:
+The cache proxy uses a stable launcher rather than a path pinned to the Tuist installation that last ran setup. Once installed, `tuist setup cache` and cache-enabled `tuist generate` advance its target to newer Tuist releases, never older ones. Projects pinned to an older Tuist therefore do not downgrade the shared proxy. Generation only updates an existing launcher target: it does not install a service, authenticate, replace the plugin, or restart the proxy. Custom plugin, proxy, socket, or registry overrides skip automatic advancement.
+
+The running proxy adopts the new target only after at least 30 seconds without cache requests, with no requests or background work in flight and its publication spools drained. It then exits and launchd starts the selected CLI, preserving the service's arguments and credential environment. The new proxy atomically refreshes the on-disk plugin from its bundle. There is still only one proxy owning the registry and spools. An unavailable target or undrained uploads defer the switch rather than interrupting active requests. Credential refresh follows the selected CLI even before the switch, so removing an older CLI installation does not strand uploads waiting to drain.
+
+An existing installation created before the stable launcher needs one explicit migration. Run the following when no builds are running:
 
 ```bash
 tuist setup cache
 ```
 
-Wait until no builds are running before doing this: the proxy is shared by every project on the machine. Fully quit and reopen Xcode afterwards, because its build service can keep the previous plugin loaded even after the file has been replaced. If the release changes generated build settings, run `tuist generate` again too.
+After that migration, updating Tuist and running your usual `tuist generate` is enough to advance the proxy and installed plugin; you do not need to rerun setup for each CLI release. Explicit setup is still needed to select a different Xcode, including an Xcode updated at the same path. Setup can replace the shared service when its configuration changes, so wait for all builds on the machine to finish first. The proxy supports the previous plugin protocol as well as the current one, so a compatible plugin already loaded in Xcode keeps working across a proxy upgrade. Fully quit and reopen Xcode to load the newest plugin, but a compatible loaded plugin does not require an immediate restart. Regenerate projects when a release changes generated build settings.
 
-For cache-enabled generated projects, `tuist generate` warns when setup was run with an older Tuist, the Xcode directory or build version differs, or the launching Tuist or an expected installed plugin is missing. This is a setup-version and configuration check, not a comparison of binary contents. It does not replace files, restart the proxy, or authenticate on your behalf. An older checkout does not request an upgrade when a verified record identifies a newer setup. Custom plugin, proxy, socket, or registry overrides skip this check.
-
-If metadata is missing or no longer matches the modification times of the LaunchAgent and its launching Tuist executable, the setup version is reported as unknown. This includes legacy installations and setup changed by an older CLI. Run setup with the versions you intend to use, rather than automatically choosing the current checkout's version. `tuist teardown cache` clears the metadata and stops the proxy; the retained plugin alone does not trigger a warning.
-
-The check describes the files and configuration from setup, not the plugin images already loaded in Xcode or the health of the running proxy. Xcode paths are compared as selected, so different path aliases for the same installation can still trigger a warning. Before removing the Tuist installation last used for setup, run setup with the replacement installation: the proxy and its credential helper still depend on that installation even though the plugin copy has a stable path.
+Keep the selected Tuist installation available: the launcher uses it for startup, configuration, and credential refresh. Older installations can be removed once the launcher has advanced. `tuist teardown cache` removes the launcher target and stops the service while retaining the stable plugin for existing projects; generation cannot recreate the service after teardown.
 
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 
@@ -76,7 +76,7 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `C
 > [!NOTE]
 > **Plugin Path**
 >
-> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Each run of `tuist setup cache` updates the copy to the plugin of the Tuist that ran it.
+> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Setup and the newly launched proxy refresh the copy from the selected Tuist bundle; running setup from an older checkout does not downgrade a newer plugin.
 
 > [!NOTE]
 > **One socket for every project**

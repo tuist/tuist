@@ -32,6 +32,7 @@ public struct GenerateService {
     private let outdatedDependenciesChecker: OutdatedDependenciesChecking
     private let generationMetadataStore: GenerationMetadataStoring
     private let cacheInstallationChecker: XcodeCacheInstallationStoring
+    private let resourceLocator: ResourceLocating
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -42,7 +43,8 @@ public struct GenerateService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
-        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore(),
+        resourceLocator: ResourceLocating = ResourceLocator()
     ) {
         self.init(
             cacheStorageFactory: cacheStorageFactory,
@@ -55,7 +57,8 @@ public struct GenerateService {
             installService: InstallService(),
             outdatedDependenciesChecker: OutdatedDependenciesChecker(),
             generationMetadataStore: generationMetadataStore,
-            cacheInstallationChecker: cacheInstallationChecker
+            cacheInstallationChecker: cacheInstallationChecker,
+            resourceLocator: resourceLocator
         )
     }
 
@@ -70,7 +73,8 @@ public struct GenerateService {
         installService: InstallServicing,
         outdatedDependenciesChecker: OutdatedDependenciesChecking,
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
-        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore(),
+        resourceLocator: ResourceLocating = ResourceLocator()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -83,6 +87,7 @@ public struct GenerateService {
         self.outdatedDependenciesChecker = outdatedDependenciesChecker
         self.generationMetadataStore = generationMetadataStore
         self.cacheInstallationChecker = cacheInstallationChecker
+        self.resourceLocator = resourceLocator
     }
 
     public func run(
@@ -116,7 +121,7 @@ public struct GenerateService {
                 "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
 
-        await checkCacheInstallation(config: config)
+        await advanceCacheProxy(config: config)
 
         if let generatedProject = config.project.generatedProject,
            try await outdatedDependenciesChecker.packageDependenciesAreOutdated(at: path)
@@ -168,20 +173,19 @@ public struct GenerateService {
 
     // MARK: - Helpers
 
-    private func checkCacheInstallation(config: Tuist) async {
+    private func advanceCacheProxy(config: Tuist) async {
         guard config.fullHandle != nil, config.project.generatedProject?.generationOptions.enableCaching == true,
               !["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
               .contains(where: { !(Environment.current.variables[$0] ?? "").isEmpty })
         else { return }
-        if let warning = await cacheInstallationChecker.warning(
-            developerDirectory: try? await XcodeController.current.developerDirectory(),
-            xcodeBuildVersion: try? await XcodeController.current.selectedBuildVersion(),
-            tuistVersion: Constants.version
-        ) {
-            AlertController.current.warning(.alert(
-                "\(warning)",
-                takeaway: "When no builds are running, run \(.command("tuist setup cache")) with the intended Tuist and Xcode versions, then fully quit and reopen Xcode. Generation has not changed the shared cache service."
-            ))
+        do {
+            // Source-built CLIs without bundled cache components cannot replace a release.
+            guard try await resourceLocator.casProxy() != nil, try await resourceLocator.casPlugin() != nil else { return }
+            _ = try await cacheInstallationChecker.update(
+                executable: resourceLocator.cliPath(), tuistVersion: Constants.version, onlyIfInstalled: true
+            )
+        } catch {
+            Logger.current.debug("Could not advance the cache proxy launcher: \(error.localizedDescription)")
         }
     }
 

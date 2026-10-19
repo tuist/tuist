@@ -1,3 +1,8 @@
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
 import FileSystem
 import Foundation
 import Mockable
@@ -7,133 +12,100 @@ import TuistEnvironment
 
 @Mockable
 public protocol XcodeCacheInstallationStoring {
+    /// Advances the launcher to a newer Tuist, never an older one. Returns whether
+    /// this installation is selected (and may therefore refresh the stable plugin).
+    /// Generation uses `onlyIfInstalled` so it cannot install a service.
+    func update(executable: AbsolutePath, tuistVersion: String, onlyIfInstalled: Bool) async throws -> Bool
     func invalidate() async throws
-    func record(pluginInstalled: Bool, xcodeBuildVersion: String?, tuistVersion: String) async throws
-    func warning(developerDirectory: AbsolutePath?, xcodeBuildVersion: String?, tuistVersion: String) async -> String?
 }
 
-/// Describes the last successful setup, not the plugin images already loaded by Xcode.
-public struct XcodeCacheInstallationStore: XcodeCacheInstallationStoring {
-    struct Installation: Codable {
+/// Owns the stable launch entry point and its monotonically advancing target.
+public struct XcodeCacheInstallationStore: XcodeCacheInstallationStoring, Sendable {
+    struct Target: Codable {
+        let executable: AbsolutePath
         let tuistVersion: String
-        let launchAgentModifiedAt: Date
-        let programModifiedAt: Date?
-        let xcodeBuildVersion: String?
-        let pluginInstalled: Bool
-    }
-
-    private struct LaunchAgent: Decodable {
-        let program: AbsolutePath
-        let environmentVariables: [String: String]?
-
-        enum CodingKeys: String, CodingKey {
-            case program = "Program"
-            case environmentVariables = "EnvironmentVariables"
-        }
-
-        var developerDirectory: AbsolutePath? {
-            guard let path = environmentVariables?["DEVELOPER_DIR"] else { return nil }
-            return try? AbsolutePath(validating: path)
-        }
     }
 
     private let fileSystem: FileSysteming
     private let directory: AbsolutePath
-    private let launchAgentPath: AbsolutePath
-    private var manifestPath: AbsolutePath { directory.appending(component: "cas-install.json") }
-    private var installedPluginPath: AbsolutePath { directory.appending(component: "libtuist_cas_plugin.dylib") }
+    private var targetPath: AbsolutePath { directory.appending(component: "cas-launch-target.json") }
+    private var launcherPath: AbsolutePath { directory.appending(component: "cas-launcher.sh") }
 
-    public init(fileSystem: FileSysteming = FileSystem(), directory: AbsolutePath? = nil, launchAgentPath: AbsolutePath? = nil) {
+    public init(fileSystem: FileSysteming = FileSystem(), directory: AbsolutePath? = nil) {
         self.fileSystem = fileSystem
         self.directory = directory ?? Environment.current.casPluginInstallPath().parentDirectory
-        self.launchAgentPath = launchAgentPath ?? Environment.current.homeDirectory
-            .appending(components: "Library", "LaunchAgents", "tuist.cas-proxy.plist")
     }
 
-    /// Invalidate before changing setup, so partial failures cannot leave a trusted old record.
-    public func invalidate() async throws {
-        try await fileSystem.remove(manifestPath)
-    }
-
-    public func record(pluginInstalled: Bool, xcodeBuildVersion: String?, tuistVersion: String) async throws {
-        let agent: LaunchAgent = try await fileSystem.readPlistFile(at: launchAgentPath)
-        guard let metadata = try await fileSystem.fileMetadata(at: launchAgentPath) else {
-            throw XcodeCacheInstallationStoreError.invalidLaunchAgent
+    public func update(executable: AbsolutePath, tuistVersion: String, onlyIfInstalled: Bool) async throws -> Bool {
+        // Do not create even a lock file when generation encounters an unconfigured machine.
+        if onlyIfInstalled, try await !fileSystem.exists(launcherPath) { return false }
+        guard let version = try? Version(versionString: tuistVersion) else {
+            throw XcodeCacheInstallationStoreError.invalidVersion(tuistVersion)
         }
-        let installation = Installation(
-            tuistVersion: tuistVersion,
-            launchAgentModifiedAt: metadata.lastModificationDate,
-            programModifiedAt: try await fileSystem.fileMetadata(at: agent.program)?.lastModificationDate,
-            xcodeBuildVersion: xcodeBuildVersion,
-            pluginInstalled: pluginInstalled
-        )
         try await fileSystem.makeDirectory(at: directory)
-        try await fileSystem.writeAsJSON(installation, at: manifestPath)
+        return try await withLock {
+            if onlyIfInstalled, try await !fileSystem.exists(launcherPath) { return false }
+            if !onlyIfInstalled, try await !fileSystem.exists(launcherPath) {
+                try await fileSystem.writeText(Self.launcher, at: launcherPath)
+            }
+            if try await fileSystem.exists(targetPath) {
+                // A corrupt pointer is an error, not permission to silently downgrade it.
+                let target: Target = try await fileSystem.readJSONFile(at: targetPath)
+                let installedVersion = try Version(versionString: target.tuistVersion)
+                if installedVersion > version { return false }
+                if installedVersion == version, try await fileSystem.exists(target.executable) {
+                    return target.executable == executable
+                }
+            }
+            guard try await fileSystem.exists(executable) else {
+                throw XcodeCacheInstallationStoreError.missingExecutable(executable)
+            }
+            try await fileSystem.writeAsJSON(Target(executable: executable, tuistVersion: tuistVersion), at: targetPath)
+            return true
+        }
     }
 
-    public func warning(developerDirectory: AbsolutePath?, xcodeBuildVersion: String?, tuistVersion: String) async -> String? {
-        let hasAgent = (try? await fileSystem.exists(launchAgentPath)) == true
-        let hasManifest = (try? await fileSystem.exists(manifestPath)) == true
-        // Teardown keeps the stable plugin for existing projects. A plugin alone
-        // is not evidence of an active or broken proxy setup.
-        guard hasAgent || hasManifest else { return nil }
-        guard hasAgent else {
-            return message(["the cache proxy's LaunchAgent is missing"], tuistVersion: tuistVersion)
+    public func invalidate() async throws {
+        guard try await fileSystem.exists(directory) else { return }
+        try await withLock {
+            // Remove the entry point first so concurrent generation cannot recreate the target.
+            try await fileSystem.remove(launcherPath)
+            try await fileSystem.remove(targetPath)
+            try await fileSystem.remove(directory.appending(component: "cas-install.json"))
         }
-        guard let agent: LaunchAgent = try? await fileSystem.readPlistFile(at: launchAgentPath) else {
-            return message(["the cache proxy's LaunchAgent configuration could not be read"], tuistVersion: tuistVersion)
-        }
-
-        var reasons: [String] = []
-        let programModifiedAt = try? await fileSystem.fileMetadata(at: agent.program)?.lastModificationDate
-        if programModifiedAt == nil {
-            reasons.append("the Tuist installation used to launch the cache proxy has been removed")
-        }
-        if let configuredDirectory = agent.developerDirectory, let developerDirectory, configuredDirectory != developerDirectory {
-            reasons.append("the proxy was configured with a different Xcode (\(configuredDirectory.pathString))")
-        }
-        guard let installation = await currentInstallation(programModifiedAt: programModifiedAt) else {
-            reasons.append("the cache setup version could not be verified (legacy or changed setup)")
-            return message(reasons, tuistVersion: tuistVersion)
-        }
-        if let warning = versionWarning(installation.tuistVersion, currentVersion: tuistVersion) {
-            reasons.append(warning)
-        }
-        if let xcodeBuildVersion, installation.xcodeBuildVersion != xcodeBuildVersion {
-            reasons.append("the setup-time Xcode build differs or was not recorded")
-        }
-        if installation.pluginInstalled, (try? await fileSystem.exists(installedPluginPath)) != true {
-            reasons.append("the installed cache plugin is missing")
-        }
-        return message(reasons, installation: installation, tuistVersion: tuistVersion)
     }
 
-    private func currentInstallation(programModifiedAt: Date?) async -> Installation? {
-        // Older CLIs do not invalidate the manifest. Both timestamps must still
-        // match before its version can suppress an upgrade warning.
-        guard let installation: Installation = try? await fileSystem.readJSONFile(at: manifestPath),
-              let metadata = try? await fileSystem.fileMetadata(at: launchAgentPath),
-              installation.launchAgentModifiedAt == metadata.lastModificationDate,
-              installation.programModifiedAt == programModifiedAt
-        else { return nil }
-        return installation
+    private func withLock<T>(_ body: () async throws -> T) async throws -> T {
+        let lockPath = directory.appending(component: "cas-launcher.lock")
+        let descriptor = open(lockPath.pathString, O_CREAT | O_RDWR, 0o600)
+        guard descriptor >= 0 else { throw XcodeCacheInstallationStoreError.lockFailed(errno) }
+        defer { close(descriptor) }
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            guard errno == EWOULDBLOCK || errno == EINTR else {
+                throw XcodeCacheInstallationStoreError.lockFailed(errno)
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        defer { flock(descriptor, LOCK_UN) }
+        try Task.checkCancellation()
+        return try await body()
     }
 
-    private func message(_ reasons: [String], installation: Installation? = nil, tuistVersion: String) -> String? {
-        guard !reasons.isEmpty else { return nil }
-        let version = installation.map { " (last set up with Tuist \($0.tuistVersion); current Tuist \(tuistVersion))" } ?? ""
-        return "Xcode Cache setup needs attention\(version): \(reasons.joined(separator: "; "))."
-    }
-
-    private func versionWarning(_ installedVersion: String, currentVersion: String) -> String? {
-        guard let installed = try? Version(versionString: installedVersion),
-              let current = try? Version(versionString: currentVersion)
-        else { return "the cache setup's Tuist version could not be compared" }
-        // An older checkout must not ask users to downgrade a known newer setup.
-        return installed < current ? "the cache service was set up with an older Tuist" : nil
-    }
+    /// launchd executes /bin/sh, not a version-manager shim or the setup-time CLI.
+    /// Keep arguments and credentials in launchd; the pointer contains no tokens.
+    static let launcher = """
+    #!/bin/sh
+    set -eu
+    target=$1
+    shift
+    executable=$(/usr/bin/plutil -extract executable raw -o - "$target")
+    export TUIST_CAS_PROXY_LAUNCH_TARGET="$target"
+    exec "$executable" "$@"
+    """
 }
 
-enum XcodeCacheInstallationStoreError: Error {
-    case invalidLaunchAgent
+enum XcodeCacheInstallationStoreError: Error, Equatable {
+    case invalidVersion(String)
+    case missingExecutable(AbsolutePath)
+    case lockFailed(Int32)
 }

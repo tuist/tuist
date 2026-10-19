@@ -215,6 +215,22 @@ fn main() {
         analytics,
     );
 
+    if ["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH"].iter()
+        .all(|key| std::env::var(key).unwrap_or_default().is_empty())
+    {
+        if let (Ok(target), Ok(executable), Ok(version)) = (
+            std::env::var("TUIST_CAS_PROXY_LAUNCH_TARGET"),
+            std::env::var("TUIST_CAS_TUIST_BIN"),
+            std::env::var("TUIST_CAS_TUIST_VERSION"),
+        ) {
+            if let Err(error) = tuist_cas_plugin::proxy_upgrade::refresh_plugin(
+                std::path::Path::new(&target), std::path::Path::new(&executable), &version,
+            ) {
+                tuist_cas_plugin::log_line(&format!("could not refresh the installed cache plugin: {error}"));
+            }
+        }
+    }
+
     // Before the prefetch, which opens and warms the store of every registered
     // path.
     proxy.forget_unused_paths();
@@ -239,6 +255,14 @@ fn main() {
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
         }
+        if let (Ok(path), Ok(version)) = (
+            std::env::var("TUIST_CAS_PROXY_LAUNCH_TARGET"),
+            std::env::var("TUIST_CAS_TUIST_VERSION"),
+        ) {
+            if tuist_cas_plugin::proxy_upgrade::launch_target_changed(std::path::Path::new(&path), &version) {
+                proxy.allow_idle_upgrade();
+            }
+        }
     });
 
     // Store work that has not returned is reported from a thread of its own:
@@ -259,4 +283,8 @@ fn main() {
 
     eprintln!("tuist-cas-proxy listening on {socket_path}");
     proxy.serve(listener);
+    // KeepAlive.SuccessfulExit=false restarts only an unsuccessful exit. No
+    // requests remain, and the new owner replays any durable publication spool.
+    tuist_cas_plugin::log_line("proxy idle; restarting through the updated launcher");
+    std::process::exit(75);
 }
