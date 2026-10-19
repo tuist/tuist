@@ -48,6 +48,17 @@ The **Concurrency** section of the Runners dashboard shows the peak admitted vCP
 
 Your current limits are shown alongside each chart. If your workflows regularly reach them and spend time queued, [contact us](mailto:contact@tuist.dev) with your account handle, platform, and expected parallel workload. We'll review the required capacity and help raise the limits.
 
+## Network access {#network-access}
+
+Jobs can open outbound connections to the public internet. Private address ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) are blocked, and runners accept no inbound connections.
+
+| Platform | Outbound ports |
+| --- | --- |
+| Linux | TCP 22 (SSH), 80 (HTTP), and 443 (HTTPS), plus DNS |
+| macOS | All ports |
+
+SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` deploys. If a Linux workflow needs another outbound port, [contact us](mailto:contact@tuist.dev).
+
 <.home_cards>
   <.home_card
     title="GitHub Actions"
