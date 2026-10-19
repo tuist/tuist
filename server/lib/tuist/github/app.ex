@@ -186,8 +186,9 @@ defmodule Tuist.GitHub.App do
   defp scope_key(nil), do: []
 
   defp scope_key(%{repository_ids: ids, permissions: permissions}) do
-    permissions = permissions |> Enum.map(fn {name, level} -> "#{name}:#{level}" end) |> Enum.sort()
-    ["scope", Enum.sort(ids), permissions]
+    # Every element must be a string: the Redis store joins them with to_string/1.
+    permissions = permissions |> Enum.map(fn {name, level} -> "#{name}:#{level}" end) |> Enum.sort() |> Enum.join(",")
+    ["scope", ids |> Enum.sort() |> Enum.join(","), permissions]
   end
 
   defp scope_body(nil), do: []

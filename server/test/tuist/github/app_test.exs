@@ -79,6 +79,8 @@ defmodule Tuist.GitHub.AppTest do
       test_pid = self()
 
       stub(KeyValueStore, :get_or_update, fn key, _opts, func ->
+        # The Redis store builds its key like this; a charlist-like element raises.
+        Enum.map_join(key, "-", &to_string/1)
         send(test_pid, {:key, key})
         func.()
       end)
@@ -89,7 +91,7 @@ defmodule Tuist.GitHub.AppTest do
 
       # When
       App.get_installation_token("12345")
-      App.get_installation_token("12345", scope: %{repository_ids: [42], permissions: %{"contents" => "read"}})
+      App.get_installation_token("12345", scope: %{repository_ids: [1_425_864_877], permissions: %{"contents" => "read"}})
 
       # Then
       assert_received {:key, full}
