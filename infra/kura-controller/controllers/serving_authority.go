@@ -71,7 +71,9 @@ func fencedServing(instance *kurav1alpha1.KuraInstance) bool {
 
 // This controller has its own worker queue and direct API client. Metrics,
 // DNS, StatefulSet and volume operations cannot consume its worker budget.
-// CAS on the grant is authoritative even during overlapping controller leaders.
+// Every replica runs this reconciler: leader-election shutdown can retain the
+// lease after workers stop, longer than a serving grant. CAS on the grant, not
+// controller leadership, serializes authority transitions.
 type ServingAuthorityReconciler struct {
 	client.Client
 	RuntimeStatusClient RuntimeStatusClient
@@ -80,7 +82,7 @@ type ServingAuthorityReconciler struct {
 
 func (r *ServingAuthorityReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).Named("kura-serving-authority").For(&kurav1alpha1.KuraInstance{}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 32}).Complete(r)
+		WithOptions(controller.Options{MaxConcurrentReconciles: 32, NeedLeaderElection: ptr(false)}).Complete(r)
 }
 
 func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
