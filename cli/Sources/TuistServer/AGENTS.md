@@ -4,6 +4,7 @@ This module handles CLI integration with the Tuist Server APIs.
 
 ## Responsibilities
 - Resolve server environment (base URL, OAuth client ID) with env var overrides.
+- `ExchangeOIDCTokenService` forwards optional `TUIST_OIDC_ACCOUNT` as `account_handle`. This chooses the destination account, never substitutes for verified workload identity and project trust. Keep the request additive for existing CI providers and regenerate OpenAPI types from the controller schema.
 - Provide cache storage factories and API clients for server-backed features.
 - Map CLI actions to server operations (projects, previews, analytics, registry).
 - `CreateShardPlanService` can declare concurrent module-level units (nextest binaries) via `concurrentModules`. Keep this distinct from `parallelizableModules`, which declares suite-level parallelism within a module for Xcode. Other callers omit the declaration and retain their existing planning behavior. Regenerate the shared API from controller schemas when extending this contract.
