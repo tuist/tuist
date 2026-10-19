@@ -8385,6 +8385,29 @@ components:
       type: object
       x-struct:
       x-validate:
+    ProjectVCSConnection:
+      properties:
+        provider:
+          description: The provider hosting the repository.
+          enum:
+            - github
+            - origin
+          type: string
+          x-struct:
+          x-validate:
+        repository_full_handle:
+          description: The repository's full handle, in the format owner/name.
+          example: tuist/tuist
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - provider
+        - repository_full_handle
+      title: ProjectVCSConnection
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ProjectVCSConnection
+      x-validate:
     GenerationsIndexAfter:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: GenerationsIndexAfter
@@ -18743,6 +18766,167 @@ paths:
       summary: Get one recorded Xcode build step and its log.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/vcs-connection:
+    delete:
+      callbacks: {}
+      operationId: disconnectProjectRepository
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The project was unlinked.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found or isn't linked to a GitHub repository
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Unlink a project from its GitHub repository.
+      tags:
+        - Projects
+    put:
+      callbacks: {}
+      description: "Links the project to a repository that the account's GitHub App installation can access and adopts the repository's default branch. Linking a project to the repository it is already linked to returns the existing link."
+      operationId: connectProjectRepository
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                repository_full_handle:
+                  description: The repository's full handle, in the format owner/name.
+                  example: tuist/tuist
+                  pattern: ^[\w\-\.]+/[\w\-\.]+$
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - repository_full_handle
+              type: object
+              x-struct:
+              x-validate:
+        description: The repository to link
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectVCSConnection'
+          description: The project's repository link
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project is already linked to another repository
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has no GitHub App installation, or the installation can't access the repository
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Link a project to a GitHub repository.
+      tags:
+        - Projects
   /api/auth/oidc/token:
     post:
       callbacks: {}

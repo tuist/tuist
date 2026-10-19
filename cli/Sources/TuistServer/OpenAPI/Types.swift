@@ -300,6 +300,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)`.
     func getXcodeBuildStep(_ input: Operations.getXcodeBuildStep.Input) async throws -> Operations.getXcodeBuildStep.Output
+    /// Link a project to a GitHub repository.
+    ///
+    /// Links the project to a repository that the account's GitHub App installation can access and adopts the repository's default branch. Linking a project to the repository it is already linked to returns the existing link.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)`.
+    func connectProjectRepository(_ input: Operations.connectProjectRepository.Input) async throws -> Operations.connectProjectRepository.Output
+    /// Unlink a project from its GitHub repository.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)`.
+    func disconnectProjectRepository(_ input: Operations.disconnectProjectRepository.Input) async throws -> Operations.disconnectProjectRepository.Output
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
     /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
@@ -1841,6 +1853,36 @@ extension APIProtocol {
         headers: Operations.getXcodeBuildStep.Input.Headers = .init()
     ) async throws -> Operations.getXcodeBuildStep.Output {
         try await getXcodeBuildStep(Operations.getXcodeBuildStep.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Link a project to a GitHub repository.
+    ///
+    /// Links the project to a repository that the account's GitHub App installation can access and adopts the repository's default branch. Linking a project to the repository it is already linked to returns the existing link.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)`.
+    public func connectProjectRepository(
+        path: Operations.connectProjectRepository.Input.Path,
+        headers: Operations.connectProjectRepository.Input.Headers = .init(),
+        body: Operations.connectProjectRepository.Input.Body? = nil
+    ) async throws -> Operations.connectProjectRepository.Output {
+        try await connectProjectRepository(Operations.connectProjectRepository.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Unlink a project from its GitHub repository.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)`.
+    public func disconnectProjectRepository(
+        path: Operations.disconnectProjectRepository.Input.Path,
+        headers: Operations.disconnectProjectRepository.Input.Headers = .init()
+    ) async throws -> Operations.disconnectProjectRepository.Output {
+        try await disconnectProjectRepository(Operations.disconnectProjectRepository.Input(
             path: path,
             headers: headers
         ))
@@ -16250,6 +16292,40 @@ public enum Components {
                     "usage",
                     "volume"
                 ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ProjectVCSConnection`.
+        public struct ProjectVCSConnection: Codable, Hashable, Sendable {
+            /// The provider hosting the repository.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectVCSConnection/provider`.
+            @frozen public enum providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case github = "github"
+                case origin = "origin"
+            }
+            /// The provider hosting the repository.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectVCSConnection/provider`.
+            public var provider: Components.Schemas.ProjectVCSConnection.providerPayload
+            /// The repository's full handle, in the format owner/name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectVCSConnection/repository_full_handle`.
+            public var repository_full_handle: Swift.String
+            /// Creates a new `ProjectVCSConnection`.
+            ///
+            /// - Parameters:
+            ///   - provider: The provider hosting the repository.
+            ///   - repository_full_handle: The repository's full handle, in the format owner/name.
+            public init(
+                provider: Components.Schemas.ProjectVCSConnection.providerPayload,
+                repository_full_handle: Swift.String
+            ) {
+                self.provider = provider
+                self.repository_full_handle = repository_full_handle
+            }
+            public enum CodingKeys: String, CodingKey {
+                case provider
+                case repository_full_handle
             }
         }
         /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
@@ -42855,6 +42931,815 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.getXcodeBuildStep.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Link a project to a GitHub repository.
+    ///
+    /// Links the project to a repository that the account's GitHub App installation can access and adopts the repository's default branch. Linking a project to the repository it is already linked to returns the existing link.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)`.
+    public enum connectProjectRepository {
+        public static let id: Swift.String = "connectProjectRepository"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.connectProjectRepository.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectProjectRepository.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectProjectRepository.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.connectProjectRepository.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The repository's full handle, in the format owner/name.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/requestBody/json/repository_full_handle`.
+                    public var repository_full_handle: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - repository_full_handle: The repository's full handle, in the format owner/name.
+                    public init(repository_full_handle: Swift.String) {
+                        self.repository_full_handle = repository_full_handle
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case repository_full_handle
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/requestBody/content/application\/json`.
+                case json(Operations.connectProjectRepository.Input.Body.jsonPayload)
+            }
+            public var body: Operations.connectProjectRepository.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.connectProjectRepository.Input.Path,
+                headers: Operations.connectProjectRepository.Input.Headers = .init(),
+                body: Operations.connectProjectRepository.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ProjectVCSConnection)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ProjectVCSConnection {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The project's repository link
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.connectProjectRepository.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.connectProjectRepository.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.connectProjectRepository.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.connectProjectRepository.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.connectProjectRepository.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.connectProjectRepository.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.connectProjectRepository.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.connectProjectRepository.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The project is already linked to another repository
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.connectProjectRepository.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.connectProjectRepository.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectProjectRepository.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has no GitHub App installation, or the installation can't access the repository
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.connectProjectRepository.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.connectProjectRepository.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.connectProjectRepository.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/PUT/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectProjectRepository.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.connectProjectRepository.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.connectProjectRepository.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/put(connectProjectRepository)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.connectProjectRepository.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.connectProjectRepository.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Unlink a project from its GitHub repository.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/vcs-connection`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)`.
+    public enum disconnectProjectRepository {
+        public static let id: Swift.String = "disconnectProjectRepository"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.disconnectProjectRepository.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectProjectRepository.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectProjectRepository.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.disconnectProjectRepository.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.disconnectProjectRepository.Input.Path,
+                headers: Operations.disconnectProjectRepository.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The project was unlinked.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.disconnectProjectRepository.Output.NoContent)
+            /// The project was unlinked.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.disconnectProjectRepository.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectProjectRepository.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectProjectRepository.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.disconnectProjectRepository.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.disconnectProjectRepository.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectProjectRepository.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectProjectRepository.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found or isn't linked to a GitHub repository
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.disconnectProjectRepository.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.disconnectProjectRepository.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.disconnectProjectRepository.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/vcs-connection/DELETE/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectProjectRepository.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.disconnectProjectRepository.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.disconnectProjectRepository.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.disconnectProjectRepository.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.disconnectProjectRepository.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
