@@ -134,7 +134,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
 
         // When
         let (got, _, gotEnvironment) = try await subject.map(
@@ -243,7 +243,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
 
         // When
@@ -331,7 +331,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
 
         // When
         let (got, _, _) = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
@@ -426,7 +426,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
 
         var environment = MapperEnvironment()
         environment.initialGraphWithSources = preservedGraph
@@ -531,7 +531,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
         let bBinaryPath = try temporaryPath().appending(component: "B-Binary")
         let cBinaryPath = try temporaryPath().appending(component: "C-Binary")
         given(cacheStorage).fetch(
@@ -603,7 +603,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
 
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -665,7 +665,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys)) }
 
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -766,7 +766,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                         config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                     )
                 )
-                .willReturn(outputGraph)
+                .willProduce { _, artifacts, _, _ in
+                    CacheGraphMutation(graph: outputGraph, replacedTargets: Set(artifacts.keys))
+                }
 
             // When
             _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
@@ -843,7 +845,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         given(cacheStorage).fetch(.any, cacheCategory: .any).willReturn([:])
         given(cacheGraphMutator)
             .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
-            .willReturn(graph)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: graph, replacedTargets: Set(artifacts.keys)) }
 
         _ = try await subject.map(graph: graph, environment: MapperEnvironment())
 
@@ -875,7 +877,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         ])
         given(cacheGraphMutator)
             .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
-            .willReturn(graphs.output)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: graphs.output, replacedTargets: Set(artifacts.keys)) }
 
         // When
         let (got, _, _) = try await subject(
@@ -911,6 +913,39 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             .called(1)
     }
 
+    /// `B` depends on `C`, and both binaries are fetched, but the mutator only replaces `C` (as when a
+    /// dependency of `B` is built from source). `B` is built from source, so it is a miss, not a hit.
+    @Test(.inTemporaryDirectory) func map_recordsAFetchedBinaryTheMutatorDidNotUseAsAMiss() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let graphs = graphs(at: path)
+        let runMetadataStorage = RunMetadataStorage()
+        given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([
+            .test(name: "B", hash: "B", source: .remote, cacheCategory: .binaries): path.appending(component: "B.xcframework"),
+            .test(name: "C", hash: "C", source: .local, cacheCategory: .binaries): path.appending(component: "C.xcframework"),
+        ])
+        given(cacheGraphMutator)
+            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(CacheGraphMutation(graph: graphs.output, replacedTargets: [graphs.c]))
+
+        // When
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            _ = try await subject(
+                exceptions: [],
+                precomputedTargetHashes: [
+                    TargetReference(projectPath: path, name: "B"): .test(hash: "B"),
+                    TargetReference(projectPath: path, name: "C"): .test(hash: "C"),
+                ]
+            ).map(graph: graphs.input, environment: MapperEnvironment())
+        }
+
+        // Then
+        let items = await runMetadataStorage.binaryCacheItems[path]
+        #expect(items?["C"]?.source == .local)
+        #expect(items?["B"]?.source == .miss)
+        #expect(items?["B"]?.hash == "B")
+    }
+
     @Test(.inTemporaryDirectory) func map_doesNotReusePrecomputedHashes_ofSourceTargets() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -923,7 +958,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         ).willReturn([.test(name: "C", hash: "C"): cXCFrameworkPath])
         given(cacheGraphMutator)
             .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
-            .willReturn(graphs.output)
+            .willProduce { _, artifacts, _, _ in CacheGraphMutation(graph: graphs.output, replacedTargets: Set(artifacts.keys)) }
 
         // When
         _ = try await subject(

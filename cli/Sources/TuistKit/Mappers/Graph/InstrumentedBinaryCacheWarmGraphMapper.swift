@@ -12,7 +12,7 @@ import XcodeGraph
 /// a dependency has no coverage to measure, and a macro plugin linked against the profile runtime would
 /// write a profile wherever it exits.
 public struct InstrumentedBinaryCacheWarmGraphMapper: GraphMapping {
-    static let instrumentedProducts: Set<Product> = [.framework, .staticFramework, .staticLibrary, .dynamicLibrary]
+    private static let instrumentedProducts: Set<Product> = [.framework, .staticFramework, .staticLibrary, .dynamicLibrary]
 
     public init() {}
 
