@@ -33,6 +33,7 @@ struct UploadResultBundleServiceTests {
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let ciController = MockCIControlling()
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
@@ -41,11 +42,13 @@ struct UploadResultBundleServiceTests {
     private let xcResultService = MockXCResultServicing()
     private let coverageUploadService = MockCoverageUploadServicing()
     private let fileSystem = FileSystem()
+    private let authentication = MockServerAuthenticationControlling()
 
     init() throws {
         subject = UploadResultBundleService(
             machineEnvironment: machineEnvironment,
             createTestService: createTestService,
+            gitHistoryService: gitHistoryService,
             coverageUploadService: coverageUploadService,
             createCrashReportService: createCrashReportService,
             createTestCaseRunAttachmentService: createTestCaseRunAttachmentService,
@@ -58,7 +61,8 @@ struct UploadResultBundleServiceTests {
             xcActivityLogController: xcActivityLogController,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: fileSystem,
-            xcResultService: xcResultService
+            xcResultService: xcResultService,
+            serverAuthenticationController: authentication
         )
 
         given(machineEnvironment)
@@ -135,6 +139,55 @@ struct UploadResultBundleServiceTests {
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
             .willReturn(nil)
+
+        given(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .willReturn(nil)
+        given(gitHistoryService)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .willReturn()
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func publishesLocallyParsedResultWithoutUploadingArtifacts() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = directory.appending(component: "tests.xcresult")
+        try await fileSystem.makeDirectory(at: bundle)
+        try await fileSystem.touch(bundle.appending(component: "Info.plist"))
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
+        serverEnvironmentService.reset()
+        given(serverEnvironmentService).url(configServerURL: .any)
+            .willReturn(try #require(URL(string: "https://tuist.example")))
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        given(xcResultService).parse(path: .value(bundle), rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 42, testModules: []))
+        let result = try await subject.uploadResultBundle(
+            resultBundlePath: bundle, config: .test(fullHandle: "acme/widgets")
+        )
+        #expect(result.id == "test-id")
+        verify(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .called(0)
+        verify(gitHistoryService)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .called(0)
+        verify(xcResultService).parse(path: .value(bundle), rootDirectory: .any).called(1)
+        verify(analyticsArtifactUploadService).uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .called(0)
+        verify(coverageUploadService).prepare(
+            resultBundlePath: .any, manifest: .any, fullHandle: .any, serverURL: .any, testRunId: .any
+        ).called(0)
+        verify(createTestService).createTest(
+            fullHandle: .any, serverURL: .any, id: .any, testSummary: .any,
+            buildRunId: .value(nil), gitBranch: .any, gitCommitSHA: .any,
+            gitRef: .any, gitRemoteURLOrigin: .any, isCI: .any,
+            modelIdentifier: .any, macOSVersion: .any, xcodeVersion: .any,
+            ciRunId: .any, ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
+            shardPlanId: .value(nil), shardIndex: .value(nil), onlyTestIdentifiers: .any,
+            skipTestIdentifiers: .any, stressNewTests: .value(nil),
+            gitHistory: .value(nil), coverage: .value(nil), coverageEnabled: .value(nil)
+        ).called(1)
     }
 
     @Test(.withMockedEnvironment())

@@ -1826,6 +1826,7 @@ defmodule Tuist.Tests.Analytics do
         order_by: [desc: t.ran_at],
         limit: ^limit,
         offset: ^offset,
+        where: t.submission_auth != "network_trusted",
         select: t.duration
       )
 

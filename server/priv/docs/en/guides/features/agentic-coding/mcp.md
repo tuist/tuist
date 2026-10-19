@@ -38,7 +38,9 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After browser authorization or claim, the credential is user-scoped and each tool applies the same authorization checks as the dashboard. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
+Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
+
+Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>
@@ -216,7 +218,7 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
-Compatible clients receive server instructions during initialization that describe when documentation and source-backed tools can provide useful evidence. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
+Compatible clients receive factual descriptions of the tools' source revision, links, and result limits during initialization, alongside inline OAuth authentication information. These descriptions do not prescribe answer style or a verification workflow. Users can ask a question directly without invoking the `ask_tuist` prompt first; the prompt remains available for an explicit source-backed workflow.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -375,7 +377,7 @@ New observations are indexed after deployment; this feature does not backfill ex
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
+| `list_test_runs` | List test runs for a project. The `query` fields are `git_branch`, `scheme`, and `status`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring, and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run, including temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |

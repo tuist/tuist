@@ -24,15 +24,19 @@ defmodule TuistEx.Analytics.HTTP do
   `suffix`, and returns `{:ok, decoded_body}` on 2xx.
   """
   def project_request(method, suffix, body, options) do
+    report? = method == :post and suffix in ["/tests", "/mix/builds"]
+
     with {:ok, config} <- Config.resolve(options),
-         {:ok, token} <- Auth.token(options) do
+         {:ok, token} <- if(report?, do: Auth.reporting_token(options), else: Auth.token(options)) do
+      body = if report? and is_nil(token), do: report_body(body), else: body
+
       url =
         config.url <>
           "/api/projects/" <>
           config.project_handle.account <> "/" <> config.project_handle.project <> suffix
 
       actor_headers =
-        if method == :post and suffix in ["/tests", "/mix/builds"],
+        if report?,
           do: Actor.headers(options),
           else: []
 
@@ -40,7 +44,7 @@ defmodule TuistEx.Analytics.HTTP do
              method,
              url,
              body,
-             [{"authorization", "Bearer " <> token}] ++ actor_headers
+             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++ actor_headers
            ) do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
@@ -48,6 +52,17 @@ defmodule TuistEx.Analytics.HTTP do
       end
     end
   end
+
+  defp report_body(body) when is_map(body) do
+    keys = ~w(generation_id build_run_id gradle_build_id shard_plan_id shard_index coverage
+              xcode_coverage xcode_coverage_storage_key git_history stress_new_tests
+              git_remote_url_origin coverage_evidence enumerated_tests changed_files base_branch
+              merge_base_sha is_pull_request pull_request_number git_object_format history_source
+              history_fallback_reason git_dirty only_test_identifiers skip_test_identifiers)a
+    Map.drop(body, keys ++ Enum.map(keys, &Atom.to_string/1))
+  end
+
+  defp report_body(body), do: body
 
   defp post_analytics(payload, suffix, options) do
     with {:ok, _body} <- project_request(:post, suffix, payload, options), do: :ok

@@ -28,6 +28,9 @@ The pre-command hook runs after checkout. Target directories must be absent or
 empty; do not restore another cache or artifact into them first. Keys support
 letters, digits, dots, underscores, slashes and hyphens (maximum 200 characters,
 starting with a letter or digit). Up to eight volumes can be mounted per job.
+A key is a stable volume name, not a content hash: do not include lockfile,
+tool-version or commit hashes. Each job starts from the latest saved contents
+and your tools update them; a new key starts empty.
 The installed client reports warm/cold reuse in the job log and Tuist dashboard.
 
 Each volume starts at 20 GB. It is scoped to your Tuist account, immutable

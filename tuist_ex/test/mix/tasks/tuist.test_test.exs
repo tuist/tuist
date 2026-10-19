@@ -74,6 +74,76 @@ defmodule Mix.Tasks.Tuist.TestTest do
     assert Task.formatters([ExUnit.CLIFormatter, formatter]) == [ExUnit.CLIFormatter, formatter]
   end
 
+  test "unsigned CI and coverage runs never collect or upload Git history" do
+    script = ~S"""
+    Mix.start()
+    Mix.env(:test)
+
+    # Keep coverage local to the fixture without instrumenting shared build files.
+    Mix.Project.in_project(:tuist_ex, File.cwd!(), [test_coverage: [tool: :custom]], fn _ ->
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Code.require_file("test/test_helper.exs")
+      ExUnit.configure(autorun: false)
+
+      defmodule UnsignedHistoryRegression do
+        use ExUnit.Case, async: false
+
+        test "the task skips history work" do
+          Mimic.set_mimic_global()
+          owner = self()
+
+          Mimic.stub(TuistEx.Auth, :network_publishing?, fn _ -> true end)
+          Mimic.stub(TuistEx.Analytics.GitHistory, :enabled?, fn _ -> true end)
+          Mimic.stub(TuistEx.Analytics.GitHistory, :collect, fn _, _, _, _ ->
+            send(owner, :history_attempted)
+            %{history: nil}
+          end)
+
+          for function <- [:publish, :upload_listing] do
+            Mimic.stub(TuistEx.Analytics.GitHistory, function, fn _, _ ->
+              send(owner, :history_attempted)
+              []
+            end)
+          end
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, _ ->
+            send(owner, :tests_ran)
+            :ok
+          end)
+
+          for args <- [[], ["--cover"], ["--retries", "1"]] do
+            Mix.Tasks.Tuist.Test.run(args)
+            receive do
+              :tests_ran -> :ok
+            after
+              0 -> raise "the test task did not run"
+            end
+          end
+
+          receive do
+            :history_attempted -> raise "unsigned reporting attempted Git history work"
+          after
+            0 -> IO.puts("unsigned history isolation verified")
+          end
+        end
+      end
+
+      if ExUnit.run().failures != 0, do: System.halt(1)
+    end)
+    """
+
+    paths = Enum.flat_map(:code.get_path(), &["-pa", List.to_string(&1)])
+
+    {output, status} =
+      System.cmd(System.find_executable("elixir"), paths ++ ["-e", script],
+        stderr_to_stdout: true,
+        env: [{"TUIST_SHARD_INDEX", ""}, {"TUIST_EX_RETRY_RESULTS", ""}]
+      )
+
+    assert status == 0, output
+    assert output =~ "unsigned history isolation verified"
+  end
+
   test "declares :test as the preferred CLI env" do
     # The attribute prevents `mix tuist.test` from picking up whatever env
     # the invoker happened to be in (usually :dev), which otherwise breaks
