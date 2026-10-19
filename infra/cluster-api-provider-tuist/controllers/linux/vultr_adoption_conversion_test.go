@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -230,6 +231,50 @@ func TestVultrReleaseClearsTheConversionRecord(t *testing.T) {
 	}
 	if m.Status.Converted != nil {
 		t.Fatalf("converted = %+v, want it cleared; the reinstall wipes the layout", m.Status.Converted)
+	}
+}
+
+// The released box is wiped, so its kubelet never deregisters. A Node left
+// behind stays NotReady with DaemonSet pods counted unavailable, which fails
+// every `helm --wait` on the observability chart until someone deletes it.
+func TestVultrReleaseDeletesTheNodeAndItsLocalVolumes(t *testing.T) {
+	scheme := vultrScheme(t)
+	m := vultrMachine("tuist", "m", "box-1")
+	m.Finalizers = []string{VultrMachineFinalizer}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "m"}}
+	bootstrapSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist", Name: "m-bootstrap"}}
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: "kura", Name: "data-kura-0"}}
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-local"},
+		Spec: corev1.PersistentVolumeSpec{
+			ClaimRef: &corev1.ObjectReference{Namespace: "kura", Name: "data-kura-0"},
+			NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"m"},
+				}}}},
+			}},
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(m, node, bootstrapSecret, pv, pvc).Build()
+
+	r := &VultrMachineReconciler{
+		Client:             cl,
+		CredentialsManager: &credentials.Manager{Client: cl, Namespace: "tuist"},
+		VultrClient:        newFakeVultrAPI(func(string) {}),
+	}
+
+	if _, err := r.reconcileDelete(context.Background(), m); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	ctx := context.Background()
+	if err := cl.Get(ctx, types.NamespacedName{Name: "m"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get Node = %v, want NotFound; a wiped box's Node lingers NotReady and wedges helm --wait", err)
+	}
+	if err := cl.Get(ctx, types.NamespacedName{Namespace: "kura", Name: "data-kura-0"}, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get PVC = %v, want NotFound; it stays bound to a PV on a wiped node", err)
+	}
+	if err := cl.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "m-bootstrap"}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get bootstrap Secret = %v, want NotFound", err)
 	}
 }
 

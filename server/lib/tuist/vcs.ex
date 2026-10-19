@@ -472,7 +472,7 @@ defmodule Tuist.VCS do
   end
 
   @doc """
-  Looks a VCS user up by username, through the project's own connection.
+  Looks a VCS user up by username, through the project's connected repository.
 
   Returns the provider's durable id alongside the canonical username. The
   username is what a person types and can be changed later, and the id is
@@ -482,12 +482,23 @@ defmodule Tuist.VCS do
   def get_user_by_username(%{username: username, project: project}) do
     project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    with %{vcs_connection: %{provider: provider, github_app_installation: %GitHubAppInstallation{} = installation}} <-
-           project,
+    with %{
+           vcs_connection: %{
+             provider: provider,
+             repository_full_handle: repository_full_handle,
+             github_app_installation: %GitHubAppInstallation{} = installation
+           }
+         } <- project,
          %{} <- github_app_credentials(installation) do
       provider
       |> get_client_for_provider()
-      |> then(& &1.get_user_by_username(%{username: username, installation: installation}))
+      |> then(
+        & &1.get_repository_user_by_username(%{
+          repository_full_handle: repository_full_handle,
+          username: username,
+          installation: installation
+        })
+      )
     else
       _ -> {:error, :no_vcs_connection}
     end

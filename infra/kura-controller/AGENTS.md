@@ -8,6 +8,12 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   of the workload controller's leader lease. Optimistic resource-version checks
   serialize grants; stale renewals must never overwrite fencing or promotion.
   Keep authority renewal available while another controller drains during rollout.
+  A named preparation-capable standby catches up under a fixed Serving intent
+  before Quiescing. Renew the primary normally, bind completion to the exact
+  intent/source epoch/destination incarnation, and preserve the original five-minute
+  frozen-corpus barrier. Preparation failure never promotes or pauses the primary.
+  Clear only Serving-phase preparation when fencing; interrupted Quiescing keeps
+  its existing external recovery requirements.
   Durable CAS epochs and positive fencing own activated instances. Missing-node
   detection never resets an activated StatefulSet. Legacy instances keep their
   existing automatic stale-storage recreation, including colocated host loss.

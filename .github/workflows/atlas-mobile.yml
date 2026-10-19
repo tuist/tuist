@@ -199,7 +199,12 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           working-directory: atlas-native
-          install: tuist 1password-cli jq
+          install: tuist 1password-cli jq java
+      - name: Install Android build tools for APK inspection
+        uses: android-actions/setup-android@v3
+        with:
+          packages: build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login
       - name: Publish Android preview

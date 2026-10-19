@@ -22,13 +22,31 @@ export async function fixture(
   const created = [],
     api = `${prefix}-api`,
     urls = ports.map((p) => `http://127.0.0.1:${p}`);
+  // Observations can race normal connection aging. Keep retries restricted to
+  // idempotent reads; workload writes and stale-channel probes remain exact.
+  const observe = async (url) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        assert.equal(response.status, 200);
+        return await response.text();
+      } catch (error) {
+        if (
+          attempt === 1 ||
+          !["UND_ERR_SOCKET", "ECONNRESET"].includes(
+            error.cause?.code ?? error.code,
+          )
+        )
+          throw error;
+        await sleep(100);
+      }
+    }
+  };
   const report = async (i) =>
     JSON.parse(
-      await (
-        await fetch(`${urls[i]}/status/rollout`, {
-          signal: AbortSignal.timeout(5000),
-        })
-      ).text(),
+      await observe(`${urls[i]}/status/rollout`),
       (_key, value, context) =>
         typeof value === "number" && !Number.isSafeInteger(value)
           ? JSON.rawJSON(context.source)
@@ -41,10 +59,7 @@ export async function fixture(
       path.join(output, "grant.json"),
     );
   };
-  const metric = async (i) =>
-    await (
-      await fetch(`${urls[i]}/metrics`, { signal: AbortSignal.timeout(5000) })
-    ).text();
+  const metric = async (i) => observe(`${urls[i]}/metrics`);
   const snapshot = () =>
     names.map((name) => ({
       name,
@@ -276,7 +291,12 @@ export async function fixture(
 
 export async function handover(
   f,
-  { id = `resource-${process.pid}`, deadlineMs = 300000, beforePromotion } = {},
+  {
+    id = `resource-${process.pid}`,
+    deadlineMs = 300000,
+    beforePromotion,
+    prepare,
+  } = {},
 ) {
   const { identities, names, grant, report } = f;
   const intent = {
@@ -286,6 +306,56 @@ export async function handover(
     source_url: `http://${names[0]}:7443`,
     deadline_ms: Date.now() + deadlineMs,
   };
+  if (prepare) {
+    assert.equal(
+      (await report(1)).serving_authority.preparation_supported,
+      true,
+    );
+    intent.deadline_ms = Date.now() + 1200000;
+    grant({
+      epoch: 1,
+      holder: identities[0],
+      phase: "Serving",
+      handover: intent,
+      renew: true,
+    });
+    let complete = false;
+    while (Date.now() < intent.deadline_ms) {
+      const [source, target] = await Promise.all(
+        [0, 1].map(async (i) => (await report(i)).serving_authority),
+      );
+      assert.equal(
+        source.valid,
+        true,
+        "preparation must keep the source serving",
+      );
+      assert.equal(
+        target.valid,
+        false,
+        "preparation must not authorize the standby",
+      );
+      assert.equal(source.barrier, null);
+      assert.equal(target.barrier, null);
+      await prepare();
+      const status = target.preparation;
+      if (status?.intent.id === id) {
+        assert.deepEqual(status.intent, intent);
+        assert.deepEqual(status.source, identities[0]);
+        assert.equal(status.epoch, 1);
+        assert.equal(status.error, null);
+        if (status.complete) {
+          complete = true;
+          break;
+        }
+      }
+      await sleep(1000);
+    }
+    assert(
+      complete,
+      "standby preparation did not complete before its fixed deadline",
+    );
+    intent.deadline_ms = Date.now() + deadlineMs;
+  }
   grant({
     epoch: 1,
     holder: identities[0],

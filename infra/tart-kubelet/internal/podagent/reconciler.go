@@ -693,10 +693,12 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 const goldenBaseVMPrefix = "tuist-golden-"
 
 // goldenVMName derives the deterministic golden base VM name for an
-// image ref. Runner images are digest-pinned, so the hash changes only
-// when the digest rolls — a new digest gets its own golden and the
-// superseded one ages out of the GC. An 8-byte SHA-256 prefix is
-// collision-safe for the handful of digests a host ever sees and keeps
+// image ref string, not the content it resolves to: two refs to the same
+// manifest get two goldens. Catalog pools name their image by digest
+// (`…/tuist-runner@sha256:…`), so their golden changes only when the
+// content does; a pool that pins a tag gets a new golden with every new
+// tag. A superseded golden ages out of the GC. An 8-byte SHA-256 prefix
+// is collision-safe for the handful of refs a host ever sees and keeps
 // the name well inside Tart's 63-char limit.
 func goldenVMName(image string) string {
 	sum := sha256.Sum256([]byte(image))
