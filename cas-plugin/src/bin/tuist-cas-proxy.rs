@@ -223,8 +223,9 @@ fn main() {
             std::env::var("TUIST_CAS_TUIST_BIN"),
             std::env::var("TUIST_CAS_TUIST_VERSION"),
         ) {
+            let plugin = std::env::var_os("TUIST_CAS_BUNDLED_PLUGIN").map(std::path::PathBuf::from);
             if let Err(error) = tuist_cas_plugin::proxy_upgrade::refresh_plugin(
-                std::path::Path::new(&target), std::path::Path::new(&executable), &version,
+                std::path::Path::new(&target), std::path::Path::new(&executable), &version, plugin.as_deref(),
             ) {
                 tuist_cas_plugin::log_line(&format!("could not refresh the installed cache plugin: {error}"));
             }

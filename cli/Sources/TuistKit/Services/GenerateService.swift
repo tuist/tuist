@@ -181,8 +181,14 @@ public struct GenerateService {
         do {
             // Source-built CLIs without bundled cache components cannot replace a release.
             guard try await resourceLocator.casProxy() != nil, try await resourceLocator.casPlugin() != nil else { return }
+            let executable: AbsolutePath
+            if let invokedPath = Environment.current.currentExecutablePath() {
+                executable = invokedPath
+            } else {
+                executable = try await resourceLocator.cliPath()
+            }
             _ = try await cacheInstallationChecker.update(
-                executable: resourceLocator.cliPath(), tuistVersion: Constants.version, onlyIfInstalled: true
+                executable: executable, tuistVersion: Constants.version, onlyIfInstalled: true
             )
         } catch {
             Logger.current.debug("Could not advance the cache proxy launcher: \(error.localizedDescription)")

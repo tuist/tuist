@@ -34,12 +34,9 @@ struct TeardownCacheCommandServiceTests {
             .willReturn(.test(fullHandle: "organization/project"))
 
         given(installationStore).invalidate().willReturn()
-        let store = installationStore
         given(launchAgentService)
             .teardownLaunchAgent(label: .any, plistFileName: .any)
-            .willProduce { _, _ in
-                verify(store).invalidate().called(1)
-            }
+            .willReturn()
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func teardownCache() async throws {
@@ -87,25 +84,25 @@ struct TeardownCacheCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func teardownCache_invalidatesMetadataEvenIfRemovingTheAgentFails() async throws {
+    func teardownCache_preservesLauncherIfRemovingTheAgentFails() async throws {
         let error = NSError(domain: "test", code: 1)
         launchAgentService.reset()
         given(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).willThrow(error)
 
         await #expect(throws: error) { try await subject.run(path: nil) }
 
-        verify(installationStore).invalidate().called(1)
+        verify(installationStore).invalidate().called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func teardownCache_doesNotRemoveTheAgentIfInvalidatingMetadataFails() async throws {
+    func teardownCache_stopsTheAgentBeforeInvalidatingTheLauncher() async throws {
         let error = NSError(domain: "test", code: 1)
         installationStore.reset()
         given(installationStore).invalidate().willThrow(error)
 
         await #expect(throws: error) { try await subject.run(path: nil) }
 
-        verify(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).called(0)
+        verify(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func teardownCache_succeedsWhenSocketFileMissing() async throws {

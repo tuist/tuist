@@ -32,11 +32,12 @@ struct TeardownCacheCommandService {
         // The proxy is one machine-wide agent, not per-project, so tearing it
         // down needs no fullHandle.
         let proxyLabel = Environment.current.casProxyLaunchAgentLabel()
-        try await installationStore.invalidate()
         try await launchAgentService.teardownLaunchAgent(
             label: proxyLabel,
             plistFileName: "\(proxyLabel).plist"
         )
+        // A failed bootout must leave the still-loaded job able to restart.
+        try await installationStore.invalidate()
 
         // Best-effort teardown of a per-project cache daemon left over from before
         // the machine-wide proxy.

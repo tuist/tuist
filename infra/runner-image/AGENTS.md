@@ -341,6 +341,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a bounded tail of it, so a verbose job's attach lines never reach the log
   store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
   limit that was applied.
+  `cas_proxy_client` resolves an explicit proxy override, the installed agent's
+  configured override or CLI bundle, PATH, then the image fallback. For stable
+  `/bin/sh` agents it reads the JSON launch target from ProgramArguments[2];
+  for explicit custom/source-built agents it reads the CLI from
+  ProgramArguments[4]. Legacy agents still name the CLI in Program. Run
+  `bash infra/runner-image/tests/cas-proxy-client-test.sh` on macOS to cover
+  all discovery modes without starting the dispatch loop.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit

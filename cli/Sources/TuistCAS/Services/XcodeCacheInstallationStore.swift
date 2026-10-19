@@ -12,18 +12,19 @@ import TuistEnvironment
 
 @Mockable
 public protocol XcodeCacheInstallationStoring {
-    /// Advances the launcher to a newer Tuist, never an older one. Returns whether
-    /// this installation is selected (and may therefore refresh the stable plugin).
+    /// Advances a usable target, or repairs an unavailable installation.
+    /// Returns whether this installation is selected, not whether it is running.
     /// Generation uses `onlyIfInstalled` so it cannot install a service.
     func update(executable: AbsolutePath, tuistVersion: String, onlyIfInstalled: Bool) async throws -> Bool
     func invalidate() async throws
 }
 
-/// Owns the stable launch entry point and its monotonically advancing target.
+/// Owns the stable launch entry point, version selection, and unavailable-target recovery.
 public struct XcodeCacheInstallationStore: XcodeCacheInstallationStoring, Sendable {
     struct Target: Codable {
         let executable: AbsolutePath
         let tuistVersion: String
+        var highestTuistVersion: String?
     }
 
     private let fileSystem: FileSysteming
@@ -51,18 +52,40 @@ public struct XcodeCacheInstallationStore: XcodeCacheInstallationStoring, Sendab
             if try await fileSystem.exists(targetPath) {
                 // A corrupt pointer is an error, not permission to silently downgrade it.
                 let target: Target = try await fileSystem.readJSONFile(at: targetPath)
-                let installedVersion = try Version(versionString: target.tuistVersion)
-                if installedVersion > version { return false }
-                if installedVersion == version, try await fileSystem.exists(target.executable) {
-                    return target.executable == executable
+                let installedVersion = try Version(versionString: target.highestTuistVersion ?? target.tuistVersion)
+                if try await isUsable(target.executable) {
+                    if installedVersion > version { return false }
+                    if installedVersion == version {
+                        guard try await isUsable(executable) else { return false }
+                        guard try await canonicalPath(target.executable) == canonicalPath(executable) else { return false }
+                        if target.tuistVersion == tuistVersion { return true }
+                    }
                 }
             }
-            guard try await fileSystem.exists(executable) else {
+            guard try await isUsable(executable) else {
                 throw XcodeCacheInstallationStoreError.missingExecutable(executable)
             }
+            // Keep stable aliases usable after a package manager removes the old
+            // versioned directory. Canonical paths are only for identity checks.
             try await fileSystem.writeAsJSON(Target(executable: executable, tuistVersion: tuistVersion), at: targetPath)
             return true
         }
+    }
+
+    private func isUsable(_ path: AbsolutePath) async throws -> Bool {
+        try await fileSystem.exists(path, isDirectory: false) && access(path.pathString, X_OK) == 0
+    }
+
+    private func canonicalPath(_ path: AbsolutePath, remainingLinks: Int = 40) async throws -> AbsolutePath {
+        guard path != path.parentDirectory else { return path }
+        guard remainingLinks > 0 else { throw XcodeCacheInstallationStoreError.missingExecutable(path) }
+        let parent = try await canonicalPath(path.parentDirectory, remainingLinks: remainingLinks)
+        let candidate = parent.appending(component: path.basename)
+        let resolved = try await fileSystem.resolveSymbolicLink(candidate)
+        if resolved != candidate {
+            return try await canonicalPath(resolved, remainingLinks: remainingLinks - 1)
+        }
+        return candidate
     }
 
     public func invalidate() async throws {

@@ -73,6 +73,8 @@ struct GenerateServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [true, false])
     func run_advances_cache_proxy_only_when_remote_caching_is_enabled(enabled: Bool) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/stable/bin/tuist"
         given(configLoader).loadConfig(path: .any).willReturn(.test(
             project: .generated(.test(generationOptions: .test(enableCaching: enabled))),
             fullHandle: "org/project"
@@ -89,8 +91,13 @@ struct GenerateServiceTests {
         }
 
         verify(cacheInstallationChecker)
-            .update(executable: .value("/release/tuist"), tuistVersion: .value(Constants.version), onlyIfInstalled: .value(true))
+            .update(
+                executable: .value("/stable/bin/tuist"),
+                tuistVersion: .value(Constants.version),
+                onlyIfInstalled: .value(true)
+            )
             .called(enabled ? 1 : 0)
+        #expect(resourceLocator.cliPathCount == 0)
         #expect(alerts.warnings().isEmpty)
     }
 
