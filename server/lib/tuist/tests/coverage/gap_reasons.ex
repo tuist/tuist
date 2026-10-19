@@ -52,6 +52,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `test_list_changed`: a skipped test target's test files changed since
     the commit's baseline, and no run was recorded under its hash, so which
     tests it holds now is unknown.
+  - `missing_scheme`: CI registered runs of a scheme when they started, and
+    none of them reported (an upload failed, or it is still being
+    processed).
   """
   import Bitwise
 
@@ -74,7 +77,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :target_without_history,
     :caller_selected_tests,
     :uninstrumented_code,
-    :test_list_changed
+    :test_list_changed,
+    :missing_scheme
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)

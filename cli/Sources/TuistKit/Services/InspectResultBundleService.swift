@@ -167,7 +167,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
         }
         var coverage: TestRunCoverage?
-        var testRunId: String?
+        // The id `tuist test` registered for the run before it built, if it did.
+        var testRunId: String? = await RunMetadataStorage.current.expectedTestRunId
         var manifest: XcodeCoverageManifest?
         if let resultBundlePath {
             manifest = await coverageManifest(
@@ -191,10 +192,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 manifest: manifest,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testRunId: nil
+                testRunId: testRunId
             ) {
                 coverage = prepared.coverage
-                testRunId = prepared.testRunId
+                testRunId = prepared.testRunId ?? testRunId
             }
         }
 
@@ -377,7 +378,7 @@ extension UploadResultBundleService {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
 
-        let testRunId = UUID().uuidString.lowercased()
+        let testRunId = await RunMetadataStorage.current.expectedTestRunId ?? UUID().uuidString.lowercased()
 
         // Only this checkout can say which repository files the coverage's paths are and which
         // Git blobs they had, so that travels inside the bundle as the manifest, the way the

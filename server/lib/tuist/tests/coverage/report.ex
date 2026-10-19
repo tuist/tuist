@@ -22,6 +22,7 @@ defmodule Tuist.Tests.Coverage.Report do
       unmeasured_files_count: summary.unmeasured_files_count,
       schemes: summary.schemes,
       partial_schemes: summary.partial_schemes,
+      missing_schemes: summary.missing_schemes,
       partial: summary.partial_schemes != [],
       complete: summary.complete,
       completeness: summary.completeness,

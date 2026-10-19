@@ -15,7 +15,10 @@ defmodule Tuist.Tests.Coverage.Commits do
   Whether the commit's coverage pipeline has finished cannot be read off the
   data (it depends on the pipeline and on what the changed files trigger), so
   the client says so with `signal_complete/2`, which pull request gates wait
-  for. Totals are republished (`recompute/2`) a few seconds after each run
+  for. Which schemes it should have measured cannot be read off the data
+  either, so a CI run registers itself when it starts (`expect_runs/3`), and
+  a registered scheme none of whose runs reported keeps the figure a lower
+  bound. Totals are republished (`recompute/2`) a few seconds after each run
   reports and on the signal, rewriting the commit's row one version up. A
   complete commit's per-file figures are then stored as deltas
   (`Tuist.Tests.Coverage.Deltas`).
@@ -105,6 +108,44 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
+  @expected_runs "coverage_commit_expected_runs"
+  @reported_statuses ~w(success failure skipped)
+
+  @doc """
+  Registers runs a CI pipeline started for the commit, each as the id the run
+  will be created with and the scheme it was asked for, before it builds: a
+  run whose report never reaches the server (an upload that failed once its
+  credentials expired, say) leaves its scheme missing, so the commit's figure
+  is a lower bound instead of complete with what the other schemes measured.
+  Runs are matched by id, since a run reports the name of the test plan it
+  ran rather than the scheme, and a scheme is satisfied by any of its runs,
+  so a job retried under a new id settles it. A commit already published is
+  folded again, so a run registered after its signal shows as missing until
+  it reports.
+  """
+  def expect_runs(_project, sha, _runs) when sha in [nil, ""], do: :ok
+
+  def expect_runs(%Project{} = project, sha, runs) do
+    now = DateTime.utc_now()
+
+    rows =
+      runs
+      |> Enum.reject(&(&1.scheme in [nil, ""]))
+      |> Enum.uniq_by(& &1.test_run_id)
+      |> Enum.map(
+        &%{
+          project_id: project.id,
+          git_commit_sha: sha,
+          test_run_id: Ecto.UUID.dump!(&1.test_run_id),
+          scheme: &1.scheme,
+          inserted_at: now
+        }
+      )
+
+    {count, _} = Repo.insert_all(@expected_runs, rows, on_conflict: :nothing)
+    if count > 0 and measured?(project.id, sha), do: enqueue_recompute(project.id, sha)
+    :ok
+  end
 
   @doc """
   Republishes the commit's totals from its runs' retained reports and
@@ -265,23 +306,66 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   # Besides the gaps `Reported` finds, the figure is a lower bound when a
-  # scheme's runs all left tests out and nothing names what Tuist skipped, or
-  # when a scheme's coverage only came from CI runs on a dirty checkout: the
+  # scheme's runs all left tests out and nothing names what Tuist skipped,
+  # when a scheme's coverage only came from CI runs on a dirty checkout (the
   # pipeline set out to measure it, and no clean run of it did, not even one
-  # skipped whole. A local run measures what a developer tried, not what the pipeline
-  # owes the commit. Settled on the built row, so the unmeasured files are
-  # still read the way the coverage was reached.
+  # skipped whole), or when none of the runs CI registered for a scheme
+  # reported. A local run measures what a developer tried, not what the
+  # pipeline owes the commit. Settled on the built row, so the unmeasured
+  # files are still read the way the coverage was reached.
   defp lower_bound(row, project_id, sha) do
     row =
       if row.reported_kind == "measured" and row.partial_schemes != [],
         do: %{row | reported_kind: "partial"},
         else: row
 
-    if dirty_only_scheme?(project_id, sha) do
-      reasons = GapReasons.decode(row.gap_reasons) ++ [:dirty_run_excluded]
-      %{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}
-    else
-      row
+    row =
+      if dirty_only_scheme?(project_id, sha),
+        do: with_gap(row, :dirty_run_excluded),
+        else: row
+
+    case missing_schemes(project_id, sha) do
+      [] -> Map.put(row, :missing_schemes, [])
+      missing -> row |> with_gap(:missing_scheme) |> Map.put(:missing_schemes, missing)
+    end
+  end
+
+  defp with_gap(row, reason) do
+    reasons = GapReasons.decode(row.gap_reasons) ++ [reason]
+    %{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}
+  end
+
+  # The registered schemes none of whose runs finished reporting: a run still
+  # being processed counts as missing until it lands, so a signal that
+  # arrives first does not settle the commit without it.
+  defp missing_schemes(project_id, sha) do
+    case Repo.all(
+           from(e in @expected_runs,
+             where: e.project_id == ^project_id and e.git_commit_sha == ^sha,
+             select: {type(e.test_run_id, Ecto.UUID), e.scheme}
+           )
+         ) do
+      [] ->
+        []
+
+      expected ->
+        ids = Enum.map(expected, &elem(&1, 0))
+
+        reported =
+          from(t in Test,
+            where: t.project_id == ^project_id and t.id in ^ids,
+            group_by: t.id,
+            having: fragment("argMax(?, ?)", t.status, t.inserted_at) in ^@reported_statuses,
+            select: t.id
+          )
+          |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+          |> MapSet.new()
+
+        expected
+        |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+        |> Enum.reject(fn {_scheme, run_ids} -> Enum.any?(run_ids, &MapSet.member?(reported, &1)) end)
+        |> Enum.map(&elem(&1, 0))
+        |> Enum.sort()
     end
   end
 
@@ -713,6 +797,24 @@ defmodule Tuist.Tests.Coverage.Commits do
       )
 
     Repo.delete_all(from(c in @pending_completions, where: c.inserted_at < ^pull_requests_cutoff))
+
+    # Kept as long as the commit's row, which a refold reads them for; a
+    # commit no run ever published keeps them as long as a pending signal.
+    Repo.delete_all(
+      from(e in @expected_runs,
+        as: :expected,
+        where:
+          e.inserted_at < ^commits_cutoff or
+            (e.inserted_at < ^pull_requests_cutoff and
+               not exists(
+                 from(c in CoverageCommit,
+                   where:
+                     c.project_id == parent_as(:expected).project_id and
+                       c.git_commit_sha == parent_as(:expected).git_commit_sha
+                 )
+               ))
+      )
+    )
 
     count
   end

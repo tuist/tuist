@@ -59,6 +59,16 @@ defmodule TuistWeb.API.CoverageControllerTest do
       assert [%{"name" => "App", "coverage" => 66.7}] = completed["targets"]
     end
 
+    test "lists the schemes none of whose registered runs reported", %{conn: conn, prefix: prefix, run: run} do
+      runs = [%{id: run.id, scheme: "App"}, %{id: UUIDv7.generate(), scheme: "AppTests"}]
+      assert conn |> post("#{prefix}/commits/p/expected-runs", %{runs: runs}) |> response(:no_content) == ""
+
+      completed = conn |> post("#{prefix}/commits/p/complete") |> json_response(:ok)
+
+      assert {completed["missing_schemes"], completed["complete"], completed["reported"]["kind"]} ==
+               {["AppTests"], true, "partial"}
+    end
+
     test "answers 202 for a commit no run measured yet, and completes its first fold", %{
       conn: conn,
       prefix: prefix,

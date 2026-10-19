@@ -11,6 +11,8 @@ public struct CommitCoverage: Equatable, Sendable {
     public let executableLines: Int
     public let schemes: [String]
     public let partialSchemes: [String]
+    /// The schemes CI registered runs of when they started, none of which reported.
+    public let missingSchemes: [String]
     public let complete: Bool
     /// Whether the figure is a lower bound: the coverage of some tests the runs skipped, or of
     /// some scheme, couldn't be determined.
@@ -23,6 +25,7 @@ public struct CommitCoverage: Equatable, Sendable {
         executableLines: Int,
         schemes: [String],
         partialSchemes: [String],
+        missingSchemes: [String] = [],
         complete: Bool,
         incomplete: Bool = false
     ) {
@@ -32,6 +35,7 @@ public struct CommitCoverage: Equatable, Sendable {
         self.executableLines = executableLines
         self.schemes = schemes
         self.partialSchemes = partialSchemes
+        self.missingSchemes = missingSchemes
         self.complete = complete
         self.incomplete = incomplete
     }
@@ -110,6 +114,7 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
                         executableLines: figure?.executable_lines ?? commit.executable_lines,
                         schemes: commit.schemes,
                         partialSchemes: commit.partial_schemes,
+                        missingSchemes: commit.missing_schemes ?? [],
                         complete: commit.complete,
                         incomplete: figure?.kind == .partial
                     )

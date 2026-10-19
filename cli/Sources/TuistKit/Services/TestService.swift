@@ -143,6 +143,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
     private let coverageBuildSourcesService: CoverageBuildSourcesService
+    private let expectCommitCoverageRunsService: ExpectCommitCoverageRunsServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -190,9 +191,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
         stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+        expectCommitCoverageRunsService: ExpectCommitCoverageRunsServicing = ExpectCommitCoverageRunsService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
+        self.expectCommitCoverageRunsService = expectCommitCoverageRunsService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -1550,6 +1553,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
+        let expectedTestRunIds = await registerCoverageRuns(
+            schemes: testSchemeRuns.map(\.scheme),
+            action: action,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
         let runningMultipleSchemes = testSchemeRuns.count > 1
         var perSchemeResultBundlePaths: [AbsolutePath] = []
         // Stored once every scheme has run: schemes can share a test target, and a hash stored after
@@ -1599,6 +1608,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
 
+                await RunMetadataStorage.current.update(expectedTestRunId: expectedTestRunIds[testScheme.name])
                 do {
                     try await self.testScheme(
                         scheme: testScheme,
@@ -1696,6 +1706,53 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    /// Registers the runs a CI pipeline is about to make for the commit, before they build, while the
+    /// credentials are fresh: a run whose report never reaches the server, such as one whose upload
+    /// fails once a short-lived CI token expired, then leaves the commit's coverage incomplete rather
+    /// than complete with what the other schemes measured. Returns the id each scheme's run is
+    /// created with. Only clean CI checkouts count towards a commit, and a failure costs the run
+    /// nothing but the registration.
+    private func registerCoverageRuns(
+        schemes: [Scheme],
+        action: XcodeBuildTestAction,
+        passthroughXcodeBuildArguments: [String],
+        config: Tuist
+    ) async -> [String: String] {
+        guard action != .build, Environment.current.isCI, let fullHandle = config.fullHandle else { return [:] }
+        let runs = schemes
+            .filter {
+                Self.coverageEnabled(
+                    testAction: $0.testAction,
+                    xcodebuildArguments: passthroughXcodeBuildArguments,
+                    config: config
+                ) != false
+            }
+            .map { ExpectedCoverageRun(id: UUID().uuidString.lowercased(), scheme: $0.name) }
+        guard !runs.isEmpty else { return [:] }
+
+        do {
+            let rootDirectory = try await rootDirectory()
+            let workingDirectory = if let rootDirectory { rootDirectory } else {
+                try await Environment.current.currentWorkingDirectory()
+            }
+            guard let sha = try await gitController.gitInfo(workingDirectory: workingDirectory).sha, !sha.isEmpty,
+                  try await !gitController.hasUncommittedChanges(workingDirectory: workingDirectory)
+            else { return [:] }
+            try await expectCommitCoverageRunsService.expectCommitCoverageRuns(
+                fullHandle: fullHandle,
+                serverURL: try serverEnvironmentService.url(configServerURL: config.url),
+                gitCommitSHA: sha,
+                runs: runs
+            )
+            return Dictionary(runs.map { ($0.scheme, $0.id) }, uniquingKeysWith: { first, _ in first })
+        } catch {
+            AlertController.current.warning(
+                .alert("Couldn't register the coverage runs with Tuist: \(error.localizedDescription)")
+            )
+            return [:]
+        }
     }
 
     /// The test targets of a failed scheme whose test cases all passed, and whether the failures were

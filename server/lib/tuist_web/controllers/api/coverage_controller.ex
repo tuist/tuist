@@ -155,6 +155,12 @@ defmodule TuistWeb.API.CoverageController do
       items: %Schema{type: :string},
       description: "The schemes only measured by runs that skipped tests on purpose."
     },
+    missing_schemes: %Schema{
+      type: :array,
+      items: %Schema{type: :string},
+      description:
+        "The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound."
+    },
     complete: %Schema{
       type: :boolean,
       description: "Whether the commit's coverage pipeline is known to have finished (`completeness` says how)."
@@ -230,7 +236,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:complete_commit,
     summary: "Signal that a commit's coverage pipeline finished.",
     description:
-      "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).",
+      "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. A scheme whose registered runs (`expectCommitCoverageRuns`) never reported is listed in `missing_schemes`, and the figure is then a lower bound. Meant for a final CI job that depends on every test job (`tuist coverage complete`).",
     operation_id: "completeCommitCoverage",
     parameters: @path_parameters ++ @sha_parameter,
     responses:
@@ -252,5 +258,45 @@ defmodule TuistWeb.API.CoverageController do
       summary ->
         json(conn, Report.commit(summary, Commits.targets(project.id, sha)))
     end
+  end
+
+  operation(:expect_runs,
+    summary: "Register the runs a commit's coverage pipeline started.",
+    description:
+      "Called by a CI run that collects coverage before it builds (`tuist test`), while its credentials are fresh, with the id it will create the run with and the scheme it was asked for. A scheme none of whose registered runs reports (an upload failed, or it is still being processed) is listed in the commit's `missing_schemes`, and its figure is a lower bound instead of complete with what the other schemes measured. Registering a run again is a no-op.",
+    operation_id: "expectCommitCoverageRuns",
+    parameters: @path_parameters ++ @sha_parameter,
+    request_body:
+      {"The runs", "application/json",
+       %Schema{
+         title: "CoverageExpectedRuns",
+         type: :object,
+         properties: %{
+           runs: %Schema{
+             type: :array,
+             items: %Schema{
+               title: "CoverageExpectedRun",
+               type: :object,
+               properties: %{
+                 id: %Schema{type: :string, format: :uuid, description: "The id the run will be created with."},
+                 scheme: %Schema{type: :string, description: "The scheme the run was asked to test."}
+               },
+               required: [:id, :scheme]
+             }
+           }
+         },
+         required: [:runs]
+       }},
+    responses: %{
+      no_content: "The runs were registered",
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project was not found", "application/json", Error}
+    }
+  )
+
+  def expect_runs(%{assigns: %{selected_project: project}, body_params: %{runs: runs}} = conn, %{git_commit_sha: sha}) do
+    :ok = Commits.expect_runs(project, sha, Enum.map(runs, &%{test_run_id: &1.id, scheme: &1.scheme}))
+    send_resp(conn, :no_content, "")
   end
 end

@@ -3352,6 +3352,26 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageExpectedRun:
+      properties:
+        id:
+          description: The id the run will be created with.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme the run was asked to test.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - scheme
+      title: CoverageExpectedRun
+      type: object
+      x-struct:
+      x-validate:
     RunnerVolumeTrends:
       additionalProperties: false
       properties:
@@ -8056,6 +8076,38 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageExpectedRuns:
+      properties:
+        runs:
+          items:
+            properties:
+              id:
+                description: The id the run will be created with.
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              scheme:
+                description: The scheme the run was asked to test.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - scheme
+            title: CoverageExpectedRun
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - runs
+      title: CoverageExpectedRuns
+      type: object
+      x-struct:
+      x-validate:
     RunnerVolumeActivity:
       additionalProperties: false
       properties:
@@ -9024,6 +9076,15 @@ components:
         measured_files_count:
           description: Product files some run measured.
           type: integer
+          x-struct:
+          x-validate:
+        missing_schemes:
+          description: The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         partial:
@@ -11910,6 +11971,97 @@ paths:
                 x-validate:
               style: simple
       summary: Create a test case run attachment and get a presigned upload URL.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs:
+    post:
+      callbacks: {}
+      description: Called by a CI run that collects coverage before it builds (`tuist test`), while its credentials are fresh, with the id it will create the run with and the scheme it was asked for. A scheme none of whose registered runs reports (an upload failed, or it is still being processed) is listed in the commit's `missing_schemes`, and its figure is a lower bound instead of complete with what the other schemes measured. Registering a run again is a no-op.
+      operationId: expectCommitCoverageRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                runs:
+                  items:
+                    properties:
+                      id:
+                        description: The id the run will be created with.
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                      scheme:
+                        description: The scheme the run was asked to test.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - scheme
+                    title: CoverageExpectedRun
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - runs
+              title: CoverageExpectedRuns
+              type: object
+              x-struct:
+              x-validate:
+        description: The runs
+        required: false
+      responses:
+        '204':
+          description: The runs were registered
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Register the runs a commit's coverage pipeline started.
       tags:
         - Tests
   /api/accounts/{account_handle}/runners/volumes/analytics:
@@ -29527,7 +29679,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete:
     post:
       callbacks: {}
-      description: "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`)."
+      description: "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. A scheme whose registered runs (`expectCommitCoverageRuns`) never reported is listed in `missing_schemes`, and the figure is then a lower bound. Meant for a final CI job that depends on every test job (`tuist coverage complete`)."
       operationId: completeCommitCoverage
       parameters:
         - description: The handle of the account.
@@ -29596,6 +29748,15 @@ paths:
                   measured_files_count:
                     description: Product files some run measured.
                     type: integer
+                    x-struct:
+                    x-validate:
+                  missing_schemes:
+                    description: The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   partial:
