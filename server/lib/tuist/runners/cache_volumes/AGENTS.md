@@ -24,6 +24,9 @@ these schemas persist volume identities and per-job uses.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;
   unknown/closed sessions and denied provider identities remain unavailable.
+  An unbound session also enqueues `ExecutionLookupWorker`, which reads the
+  runner's `in_progress` job from GitHub's API and records it through
+  `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity

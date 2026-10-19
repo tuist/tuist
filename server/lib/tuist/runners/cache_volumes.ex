@@ -22,6 +22,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
@@ -73,12 +74,17 @@ defmodule Tuist.Runners.CacheVolumes do
   # webhook arrives.
   defp executing_job(pod, node) do
     case execution_binding(pod, node) do
-      {job, platform} ->
+      {job, %RunnerSession{platform: platform} = session} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
           case job do
-            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
-            nil -> {:error, :pending}
-            _ -> {:error, :unavailable}
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) ->
+              {:ok, job, platform}
+
+            nil ->
+              await_execution(session)
+
+            _ ->
+              {:error, :unavailable}
           end
         else
           {:error, :unavailable}
@@ -88,6 +94,15 @@ defmodule Tuist.Runners.CacheVolumes do
         {:error, :unavailable}
     end
   end
+
+  # Without a binding, ask GitHub directly rather than wait for an
+  # `in_progress` delivery that can lag the job's start by minutes.
+  defp await_execution(%RunnerSession{executed_workflow_job_id: nil} = session) do
+    {:ok, _job} = ExecutionLookupWorker.enqueue(session)
+    {:error, :pending}
+  end
+
+  defp await_execution(%RunnerSession{}), do: {:error, :pending}
 
   defp execution_binding(pod, node) do
     Repo.one(
@@ -99,7 +114,7 @@ defmodule Tuist.Runners.CacheVolumes do
         where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: {j, s.platform}
+        select: {j, s}
       )
     )
   end
