@@ -303,6 +303,14 @@
 			"dst": ["svc:tuist-clickhouse-canary"],
 			"ip":  ["tcp:8123"],
 		},
+		{
+			// The CNPG pooler, for when it is served the same way
+			// (postgresql.cnpg.pooler.tailscale.proxyGroup, empty in every env
+			// today, so this grant is currently unused).
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-pg-pooler-production"],
+			"ip":  ["tcp:5432"],
+		},
 
 		// Runner hosts -> the same-env Alloy receiver, for host logs only.
 		// That is the one thing a runner host dials over the tailnet
@@ -695,6 +703,7 @@
 			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
 			"svc:tuist-clickhouse-staging":    ["tag:tuist-k8s-staging"],
 			"svc:tuist-clickhouse-canary":     ["tag:tuist-k8s-canary"],
+			"svc:tuist-pg-pooler-production": ["tag:tuist-k8s-production"],
 		},
 	},
 
