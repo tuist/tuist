@@ -11,7 +11,9 @@ struct CargoTestTarget {
         let packages = metadata["packages"] as? [[String: Any]] ?? []
         let names = Set(packages.compactMap { $0["name"] as? String })
         let selection = selectedPackages(arguments)
-        let selected = !selection.isEmpty && selection.allSatisfy(names.contains) ? Set(selection) : names
+        guard selection.allSatisfy(names.contains) else { return [] }
+        let selectsWorkspace = arguments.prefix(while: { $0 != "--" }).contains { ["--workspace", "--all"].contains($0) }
+        let selected = selection.isEmpty || selectsWorkspace ? names : Set(selection)
         return packages.flatMap { package -> [Self] in
             guard let packageName = package["name"] as? String, selected.contains(packageName),
                   let manifest = package["manifest_path"] as? String else { return [] }
@@ -43,7 +45,8 @@ struct CargoTestTarget {
                 index += 2
                 continue
             }
-            if argument.hasPrefix("--package=") { packages.append(String(argument.dropFirst("--package=".count))) } else if argument.hasPrefix("-p"), argument.count > 2 { packages.append(String(argument.dropFirst(2))) }
+            if argument.hasPrefix("--package=") { packages.append(String(argument.dropFirst("--package=".count))) }
+            else if argument.hasPrefix("-p"), argument.count > 2 { packages.append(String(argument.dropFirst(2))) }
             index += 1
         }
         return packages
@@ -88,7 +91,8 @@ struct CargoTestReport {
         var duration = 0
         for (heading, group) in zip(headings, groups) {
             let tests = group.flatMap(\.tests)
-            guard Set(tests.map(\.name)).count == tests.count else { return nil }
+            guard Set(tests.map(\.name)).count == tests.count,
+                  !heading.isDoctest || tests.allSatisfy({ !($0.name as NSString).isAbsolutePath }) else { return nil }
             let elapsed = group.reduce(0) { $0 + $1.duration }
             guard elapsed <= Int(Int32.max), duration + elapsed <= Int(Int32.max) else { return nil }
             duration += elapsed

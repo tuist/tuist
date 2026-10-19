@@ -126,6 +126,42 @@ struct CargoTestReportTests {
         ) == nil)
     }
 
+    @Test(arguments: ["shared", "helper", "app@0.1.0", "app:0.1.0", "*"])
+    func omitsUnresolvedPackageSelectionsRatherThanAttributingDependencyTests(spec: String) {
+        let metadata: [String: Any] = ["packages": [[
+            "name": "app", "manifest_path": "/workspace/Cargo.toml", "targets": [
+                ["name": "shared", "src_path": "/workspace/src/lib.rs", "kind": ["lib"]],
+                ["name": "integration", "src_path": "/workspace/tests/integration.rs", "kind": ["test"]],
+            ],
+        ]]]
+        let targets = CargoTestTarget.read(metadata, arguments: ["test", "-p", spec])
+        #expect(targets.isEmpty)
+        #expect(CargoTestTarget.read(metadata, arguments: ["test", "-p", "app", "-p", spec]).isEmpty)
+        for heading in [
+            "Running unittests src/lib.rs (target/debug/deps/shared-0123456789abcdef)",
+            "Running tests/integration.rs (target/debug/deps/integration-0123456789abcdef)",
+        ] {
+            #expect(CargoTestReport.read(
+                stdout: Data(summary("test dependency_only ... ok", passed: 1).utf8),
+                stderr: Data(heading.utf8), targets: targets, directory: "/workspace"
+            ) == nil)
+        }
+    }
+
+    @Test func workspaceSelectionDoesNotNarrowCandidatesToAnExplicitPackage() {
+        let metadata: [String: Any] = ["packages": ["app", "member"].map { name in
+            ["name": name, "manifest_path": "/workspace/\(name)/Cargo.toml", "targets": [
+                ["name": "integration", "src_path": "/workspace/\(name)/tests/integration.rs", "kind": ["test"]],
+            ]]
+        }]
+        #expect(CargoTestTarget.read(metadata, arguments: ["test", "--workspace", "-p", "member"]).count == 2)
+    }
+
+    @Test func omitsAbsoluteDoctestPaths() {
+        #expect(read(summary("test /private/tmp/checkout/src/lib.rs - store (line 2) ... ok", passed: 1), "Doc-tests store") ==
+            nil)
+    }
+
     @Test func supportsSeparateDoctestInvocationsAndAnsiColor() throws {
         let output = summary("test src/lib.rs - store (line 2) ... \u{1B}[32mok\u{1B}[0m", passed: 1)
         let report = try #require(read(output, "\u{1B}[32m   Doc-tests\u{1B}[0m store"))

@@ -32,10 +32,17 @@ mod tests {
     fn passes() {
         assert_eq!(super::answer(), 42);
         if let Some(path) = std::env::var_os("TUIST_FIXTURE_LEAK_PID") {
-            let child = std::process::Command::new("/bin/sleep")
-                .arg("30")
-                .spawn()
-                .unwrap();
+            let child = if std::env::var_os("TUIST_FIXTURE_TICK").is_some() {
+                std::process::Command::new("/bin/sh")
+                    .args(["-c", "while :; do printf tick >&2; /bin/sleep 0.05; done"])
+                    .spawn()
+                    .unwrap()
+            } else {
+                std::process::Command::new("/bin/sleep")
+                    .arg("30")
+                    .spawn()
+                    .unwrap()
+            };
             std::fs::write(path, child.id().to_string()).unwrap();
         }
     }

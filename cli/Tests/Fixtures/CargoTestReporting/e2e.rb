@@ -242,13 +242,20 @@ begin
   run.call("rejected-success", ["test", "--offline"], 0, 10, reject: true)
   run.call("rejected-failure", ["test", "--offline", "--no-fail-fast"], 101, 10, fail: true, reject: true)
   leak_pid = File.join(root, "leaked-child.pid")
-  started = Time.now
-  begin
-    run.call("leaked-descendant", ["test", "--offline", "tests::passes"], 0, nil,
-             env: { "TUIST_FIXTURE_LEAK_PID" => leak_pid })
-    check(Time.now - started < 10, "Wrapper waited for the 30-second descendant")
-  ensure
-    Process.kill("TERM", Integer(File.read(leak_pid))) if File.file?(leak_pid)
+  ["leaked-descendant", "periodic-descendant"].each do |scenario|
+    started = Time.now
+    begin
+      tick = scenario == "periodic-descendant" ? "1" : nil
+      run.call(scenario, ["test", "--offline", "tests::passes"], 0, nil,
+               env: { "TUIST_FIXTURE_LEAK_PID" => leak_pid, "TUIST_FIXTURE_TICK" => tick })
+      check(Time.now - started < 10, "Wrapper waited for the background descendant")
+    ensure
+      begin
+        Process.kill("TERM", Integer(File.read(leak_pid))) if File.file?(leak_pid)
+      rescue Errno::ESRCH
+        # Closing the pipe may have already terminated the writer through SIGPIPE.
+      end
+    end
   end
   member = File.join(checkout, "crates", "member")
   FileUtils.mkdir_p([File.join(member, "src"), File.join(member, "tests")])
@@ -259,6 +266,32 @@ begin
   File.write(manifest, File.read(manifest).sub("[workspace]", "[workspace]\nmembers = [\"crates/member\"]\ndefault-members = [\".\"]"))
   run.call("selected-member", ["test", "--offline", "-p", "reporting-member"], 0, 2)
   run.call("ambiguous-workspace", ["test", "--offline", "--workspace"], 0, nil)
+  dependency = File.join(root, "helper")
+  FileUtils.mkdir_p([File.join(dependency, "src"), File.join(dependency, "tests")])
+  File.write(File.join(dependency, "Cargo.toml"), <<~TOML)
+    [package]
+    name = "helper"
+    version = "0.1.0"
+    edition = "2024"
+    [lib]
+    name = "tuist_cargo_reporting_fixture"
+  TOML
+  File.write(File.join(dependency, "src", "lib.rs"), <<~RUST)
+    /// ```
+    /// assert!(true);
+    /// ```
+    pub fn dependency() {}
+    #[test]
+    fn dependency_only() {}
+  RUST
+  File.write(File.join(dependency, "tests", "api.rs"), "#[test]\nfn dependency_integration() {}\n")
+  manifest_source = File.read(manifest).sub('members = ["crates/member"]', 'exclude = ["crates/member"]')
+  File.write(manifest, manifest_source + "\n[dependencies]\nhelper = { path = \"../helper\" }\n")
+  run.call("non-member-library", ["test", "--offline", "-p", "helper", "--lib"], 0, nil)
+  run.call("non-member-integration", ["test", "--offline", "-p", "helper", "--test", "api"], 0, nil)
+  run.call("non-member-doctests", ["test", "--offline", "-p", "helper", "--doc"], 0, nil)
+  run.call("version-qualified-package", ["test", "--offline", "-p", "tuist-cargo-reporting-fixture@0.1.0", "--lib"], 0, nil)
+  run.call("glob-package", ["test", "--offline", "-p", "tuist-*", "--lib"], 0, nil)
   File.write(File.join(root, "summary.json"), JSON.pretty_generate(summaries))
   puts "PASS: all #{summaries.length} public-CLI scenarios using #{toolchain}"
   puts "Not exercised: Phoenix authorization, database persistence, or dashboard rendering."
