@@ -430,7 +430,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         given(graphTraverser)
             .librariesSwiftIncludePaths(path: .any, name: .any)
-            .willReturn(searchPaths)
+            .willReturn(Set(searchPaths.map { SwiftIncludePath(path: $0) }))
 
         given(graphTraverser)
             .runPathSearchPaths(path: .any, name: .any)
@@ -867,7 +867,7 @@ final class LinkGeneratorTests: XCTestCase {
         let graphTraverser = MockGraphTraversing()
         given(graphTraverser)
             .librariesSwiftIncludePaths(path: .any, name: .any)
-            .willReturn(Set(searchPaths))
+            .willReturn(Set(searchPaths.map { SwiftIncludePath(path: $0) }))
 
         // When
         try subject.setupSwiftIncludePaths(
@@ -884,6 +884,52 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue, expected)
     }
 
+    func test_setupSwiftIncludePaths_sdkConditionedPaths() throws {
+        // Given
+        let sourceRootPath = try AbsolutePath(validating: "/path")
+        let xcodeprojElements = createXcodeprojElements()
+        let target = Target.test()
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSwiftIncludePaths(path: .any, name: .any)
+            .willReturn([
+                SwiftIncludePath(path: try AbsolutePath(validating: "/path/to/modules")),
+                SwiftIncludePath(
+                    path: try AbsolutePath(validating: "/path/Lib.xcframework/ios-arm64"),
+                    sdkCondition: "sdk=iphoneos*"
+                ),
+                SwiftIncludePath(
+                    path: try AbsolutePath(validating: "/path/Lib.xcframework/ios-arm64_x86_64-simulator"),
+                    sdkCondition: "sdk=iphonesimulator*"
+                ),
+            ])
+
+        // When
+        try subject.setupSwiftIncludePaths(
+            target: target,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertEqual(
+            config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue,
+            ["$(inherited)", "$(SRCROOT)/to/modules"]
+        )
+        XCTAssertEqual(
+            config.buildSettings["SWIFT_INCLUDE_PATHS[sdk=iphoneos*]"]?.arrayValue,
+            ["$(inherited)", "$(SRCROOT)/Lib.xcframework/ios-arm64"]
+        )
+        XCTAssertEqual(
+            config.buildSettings["SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]"]?.arrayValue,
+            ["$(inherited)", "$(SRCROOT)/Lib.xcframework/ios-arm64_x86_64-simulator"]
+        )
+    }
+
     func test_setupSwiftIncludePaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
@@ -894,7 +940,7 @@ final class LinkGeneratorTests: XCTestCase {
         let graphTraverser = MockGraphTraversing()
         given(graphTraverser)
             .librariesSwiftIncludePaths(path: .any, name: .any)
-            .willReturn(Set(searchPaths))
+            .willReturn(Set(searchPaths.map { SwiftIncludePath(path: $0) }))
 
         // When
         try subject.setupSwiftIncludePaths(

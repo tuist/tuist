@@ -462,7 +462,7 @@ A self-hosted Tuist server cannot install the GitHub App that runs on `https://t
 
 | Setting | Value |
 | --- | --- |
-| Callback URL | `YOUR_APP_URL/users/auth/github/callback` |
+| Callback URLs | `YOUR_APP_URL/users/auth/github/callback` and `YOUR_APP_URL/integrations/github/authorize` |
 | Setup URL | `YOUR_APP_URL/integrations/github/setup` |
 | Redirect on update | Enabled |
 | Webhook URL | `YOUR_APP_URL/webhooks/github` |
@@ -478,7 +478,11 @@ Grant the following repository permissions:
 | Pull requests | Read and write |
 | Checks | Read and write |
 
+Grant the **Members: read-only** organization permission as well. During github.com setup, Tuist checks that the person connecting an organization installation is an active GitHub organization owner, not just someone with access to one of its repositories.
+
 Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
+
+Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization; installs started in Tuist retain their organization.
 
 ##### Configuring the server {#platform-github-configuring-the-server}
 
@@ -487,15 +491,16 @@ Set the following environment variables, then restart the server:
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_NAME` | The App's slug, which is the last path component of its public page URL `https://github.com/apps/<slug>` | Yes | | `my-company-tuist` |
+| `TUIST_GITHUB_APP_ID` | The numeric App ID, used to verify installation ownership | Yes | | `123456` |
 | `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key of the GitHub application. Preferred over `TUIST_GITHUB_APP_PRIVATE_KEY`, which is sensitive to how your platform handles newlines | Yes | | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |
 | `TUIST_GITHUB_APP_WEBHOOK_SECRET` | The webhook secret configured on the GitHub application | No | | `a4c1e0f2b8d6...` |
 
 > [!IMPORTANT]
-> **All four required variables must be set**
+> **Configure all required App credentials**
 >
-> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
+> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The numeric `TUIST_GITHUB_APP_ID` is also needed to verify installation ownership. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
 
 Once the server restarts, organization admins install the App and connect repositories to projects following the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link>.
 
@@ -565,7 +570,7 @@ Your Tuist server needs outbound HTTPS access to `api.cursor.com`. Cursor must b
 
 ##### Installing the App {#platform-origin-installing-the-app}
 
-Once the server restarts, an administrator opens **Settings → Integrations**, chooses **Connect** under Origin, and approves the app's access to the appropriate Origin account and repositories. Then they choose **Add new project connection** to link a Tuist project to a native repository.
+Once the server restarts, an administrator opens **Settings → Integrations**, chooses **Connect** under Origin, and approves the app's access to the appropriate Origin account and repositories. The Tuist organization is retained throughout this flow. Installations initiated directly from Origin instead prompt the administrator to log in and select the Tuist organization to connect. Then they choose **Add new project connection** to link a Tuist project to a native repository.
 
 Follow the <.localized_link href="/guides/integrations/gitforge/origin">Origin integration guide</.localized_link> for project connections and result-upload requirements. Installing the app does not start build or test workflows; those workflows continue reporting results to your Tuist server.
 

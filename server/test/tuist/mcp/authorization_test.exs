@@ -28,9 +28,10 @@ defmodule Tuist.MCP.AuthorizationTest do
   end
 
   # The assigns an OAuth-token request actually carries: the token authenticates
-  # as its account in `current_subject` and `current_user` is never set. That the
-  # plug really produces this shape from a real token is covered by
-  # `TuistWeb.MCPAtlasIdentityTest`.
+  # as its account in `current_subject`, and an `mcp`-scoped token is associated
+  # with the user who granted it in `current_user`. That the plug really produces
+  # this shape from a real token is covered by `TuistWeb.MCPAtlasIdentityTest` and
+  # `TuistWeb.MCPOAuthSessionTest`.
   defp oauth_conn(operator, scopes) do
     subject = %AuthenticatedAccount{
       account: operator.account,
@@ -40,7 +41,10 @@ defmodule Tuist.MCP.AuthorizationTest do
       issued_by: operator
     }
 
-    %Plug.Conn{assigns: %{current_subject: subject}}
+    assigns = %{current_subject: subject}
+    assigns = if "mcp" in scopes, do: Map.put(assigns, :current_user, operator), else: assigns
+
+    %Plug.Conn{assigns: assigns}
   end
 
   defp stub_test_run(project) do

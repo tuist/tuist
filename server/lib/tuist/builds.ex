@@ -571,7 +571,8 @@ defmodule Tuist.Builds do
           Tuist.BuildMetrics.with_failure_category(base_query, "xcode", project_id)
       end
 
-    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
+    flop_options = Keyword.merge([for: Build], Keyword.take(opts, [:max_limit]))
+    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, flop_options)
 
     results = Repo.preload(results, preload)
 

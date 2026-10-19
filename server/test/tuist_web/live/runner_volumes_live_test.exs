@@ -508,7 +508,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   end
 
   test "confirmation rechecks authorization rather than trusting a stale admin assign" do
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
+    expect(Authorization, :authorize, fn :runners_update, :user, %{id: 1} -> {:error, :unauthorized} end)
 
     socket = %Socket{
       assigns: %{

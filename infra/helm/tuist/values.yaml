@@ -1317,6 +1317,12 @@ xcresultProcessor:
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
   # deployments don't have xcresult uploads to ingest in the first place).
   enabled: false
+  # Leave the Deployment and PDB out of this release so that
+  # infra/helm/xcresult-processor can install them in a release of its own,
+  # under the same names and labels. Managed envs do this so the server
+  # deploy's `helm upgrade --atomic --wait` never waits on a processor; see
+  # infra/helm/xcresult-processor/Chart.yaml.
+  ownRelease: false
   replicaCount: 2
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
@@ -1370,14 +1376,14 @@ xcresultProcessor:
   # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
   # soon as the VM has an IP.
   #
-  # Off until the processor leaves the main release. The server deploy runs
-  # `helm upgrade --atomic --wait` on the whole release, which waits on
-  # every Deployment, so one NotReady processor (a shared Postgres or
-  # ClickHouse outage, or a host that cannot reach its guest) would hold
-  # and roll back every server deploy, including ones that do not touch
-  # the processor.
+  # A release that waits on its resources waits on this Deployment too, so
+  # one NotReady processor (a shared Postgres or ClickHouse outage, or a host
+  # that cannot reach its guest) holds that release's upgrade. Managed envs
+  # set `ownRelease` so the server release never waits on it; a self-hosted
+  # install that keeps the processor in its release and upgrades with
+  # `--wait` should weigh that before leaving this on.
   readinessProbe:
-    enabled: false
+    enabled: true
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
@@ -3359,6 +3365,12 @@ postgresql:
         # tailnet's ACL only permits Tuist-scoped tags; set this to the
         # env's permitted tag (e.g. "tag:tuist-k8s-production").
         tags: ""
+        # Name of a Tailscale ProxyGroup of type `ingress` to serve the pooler
+        # as the Tailscale Service `svc:<hostname>` instead of a standalone
+        # proxy, from a Service of its own. The tailnet policy must
+        # auto-approve that Service for the ProxyGroup's tag and grant the
+        # macOS fleet access to it.
+        proxyGroup: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"

@@ -78,6 +78,7 @@ defmodule Tuist.Builds.Build do
     field :generation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
+    field :started_at, Ch, type: "Nullable(DateTime64(6))"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
@@ -90,6 +91,7 @@ defmodule Tuist.Builds.Build do
   def create_changeset(build \\ %__MODULE__{}, attrs) do
     attrs
     |> normalize_datetime_attr(:inserted_at)
+    |> normalize_datetime_attr(:started_at)
     |> default_to_empty_string([
       :status,
       :category,
@@ -120,6 +122,7 @@ defmodule Tuist.Builds.Build do
         :account_id,
         :inserted_at,
         :updated_at,
+        :started_at,
         :status,
         :category,
         :configuration,

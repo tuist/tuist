@@ -12,6 +12,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Boruta.Ecto.AccessTokens
+  alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Token
   alias Tuist.Environment
   alias Tuist.Repo
@@ -76,6 +78,58 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
              |> json_response(200)
 
     refute third_access_token in [access_token, refreshed_access_token]
+  end
+
+  test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
+    client_id = register_client(conn)
+    code = authorize(conn, client_id)
+    assert Codes.get_by(value: code).revoked_at == nil
+
+    Token
+    |> Repo.get_by!(value: code)
+    |> Ecto.Changeset.change(revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => code
+             })
+             |> json_response(400)
+  end
+
+  test "rejects a refresh token revoked in the database after an earlier lookup", %{conn: conn} do
+    client_id = register_client(conn)
+    code = authorize(conn, client_id)
+
+    assert %{"refresh_token" => refresh_token} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => code
+             })
+             |> json_response(200)
+
+    assert AccessTokens.get_by(refresh_token: refresh_token).refresh_token_revoked_at == nil
+
+    Token
+    |> Repo.get_by!(refresh_token: refresh_token)
+    |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "refresh_token",
+               "client_id" => client_id,
+               "refresh_token" => refresh_token
+             })
+             |> json_response(400)
   end
 
   test "rejects a refresh token that has already been used", %{conn: conn} do

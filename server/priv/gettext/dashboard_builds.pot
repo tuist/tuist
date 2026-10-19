@@ -372,7 +372,7 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.html.heex:383
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:20
 #: lib/tuist_web/live/mix_builds_live.html.heex:680
-#: lib/tuist_web/live/mix_cache_live.html.heex:290
+#: lib/tuist_web/live/mix_cache_live.html.heex:293
 #: lib/tuist_web/live/once_run_live.ex:297
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format
@@ -2568,6 +2568,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_entity_live.ex:496
 #: lib/tuist_web/live/build_entity_live.html.heex:105
+#: lib/tuist_web/live/mix_cache_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "No recorded lookups"
 msgstr ""

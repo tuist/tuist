@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - cli/**
       - mise/tasks/cli/**
+      - mise/utilities/install_static_linux_sdk.sh
       - .github/workflows/cli-release.yml
       - .github/workflows/cli-build-publish.yml
       - app/**
@@ -1619,7 +1620,9 @@ jobs:
             exit 1
           fi
           echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
-          "$bin" version
+          # Run outside the checkout: the CLI loads the nearest Tuist.swift, and the
+          # repository's own manifest may use APIs newer than this CLI.
+          (cd "$RUNNER_TEMP" && "$bin" version)
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}

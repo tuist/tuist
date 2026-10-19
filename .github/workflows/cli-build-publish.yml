@@ -164,19 +164,21 @@ jobs:
             build/SHASUMS512.txt
           retention-days: 1
 
+  # Both architectures build on Tuist's amd64 Linux fleet; aarch64 is
+  # cross-compiled with the Swift static Linux SDK, which ships sysroots for
+  # both. The matrix keeps each architecture on its own runner: TuistServer
+  # alone is about 7 minutes of single-threaded compilation per architecture,
+  # so one job building both would roughly double the wall-clock time while
+  # sharing only the host macros and package resolution.
   release-cli-linux:
     name: Release CLI (Linux ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    runs-on: tuist-linux-large
     container:
       image: swift:6.2
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
+        arch: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -187,6 +189,27 @@ jobs:
         run: |
           sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
           grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
+
+      # .build is only valid for the compiler that produced it, and the
+      # swift:6.2 tag moves across patch releases.
+      - name: Read the Swift version
+        id: swift
+        run: |
+          version="$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9.]*\).*/\1/p' | head -1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The checkout gives every source file a new mtime, so SwiftPM still
+      # compiles every first-party module from the release commit. The volume
+      # keeps the pinned third-party graph (BoringSSL, NIO, gRPC, swift-syntax)
+      # and the registry downloads.
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-build-${{ matrix.arch }}-swift-${{ steps.swift.outputs.version }}
+          path: .build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-swiftpm
+          path: ~/.cache/org.swift.swiftpm
 
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
@@ -226,12 +249,18 @@ jobs:
 
             echo "::warning::Linux CLI dependency resolution attempt ${attempt} failed; clearing SwiftPM state before retrying."
             ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
-            rm -rf \
+            # .build and the SwiftPM cache are volume mount points, so they
+            # are emptied in place rather than removed.
+            for dir in \
               "${BUILD_PATH:-.build}" \
               "$HOME/.cache/org.swift.swiftpm" \
               "$HOME/.swiftpm" \
               "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
-              "$ACCOUNT_HOME/.swiftpm"
+              "$ACCOUNT_HOME/.swiftpm"; do
+              if [ -d "$dir" ]; then
+                find "$dir" -mindepth 1 -delete
+              fi
+            done
             sleep $((attempt * 10))
           done
         env:
@@ -241,6 +270,8 @@ jobs:
           SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
       - name: Bundle CLI
         run: ./mise/tasks/cli/bundle-linux.sh
+        env:
+          TUIST_LINUX_ARCH: ${{ matrix.arch }}
 
       - name: Upload CLI Linux artifacts
         id: upload
@@ -253,10 +284,80 @@ jobs:
             build/SHASUMS512.txt
           retention-days: 1
 
+  sign-cli:
+    name: Sign CLI release manifest
+    needs: [release-cli, release-cli-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    # Do not expose the workflow-level release token to the signing action.
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-artifacts
+          path: artifacts
+      - name: Download CLI Linux x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x86_64-artifacts
+          path: artifacts/linux-x86_64
+      - name: Download CLI Linux aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-aarch64-artifacts
+          path: artifacts/linux-aarch64
+      - name: Describe CLI release platforms
+        run: |
+          cat > release.toml <<'EOF'
+          [[artifact]]
+          path = "artifacts/build/tuist.zip"
+          os = "darwin"
+
+          [[artifact]]
+          path = "artifacts/linux-x86_64/tuist-linux-x86_64.tar.gz"
+          os = "linux"
+          arch = "x86_64"
+
+          [[artifact]]
+          path = "artifacts/linux-aarch64/tuist-linux-aarch64.tar.gz"
+          os = "linux"
+          arch = "aarch64"
+          EOF
+      - name: Create and verify signed CLI manifest
+        id: packslip
+        uses: jdx/packslip@0e9bde4ea49070555a79cac1f040f1dafe60acd6 # v1.8.0
+        with:
+          artifacts: |
+            artifacts/build/tuist.zip
+            artifacts/linux-x86_64/tuist-linux-x86_64.tar.gz
+            artifacts/linux-aarch64/tuist-linux-aarch64.tar.gz
+          manifest: release.toml
+          bin: tuist
+          project: github.com/tuist/tuist
+          version: ${{ inputs.version }}
+          tag: ${{ inputs.version }}
+          commit: ${{ inputs.ref }}
+          # Builds do not publish provenance; do not attest the caller's SHA
+          # as the build source when promoting or backporting a different ref.
+          attest: false
+          upload: false
+      - name: Upload signed CLI manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-packslip
+          path: ${{ steps.packslip.outputs.bundle }}
+          if-no-files-found: error
+          retention-days: 1
+
   publish-cli:
     name: Publish CLI release
-    needs: [release-cli, release-cli-linux]
-    if: needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
+    needs: [release-cli, release-cli-linux, sign-cli]
     runs-on: tuist-linux
     timeout-minutes: 15
     env:
@@ -286,6 +387,11 @@ jobs:
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
+      - name: Download signed CLI manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-packslip
+          path: build
       - name: Merge Linux artifacts into build directory
         run: |
           # Append Linux checksums to main checksum files
@@ -331,6 +437,7 @@ jobs:
             build/SHASUMS512.txt
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
+            build/packslip.sigstore.json
       - name: Trigger Homebrew Formula Update
         # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
         # releases and backports both publish the per-version formula; the

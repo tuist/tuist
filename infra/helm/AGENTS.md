@@ -77,6 +77,12 @@ runs the mixed-version latency expression through promtool.
   `mise -C infra run helm:rack-independence` after adding a DaemonSet or
   tolerations; the Helm workflow runs it too. See "Deploys and the rack's
   health" in `../rack-nodes/AGENTS.md`.
+- The xcresult processor is not in the waited tuist release either. Managed
+  values set `xcresultProcessor.ownRelease`, and `xcresult-processor/` renders
+  the tuist chart's processor templates (symlinked, with `tuistRelease` naming
+  the tuist release) as the `tuist-xcresult-processor` release, installed with
+  `--wait=hookOnly` and reported by a non-gating `kubectl rollout status`.
+  A new template the processor needs has to be symlinked into that chart too.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.

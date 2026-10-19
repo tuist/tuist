@@ -29,6 +29,7 @@ on:
       # like cli/** does.
       - server/native/xcresult_nif/Sources/XCResultParser/**
       - mise/tasks/cli/**
+      - mise/utilities/install_static_linux_sdk.sh
       - .github/workflows/cli-release.yml
       - .github/workflows/cli-build-publish.yml
       - .github/workflows/cli-rc.yml
