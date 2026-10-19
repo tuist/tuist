@@ -572,7 +572,7 @@ enum WorkspaceRestorer {
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
 
-    static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
+    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return try scratchDir
                 .appendingPathComponent("registry/downloads")
@@ -1523,7 +1523,7 @@ enum WorkspaceRestorer {
             probedPrebuiltName = .some(name)
             return name
         }
-        let carriedOverPrebuilts = try await WorkspacePrebuilts.carriedOver(
+        let (carriedOverPrebuilts, droppedPrebuilts) = try await WorkspacePrebuilts.partitioned(
             existingWorkspacePrebuilts(scratchDir: scratchDir),
             pins: resolved.pins,
             scratchDir: scratchDir,
@@ -1541,6 +1541,13 @@ enum WorkspaceRestorer {
         } else {
             [[String: Any]]()
         }
+        // A dropped entry that the cache replaced costs nothing, so only the others are worth a warning.
+        WorkspacePrebuilts.warnAboutDropped(droppedPrebuilts.filter { dropped in
+            !restoredPrebuilts.contains {
+                $0["identity"] as? String == dropped["identity"] as? String
+                    && $0["libraryName"] as? String == dropped["libraryName"] as? String
+            }
+        })
 
         let state: [String: Any] = [
             "object": [

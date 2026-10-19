@@ -30,7 +30,7 @@ extension WorkspacePrebuilts {
     ) async throws -> [[String: Any]] {
         #if os(macOS)
             let cache = cacheDir.appendingPathComponent("prebuilts")
-            var candidates: [(pin: ResolvedPin, identity: String, version: String, cached: URL)] = []
+            var candidates: [(identity: String, version: String, cached: URL)] = []
             for pin in pins {
                 guard let identity = prebuiltPackageIdentity(of: pin, mirrors: mirrors),
                       let version = pin.state.version,
@@ -42,7 +42,7 @@ extension WorkspacePrebuilts {
                 // Probing the toolchain costs a compiler launch, so only do it when a manifest could match.
                 let files = try await ignoringFailures { try await fileSystem.contentsOfDirectory(at: cached) }
                 guard files?.contains(where: { $0.pathExtension == "json" }) == true else { continue }
-                candidates.append((pin, identity, version, cached))
+                candidates.append((identity, version, cached))
             }
             let disabled = try await ignoringFailures {
                 try await fileSystem.exists(cache.appendingPathComponent("noprebuilts").absolutePath)
@@ -84,9 +84,7 @@ extension WorkspacePrebuilts {
                         "version": candidate.version,
                         "libraryName": library.name,
                         "path": artifact.path,
-                        "checkoutPath": try WorkspaceRestorer.packagePathForPin(
-                            scratchDir: scratchDir, pin: candidate.pin, mirrors: mirrors
-                        ).path,
+                        "checkoutPath": checkoutPath(scratchDir: scratchDir, identity: candidate.identity),
                         "products": library.products,
                         "cModules": [String](),
                     ]

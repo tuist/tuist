@@ -734,10 +734,14 @@ struct RestoreTests {
             }
             try await writeCachedSwiftSyntaxPrebuilt(cacheDir: cache, version: "603.0.0", name: current)
 
-            try await rewriteWorkspaceState(
-                prebuiltName: current, package: package, scratch: scratch, pins: [swiftSyntaxPin(version: "603.0.0")],
-                cache: cache
-            )
+            let warnings = Recorded([String]())
+
+            try await Environment.$warningHandler.withValue({ message in warnings.value.withLock { $0.append(message) } }) {
+                try await rewriteWorkspaceState(
+                    prebuiltName: current, package: package, scratch: scratch, pins: [swiftSyntaxPin(version: "603.0.0")],
+                    cache: cache
+                )
+            }
 
             let artifact = scratch.appendingPathComponent("prebuilts/swift-syntax/603.0.0/\(current)-MacroSupport")
             let state = try #require(
@@ -761,6 +765,8 @@ struct RestoreTests {
                     artifact.appendingPathComponent("Modules/SwiftSyntax.swiftmodule").absolutePath
                 )
             )
+            // The cache replaced the dropped entry, so nothing builds from source.
+            #expect(warnings.value.withLock { $0 }.isEmpty)
         }
     }
 

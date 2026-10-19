@@ -25,7 +25,19 @@ enum WorkspacePrebuilts {
         scratchDir: URL,
         name: () async throws -> String?
     ) async throws -> [[String: Any]] {
-        guard !recorded.isEmpty else { return [] }
+        let (kept, dropped) = try await partitioned(recorded, pins: pins, scratchDir: scratchDir, name: name)
+        warnAboutDropped(dropped)
+        return kept
+    }
+
+    /// The entries to carry over, rebased onto `scratchDir`, and the ones SwiftPM would no longer produce.
+    static func partitioned(
+        _ recorded: [[String: Any]],
+        pins: [ResolvedPin],
+        scratchDir: URL,
+        name: () async throws -> String?
+    ) async throws -> (kept: [[String: Any]], dropped: [[String: Any]]) {
+        guard !recorded.isEmpty else { return ([], []) }
         let name = try await name()
         if name == nil {
             // Dropping them instead would discard valid prebuilts on every restore.
@@ -33,24 +45,32 @@ enum WorkspacePrebuilts {
                 "could not determine which prebuilts the current toolchain uses; keeping the recorded ones unchecked"
             )
         }
-        var carriedOver: [[String: Any]] = []
-        var dropped: [String] = []
+        var kept: [[String: Any]] = []
+        var dropped: [[String: Any]] = []
         for prebuilt in recorded {
             if let applicable = try await applicable(prebuilt, pins: pins, scratchDir: scratchDir, name: name) {
-                carriedOver.append(applicable)
+                kept.append(applicable)
             } else {
-                dropped.append(
-                    ["identity", "version", "libraryName"].compactMap { prebuilt[$0] as? String }.joined(separator: " ")
-                )
+                dropped.append(prebuilt)
             }
         }
-        if !dropped.isEmpty {
-            Environment.warningHandler?(
-                "dropped recorded prebuilts that the current toolchain or pins cannot use, so their packages build from "
-                    + "source until a native resolution records new ones: \(dropped.joined(separator: ", "))"
-            )
+        return (kept, dropped)
+    }
+
+    static func warnAboutDropped(_ dropped: [[String: Any]]) {
+        guard !dropped.isEmpty else { return }
+        let descriptions = dropped.map { prebuilt in
+            ["identity", "version", "libraryName"].compactMap { prebuilt[$0] as? String }.joined(separator: " ")
         }
-        return carriedOver
+        Environment.warningHandler?(
+            "dropped recorded prebuilts that the current toolchain or pins cannot use, so their packages build from "
+                + "source until a native resolution records new ones: \(descriptions.joined(separator: ", "))"
+        )
+    }
+
+    /// Where SwiftPM records a prebuilt package's checkout (`repositoriesCheckoutsDirectory`).
+    static func checkoutPath(scratchDir: URL, identity: String) -> String {
+        scratchDir.appendingPathComponent("checkouts").appendingPathComponent(identity).path
     }
 
     /// The entry rebased onto `scratchDir`, or `nil` when SwiftPM would not produce it.
@@ -79,7 +99,7 @@ enum WorkspacePrebuilts {
         guard try await fileSystem.exists(extracted.absolutePath) else { return nil }
         var rebased = prebuilt
         rebased["path"] = extracted.path
-        rebased["checkoutPath"] = scratchDir.appendingPathComponent("checkouts").appendingPathComponent(identity).path
+        rebased["checkoutPath"] = checkoutPath(scratchDir: scratchDir, identity: identity)
         return rebased
     }
 
