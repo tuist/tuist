@@ -8,8 +8,9 @@ import Foundation
 /// match the restored sources, and an entry whose directory is gone points the build at nothing. The entries it keeps
 /// are rebased onto the current scratch directory, since SwiftPM records absolute paths.
 ///
-/// A dropped entry is not replaced. The restoration path cannot fetch prebuilts, so those packages build from source
-/// until a native resolution records them again, as they do in a fresh scratch directory.
+/// The restoration path cannot fetch prebuilts. A dropped entry is replaced only when the shared cache already holds
+/// the prebuilt for the current toolchain (`restoredFromCache`); otherwise the package builds from source until a
+/// native resolution records it again.
 enum WorkspacePrebuilts {
     /// Tests replace the probe to simulate a toolchain change without launching `swift`.
     @TaskLocal static var nameProbe: @Sendable (_ packageDir: URL) async throws -> String? = {

@@ -308,6 +308,39 @@ enum WorkspaceRestorer {
         destination: URL,
         checksum: String
     ) async throws {
+        try await extractZip(
+            archivePath,
+            to: destination,
+            isUsable: { try await cachedBinaryArtifactIsUsable($0, checksum: checksum) }
+        ) { extracted in
+            // Strip the macOS resource-fork sidecar that Finder-zipped archives carry. It
+            // contains a shadow copy of each bundle (no Info.plist) which downstream scanners
+            // would otherwise pick up and reject as a malformed xcframework.
+            try await removeResourceForkDirectories(in: extracted)
+            if try await shouldStripFirstLevel(
+                archiveDirectory: extracted,
+                acceptableExtensions: ["artifactbundle", "xcframework"]
+            ) {
+                try await fileSystem.flattenSingleDirectory(extracted)
+            }
+            guard try await binaryArtifact(in: extracted) != nil else {
+                throw ToolError.message("\(archivePath.lastPathComponent) has no binary artifact")
+            }
+            try await fileSystem.atomicWrite(
+                checksum, to: extracted.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
+            )
+        }
+    }
+
+    /// Unzips `archive` into a temporary directory next to `destination` and moves the result into place, holding
+    /// `destination`'s lock so concurrent restores neither extract it twice nor see it half written. `prepare` adjusts
+    /// the unzipped contents first. Does nothing when `isUsable` accepts what `destination` already holds.
+    static func extractZip(
+        _ archive: URL,
+        to destination: URL,
+        isUsable: (URL) async throws -> Bool,
+        prepare: (URL) async throws -> Void = { _ in }
+    ) async throws {
         try await fileSystem.makeDirectory(
             at: destination.deletingLastPathComponent().absolutePath,
             options: [.createTargetParentDirectories]
@@ -317,7 +350,7 @@ enum WorkspaceRestorer {
                 .appendingPathComponent(".\(destination.lastPathComponent).lock")
         )
         defer { _ = lock }
-        if try await cachedBinaryArtifactIsUsable(destination, checksum: checksum) {
+        if try await isUsable(destination) {
             return
         }
 
@@ -328,29 +361,13 @@ enum WorkspaceRestorer {
         do {
             try await SystemProcess.run(
                 "/usr/bin/unzip",
-                ["-q", archivePath.path, "-d", temp.path]
+                ["-q", archive.path, "-d", temp.path]
             )
-            // Strip the macOS resource-fork sidecar that Finder-zipped archives carry. It
-            // contains a shadow copy of each bundle (no Info.plist) which downstream scanners
-            // would otherwise pick up and reject as a malformed xcframework.
-            try await removeResourceForkDirectories(in: temp)
-            if try await shouldStripFirstLevel(
-                archiveDirectory: temp,
-                acceptableExtensions: ["artifactbundle", "xcframework"]
-            ) {
-                try await fileSystem.flattenSingleDirectory(temp)
-            }
-            guard try await binaryArtifact(in: temp) != nil else {
-                throw ToolError.message("\(archivePath.lastPathComponent) has no binary artifact")
-            }
+            try await prepare(temp)
 
             if try await fileSystem.exists(destination.absolutePath) {
                 try await fileSystem.removePath(destination)
             }
-            try await fileSystem.makeDirectory(
-                at: destination.deletingLastPathComponent().absolutePath,
-                options: [.createTargetParentDirectories]
-            )
             try await fileSystem.makeDirectory(
                 at: destination.absolutePath,
                 options: [.createTargetParentDirectories]
@@ -363,9 +380,6 @@ enum WorkspaceRestorer {
                     options: []
                 )
             }
-            try await fileSystem.atomicWrite(
-                checksum, to: destination.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
-            )
             try? await fileSystem.removePath(temp)
         } catch {
             try? await fileSystem.removePath(temp)
@@ -558,7 +572,7 @@ enum WorkspaceRestorer {
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
+    static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return try scratchDir
                 .appendingPathComponent("registry/downloads")
@@ -1501,16 +1515,38 @@ enum WorkspaceRestorer {
             return lhs < rhs
         }
 
+        // Both steps need the toolchain's prebuilt name, and neither does for most graphs: probe it once, lazily.
+        var probedPrebuiltName: String??
+        func prebuiltName() async throws -> String? {
+            if let probedPrebuiltName { return probedPrebuiltName }
+            let name = try await WorkspacePrebuilts.nameProbe(packageDir)
+            probedPrebuiltName = .some(name)
+            return name
+        }
+        let carriedOverPrebuilts = try await WorkspacePrebuilts.carriedOver(
+            existingWorkspacePrebuilts(scratchDir: scratchDir),
+            pins: resolved.pins,
+            scratchDir: scratchDir,
+            name: prebuiltName
+        )
+        let restoredPrebuilts = if let sourceCacheDirectory {
+            try await WorkspacePrebuilts.restoredFromCache(
+                pins: resolved.pins,
+                recorded: carriedOverPrebuilts,
+                mirrors: mirrors,
+                scratchDir: scratchDir,
+                cacheDir: sourceCacheDirectory,
+                name: prebuiltName
+            )
+        } else {
+            [[String: Any]]()
+        }
+
         let state: [String: Any] = [
             "object": [
                 "artifacts": artifacts,
                 "dependencies": dependencies,
-                "prebuilts": try await WorkspacePrebuilts.carriedOver(
-                    existingWorkspacePrebuilts(scratchDir: scratchDir),
-                    pins: resolved.pins,
-                    scratchDir: scratchDir,
-                    name: { try await WorkspacePrebuilts.nameProbe(packageDir) }
-                ),
+                "prebuilts": carriedOverPrebuilts + restoredPrebuilts,
             ],
             "version": 7,
         ]
