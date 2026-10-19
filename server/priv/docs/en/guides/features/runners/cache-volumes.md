@@ -16,100 +16,132 @@ Each job gets a private writable copy of the latest saved contents.
 - **Custom volumes** keep any other directory, such as a package manager's
   download cache, under a key you choose.
 
-Add the steps after checkout and before the commands that use the caches. A
-job without them still works, but starts with empty local caches.
+Add the steps after checkout and before the commands that use the caches. On
+runners that are not Tuist runners they do nothing, and a cache problem never
+fails the job: the step logs a warning and the job continues with an empty
+cache.
 
 ## Managed caches {#managed-caches}
-
-- **Xcode cache** (macOS): the store of Xcode's compilation cache.
-- **Module cache** (macOS): Tuist's local cache, with
-  <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries, compiled manifests, plugins and selective testing results.
-- **Gradle cache** (Linux and macOS): `$GRADLE_USER_HOME/caches` and
-  `$GRADLE_USER_HOME/wrapper`, with dependencies, transformed jars, compiled
-  build scripts and Gradle distributions.
-
-| Cache | GitHub Actions | Buildkite | GitLab CI |
-| --- | --- | --- | --- |
-| Xcode | `tuist/xcode-cache@v1` | `tuist/xcode-cache#v1` | `.tuist-xcode-cache` |
-| Module | `tuist/module-cache@v1` | `tuist/module-cache#v1` | `.tuist-module-cache` |
-| Gradle | `tuist/gradle-cache@v1` | `tuist/gradle-cache#v1` | `.tuist-gradle-cache` |
 
 The steps only decide where the caches live. Keep your existing cache setup:
 `tuist setup cache` or the build settings that turn compilation caching on (see
 the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache guide</.localized_link>),
 authentication for the module cache, and the
 <.localized_link href="/guides/features/cache/gradle-cache">Tuist Gradle plugin</.localized_link> for Gradle's remote build cache.
-
-On runners that are not Tuist runners, the steps do nothing, so the same
-workflow runs anywhere. If a runner could not restore a cache, the step logs a
-warning and the job continues with an empty one. A cache problem never fails
-the job.
+In GitLab CI, combine snippets with `!reference`, because `extends` replaces
+`before_script`.
 
 Some accounts still get the Xcode and module caches in every macOS job
-automatically. There, those two steps change nothing, so you can add them to
-your workflows now.
+automatically. There, those two steps change nothing, so you can add them now.
 
-### Xcode build settings {#xcode-build-settings}
+### Xcode cache {#xcode-cache}
 
-The Xcode cache step sets `XCODE_XCCONFIG_FILE` to a file that sets the store's
-location and size limit, which every later `xcodebuild` in the job uses. If the
-job already sets `XCODE_XCCONFIG_FILE` before the step, that file is included
-last, so its settings win. Setting `XCODE_XCCONFIG_FILE` after the step replaces
-the runner's file, and the store stays on the runner's own disk.
+Keeps the store of Xcode's compilation cache on macOS runners.
 
-### Gradle {#gradle}
+::: code-group
 
-Set `GRADLE_USER_HOME` before the Gradle cache step if you use one. Its `caches`
-and `wrapper` directories must be empty when the step runs, so turn off other
-caches of them, such as `cache: gradle` on `actions/setup-java`, the caching of
-`gradle/actions/setup-gradle`, or GitLab `cache:paths`.
-
-Gradle cleans its cache only when its daemon stops, which a CI job rarely
-reaches. The step installs an init script in `$GRADLE_USER_HOME/init.d` that
-cleans after every build and removes entries unused for seven days, so the
-cache stays within its volume.
-
-## Custom volumes {#custom-volumes}
-
-Choose a stable `key` and a `path`, then attach the volume before installing
-dependencies. The path must be empty or absent. Remove any archive cache or
-artifact restore that writes to the same directory. Use the managed caches
-above for the Xcode, module and Gradle caches instead of a custom volume.
-
-On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
-such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
-On macOS, paths are symlinks: use download caches such as `~/.npm`;
-`node_modules` and tools that replace their cache directory
-are unsupported. Ignore workspace links without a trailing slash in `.gitignore`.
-Each action call attaches one directory; use a different key for each directory.
-
-## GitHub Actions {#github-actions}
-
-A macOS job with the Xcode and module caches:
-
-```yaml
-permissions:
-  contents: read
-  id-token: write
-
+```yaml [GitHub Actions]
 jobs:
-  test:
+  build:
     runs-on: tuist-macos
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
+      - run: xcodebuild build -scheme App -destination 'generic/platform=iOS Simulator' COMPILATION_CACHE_ENABLE_CACHING=YES
+```
+
+```yaml [Buildkite]
+steps:
+  - label: Build
+    agents:
+      queue: tuist-macos
+    plugins:
+      - tuist/xcode-cache#v1: ~
+    command: xcodebuild build -scheme App -destination 'generic/platform=iOS Simulator' COMPILATION_CACHE_ENABLE_CACHING=YES
+```
+
+```yaml [GitLab CI]
+include:
+  - remote: https://raw.githubusercontent.com/tuist/xcode-cache-gitlab/v1/xcode-cache.yml
+
+build:
+  tags: [tuist-macos]
+  before_script:
+    - !reference [.tuist-xcode-cache, before_script]
+  script:
+    - xcodebuild build -scheme App -destination 'generic/platform=iOS Simulator' COMPILATION_CACHE_ENABLE_CACHING=YES
+```
+<!-- -->
+:::
+
+### Module cache {#module-cache}
+
+Keeps Tuist's local cache on macOS runners:
+<.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries, compiled manifests, plugins and selective testing results.
+
+::: code-group
+
+```yaml [GitHub Actions]
+jobs:
+  test:
+    runs-on: tuist-macos
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
       - uses: tuist/module-cache@v1
       - uses: jdx/mise-action@v4
-      - uses: tuist/install@v1
       - run: tuist auth login
-      - run: tuist setup cache
+      - run: tuist install
       - run: tuist generate --no-open
       - run: tuist test
 ```
 
-A Gradle job:
+```yaml [Buildkite]
+steps:
+  - label: Test
+    agents:
+      queue: tuist-macos
+    plugins:
+      - tuist/module-cache#v1: ~
+    command: |
+      mise install
+      tuist auth login
+      tuist install
+      tuist generate --no-open
+      tuist test
+```
 
-```yaml
+```yaml [GitLab CI]
+include:
+  - remote: https://raw.githubusercontent.com/tuist/module-cache-gitlab/v1/module-cache.yml
+
+test:
+  tags: [tuist-macos]
+  before_script:
+    - !reference [.tuist-module-cache, before_script]
+  script:
+    - mise install
+    - tuist auth login
+    - tuist install
+    - tuist generate --no-open
+    - tuist test
+```
+<!-- -->
+:::
+
+### Gradle cache {#gradle-cache}
+
+Keeps the `caches` and `wrapper` directories of Gradle's user home on Linux and
+macOS runners: dependencies, transformed jars, compiled build scripts and
+Gradle distributions. Set `GRADLE_USER_HOME` before the step if you use one,
+and turn off other caching of those directories, such as `cache: gradle` on
+`actions/setup-java`.
+
+::: code-group
+
+```yaml [GitHub Actions]
 jobs:
   test:
     runs-on: tuist-linux
@@ -123,9 +155,40 @@ jobs:
       - run: ./gradlew test
 ```
 
-A custom volume, added with `tuist/cache-volume@v1`:
+```yaml [Buildkite]
+steps:
+  - label: Test
+    agents:
+      queue: tuist-linux
+    plugins:
+      - tuist/gradle-cache#v1: ~
+    command: ./gradlew test
+```
 
-```yaml
+```yaml [GitLab CI]
+include:
+  - remote: https://raw.githubusercontent.com/tuist/gradle-cache-gitlab/v1/gradle-cache.yml
+
+test:
+  tags: [tuist-linux]
+  before_script:
+    - !reference [.tuist-gradle-cache, before_script]
+  script:
+    - ./gradlew test
+```
+<!-- -->
+:::
+
+## Custom volumes {#custom-volumes}
+
+Choose a stable `key` and a `path`, then attach the volume before installing
+dependencies. The path must be empty or absent. Remove any archive cache or
+artifact restore that writes to the same directory. Use a different key for
+each directory.
+
+::: code-group
+
+```yaml [GitHub Actions]
 jobs:
   test:
     runs-on: tuist-linux
@@ -139,84 +202,46 @@ jobs:
       - run: npm test
 ```
 
-`tuist/cache-volume` and `tuist/gradle-cache` expose a `cache-hit` output.
-`tuist/cache-volume` also works in ordinary GitHub Actions container jobs,
-without privileged mode or extra workflow permissions. Native jobs and
-containers running as different users have separate volumes.
-
-## Buildkite {#buildkite}
-
-Add the plugins to a step on your Tuist Linux or macOS queue. They run after
-checkout, before the command:
-
-```yaml
+```yaml [Buildkite]
 steps:
-  - label: iOS
-    agents:
-      queue: tuist-macos
-    plugins:
-      - tuist/xcode-cache#v1: ~
-      - tuist/module-cache#v1: ~
-    command: |
-      mise install
-      tuist auth login
-      tuist setup cache
-      tuist install
-      tuist generate --no-open
-      tuist test
-
-  - label: Android
+  - label: Test
     agents:
       queue: tuist-linux
     plugins:
-      - tuist/gradle-cache#v1: ~
       - tuist/cache-volume#v1:
           volumes:
-            - key: npm
+            - key: npm-v1
               path: ~/.npm
-    command: ./gradlew test
+    command: |
+      npm ci
+      npm test
 ```
 
-## GitLab CI {#gitlab-ci}
-
-Include the templates and reference their snippets in `before_script`. Call the
-installed `tuist-cache-volume` client for custom volumes:
-
-```yaml
-include:
-  - remote: https://raw.githubusercontent.com/tuist/xcode-cache-gitlab/v1/xcode-cache.yml
-  - remote: https://raw.githubusercontent.com/tuist/module-cache-gitlab/v1/module-cache.yml
-  - remote: https://raw.githubusercontent.com/tuist/gradle-cache-gitlab/v1/gradle-cache.yml
-
-ios:
-  tags: [tuist-macos]
-  before_script:
-    - !reference [.tuist-xcode-cache, before_script]
-    - !reference [.tuist-module-cache, before_script]
-  script:
-    - mise install
-    - tuist auth login
-    - tuist setup cache
-    - tuist install
-    - tuist generate --no-open
-    - tuist test
-
-android:
+```yaml [GitLab CI]
+test:
   tags: [tuist-linux]
   before_script:
-    - !reference [.tuist-gradle-cache, before_script]
-    - tuist-cache-volume --key npm --path ~/.npm
+    - tuist-cache-volume --key npm-v1 --path ~/.npm
   script:
-    - ./gradlew test
+    - npm ci
+    - npm test
 ```
+<!-- -->
+:::
 
-Use `!reference` rather than `extends`, which replaces `before_script` and so
-cannot combine the snippets with each other or with your own commands.
+On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
+such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
+On macOS, paths are symlinks: use download caches such as `~/.npm`;
+`node_modules` and tools that replace their cache directory
+are unsupported. Ignore workspace links without a trailing slash in `.gitignore`.
 
-All three providers support native macOS commands; GitLab uses the shell executor.
-GitHub container jobs and Docker actions require Linux. macOS volumes are APFS
-images mounted in the macOS guest and are not automatically shared with a
-separate Docker VM. Linux and macOS volumes with the same key are separate.
+`tuist/cache-volume` and `tuist/gradle-cache` expose a `cache-hit` output.
+`tuist/cache-volume` also works in ordinary GitHub Actions container jobs,
+without privileged mode or extra workflow permissions. Native jobs and
+containers running as different users have separate volumes. GitHub container
+jobs and Docker actions require Linux: macOS volumes are mounted in the macOS
+guest and are not shared with a separate Docker VM. Linux and macOS volumes
+with the same key are separate.
 
 ## Saving changes {#saving-changes}
 
@@ -274,20 +299,19 @@ always save from the default branch.
 
 ## Capacity and retention {#capacity-and-retention}
 
-The Xcode and module caches share storage that Tuist sizes and prunes for you:
-the Tuist CLI evicts the least recently used module cache binaries, and the
-Xcode cache store is kept within its own limit. There is nothing to configure,
+The Xcode and module caches share storage that Tuist sizes and prunes for you,
 and they don't count against the capacity of the volumes below.
 
 The Gradle cache and each custom volume hold up to **20 GB** and expire after
 **7 days without a job mount**. The next job starts with an empty volume after
-expiry.
+expiry. The Gradle cache step has Gradle remove entries unused for seven days
+after every build.
 
-Saved contents can accumulate across runs. Custom volumes do not prune old
-dependencies: use your tool's cleanup settings to keep them small. Writes to a
-full volume can fail the job. When saved contents reach **80%** of the volume's
-capacity and a job runs out of space on them, the next job starts with an empty
-volume and its changes begin a new saved state.
+Custom volumes do not prune old dependencies: use your tool's cleanup settings
+to keep them small. Writes to a full volume can fail the job. When saved
+contents reach **80%** of the volume's capacity and a job runs out of space on
+them, the next job starts with an empty volume and its changes begin a new
+saved state.
 
 ## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}
 

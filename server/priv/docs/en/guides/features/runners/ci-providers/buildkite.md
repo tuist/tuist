@@ -37,4 +37,4 @@ Disconnecting the cluster on the Buildkite card under **Settings → Integration
 
 ## Cache volumes {#cache-volumes}
 
-Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes#buildkite">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
+Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
