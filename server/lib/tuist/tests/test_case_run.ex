@@ -61,11 +61,20 @@ defmodule Tuist.Tests.TestCaseRun do
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
 
     has_one :crash_report, Tuist.Tests.CrashReport, foreign_key: :test_case_run_id
-    has_many :attachments, Tuist.Tests.TestCaseRunAttachment, foreign_key: :test_case_run_id
-    has_many :arguments, Tuist.Tests.TestCaseRunArgument, foreign_key: :test_case_run_id
-    has_many :failures, Tuist.Tests.TestCaseFailure, foreign_key: :test_case_run_id
-    has_many :repetitions, Tuist.Tests.TestCaseRunRepetition, foreign_key: :test_case_run_id
+
+    has_many :attachments, {"reported_test_case_run_attachments", Tuist.Tests.TestCaseRunAttachment},
+      foreign_key: :test_case_run_id
+
+    has_many :arguments, {"reported_test_case_run_arguments", Tuist.Tests.TestCaseRunArgument},
+      foreign_key: :test_case_run_id
+
+    has_many :failures, {"reported_test_case_failures", Tuist.Tests.TestCaseFailure}, foreign_key: :test_case_run_id
+
+    has_many :repetitions, {"reported_test_case_run_repetitions", Tuist.Tests.TestCaseRunRepetition},
+      foreign_key: :test_case_run_id
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_runs", __MODULE__})
 
   def create_changeset(test_case_run, attrs) do
     test_case_run

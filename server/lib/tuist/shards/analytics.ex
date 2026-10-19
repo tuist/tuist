@@ -168,7 +168,7 @@ defmodule Tuist.Shards.Analytics do
 
   defp shard_balance_sessions(project_id, start_datetime, end_datetime) do
     latest_reports =
-      from(sr in ShardRun,
+      from(sr in ShardRun.query(),
         where: sr.project_id == ^project_id,
         where: sr.ran_at >= ^start_datetime and sr.ran_at <= ^end_datetime,
         group_by: [sr.shard_plan_id, sr.test_run_id, sr.shard_index],
@@ -254,7 +254,7 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         hints: ["FINAL"],
         where: t.project_id == ^project_id,
         where: not is_nil(t.shard_plan_id),
@@ -272,7 +272,7 @@ defmodule Tuist.Shards.Analytics do
 
   defp sharded_run_total_count(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
-      from(t in Test,
+      from(t in Test.query(),
         hints: ["FINAL"],
         where: t.project_id == ^project_id,
         where: not is_nil(t.shard_plan_id),
@@ -492,7 +492,7 @@ defmodule Tuist.Shards.Analytics do
     # shard_index, picking the row with the largest inserted_at so the
     # dashboard shows the latest data.
     ClickHouseRepo.all(
-      from(sr in ShardRun,
+      from(sr in ShardRun.query(),
         where: sr.test_run_id == ^test_run_id,
         group_by: sr.shard_index,
         select: %{

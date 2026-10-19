@@ -974,6 +974,31 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "uniqueness across shards" do
+    test "new attempts and corrections enqueue while exact retries deduplicate", %{account: account, project: project} do
+      id = Ecto.UUID.generate()
+
+      jobs =
+        for {attempt, revision} <- [{1, 0}, {2, 0}, {2, 1}] do
+          args =
+            job_args(id, account.id, project.id,
+              extra: %{"shard_index" => 0, "shard_attempt" => attempt, "shard_report_revision" => revision}
+            )
+
+          args |> ProcessXcresultWorker.new() |> Oban.insert!()
+        end
+
+      assert length(Enum.uniq_by(jobs, & &1.id)) == 3
+
+      retry_args =
+        job_args(id, account.id, project.id,
+          extra: %{"shard_index" => 0, "shard_attempt" => 2, "shard_report_revision" => 0}
+        )
+
+      duplicate = retry_args |> ProcessXcresultWorker.new() |> Oban.insert!()
+      assert duplicate.conflict?
+      assert duplicate.id == Enum.at(jobs, 1).id
+    end
+
     test "different shard_index values are treated as distinct jobs" do
       test_run_id = Ecto.UUID.generate()
 
@@ -993,8 +1018,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           "shard_index" => 1
         })
 
-      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index]
-      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index]
+      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
     end
   end
 end

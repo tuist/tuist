@@ -290,7 +290,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
     dirty =
       ClickHouseRepo.all(
-        from(t in Test,
+        from(t in Test.query(),
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
           having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
@@ -392,7 +392,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   # collect coverage are left out, as `Reported` leaves them out.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
         having:
@@ -791,7 +791,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     totals = Coverage.run_totals_query(project_id, shas: shas)
 
     runs =
-      from(t in Test,
+      from(t in Test.query(),
         where:
           t.project_id == ^project_id and t.git_commit_sha in ^shas and
             t.id in subquery(from(c in subquery(totals), select: c.test_run_id)),
@@ -913,7 +913,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   # One row per run, however many times it was written; the period and the
   # subject narrow the rows before they are grouped, along the table's order.
   defp run_page_query(project_id, scope, opts) do
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id and t.id in subquery(covered_runs_query(project_id, scope, opts)),
       group_by: t.id,
       select: %{id: t.id, ran_at: min(t.ran_at), git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at)}

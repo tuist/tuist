@@ -122,7 +122,7 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     test_run =
-      case Tests.get_latest_test_by_build_run_id(run.id) do
+      case Tests.get_latest_test_by_build_run_id(run.id, run.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end

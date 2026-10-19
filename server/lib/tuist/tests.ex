@@ -27,6 +27,7 @@ defmodule Tuist.Tests do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHistory
+  alias Tuist.Ingestion.Batch
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.MCP.Events.Publisher
@@ -34,7 +35,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Shards.ShardRun
-  alias Tuist.Shards.Workflows
+  alias Tuist.Shards.TestReport
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
@@ -62,7 +63,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
-  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
   alias Tuist.Webhooks.Dispatcher
@@ -198,7 +198,7 @@ defmodule Tuist.Tests do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def total_test_run_count do
-    Test
+    Test.query()
     |> from(hints: ["FINAL"], select: count())
     |> ClickHouseRepo.one() || 0
   end
@@ -224,7 +224,7 @@ defmodule Tuist.Tests do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.inserted_at >= ^twenty_four_hours_ago,
         select: count()
       )
@@ -266,7 +266,7 @@ defmodule Tuist.Tests do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project.id,
         where: t.scheme != "",
         where: t.ran_at > ^thirty_days_ago,
@@ -295,7 +295,9 @@ defmodule Tuist.Tests do
             limit: 1
           )
 
-        case Workflows.get_test(uuid) || ClickHouseRepo.one(query) do
+        immutable_query = from(t in Test.immutable_query(), where: t.id == ^uuid, limit: 1)
+
+        case ClickHouseRepo.one(query) || ClickHouseRepo.one(immutable_query) do
           nil ->
             {:error, :not_found}
 
@@ -317,7 +319,6 @@ defmodule Tuist.Tests do
             test =
               test
               |> Repo.preload(pg_preloads)
-              |> attach_workflow_plans()
               |> ClickHouseRepo.preload(ch_preloads)
               |> dedupe_run_destinations()
 
@@ -329,20 +330,6 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp attach_workflow_plans(%Test{} = test) do
-    [test] = attach_workflow_plans([test])
-    test
-  end
-
-  defp attach_workflow_plans(tests) when is_list(tests) do
-    ids = tests |> Enum.map(& &1.shard_plan_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-    plans = if ids == [], do: %{}, else: Workflows.plans(ids)
-
-    Enum.map(tests, fn test ->
-      if plan = Map.get(plans, test.shard_plan_id), do: %{test | shard_plan: plan}, else: test
-    end)
-  end
-
   # `test_run_destinations` has no uniqueness constraint, and a row is written
   # per shard report and per reprocessing attempt. Collapse them to the
   # distinct destinations the run executed on.
@@ -352,10 +339,23 @@ defmodule Tuist.Tests do
 
   defp dedupe_run_destinations(test), do: test
 
-  def get_latest_test_by_build_run_id(build_run_id) do
+  def result_bundle_run_ids(%Test{reporting_version: 1} = test) do
+    from(r in {"latest_shard_test_reports", TestReport},
+      where: r.project_id == ^test.project_id and r.id == ^test.id,
+      order_by: [asc: r.shard_index],
+      select: r.source_test_run_id
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  def result_bundle_run_ids(%Test{id: id}), do: [id]
+
+  def get_latest_test_by_build_run_id(build_run_id, project_id) do
     query =
-      from(t in Test,
-        where: t.build_run_id == ^build_run_id,
+      from(t in Test.query(),
+        where: t.project_id == ^project_id and t.build_run_id == ^build_run_id,
         order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
@@ -366,10 +366,10 @@ defmodule Tuist.Tests do
     end
   end
 
-  def get_latest_test_by_gradle_build_id(gradle_build_id) do
+  def get_latest_test_by_gradle_build_id(gradle_build_id, project_id) do
     query =
-      from(t in Test,
-        where: t.gradle_build_id == ^gradle_build_id,
+      from(t in Test.query(),
+        where: t.project_id == ^project_id and t.gradle_build_id == ^gradle_build_id,
         order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
@@ -381,7 +381,7 @@ defmodule Tuist.Tests do
   end
 
   def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test)
 
     results = Repo.preload(results, :ran_by_account)
 
@@ -389,7 +389,7 @@ defmodule Tuist.Tests do
   end
 
   def latest_completed_test_runs(project_id, limit \\ 40) do
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id,
       where: t.status in ["success", "failure", "skipped"],
       order_by: [desc: t.ran_at],
@@ -406,18 +406,20 @@ defmodule Tuist.Tests do
   end
 
   def list_sharded_test_runs(attrs) do
-    base_query = from(t in Test, where: not is_nil(t.shard_plan_id))
+    base_query = from(t in Test.query(), where: not is_nil(t.shard_plan_id))
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
 
-    results = results |> attach_workflow_plans() |> ClickHouseRepo.preload([:shard_plan])
+    results = ClickHouseRepo.preload(results, [:shard_plan])
 
     {results, meta}
   end
 
   def get_test_run_failures_count(test_run_id) do
+    source = if immutable_report_run?(test_run_id), do: TestCaseRun.query(), else: TestCaseRunByTestRun
+
     query =
-      from(tcr in TestCaseRunByTestRun,
+      from(tcr in source,
         hints: ["FINAL"],
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
@@ -429,17 +431,17 @@ defmodule Tuist.Tests do
   def list_test_suite_runs(attrs) do
     base_query =
       if scoped_test_suite_run_attrs?(attrs) do
-        TestSuiteRun
+        TestSuiteRun.query()
       else
         seven_days_ago = DateTime.add(DateTime.utc_now(), -@unscoped_test_suite_runs_lookback_days, :day)
-        from(tsr in TestSuiteRun, where: tsr.inserted_at >= ^seven_days_ago)
+        from(tsr in TestSuiteRun.query(), where: tsr.inserted_at >= ^seven_days_ago)
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestSuiteRun)
   end
 
   def list_test_module_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
+    Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun.query(), attrs, for: TestModuleRun)
   end
 
   defp scoped_test_suite_run_attrs?(attrs) do
@@ -488,9 +490,9 @@ defmodule Tuist.Tests do
   where concurrent shards could still race past each other.
   """
   def list_run_errors(test_run_id) do
-    from(e in TestRunError,
+    from(e in TestRunError.query(),
       where: e.test_run_id == ^test_run_id,
-      order_by: [asc: e.inserted_at]
+      order_by: [asc: e.inserted_at, asc: e.module_name, asc: e.message, asc: e.id]
     )
     |> ClickHouseRepo.all()
     |> Enum.uniq_by(&{&1.module_name, &1.message})
@@ -641,7 +643,7 @@ defmodule Tuist.Tests do
       destinations
       |> Enum.map(fn destination ->
         %{
-          id: UUIDv7.generate(),
+          id: Batch.uuid({:destination, test_run_id, destination}),
           test_run_id: test_run_id,
           name: destination_field(destination, :name),
           platform: destination_field(destination, :platform),
@@ -653,7 +655,7 @@ defmodule Tuist.Tests do
 
     case rows do
       [] -> :ok
-      rows -> TestRunDestination.Buffer.insert_all(rows)
+      rows -> Batch.insert_all(TestRunDestination, rows)
     end
   end
 
@@ -725,7 +727,7 @@ defmodule Tuist.Tests do
       errors
       |> Enum.map(fn error ->
         %{
-          id: UUIDv7.generate(),
+          id: Batch.uuid({:run_error, test_run_id, error}),
           test_run_id: test_run_id,
           project_id: project_id,
           module_name: error_field(error, :target) || "",
@@ -737,7 +739,7 @@ defmodule Tuist.Tests do
 
     case rows do
       [] -> :ok
-      rows -> TestRunError.Buffer.insert_all(rows)
+      rows -> Batch.insert_all(TestRunError, rows)
     end
   end
 
@@ -750,8 +752,8 @@ defmodule Tuist.Tests do
   defp create_or_update_sharded_test(attrs) do
     with {:ok, plan} <- Shards.get_shard_plan(Map.fetch!(attrs, :shard_plan_id)),
          true <- plan.project_id == Map.fetch!(attrs, :project_id) do
-      if plan.authority == :postgres do
-        create_postgres_sharded_test(attrs, plan)
+      if plan.reporting_version == 1 do
+        ingest_immutable_shard(attrs, plan)
       else
         create_legacy_sharded_test(attrs, plan)
       end
@@ -761,105 +763,101 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp create_postgres_sharded_test(attrs, plan) do
-    shard_index = Map.get(attrs, :shard_index) || 0
+  defp ingest_immutable_shard(attrs, plan) do
+    index = Map.get(attrs, :shard_index) || 0
+    attempt = Map.get(attrs, :shard_attempt) || 0
+    revision = Map.get(attrs, :shard_report_revision) || 0
 
-    if shard_index < 0 or shard_index >= plan.shard_count do
-      {:error, :invalid_shard_index}
+    if valid_report_index?(index, plan.shard_count) and valid_report_revision?(attempt) and
+         valid_report_revision?(revision) do
+      create_immutable_shard_report(attrs, plan, index, attempt, revision)
     else
-      ingest_workflow_shard(attrs, plan, shard_index)
+      {:error, :invalid_shard_report}
     end
   end
 
-  defp ingest_workflow_shard(attrs, plan, shard_index) do
+  defp valid_report_index?(index, count), do: is_integer(index) and index >= 0 and index < count
+  defp valid_report_revision?(revision), do: is_integer(revision) and revision >= 0 and revision <= 4_294_967_295
+
+  defp create_immutable_shard_report(attrs, plan, index, attempt, revision) do
     stress = Map.get(attrs, :stress_new_tests)
+    attrs = if stress, do: Map.merge(attrs, StressNewTests.run_attrs(stress)), else: attrs
 
     run_attrs =
       attrs
-      |> Map.merge(StressNewTests.run_attrs(stress))
-      |> Map.put(:id, plan.merged_test_run_id)
-      |> Map.put(:shard_plan_id, plan.id)
+      |> Map.put(:id, plan.id)
+      |> Map.put(:reporting_version, 1)
+      |> Map.put(:ran_at, plan.inserted_at)
+      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
       |> Map.put(:build_run_id, Map.get(attrs, :build_run_id) || plan.build_run_id)
       |> Map.put(:gradle_build_id, Map.get(attrs, :gradle_build_id) || plan.gradle_build_id)
       |> Map.put(:git_repository_id, repository_id(attrs))
-      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
     with {:ok, test} <- %Test{} |> Test.create_changeset(run_attrs) |> Ecto.Changeset.apply_action(:insert) do
-      test_modules = Map.get(attrs, :test_modules, [])
-      test = merge_shard_metadata(test, Workflows.get_test(plan.merged_test_run_id) || %{})
-      test = %{test | is_flaky: test.is_flaky or (test.is_ci and has_any_flaky_test_case?(test_modules))}
-      create_run_destinations(test, Map.get(attrs, :run_destinations, []))
-      create_run_errors(test, Map.get(attrs, :run_errors, []))
-      StressNewTests.insert_candidates(test, stress)
-      coverage = Coverage.rows(test.project_id, Map.get(attrs, :coverage))
-      record_coverage_data(test, attrs, coverage, shard_index, plan.shard_count)
+      identity =
+        {plan.id, index, attempt, revision, TestReport.phase(test.status),
+         TestReport.digest(Map.drop(attrs, [:id, :ran_at, :inserted_at]))}
 
-      {_newly_flaky, test_case_runs} =
-        create_test_modules(
-          test,
-          test_modules,
-          shard_index,
-          plan,
-          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
+      {test, test_case_runs, fact_set_id} =
+        Batch.run(identity, fn ->
+          modules = Map.get(attrs, :test_modules, [])
+          create_run_destinations(test, Map.get(attrs, :run_destinations, []))
+          create_run_errors(test, Map.get(attrs, :run_errors, []))
+          StressNewTests.insert_candidates(test, stress)
+          coverage = Coverage.rows(test.project_id, Map.get(attrs, :coverage))
+          record_coverage_data(test, attrs, coverage, index, plan.shard_count)
+
+          {_newly_flaky, runs} =
+            create_test_modules(
+              test,
+              modules,
+              index,
+              plan,
+              Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
+            )
+
+          flaky? = test.is_flaky or flaky_run?(test, runs) or (test.is_ci and has_any_flaky_test_case?(modules))
+          {%{test | is_flaky: flaky?}, runs, Batch.uuid(:report)}
+        end)
+
+      row =
+        test
+        |> Map.from_struct()
+        |> Map.take(Test.__schema__(:fields))
+        |> Map.merge(%{
+          fact_set_id: fact_set_id,
+          source_test_run_id: Map.get(attrs, :source_test_run_id) || Map.get(attrs, :id) || plan.id,
+          shard_index: index,
+          shard_count: plan.shard_count,
+          shard_attempt: attempt,
+          shard_report_revision: revision,
+          report_phase: TestReport.phase(test.status),
+          execution_started_at: shard_run_ran_at(Map.get(attrs, :ran_at) || plan.inserted_at)
+        })
+
+      row = Map.put(row, :report_digest, TestReport.digest(row))
+      IngestRepo.insert_all(TestReport, [row])
+
+      if test.status == "failure" do
+        Publisher.publish(
+          "test_run.failed",
+          %{
+            "project_id" => test.project_id,
+            "test_run_id" => test.id,
+            "is_ci" => test.is_ci,
+            "git_branch" => test.git_branch || ""
+          },
+          test.id
         )
-
-      # Completion must not get ahead of node-local buffers: another replica
-      # can take over immediately after this transaction commits.
-      flush_workflow_facts()
-
-      result =
-        Workflows.record_report(
-          plan,
-          shard_index,
-          test.status,
-          test.duration,
-          fn previous, statuses ->
-            merge_workflow_snapshot(previous, test, attrs, test_case_runs, statuses, plan.shard_count)
-          end,
-          ran_at: DateTime.from_naive!(test.ran_at, "Etc/UTC")
-        )
-
-      with {:ok, merged_test} <- result do
-        run_test_followups(merged_test, test_case_runs, plan)
-        {:ok, %{merged_test | test_case_runs: test_case_runs}}
       end
+
+      run_test_followups(test, test_case_runs, plan)
+
+      status =
+        if plan.shard_count == 1 or test.status in @terminal_shard_failure_statuses, do: test.status, else: "in_progress"
+
+      {:ok, %{test | status: status, test_case_runs: test_case_runs}}
     end
-  end
-
-  defp merge_workflow_snapshot(previous, test, attrs, test_case_runs, statuses, shard_count) do
-    merged = merge_shard_metadata(previous || test, attrs)
-    reported_count = Enum.count(statuses, &(&1 not in ["processing", "in_progress"]))
-    status = if shard_count == 1, do: hd(statuses), else: merged_shard_status(statuses, reported_count, shard_count)
-
-    merged
-    |> Map.put(:status, status)
-    |> Map.put(:duration, max(merged.duration, test.duration))
-    |> Map.put(:is_flaky, merged.is_flaky or test.is_flaky or flaky_run?(test, test_case_runs))
-    |> Map.put(
-      :coverage_evidence_status,
-      Coverage.Evidence.merge_status(merged.coverage_evidence_status, test.coverage_evidence_status)
-    )
-    |> Map.merge(StressNewTests.merge_run_attrs(merged, Map.get(attrs, :stress_new_tests)))
-  end
-
-  defp flush_workflow_facts do
-    Enum.each(
-      [
-        TestCase.Buffer,
-        TestModuleRun.Buffer,
-        TestSuiteRun.Buffer,
-        TestRunDestination.Buffer,
-        TestRunError.Buffer,
-        TestRunStressCandidate.Buffer,
-        TestCaseRun.Buffer,
-        TestCaseRunArgument.Buffer,
-        TestCaseFailure.Buffer,
-        TestCaseRunRepetition.Buffer,
-        TestCaseRunAttachment.Buffer,
-        TestCaseEvent.Buffer
-      ],
-      fn buffer -> :ok = buffer.flush() end
-    )
   end
 
   defp create_legacy_sharded_test(attrs, shard_plan) do
@@ -1172,7 +1170,7 @@ defmodule Tuist.Tests do
   defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
   defp flaky_run?(_test, _test_case_runs), do: false
 
-  defp mark_test_run_as_flaky(test, _flaky?, %{authority: :postgres}), do: test
+  defp mark_test_run_as_flaky(%{reporting_version: 1} = test, _flaky?, _shard_plan), do: test
   defp mark_test_run_as_flaky(test, false, _shard_plan), do: test
   defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?, _shard_plan), do: test
 
@@ -1276,7 +1274,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    TestCase.Buffer.insert_all(test_cases)
+    Batch.insert_all(TestCase, test_cases)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -1689,13 +1687,13 @@ defmodule Tuist.Tests do
         }
       end)
 
-    TestCaseEvent.Buffer.insert_all(events)
+    Batch.insert_all(TestCaseEvent, events)
     # State-change events are rare and we want subscribers (e.g. the
     # `TestCaseLive` PubSub handler that triggers a history refresh) to see
     # them immediately rather than wait for the 5s buffer tick. Flushing is
     # cheap here — these events are emitted at most a few times per second
     # per test case.
-    TestCaseEvent.Buffer.flush()
+    Batch.flush(TestCaseEvent)
     events
   end
 
@@ -1768,11 +1766,19 @@ defmodule Tuist.Tests do
     preloads = Keyword.get(opts, :preload, [])
 
     case extract_mv_scope_filter(attrs) do
-      {:shard_id, _shard_id} ->
-        list_test_case_runs_via_shard_mv(attrs, preloads)
+      {:shard_id, shard_id} ->
+        if immutable_report_run?(shard_id) do
+          list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
+        else
+          list_test_case_runs_via_shard_mv(attrs, preloads)
+        end
 
-      {:test_run_id, _test_run_id} ->
-        list_test_case_runs_via_test_run_mv(attrs, preloads)
+      {:test_run_id, test_run_id} ->
+        if immutable_report_run?(test_run_id) do
+          list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
+        else
+          list_test_case_runs_via_test_run_mv(attrs, preloads)
+        end
 
       {:test_case_id, _test_case_id} ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
@@ -1783,6 +1789,10 @@ defmodule Tuist.Tests do
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
     end
+  end
+
+  defp immutable_report_run?(id) do
+    match?({:ok, %Test{reporting_version: 1}}, get_test(id))
   end
 
   defp list_test_case_runs_from(base_query, attrs, preloads) do
@@ -1866,7 +1876,7 @@ defmodule Tuist.Tests do
   """
   def list_test_case_run_arguments(test_case_run_ids) do
     all_by_uuid_chunks(test_case_run_ids, fn ids ->
-      from(argument in TestCaseRunArgument, where: argument.test_case_run_id in ^ids)
+      from(argument in TestCaseRunArgument.query(), where: argument.test_case_run_id in ^ids)
     end)
   end
 
@@ -2057,7 +2067,7 @@ defmodule Tuist.Tests do
   # a millisecond timestamp in the first 48 bits, which closely matches
   # inserted_at, so we extract the month and add a toYYYYMM filter to prune all
   # but one partition (~8K rows read, ~35x improvement).
-  defp uuidv7_to_yyyymm(uuid_string) do
+  defp uuidv7_to_yyyymm(<<_prefix::binary-size(14), "7", _rest::binary>> = uuid_string) do
     hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
     timestamp_ms = String.to_integer(hex, 16)
 
@@ -2068,6 +2078,8 @@ defmodule Tuist.Tests do
   rescue
     _ -> :error
   end
+
+  defp uuidv7_to_yyyymm(_uuid), do: :error
 
   # `evidence_states` say, per test, what the report's evidence holds for it
   # (`Coverage.Evidence.test_states/2`), which their runs record.
@@ -2101,9 +2113,10 @@ defmodule Tuist.Tests do
       )
 
     test_modules
-    |> Enum.flat_map_reduce([], fn module_attrs, acc_test_case_runs ->
-      module_id = UUIDv7.generate()
+    |> Enum.with_index()
+    |> Enum.flat_map_reduce([], fn {module_attrs, occurrence}, acc_test_case_runs ->
       module_name = Map.get(module_attrs, :name)
+      module_id = Batch.uuid({:module, module_name, occurrence})
 
       test_suites = Map.get(module_attrs, :test_suites, [])
       test_cases = Map.get(module_attrs, :test_cases, [])
@@ -2144,7 +2157,7 @@ defmodule Tuist.Tests do
       |> TestModuleRun.create_changeset(module_run_attrs)
       |> Ecto.Changeset.apply_action!(:insert)
 
-      TestModuleRun.Buffer.insert(module_run_attrs)
+      Batch.insert(TestModuleRun, module_run_attrs)
 
       suite_name_to_id =
         create_test_suites(
@@ -2195,8 +2208,8 @@ defmodule Tuist.Tests do
   # modules but a p90 of 134 and a maximum of 647, so the tail was paying
   # hundreds of serialized round trips to write data that one insert covers.
   defp flush_test_case_run_buffers do
-    TestCaseRun.Buffer.flush()
-    TestCaseRunArgument.Buffer.flush()
+    Batch.flush(TestCaseRun)
+    Batch.flush(TestCaseRunArgument)
     :ok
   end
 
@@ -2485,8 +2498,8 @@ defmodule Tuist.Tests do
 
     {test_suite_runs, suite_name_to_id} =
       Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
-        suite_id = UUIDv7.generate()
         suite_name = Map.get(suite_attrs, :name)
+        suite_id = Batch.uuid({:suite, module_id, suite_name})
 
         suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
         test_case_count = length(suite_test_cases)
@@ -2523,7 +2536,7 @@ defmodule Tuist.Tests do
         {suite_run, updated_mapping}
       end)
 
-    TestSuiteRun.Buffer.insert_all(test_suite_runs)
+    Batch.insert_all(TestSuiteRun, test_suite_runs)
     suite_name_to_id
   end
 
@@ -2570,15 +2583,15 @@ defmodule Tuist.Tests do
       )
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
-      Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
-                                                       {runs_acc, failures_acc, reps_acc, attachments_acc, args_acc} ->
+      Enum.reduce(Enum.with_index(test_cases), {[], [], [], [], []}, fn {case_attrs, occurrence},
+                                                                        {runs_acc, failures_acc, reps_acc,
+                                                                         attachments_acc, args_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
 
-        test_case_run_id = UUIDv7.generate()
-
         case_name = Map.get(case_attrs, :name)
+        test_case_run_id = Batch.uuid({:case_run, module_id, suite_name, case_name, occurrence})
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
@@ -2600,7 +2613,7 @@ defmodule Tuist.Tests do
           git_branch: test.git_branch,
           is_default_branch: is_default_branch,
           git_commit_sha: test.git_commit_sha || "",
-          status: status,
+          status: if(test.reporting_version == 1, do: Map.get(case_attrs, :status) || status, else: status),
           is_flaky: is_flaky,
           is_new: is_new,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
@@ -2633,20 +2646,20 @@ defmodule Tuist.Tests do
     # has been staged. The rows still land before the caller returns, which is
     # what the attachment and crash-report endpoints depend on (see the flush
     # site), but a run no longer pays one round trip per module.
-    TestCaseRun.Buffer.insert_all(test_case_runs)
+    Batch.insert_all(TestCaseRun, test_case_runs)
 
     if Enum.any?(all_arguments) do
-      TestCaseRunArgument.Buffer.insert_all(all_arguments)
+      Batch.insert_all(TestCaseRunArgument, all_arguments)
     end
 
-    TestCaseFailure.Buffer.insert_all(all_failures)
+    Batch.insert_all(TestCaseFailure, all_failures)
 
     if Enum.any?(all_repetitions) do
-      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+      Batch.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
     if Enum.any?(all_attachments) do
-      TestCaseRunAttachment.Buffer.insert_all(all_attachments)
+      Batch.insert_all(TestCaseRunAttachment, all_attachments)
     end
 
     # The audit-log row and the outbound webhook fire on the same set:
@@ -2665,8 +2678,9 @@ defmodule Tuist.Tests do
   defp build_argument_records(arguments, test_case_run_id) do
     now = NaiveDateTime.utc_now()
 
-    Enum.reduce(arguments, {[], [], []}, fn arg_attrs, {args_acc, failures_acc, reps_acc} ->
-      argument_id = UUIDv7.generate()
+    Enum.reduce(Enum.with_index(arguments), {[], [], []}, fn {arg_attrs, occurrence},
+                                                             {args_acc, failures_acc, reps_acc} ->
+      argument_id = Batch.uuid({:argument, test_case_run_id, Map.get(arg_attrs, :name), occurrence})
 
       arg_record = %{
         id: argument_id,
@@ -2680,9 +2694,10 @@ defmodule Tuist.Tests do
       arg_failures =
         arg_attrs
         |> Map.get(:failures, [])
-        |> Enum.map(fn failure_attrs ->
+        |> Enum.with_index()
+        |> Enum.map(fn {failure_attrs, occurrence} ->
           %{
-            id: UUIDv7.generate(),
+            id: Batch.uuid({:argument_failure, argument_id, failure_attrs, occurrence}),
             test_case_run_id: test_case_run_id,
             test_case_run_argument_id: argument_id,
             message: Map.get(failure_attrs, :message),
@@ -2696,9 +2711,10 @@ defmodule Tuist.Tests do
       arg_repetitions =
         arg_attrs
         |> Map.get(:repetitions, [])
-        |> Enum.map(fn rep_attrs ->
+        |> Enum.with_index()
+        |> Enum.map(fn {rep_attrs, occurrence} ->
           %{
-            id: UUIDv7.generate(),
+            id: Batch.uuid({:argument_repetition, argument_id, Map.get(rep_attrs, :repetition_number), occurrence}),
             test_case_run_id: test_case_run_id,
             test_case_run_argument_id: argument_id,
             repetition_number: Map.get(rep_attrs, :repetition_number),
@@ -2733,9 +2749,10 @@ defmodule Tuist.Tests do
   defp build_failures(case_attrs, test_case_run_id) do
     case_attrs
     |> Map.get(:failures, [])
-    |> Enum.map(fn failure_attrs ->
+    |> Enum.with_index()
+    |> Enum.map(fn {failure_attrs, occurrence} ->
       %{
-        id: UUIDv7.generate(),
+        id: Batch.uuid({:failure, test_case_run_id, failure_attrs, occurrence}),
         test_case_run_id: test_case_run_id,
         test_case_run_argument_id: nil,
         message: Map.get(failure_attrs, :message),
@@ -2750,9 +2767,10 @@ defmodule Tuist.Tests do
   defp build_repetitions(case_attrs, test_case_run_id) do
     case_attrs
     |> Map.get(:repetitions, [])
-    |> Enum.map(fn rep_attrs ->
+    |> Enum.with_index()
+    |> Enum.map(fn {rep_attrs, occurrence} ->
       %{
-        id: UUIDv7.generate(),
+        id: Batch.uuid({:repetition, test_case_run_id, Map.get(rep_attrs, :repetition_number), occurrence}),
         test_case_run_id: test_case_run_id,
         test_case_run_argument_id: nil,
         repetition_number: Map.get(rep_attrs, :repetition_number),
@@ -2768,9 +2786,10 @@ defmodule Tuist.Tests do
   defp build_attachments(case_attrs, test_case_run_id, test_run_id) do
     case_attrs
     |> Map.get(:attachments, [])
-    |> Enum.map(fn att_attrs ->
+    |> Enum.with_index()
+    |> Enum.map(fn {att_attrs, occurrence} ->
       %{
-        id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
+        id: Map.get(att_attrs, :attachment_id) || Batch.uuid({:attachment, test_case_run_id, att_attrs, occurrence}),
         test_case_run_id: test_case_run_id,
         test_case_run_argument_id: Map.get(att_attrs, :test_case_run_argument_id),
         test_run_id: test_run_id,
@@ -2808,7 +2827,7 @@ defmodule Tuist.Tests do
         }
       end)
 
-    TestCaseEvent.Buffer.insert_all(events)
+    Batch.insert_all(TestCaseEvent, events)
   end
 
   # Webhook fan-out for the same set of test cases that get a `first_run`
@@ -4255,7 +4274,8 @@ defmodule Tuist.Tests do
       module_name,
       suite_name,
       shard_id,
-      shard_index
+      shard_index,
+      shard_report_id
     )
     SELECT
       id,
@@ -4281,7 +4301,8 @@ defmodule Tuist.Tests do
       module_name,
       suite_name,
       shard_id,
-      shard_index
+      shard_index,
+      shard_report_id
     FROM (
       SELECT *
       FROM test_case_runs
@@ -4778,7 +4799,7 @@ defmodule Tuist.Tests do
 
   defp get_failures_for_runs(run_ids) do
     all_by_uuid_chunks(run_ids, fn ids_chunk ->
-      from(f in TestCaseFailure,
+      from(f in TestCaseFailure.query(),
         where: fragment("? IN (?)", f.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
           test_case_run_id: f.test_case_run_id,
@@ -4793,7 +4814,7 @@ defmodule Tuist.Tests do
 
   defp get_repetitions_for_runs(run_ids) do
     all_by_uuid_chunks(run_ids, fn ids_chunk ->
-      from(r in TestCaseRunRepetition,
+      from(r in TestCaseRunRepetition.query(),
         where: fragment("? IN (?)", r.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
           test_case_run_id: r.test_case_run_id,
@@ -4820,8 +4841,6 @@ defmodule Tuist.Tests do
   def expire_stale_in_progress_test_runs do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -@stale_run_window_hours, :hour)
     now = NaiveDateTime.utc_now()
-    Workflows.reconcile_pending()
-    Workflows.expire_stale(DateTime.from_naive!(six_hours_ago, "Etc/UTC"))
 
     # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
     # selection across parts so duplicates can be merged. That defeats the
@@ -4834,6 +4853,7 @@ defmodule Tuist.Tests do
     candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
+          where: t.reporting_version == 0,
           where: t.status == "in_progress",
           where: t.inserted_at < ^six_hours_ago,
           select: t.id,
@@ -4848,18 +4868,11 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(& &1.id)
 
-    owned_plan_ids =
-      latest_candidate_runs
-      |> Enum.map(& &1.shard_plan_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-      |> Workflows.owned_ids()
-
     stale_runs =
-      Enum.filter(latest_candidate_runs, fn run ->
-        run.status == "in_progress" and NaiveDateTime.before?(run.inserted_at, six_hours_ago) and
-          not MapSet.member?(owned_plan_ids, run.shard_plan_id)
-      end)
+      Enum.filter(
+        latest_candidate_runs,
+        &(&1.status == "in_progress" and NaiveDateTime.before?(&1.inserted_at, six_hours_ago))
+      )
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

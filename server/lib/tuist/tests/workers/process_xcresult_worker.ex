@@ -23,7 +23,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     queue: :process_xcresult,
     max_attempts: 20,
     unique: [
-      keys: [:test_run_id, :shard_index],
+      keys: [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision],
       states: :incomplete,
       period: :infinity
     ]

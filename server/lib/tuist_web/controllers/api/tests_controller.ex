@@ -365,6 +365,20 @@ defmodule TuistWeb.API.TestsController do
              description: "The zero-based shard index for this test result.",
              nullable: true
            },
+           shard_attempt: %Schema{
+             type: :integer,
+             minimum: 0,
+             maximum: 4_294_967_295,
+             description:
+               "Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero."
+           },
+           shard_report_revision: %Schema{
+             type: :integer,
+             minimum: 0,
+             maximum: 4_294_967_295,
+             description:
+               "Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero."
+           },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
            git_dirty: %Schema{
@@ -736,6 +750,7 @@ defmodule TuistWeb.API.TestsController do
 
             enqueue_xcresult_processing(%{
               test_run_id: test_run.id,
+              source_test_run_id: xcresult_id,
               storage_key: storage_key,
               stress_storage_key: stress_storage_key,
               # The worker replaces this row once the bundle is parsed, from the
@@ -778,7 +793,9 @@ defmodule TuistWeb.API.TestsController do
               build_run_id: test_run.build_run_id,
               shard_plan_id: test_run.shard_plan_id,
               shard_index: Map.get(body_params, :shard_index),
-              ran_at: XcresultProcessing.serialize_ran_at(test_run.ran_at),
+              shard_attempt: Map.get(body_params, :shard_attempt),
+              shard_report_revision: Map.get(body_params, :shard_report_revision),
+              ran_at: processing_ran_at(body_params, test_run),
               vcs_comment_params: vcs_comment_params
             })
           else
@@ -831,6 +848,10 @@ defmodule TuistWeb.API.TestsController do
     conn
     |> put_status(:service_unavailable)
     |> json(%{message: "The test run could not be scheduled for processing"})
+  end
+
+  defp processing_ran_at(body_params, test_run) do
+    XcresultProcessing.serialize_ran_at(Map.get(body_params, :ran_at) || test_run.ran_at)
   end
 
   defp enqueue_xcresult_processing(args) do
@@ -985,58 +1006,68 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params, test_id) do
     case Tests.get_test(test_id, preload: [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]) do
       {:ok, %{project_id: project_id} = test_run} when project_id == params.project.id ->
-        {:ok, test_run}
+        if test_run.reporting_version == 1 and not is_nil(Map.get(params, :shard_plan_id)) do
+          create_test_from_params(params, test_id)
+        else
+          {:ok, test_run}
+        end
 
       {:ok, _test_run} ->
         {:error, :id_conflict}
 
       {:error, :not_found} ->
-        Tests.create_test(%{
-          id: test_id,
-          duration: params.duration,
-          macos_version: Map.get(params, :macos_version),
-          xcode_version: Map.get(params, :xcode_version),
-          is_ci: Map.get(params, :is_ci),
-          model_identifier: Map.get(params, :model_identifier),
-          scheme: Map.get(params, :scheme),
-          project_id: params.project.id,
-          account_id: params.ran_by_account.id,
-          status: Map.get(params, :status),
-          git_branch: Map.get(params, :git_branch),
-          git_commit_sha: Map.get(params, :git_commit_sha),
-          git_ref: Map.get(params, :git_ref),
-          base_branch: Map.get(params, :base_branch),
-          merge_base_sha: Map.get(params, :merge_base_sha),
-          is_pull_request: Map.get(params, :is_pull_request),
-          pull_request_number: Map.get(params, :pull_request_number),
-          git_object_format: Map.get(params, :git_object_format),
-          history_source: Map.get(params, :history_source),
-          history_fallback_reason: Map.get(params, :history_fallback_reason),
-          git_dirty: Map.get(params, :git_dirty),
-          git_remote_url_origin: Map.get(params, :git_remote_url_origin),
-          execution_mode: Map.get(params, :execution_mode),
-          ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
-          ci_run_id: Map.get(params, :ci_run_id),
-          ci_project_handle: Map.get(params, :ci_project_handle),
-          ci_host: Map.get(params, :ci_host),
-          ci_provider: Map.get(params, :ci_provider),
-          build_system: Map.get(params, :build_system, "xcode"),
-          test_modules: Map.get(params, :test_modules, []),
-          test_cases: Map.get(params, :test_cases, []),
-          build_run_id: Map.get(params, :build_run_id),
-          gradle_build_id: Map.get(params, :gradle_build_id),
-          shard_plan_id: Map.get(params, :shard_plan_id),
-          shard_index: Map.get(params, :shard_index),
-          only_test_identifiers: Map.get(params, :only_test_identifiers, []),
-          skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
-          coverage_enabled: Map.get(params, :coverage_enabled),
-          stress_new_tests: Map.get(params, :stress_new_tests),
-          coverage_evidence: Map.get(params, :coverage_evidence),
-          coverage: Map.get(params, :coverage),
-          xcode_coverage: Map.get(params, :xcode_coverage),
-          xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
-          xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)
-        })
+        create_test_from_params(params, test_id)
     end
+  end
+
+  defp create_test_from_params(params, test_id) do
+    Tests.create_test(%{
+      id: test_id,
+      duration: params.duration,
+      macos_version: Map.get(params, :macos_version),
+      xcode_version: Map.get(params, :xcode_version),
+      is_ci: Map.get(params, :is_ci),
+      model_identifier: Map.get(params, :model_identifier),
+      scheme: Map.get(params, :scheme),
+      project_id: params.project.id,
+      account_id: params.ran_by_account.id,
+      status: Map.get(params, :status),
+      git_branch: Map.get(params, :git_branch),
+      git_commit_sha: Map.get(params, :git_commit_sha),
+      git_ref: Map.get(params, :git_ref),
+      base_branch: Map.get(params, :base_branch),
+      merge_base_sha: Map.get(params, :merge_base_sha),
+      is_pull_request: Map.get(params, :is_pull_request),
+      pull_request_number: Map.get(params, :pull_request_number),
+      git_object_format: Map.get(params, :git_object_format),
+      history_source: Map.get(params, :history_source),
+      history_fallback_reason: Map.get(params, :history_fallback_reason),
+      git_dirty: Map.get(params, :git_dirty),
+      git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+      execution_mode: Map.get(params, :execution_mode),
+      ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
+      ci_run_id: Map.get(params, :ci_run_id),
+      ci_project_handle: Map.get(params, :ci_project_handle),
+      ci_host: Map.get(params, :ci_host),
+      ci_provider: Map.get(params, :ci_provider),
+      build_system: Map.get(params, :build_system, "xcode"),
+      test_modules: Map.get(params, :test_modules, []),
+      test_cases: Map.get(params, :test_cases, []),
+      build_run_id: Map.get(params, :build_run_id),
+      gradle_build_id: Map.get(params, :gradle_build_id),
+      shard_plan_id: Map.get(params, :shard_plan_id),
+      shard_index: Map.get(params, :shard_index),
+      shard_attempt: Map.get(params, :shard_attempt),
+      shard_report_revision: Map.get(params, :shard_report_revision),
+      only_test_identifiers: Map.get(params, :only_test_identifiers, []),
+      skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
+      coverage_enabled: Map.get(params, :coverage_enabled),
+      stress_new_tests: Map.get(params, :stress_new_tests),
+      coverage_evidence: Map.get(params, :coverage_evidence),
+      coverage: Map.get(params, :coverage),
+      xcode_coverage: Map.get(params, :xcode_coverage),
+      xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
+      xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)
+    })
   end
 end

@@ -11,6 +11,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests" do
@@ -1350,6 +1351,64 @@ defmodule TuistWeb.API.TestsControllerTest do
         )
 
       assert json_response(conn, 200)
+    end
+
+    test "existing immutable IDs still accept each shard and keep processor jobs distinct", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          shard_count: 2,
+          reporting_version: 1,
+          assignments: JSON.encode!(%{modules: [], test_suites: []})
+        )
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+      requested_id = String.upcase(UUIDv7.generate())
+
+      for {index, id} <- [{0, requested_id}, {1, plan.id}] do
+        response =
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+            id: id,
+            duration: 0,
+            is_ci: true,
+            status: "processing",
+            test_modules: [],
+            shard_plan_id: plan.id,
+            shard_index: index,
+            shard_attempt: 2,
+            shard_report_revision: 3
+          })
+
+        assert %{"id" => returned_id} = json_response(response, 200)
+        assert returned_id == plan.id
+
+        assert_enqueued(
+          worker: ProcessXcresultWorker,
+          args: %{
+            "test_run_id" => plan.id,
+            "source_test_run_id" => id,
+            "shard_index" => index,
+            "shard_attempt" => 2,
+            "shard_report_revision" => 3,
+            "storage_key" => "#{user.account.name}/#{project.name}/runs/#{id}/result_bundle.zip"
+          }
+        )
+      end
+
+      jobs = all_enqueued(worker: ProcessXcresultWorker)
+      assert length(jobs) == 2
+
+      source_ids =
+        Tuist.IngestRepo.all(from(r in Tuist.Shards.TestReport, where: r.id == ^plan.id, select: r.source_test_run_id))
+
+      assert Enum.sort(source_ids) == Enum.sort([requested_id, plan.id])
     end
 
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{

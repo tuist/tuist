@@ -3977,6 +3977,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
             public var execution_mode: Components.Schemas.TestParams.execution_modePayload?
+            /// Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_report_revision`.
+            public var shard_report_revision: Swift.Int?
             /// The repository's Git object format.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_object_format`.
@@ -4195,6 +4199,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public var coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload?
+            /// Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_attempt`.
+            public var shard_attempt: Swift.Int?
             /// Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_dirty`.
@@ -4860,6 +4868,7 @@ public enum Components {
             ///   - git_branch: The git branch.
             ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
             ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+            ///   - shard_report_revision: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
             ///   - git_object_format: The repository's Git object format.
             ///   - scheme: The scheme used for the test run.
             ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -4871,6 +4880,7 @@ public enum Components {
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
@@ -4903,6 +4913,7 @@ public enum Components {
                 git_branch: Swift.String? = nil,
                 xcode_coverage_storage_key: Swift.String? = nil,
                 execution_mode: Components.Schemas.TestParams.execution_modePayload? = nil,
+                shard_report_revision: Swift.Int? = nil,
                 git_object_format: Components.Schemas.TestParams.git_object_formatPayload? = nil,
                 scheme: Swift.String? = nil,
                 merge_base_sha: Swift.String? = nil,
@@ -4914,6 +4925,7 @@ public enum Components {
                 shard_index: Swift.Int? = nil,
                 only_test_identifiers: [Swift.String]? = nil,
                 coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload? = nil,
+                shard_attempt: Swift.Int? = nil,
                 git_dirty: Swift.Bool? = nil,
                 history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
                 coverage: Components.Schemas.Coverage? = nil,
@@ -4946,6 +4958,7 @@ public enum Components {
                 self.git_branch = git_branch
                 self.xcode_coverage_storage_key = xcode_coverage_storage_key
                 self.execution_mode = execution_mode
+                self.shard_report_revision = shard_report_revision
                 self.git_object_format = git_object_format
                 self.scheme = scheme
                 self.merge_base_sha = merge_base_sha
@@ -4957,6 +4970,7 @@ public enum Components {
                 self.shard_index = shard_index
                 self.only_test_identifiers = only_test_identifiers
                 self.coverage_evidence = coverage_evidence
+                self.shard_attempt = shard_attempt
                 self.git_dirty = git_dirty
                 self.history_source = history_source
                 self.coverage = coverage
@@ -4990,6 +5004,7 @@ public enum Components {
                 case git_branch
                 case xcode_coverage_storage_key
                 case execution_mode
+                case shard_report_revision
                 case git_object_format
                 case scheme
                 case merge_base_sha
@@ -5001,6 +5016,7 @@ public enum Components {
                 case shard_index
                 case only_test_identifiers
                 case coverage_evidence
+                case shard_attempt
                 case git_dirty
                 case history_source
                 case coverage
@@ -29019,6 +29035,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
                     public var execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload?
+                    /// Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_report_revision`.
+                    public var shard_report_revision: Swift.Int?
                     /// The repository's Git object format.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_object_format`.
@@ -29237,6 +29257,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public var coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload?
+                    /// Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_attempt`.
+                    public var shard_attempt: Swift.Int?
                     /// Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_dirty`.
@@ -29902,6 +29926,7 @@ public enum Operations {
                     ///   - git_branch: The git branch.
                     ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
                     ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+                    ///   - shard_report_revision: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
                     ///   - git_object_format: The repository's Git object format.
                     ///   - scheme: The scheme used for the test run.
                     ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -29913,6 +29938,7 @@ public enum Operations {
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
@@ -29945,6 +29971,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         xcode_coverage_storage_key: Swift.String? = nil,
                         execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload? = nil,
+                        shard_report_revision: Swift.Int? = nil,
                         git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? = nil,
                         scheme: Swift.String? = nil,
                         merge_base_sha: Swift.String? = nil,
@@ -29956,6 +29983,7 @@ public enum Operations {
                         shard_index: Swift.Int? = nil,
                         only_test_identifiers: [Swift.String]? = nil,
                         coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? = nil,
+                        shard_attempt: Swift.Int? = nil,
                         git_dirty: Swift.Bool? = nil,
                         history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
                         coverage: Components.Schemas.Coverage? = nil,
@@ -29988,6 +30016,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.xcode_coverage_storage_key = xcode_coverage_storage_key
                         self.execution_mode = execution_mode
+                        self.shard_report_revision = shard_report_revision
                         self.git_object_format = git_object_format
                         self.scheme = scheme
                         self.merge_base_sha = merge_base_sha
@@ -29999,6 +30028,7 @@ public enum Operations {
                         self.shard_index = shard_index
                         self.only_test_identifiers = only_test_identifiers
                         self.coverage_evidence = coverage_evidence
+                        self.shard_attempt = shard_attempt
                         self.git_dirty = git_dirty
                         self.history_source = history_source
                         self.coverage = coverage
@@ -30032,6 +30062,7 @@ public enum Operations {
                         case git_branch
                         case xcode_coverage_storage_key
                         case execution_mode
+                        case shard_report_revision
                         case git_object_format
                         case scheme
                         case merge_base_sha
@@ -30043,6 +30074,7 @@ public enum Operations {
                         case shard_index
                         case only_test_identifiers
                         case coverage_evidence
+                        case shard_attempt
                         case git_dirty
                         case history_source
                         case coverage

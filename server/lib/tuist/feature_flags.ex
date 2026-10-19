@@ -4,12 +4,9 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
-  @doc """
-  Default-off creation gate for PostgreSQL-owned shard plans. Enable only after
-  every web and processor runtime supports them. Readers use persisted ownership.
-  """
-  def postgres_shard_plans_enabled?(account) do
-    FunWithFlags.enabled?(:postgres_shard_plans, for: account)
+  @doc "Default-off creation gate for immutable shard plans and report aggregation."
+  def immutable_shard_reports_enabled?(account) do
+    FunWithFlags.enabled?(:immutable_shard_reports, for: account)
   end
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."

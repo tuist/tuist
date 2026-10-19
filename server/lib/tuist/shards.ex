@@ -19,7 +19,6 @@ defmodule Tuist.Shards do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
-  alias Tuist.Shards.Workflows
   alias Tuist.Storage
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -35,7 +34,6 @@ defmodule Tuist.Shards do
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params) do
-    project = Repo.preload(project, :account)
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
@@ -87,7 +85,9 @@ defmodule Tuist.Shards do
       granularity: granularity,
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
-      inserted_at: now
+      inserted_at: now,
+      reporting_version:
+        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account).account), do: 1, else: 0)
     }
 
     plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)
@@ -96,14 +96,21 @@ defmodule Tuist.Shards do
       shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
 
     plan =
-      if FeatureFlags.postgres_shard_plans_enabled?(project.account) or Workflows.owns_reference?(project.id, reference) do
-        Workflows.create(plan, modules, suites)
+      if plan.reporting_version == 1 do
+        assignments =
+          JSON.encode!(%{
+            modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
+            test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
+          })
+
+        %{plan | assignments: assignments}
       else
-        {:ok, plan} = IngestRepo.insert(plan)
-        if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
-        if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
         plan
       end
+
+    {:ok, plan} = IngestRepo.insert(plan)
+    if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
+    if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
     %{
       plan: plan,
@@ -113,13 +120,7 @@ defmodule Tuist.Shards do
   end
 
   def get_shard_plan(id) do
-    plan =
-      case Workflows.get(id) do
-        nil -> read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end)
-        workflow -> Workflows.to_plan(workflow)
-      end
-
-    case plan do
+    case read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end) do
       nil -> {:error, :not_found}
       plan -> {:ok, plan}
     end
@@ -325,7 +326,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
-    plan = preload_plan(plan, :modules)
+    plan = preload_assignments(plan, :modules)
 
     modules =
       plan.modules
@@ -336,7 +337,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = preload_plan(plan, [:test_suites, :modules])
+    plan = preload_assignments(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
@@ -395,13 +396,6 @@ defmodule Tuist.Shards do
   defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
-    case Workflows.get_by_reference(project_id, reference) do
-      nil -> get_legacy_plan(project_id, reference)
-      workflow -> Workflows.to_plan(workflow)
-    end
-  end
-
-  defp get_legacy_plan(project_id, reference) do
     read_plan(fn ->
       IngestRepo.one(
         from(s in ShardPlan,
@@ -415,13 +409,6 @@ defmodule Tuist.Shards do
   end
 
   defp get_plan_by_id(project_id, plan_id) do
-    case Workflows.get(plan_id, project_id) do
-      nil -> get_legacy_plan_by_id(project_id, plan_id)
-      workflow -> Workflows.to_plan(workflow)
-    end
-  end
-
-  defp get_legacy_plan_by_id(project_id, plan_id) do
     read_plan(fn ->
       IngestRepo.one(
         from(s in ShardPlan,
@@ -433,11 +420,20 @@ defmodule Tuist.Shards do
     end)
   end
 
-  defp preload_plan(%ShardPlan{authority: :postgres} = plan, _preloads), do: plan
-  defp preload_plan(plan, preloads), do: read_plan(fn -> IngestRepo.preload(plan, preloads) end)
+  defp preload_assignments(%ShardPlan{reporting_version: 1, assignments: assignments} = plan, _preloads) do
+    data = JSON.decode!(assignments)
+    modules = Enum.map(data["modules"], &assignment_struct(ShardPlanModule, &1))
+    suites = Enum.map(data["test_suites"], &assignment_struct(ShardPlanTestSuite, &1))
+    %{plan | modules: modules, test_suites: suites}
+  end
 
-  # Compatibility for legacy plans only. This bypasses migration mirror lag,
-  # not replication lag inside the writer's deployment.
+  defp preload_assignments(plan, preloads), do: read_plan(fn -> IngestRepo.preload(plan, preloads) end)
+
+  defp assignment_struct(schema, attrs) do
+    fields = Map.new(schema.__schema__(:fields), fn field -> {field, Map.get(attrs, Atom.to_string(field))} end)
+    struct(schema, fields)
+  end
+
   # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
   # that took the write. `ClickHouseRepo` can route reads to the in-cluster ClickHouse
   # (`Tuist.ClickHouse.ReadRoute`), which only has the rows once `IngestRepo`'s detached mirror
@@ -691,7 +687,7 @@ defmodule Tuist.Shards do
   # evidence: the union across runs covers what it skipped.
   defp unrestricted_runs_join(:excluded) do
     """
-    INNER JOIN test_runs AS runs
+    INNER JOIN test_run_summaries AS runs
       ON runs.id = module_runs.test_run_id
       AND runs.project_id = {project_id:Int64}
       AND empty(runs.only_test_identifiers)
@@ -984,7 +980,7 @@ defmodule Tuist.Shards do
         toUUIDOrZero(test_run_id) AS test_run_id,
         toInt32(shard_index) AS shard_index,
         argMax(duration, inserted_at) AS duration
-      FROM shard_runs
+      FROM shard_run_summaries
       WHERE project_id = {project_id:Int64}
         AND ran_at >= {cutoff:DateTime64(6)}
       GROUP BY shard_plan_id, test_run_id, shard_index

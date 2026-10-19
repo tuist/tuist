@@ -62,7 +62,7 @@ defmodule Tuist.Tests.Analytics do
   defp test_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
 
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id,
       where: t.ran_at >= ^start_datetime,
       where: t.ran_at <= ^end_datetime,
@@ -78,7 +78,7 @@ defmodule Tuist.Tests.Analytics do
   end
 
   defp test_run_total_count(project_id, start_datetime, end_datetime, opts) do
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id,
       where: t.ran_at >= ^start_datetime,
       where: t.ran_at <= ^end_datetime,
@@ -470,7 +470,7 @@ defmodule Tuist.Tests.Analytics do
 
     query =
       apply_test_run_filters(
-        from(t in Test,
+        from(t in Test.query(),
           where: t.project_id == ^project_id,
           where: t.ran_at >= ^start_datetime,
           where: t.ran_at <= ^end_datetime,
@@ -624,7 +624,7 @@ defmodule Tuist.Tests.Analytics do
     previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
 
     result =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^previous_start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -670,7 +670,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -703,7 +703,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -732,7 +732,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -774,7 +774,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -819,8 +819,13 @@ defmodule Tuist.Tests.Analytics do
   - avg_duration: Average test case duration in milliseconds
   """
   def get_test_run_metrics(test_run_id) do
+    source =
+      if match?({:ok, %Test{reporting_version: 1}}, Tests.get_test(test_run_id)),
+        do: TestCaseRun.query(),
+        else: TestCaseRunByTestRun
+
     query =
-      from t in TestCaseRunByTestRun,
+      from t in source,
         hints: ["FINAL"],
         where: t.test_run_id == ^test_run_id,
         select: %{
@@ -854,8 +859,13 @@ defmodule Tuist.Tests.Analytics do
     # `(test_run_id, ran_at, id)`, giving an O(log N) seek per test_run_id.
     # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
     # `count(DISTINCT id)` gets the right count without paying for FINAL.
+    case_source =
+      if Enum.any?(test_runs, &(Map.get(&1, :reporting_version, 0) == 1)),
+        do: TestCaseRun.query(),
+        else: TestCaseRunByTestRun
+
     test_case_counts =
-      from(t in TestCaseRunByTestRun,
+      from(t in case_source,
         where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
         group_by: t.test_run_id,
         select: %{
@@ -869,8 +879,8 @@ defmodule Tuist.Tests.Analytics do
 
     # Sharded runs report the same module once per shard, so count distinct names.
     ran_test_module_counts =
-      from(m in TestModuleRun,
-        where: m.test_run_id in ^test_run_ids,
+      from(m in TestModuleRun.query(),
+        where: m.project_id == ^project_id and m.test_run_id in ^test_run_ids,
         group_by: m.test_run_id,
         select: {m.test_run_id, fragment("uniqExact(?)", m.name)}
       )
@@ -934,8 +944,13 @@ defmodule Tuist.Tests.Analytics do
   def test_case_counts(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
+    source =
+      if Enum.any?(test_runs, &(Map.get(&1, :reporting_version, 0) == 1)),
+        do: TestCaseRun.query(),
+        else: TestCaseRunByTestRun
+
     outcomes =
-      from(t in TestCaseRunByTestRun,
+      from(t in source,
         where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
         group_by: fragment("ifNull(toString(?), toString(?))", t.test_case_id, t.id),
         select: %{
@@ -1810,7 +1825,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         order_by: [desc: t.ran_at],
         limit: ^limit,

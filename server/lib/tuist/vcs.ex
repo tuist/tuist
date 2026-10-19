@@ -1350,7 +1350,7 @@ defmodule Tuist.VCS do
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
-    from(t in Tests.Test)
+    from(t in Tests.Test.query())
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()

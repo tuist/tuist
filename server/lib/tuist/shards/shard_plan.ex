@@ -16,14 +16,14 @@ defmodule Tuist.Shards.ShardPlan do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
-    field :authority, Ecto.Enum, values: [:clickhouse, :postgres], default: :clickhouse, virtual: true
-    field :merged_test_run_id, Ecto.UUID, virtual: true
+    field :reporting_version, Ch, type: "UInt8", default: 0
+    field :assignments, Ch, type: "String", default: ""
 
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     has_many :modules, Tuist.Shards.ShardPlanModule, foreign_key: :shard_plan_id
     has_many :test_suites, Tuist.Shards.ShardPlanTestSuite, foreign_key: :shard_plan_id
-    has_many :shard_runs, Tuist.Shards.ShardRun, foreign_key: :shard_plan_id
+    has_many :shard_runs, {"shard_run_summaries", Tuist.Shards.ShardRun}, foreign_key: :shard_plan_id
   end
 
   def create_changeset(shard_plan \\ %__MODULE__{}, attrs) do
@@ -36,7 +36,9 @@ defmodule Tuist.Shards.ShardPlan do
       :granularity,
       :build_run_id,
       :gradle_build_id,
-      :inserted_at
+      :inserted_at,
+      :reporting_version,
+      :assignments
     ])
     |> validate_required([
       :id,
