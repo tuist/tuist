@@ -41,9 +41,11 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
 
   test "all callbacks work without calling the replicated cache" do
     reject(Boruta.Cache, :get, 1)
+    reject(Boruta.Cache, :get, 2)
     reject(Boruta.Cache, :put, 2)
     reject(Boruta.Cache, :put, 3)
     reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
 
     key = {__MODULE__, Ecto.UUID.generate()}
     assert AuthoritativeCache.get(key) == nil
@@ -55,6 +57,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
   for type <- ~w(access_token agent_token code preauthorized_code), refresh_token <- [nil, "refresh"] do
     test "upstream token invalidation returns #{type} with refresh #{inspect(refresh_token)} unchanged" do
       reject(Boruta.Cache, :delete, 1)
+      reject(Boruta.Cache, :delete, 2)
       token = %OAuthToken{type: unquote(type), value: Ecto.UUID.generate(), refresh_token: unquote(refresh_token)}
       assert {:ok, ^token} = TokenStore.invalidate(token)
     end
@@ -74,6 +77,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
   test "refresh revocation commits without calling the replicated cache" do
     token = create_access_token()
     reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
 
     assert {:ok, revoked} = AccessTokens.revoke_refresh_token(token)
     assert revoked.refresh_token_revoked_at
@@ -87,6 +91,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
       failed = row |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(:value, "owned write failure")
       expect(Repo, :update, fn %Ecto.Changeset{} -> {:error, failed} end)
       reject(Boruta.Cache, :delete, 1)
+      reject(Boruta.Cache, :delete, 2)
 
       assert {:error, ^failed} = apply(AccessTokens, unquote(operation), [token])
       fresh = Repo.get!(Token, token.id)
@@ -97,6 +102,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
 
   test "upstream public client invalidation does not call the replicated cache" do
     reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
     assert :ok = ClientStore.invalidate_public()
   end
 
