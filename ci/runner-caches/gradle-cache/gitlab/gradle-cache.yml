@@ -1,0 +1,41 @@
+# Include this file at an immutable commit, then reference the snippet before
+# Gradle runs. A cache problem never fails the job.
+.tuist-gradle-cache:
+  before_script:
+    - |
+      if command -v tuist-cache-volume >/dev/null 2>&1; then
+        tuist_gradle_home=${GRADLE_USER_HOME:-$HOME/.gradle}
+        case "$tuist_gradle_home" in
+          /*) ;;
+          *) tuist_gradle_home="$PWD/$tuist_gradle_home" ;;
+        esac
+        tuist_gradle_status=0
+        tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
+        if [ "$tuist_gradle_status" = 0 ]; then
+          mkdir -p "$tuist_gradle_home/init.d"
+          cat >"$tuist_gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'
+      // Written by Tuist's Gradle cache step. Gradle cleans its user home only when
+      // the daemon stops, which a CI job rarely reaches, so the persisted cache would
+      // grow until it fills its volume. Clean after every build instead, and drop
+      // entries unused for seven days. Gradle versions without this API keep their
+      // own settings.
+      beforeSettings { settings ->
+          try {
+              def cleanup = Class.forName('org.gradle.api.cache.Cleanup', true, Settings.classLoader).getField('ALWAYS').get(null)
+              settings.caches { caches ->
+                  caches.cleanup.set(cleanup)
+                  [caches.releasedWrappers, caches.snapshotWrappers, caches.downloadedResources, caches.createdResources, caches.buildCache].each {
+                      it.setRemoveUnusedEntriesAfterDays(7)
+                  }
+              }
+          } catch (Throwable ignored) {
+          }
+      }
+      GROOVY
+        else
+          echo "Warning: could not attach the Gradle cache (tuist-cache-volume exited $tuist_gradle_status); the job runs with an empty one." >&2
+        fi
+        unset tuist_gradle_home tuist_gradle_status
+      else
+        echo "This runner does not provide Tuist cache volumes; nothing to set up."
+      fi

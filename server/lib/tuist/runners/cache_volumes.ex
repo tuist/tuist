@@ -22,6 +22,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
@@ -73,12 +74,17 @@ defmodule Tuist.Runners.CacheVolumes do
   # webhook arrives.
   defp executing_job(pod, node) do
     case execution_binding(pod, node) do
-      {job, platform} ->
+      {job, %RunnerSession{platform: platform} = session} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
           case job do
-            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
-            nil -> {:error, :pending}
-            _ -> {:error, :unavailable}
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) ->
+              {:ok, job, platform}
+
+            nil ->
+              await_execution(session)
+
+            _ ->
+              {:error, :unavailable}
           end
         else
           {:error, :unavailable}
@@ -88,6 +94,15 @@ defmodule Tuist.Runners.CacheVolumes do
         {:error, :unavailable}
     end
   end
+
+  # Without a binding, ask GitHub directly rather than wait for an
+  # `in_progress` delivery that can lag the job's start by minutes.
+  defp await_execution(%RunnerSession{executed_workflow_job_id: nil} = session) do
+    {:ok, _job} = ExecutionLookupWorker.enqueue(session)
+    {:error, :pending}
+  end
+
+  defp await_execution(%RunnerSession{}), do: {:error, :pending}
 
   defp execution_binding(pod, node) do
     Repo.one(
@@ -99,7 +114,7 @@ defmodule Tuist.Runners.CacheVolumes do
         where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: {j, s.platform}
+        select: {j, s}
       )
     )
   end
@@ -853,7 +868,17 @@ defmodule Tuist.Runners.CacheVolumes do
         else: where(query, [v], ilike(v.key, ^"%#{search}%") or ilike(v.repository, ^"%#{search}%"))
 
     query = if name = opts[:name], do: where(query, [v], v.key == ^name), else: query
-    if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    query = if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    exclude_builtin(query, opts)
+  end
+
+  # Dashboards hide the built-in volume from accounts that still get it
+  # automatically; it is shown once the account opts in to cache steps.
+  # Expects the volume as the query's last binding.
+  defp exclude_builtin(query, opts) do
+    if Keyword.get(opts, :include_builtin, true),
+      do: query,
+      else: where(query, [..., v], is_nil(v.builtin_name))
   end
 
   def history_count(account_id, volume_id) do
@@ -973,13 +998,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Roll up per-copy changes before summing: summing measurement rows would count
   # every historical report as additional storage. Older reports seed the window.
-  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil)
+  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil, opts \\ [])
 
-  def storage_history(account_id, %DateTime{} = now, volume_id) do
-    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id)
+  def storage_history(account_id, %DateTime{} = now, volume_id, opts) do
+    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id, opts)
   end
 
-  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id) do
+  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id, opts) do
     result =
       Ecto.Adapters.SQL.query!(
         Repo,
@@ -995,11 +1020,13 @@ defmodule Tuist.Runners.CacheVolumes do
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND m.observed_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
           UNION ALL
           SELECT 0, u.id, u.volume_id, u.inserted_at, 0, 0, 1, 0, 0
           FROM runner_cache_volume_uses u
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND u.inserted_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
         ), changes AS (
           SELECT volume_id, CASE WHEN observed_at <= $3 THEN $3::timestamptz
             ELSE LEAST($2::timestamptz, date_trunc('hour', observed_at) + interval '1 hour') END AS bucket,
@@ -1036,7 +1063,13 @@ defmodule Tuist.Runners.CacheVolumes do
         WINDOW timeline AS (ORDER BY bucket)
         ORDER BY bucket
         """,
-        [account_id, now, start, if(volume_id, do: Ecto.UUID.dump!(volume_id))]
+        [
+          account_id,
+          now,
+          start,
+          if(volume_id, do: Ecto.UUID.dump!(volume_id)),
+          Keyword.get(opts, :include_builtin, true)
+        ]
       )
 
     points =
@@ -1059,7 +1092,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}) do
+  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -1075,6 +1108,7 @@ defmodule Tuist.Runners.CacheVolumes do
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
+    mounts = exclude_builtin(mounts, opts)
 
     rows =
       Repo.all(
@@ -1134,9 +1168,10 @@ defmodule Tuist.Runners.CacheVolumes do
     :ok
   end
 
-  def for_job(account_id, workflow_run_id, workflow_job_id) do
+  def for_job(account_id, workflow_run_id, workflow_job_id, opts \\ []) do
     Usage
     |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
+    |> exclude_builtin(opts)
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

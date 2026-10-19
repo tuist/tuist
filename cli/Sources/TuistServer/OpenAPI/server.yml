@@ -10283,8 +10283,6 @@ components:
             description: A scope string in format entity:object:access_level.
             enum:
               - ci
-              - mcp
-              - account:scim:write
               - account:cache:read
               - account:cache:write
               - account:members:read
@@ -24621,8 +24619,6 @@ paths:
                     description: A scope string in format entity:object:access_level.
                     enum:
                       - ci
-                      - mcp
-                      - account:scim:write
                       - account:cache:read
                       - account:cache:write
                       - account:members:read

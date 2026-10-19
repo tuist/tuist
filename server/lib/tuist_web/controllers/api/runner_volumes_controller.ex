@@ -113,6 +113,10 @@ defmodule TuistWeb.API.RunnerVolumesController do
     conn |> put_status(:not_found) |> json(%{message: "Runner volume or job not found."})
   end
 
+  defp respond(conn, {:error, :unsupported}) do
+    conn |> put_status(:bad_request) |> json(%{message: "Built-in volumes can't be cleared."})
+  end
+
   defp respond(conn, {:error, :invalid_parameters}) do
     conn
     |> put_status(:bad_request)

@@ -148,4 +148,4 @@ All of these accept `--json` for scripting.
 
 ### REST API
 
-The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. To change a test case's state (mark or unmark flaky, mute, skip), send `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` with `is_flaky` or `state`. The same change is available as `tuist test case update` and as the `update_test_case` Model Context Protocol tool.

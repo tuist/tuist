@@ -1,0 +1,12 @@
+name: Tuist module cache
+description: Keep the Tuist module cache across jobs on Tuist macOS runners.
+branding:
+  icon: package
+  color: purple
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TUIST_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_ACTION_PATH/activate.sh" module

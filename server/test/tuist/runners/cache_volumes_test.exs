@@ -17,6 +17,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -244,6 +245,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     }
 
     assert {:error, :pending} = CacheVolumes.allocate(params)
+    refute_enqueued(worker: ExecutionLookupWorker)
 
     row =
       Repo.insert!(
@@ -304,6 +306,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:error, :unavailable} = CacheVolumes.allocate(params)
       assert {:error, :pending} = CacheVolumes.allocate(params)
+      assert_enqueued(worker: ExecutionLookupWorker, args: %{session_id: session.id})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
       assert CacheVolumes.list(account.id).volumes == []
