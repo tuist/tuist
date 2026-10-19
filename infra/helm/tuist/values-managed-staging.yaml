@@ -750,10 +750,6 @@ macosFleet:
     proxyTags: tag:tuist-k8s-staging
   enabled: true
   replicas: 1
-  # Staging runs the next Tart first. This also reaches the rack hosts staging
-  # lends to canary.
-  tart:
-    version: "2.41.1"
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
   # listen backlog. That socket binds *:22, so an exhausted backlog takes the

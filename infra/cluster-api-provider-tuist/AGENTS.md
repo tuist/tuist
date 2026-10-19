@@ -2050,8 +2050,9 @@ selects it, so a rollback never needs an image build. Before adding a release,
 check its changelog against "Tart versions" in
 [`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md).
 
-Staging's operator manages the BER1 rack hosts, including one lent to canary,
-so a staging value reaches that host too.
+Production's operator manages the BER1 rack hosts, including the one it lends
+to staging, so pin rack hosts in production. A staging value reaches only
+staging's rented hosts.
 
 ## Module layout
 
