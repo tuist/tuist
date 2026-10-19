@@ -92,10 +92,10 @@ GitHub container jobs and Docker actions require Linux. macOS custom volumes
 are APFS images mounted in the macOS guest and are not automatically shared
 with a separate Docker VM.
 
-Built-in Tuist and Xcode compilation caches continue working automatically.
-Custom volumes are additional opt-in caches; use a separate empty directory
-and do not target the built-in cache mount. Linux and macOS volumes with the
-same key are separate.
+Keep the Xcode compilation cache and the Tuist module cache with
+<.localized_link href="/guides/features/runners/build-caches">their own steps</.localized_link> instead of a cache volume.
+Use a separate empty directory for each volume and do not target those caches'
+directories. Linux and macOS volumes with the same key are separate.
 
 ## Saving changes {#saving-changes}
 
