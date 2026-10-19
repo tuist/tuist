@@ -305,7 +305,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Teardown order is load-bearing: **wait for the compilation cache's
   publications to reach the remote** (`drain_cas_publications`, below), sample
   the signals that need a live mount (fill
-  %), then **detach**, then measure the SETTLED image for the digest this job
+  %, which also withholds an image at 98% full or holding more than the staged
+  cache budget, since a master over the budget leaves the next job less than the
+  reserve to build in), then **detach**, then measure the SETTLED image for the digest this job
   publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
   the same view the verifying host uses), then write `cache-dirty` (only after both
   a clean detach and a successful measurement — its absence is what tells the host
@@ -633,7 +635,11 @@ CI:
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
      `runnersFleet.runnerImageSemver` resolves to that tag at deploy
-     time.
+     time, and `server-deployment.yml` resolves each profile that
+     release lists in `profiles.json` to the digest its tag serves
+     (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
+     carried profile's pools, warm Pods and host goldens stay as they
+     were. A profile tag that cannot be resolved fails the deploy.
   5. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
@@ -719,7 +725,7 @@ removing one drops it from the next release.
   That dispatch path doesn't move the chart pin.
 
 Active rebuilds always produce both an immutable tag
-(`:macos-<dashes>-<semver>`, the one the chart pins) and a rolling
+(`:macos-<dashes>-<semver>`, the one deploys resolve to a digest) and a rolling
 tag (`:macos-<dashes>`, convenient for humans pulling "latest in
 this profile").
 
@@ -780,27 +786,19 @@ in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
 rollbacks and traceability). The tag form is the Xcode version
 with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
 1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
-produces `:macos-26-5`. The chart pins the immutable per-release
-tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
+produces `:macos-26-5`. Pools run the digest of the immutable
+per-release tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
 coexist in GHCR — the runner-fleet config currently selects one as
 the default but the structure is ready for the future
 customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. Each `runnersFleet.pools[].runnerImage` (helm value) is pinned to
-   a profile's immutable per-release tag
-   (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
-   chart's `required` directive only enforces non-empty; the
-   release flow writes the immutable tag (not a digest) because
-   the semver is monotonic, so the ref is reproducible without a
-   registry lookup.
-
-   > **Transitional:** today there's a single pool (`name: default`)
-   > and the release pins it to the first matrix profile (the
-   > "default profile"). The chart is built for one pool per profile
-   > — once #10970 lands the pool-per-profile values, each pool pins
-   > its own profile tag and the "default" goes away.
+1. Each catalog RunnerPool's `spec.image` (`tuist.macosRunnerImage`)
+   is `ghcr.io/tuist/tuist-runner@<digest>`, the digest the deploy
+   resolved for the profile's immutable per-release tag
+   (`:macos-<profile>-<semver>`) from GHCR the way hosts pull it. An
+   `xcodeOverrides[].imageTag` pin renders as that tag instead.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.

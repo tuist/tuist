@@ -856,6 +856,8 @@ jobs:
             done
           }
 
+          runner_image_semver="$(resolve 'runner-image@')"
+
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
             # Hosted Kura follows main like the server: the newest canary
@@ -867,12 +869,33 @@ jobs:
             kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' merged '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$')"
             [ -n "$kura_runtime_tag" ] || kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' any)"
             echo "KURA_RUNTIME_TAG=$kura_runtime_tag"
-            echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
+            echo "RUNNER_IMAGE_SEMVER=$runner_image_semver"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
             echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
+
+          # Each macOS pool names its runner image by the digest its release
+          # tag serves, not by the tag. A release re-tags the profiles it did
+          # not rebuild, and a new tag on the same content would otherwise
+          # roll every warm pool and send every host to pull a new golden.
+          # The profiles are the ones that release published, which its gate
+          # checked before tagging, so a tag that cannot be pinned fails the
+          # deploy instead of falling back to the tag. A checkout predating
+          # the digest script also predates the chart's digest support.
+          digest_script=.github/scripts/ghcr-manifest-digest.sh
+          if [ -n "$runner_image_semver" ] && [ -x "$digest_script" ]; then
+            profiles="$(git show "runner-image@${runner_image_semver}:infra/runner-image/profiles.json" | jq -r '.[]')"
+            runner_image_digests='{}'
+            for xcode in $profiles; do
+              tag="macos-${xcode//./-}-${runner_image_semver}"
+              digest="$("$digest_script" tuist/tuist-runner "$tag")"
+              echo "ghcr.io/tuist/tuist-runner:${tag} is ${digest}"
+              runner_image_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$runner_image_digests")"
+            done
+            echo "RUNNER_IMAGE_DIGESTS=$runner_image_digests" >> "$GITHUB_ENV"
+          fi
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
@@ -1147,6 +1170,12 @@ jobs:
           fi
           add_set "xcresultProcessor.image.tag" "$xcresult_processor_image_tag"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          if [ -n "${RUNNER_IMAGE_DIGESTS:-}" ]; then
+            while IFS=$'\t' read -r xcode digest; do
+              image_sets+=(--set-string "runnersFleet.runnerImageDigests.${xcode//./\\.}=$digest")
+              echo "Pinning runnersFleet.runnerImageDigests.$xcode=$digest"
+            done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<< "$RUNNER_IMAGE_DIGESTS")
+          fi
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used
           # to pin staging at an in-flight `:macos-26-5-<git-sha>` build

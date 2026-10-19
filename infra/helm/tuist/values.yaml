@@ -2621,8 +2621,8 @@ runnersFleet:
     #     minWarmPoolFloor: 0
     #     maxReplicas: 2          # hosts that can fit it, not fleet slots
   # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
-  # `<release>-runner-pool-macos-<xcode-dashes>` with image
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # `<release>-runner-pool-macos-<xcode-dashes>` with that Xcode's runner
+  # image (see `runnerImageDigests` below).
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
@@ -2665,19 +2665,27 @@ runnersFleet:
     #     - self-hosted
     #     - macOS
     #     - ARM64
-    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageSemver`.
-  # Per-pool runner image template. `runner-pool.yaml` constructs each
-  # macOS pool's `spec.image` as
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so a runner image release only bumps `runnerImageSemver`
-  # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
-  # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
-  # an out-of-rotation Xcode refreshed via `runner-image.yml`).
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageDigests` and `runnerImageSemver`.
+  # Each macOS pool's `spec.image` is, in order: the Xcode's
+  # `xcodeOverrides[].imageTag` pin (e.g. a SHA tag for an out-of-rotation
+  # Xcode refreshed via `runner-image.yml`), else
+  # `<runnerImageRepository>@<runnerImageDigests[xcode]>`, else
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
-  # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Resolved from the latest `runner-image@` tag at
-  # deploy time; managed envs override this with the live version.
+  # Required when `xcodeVersions` is non-empty and an Xcode has neither a
+  # digest nor an `imageTag` (the template fails the render otherwise).
+  # Resolved from the latest `runner-image@` tag at deploy time; managed
+  # envs override this with the live version.
   runnerImageSemver: ""
+  # Manifest digest (`sha256:<hex>`) of each Xcode's
+  # `macos-<xcode-dashes>-<runnerImageSemver>` tag, keyed by `xcodeVersion`.
+  # `server-deployment.yml` resolves them for the profiles the
+  # `runner-image@<runnerImageSemver>` release published. A release re-tags
+  # the profiles it did not rebuild, so naming the digest keeps an unchanged
+  # image's ref, and with it its pools' Pods and each host's golden, across
+  # releases. Tart-kubelet names goldens after the ref string and the
+  # runners-controller rolls Pods whose ref differs from the pool's.
+  runnerImageDigests: {}
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.

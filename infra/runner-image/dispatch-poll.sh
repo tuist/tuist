@@ -1433,27 +1433,51 @@ stage_volume_usage() {
 # account is then wedged from the inside, because a failing job never promotes a
 # replacement. Refusing costs the account one job's warmth and keeps the last
 # master that still had room.
+#
+# The ceiling is the backstop for a host that stages no budget. With one, the
+# budget is the tighter bound: the image less the budget is the room every job
+# starts with, so a master holding more than the budget hands the next job less
+# than that room. A build that needs the room then fails with ENOSPC, and the
+# failure is never promoted, which wedges the account well below this ceiling.
 CACHE_FILL_PROMOTE_CEILING=98
+
+# Why sample_cache_fill refused the image, for the teardown's log line.
+CACHE_PROMOTE_REFUSAL=""
 
 # sample_cache_fill records the image's post-job fill % (binary cache + CAS +
 # overhead) for the host's fill histogram — the signal for whether the reserve is
 # holding or the volume is running near ENOSPC. Must run while the image is still
-# MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
-# format; column 5 is Use%.
+# MOUNTED, since `df` reports on a mount. `df -kP` for the portable one-line
+# format in KiB; column 3 is used, column 5 is Use%.
 #
-# Returns non-zero once the fill reaches CACHE_FILL_PROMOTE_CEILING so teardown
-# can withdraw the branch. An unreadable fill returns 0: the gauge is the only
-# evidence here, and refusing to promote every image whose `df` did not parse
-# would freeze the account's cache on a reporting failure.
+# Returns non-zero, with the reason in CACHE_PROMOTE_REFUSAL, once the fill
+# reaches CACHE_FILL_PROMOTE_CEILING or the image holds more than the budget
+# (CACHE_BUDGET_BYTES), so teardown can withdraw the branch. An unreadable
+# sample returns 0: the gauge is the only evidence here, and refusing to promote
+# every image whose `df` did not parse would freeze the account's cache on a
+# reporting failure.
 sample_cache_fill() {
+  CACHE_PROMOTE_REFUSAL=""
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
-  local fill
-  fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
+  local sample fill used
+  sample=$(df -kP "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); printf "%s %.0f", $5, $3 * 1024}')
+  fill=${sample%% *}
+  used=${sample#* }
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
-  [ -n "${fill}" ] || return 0
-  printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
-  [ "${fill}" -lt "${CACHE_FILL_PROMOTE_CEILING}" ]
+  case "${used}" in ''|*[!0-9]*) used="" ;; esac
+  if [ -n "${fill}" ]; then
+    printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+    if [ "${fill}" -ge "${CACHE_FILL_PROMOTE_CEILING}" ]; then
+      CACHE_PROMOTE_REFUSAL="cache volume ${fill}% full"
+      return 1
+    fi
+  fi
+  if [ -n "${used}" ] && [ -n "${CACHE_BUDGET_BYTES}" ] && [ "${used}" -gt "${CACHE_BUDGET_BYTES}" ]; then
+    CACHE_PROMOTE_REFUSAL="cache volume holds ${used}B, over its ${CACHE_BUDGET_BYTES}B budget"
+    return 1
+  fi
+  return 0
 }
 
 # Where the detached image is re-attached to be measured. Deliberately not
@@ -2313,7 +2337,7 @@ HOOK
       # rather than left to mark_cache_not_promotable's provisional "0".
       cache_within_fill_ceiling=1
       if ! sample_cache_fill; then
-        mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
+        mark_cache_not_promotable "${CACHE_PROMOTE_REFUSAL}"
         cache_within_fill_ceiling=0
       fi
       if runner_caches_used; then
