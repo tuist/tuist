@@ -98,3 +98,22 @@ workflow code runs in the guest. Never expose host credentials or masters.
   seeds from the Pod's published readiness for the same VM so a tart-kubelet
   restart does not flap Ready. A wrong probe stalls rollouts and PDBs, so
   probes stay opt-in per PodSpec.
+
+- Cached checkouts (spec #99) are custom volumes with the reserved key
+  `checkout`, written only by the host. `checkout_volumes.go` (the populator)
+  builds and refreshes one master per (scope, clear generation) under
+  `<custom root>/checkouts` with real git and a pinned, checksum-verified
+  git-lfs it installs into `checkouts/.bin`; the host needs the Command Line
+  Tools (bootstrap installs them) and otherwise leaves checkouts off. The token
+  reaches git only through `GIT_CONFIG_*` env for one command: never argv,
+  `.git/config` or the remote URL. Branches stay `refs/remotes/origin/*`
+  (actions/checkout deletes local branches before fetching) and served job
+  commits live under `refs/tuist/recent/*`. Wait past the smudged files' mtimes
+  before the final `update-index --really-refresh`: racily clean LFS entries
+  turn back into pointers in a guest that has not configured the LFS filter.
+- A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
+  allocates through `/checkout`, marks the identity `Kind: checkout` itself and
+  seeds the branch from the master (`APFSImages.Seed`), never an empty image.
+  Checkout branches are never publishable. Builds reserve disk through the
+  custom admission (`checkoutReserved`) and evict LRU checkout masters first.
+  Run the real-tools test with `TUIST_CHECKOUT_E2E_TOKEN=$(gh auth token) go test ./internal/podagent -run CheckoutMasterEndToEnd`.

@@ -394,7 +394,9 @@ func main() {
 
 	var customVolumes *podagent.CustomVolumes
 	if customCacheURL != "" && volumes.Enabled() {
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes}
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes,
+			// Checkout masters share the custom volumes' filesystem, admission and agent.
+			Checkouts: &podagent.Checkouts{Root: filepath.Join(runnerCacheRoot, "custom", "checkouts")}}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)

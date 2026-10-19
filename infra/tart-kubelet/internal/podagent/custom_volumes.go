@@ -33,6 +33,7 @@ type CustomVolumes struct {
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
 	Builtins                                   *VolumeManager
+	Checkouts                                  *Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
@@ -42,6 +43,7 @@ type CustomVolumes struct {
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
+	checkoutReserved                           uint64
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -136,6 +138,10 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	if c.Checkouts != nil {
+		backend.Seed = c.Checkouts.Seed
+		c.Checkouts.Room = c.reserveCheckout
+	}
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
 	c.Builtins.mu.Unlock()
@@ -164,11 +170,16 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
 	c.prefetch = &customPrefetcher{slots: make(chan struct{}, 1), budget: 2 * time.Minute, restore: backend.Prefetch}
+	var builds sync.WaitGroup
 	defer func() {
 		stopPrefetch()
 		c.prefetch.wait.Wait()
+		builds.Wait()
 	}()
 	c.prefetch.ctx = prefetchCtx
+	if c.Checkouts != nil {
+		builds.Go(func() { c.Checkouts.Start(prefetchCtx) })
+	}
 	requests := time.NewTicker(time.Second)
 	defer requests.Stop()
 	reports := time.NewTicker(30 * time.Second)
@@ -257,7 +268,7 @@ func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
 		return 0, err
 	}
 	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	reserved += c.reservedBytes()
+	reserved += c.reservedBytes() + c.checkoutReserved
 	if c.Builtins.converging != nil {
 		reserved += c.Builtins.converging.remaining()
 	}
@@ -311,6 +322,7 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
+	c.Checkouts.Maintain()
 	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
 		if err != nil {
@@ -375,25 +387,53 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key string `json:"key"`
-			UID int    `json:"uid"`
+			Key      string `json:"key"`
+			UID      int    `json:"uid"`
+			Checkout bool   `json:"checkout"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
 		if err != nil {
 			continue
 		}
-		deadline := time.Now().Add(25 * time.Second)
-		if requestDeadline := info.ModTime().Add(25 * time.Second); requestDeadline.Before(deadline) {
+		// A checkout never makes a job wait longer than a cold checkout would cost.
+		budget := 25 * time.Second
+		if input.Checkout {
+			budget = 15 * time.Second
+		}
+		deadline := time.Now().Add(budget)
+		if requestDeadline := info.ModTime().Add(budget); requestDeadline.Before(deadline) {
 			deadline = requestDeadline
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
+		if input.Checkout {
+			response := map[string]any{"error": "unavailable", "reason": "error"}
+			if c.Checkouts != nil {
+				response = c.checkout(acquireCtx, pod, input.UID)
+			}
+			cancel()
+			if response == nil {
+				continue
+			}
+			data, _ := json.Marshal(response)
+			if published, err := publishResponse(root, name+".response", data); err != nil {
+				return err
+			} else if !published {
+				continue
+			}
+			if _, err := root.Stat(name); os.IsNotExist(err) {
+				_ = root.Remove(name + ".response")
+			}
+			continue
+		}
 		var identity cachevolumes.Identity
 		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
 		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
 			cancel()
 			continue
 		}
+		// The reserved checkout name is only ever allocated through the checkout path.
+		identity.Kind, identity.Generation = "", 0
 		response := map[string]any{"error": "unavailable"}
 		if err == nil {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
