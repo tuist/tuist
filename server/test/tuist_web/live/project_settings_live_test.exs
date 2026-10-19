@@ -100,6 +100,81 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
   end
 
+  describe "Fly.io OIDC trust policies" do
+    test "adds and removes a project-scoped policy", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+
+      lv
+      |> form("#fly-oidc-trust-policy-form", %{
+        "fly_oidc_trust_policy" => %{
+          "issuer" => "https://oidc.fly.io/example-org",
+          "organization_id" => "123",
+          "application_id" => "456"
+        }
+      })
+      |> render_submit()
+
+      assert [policy] = Tuist.Projects.list_fly_oidc_trust_policies(project)
+      assert has_element?(lv, "#fly-oidc-policy-#{policy.id}", "https://oidc.fly.io/example-org")
+
+      lv |> element("#fly-oidc-policy-#{policy.id} button") |> render_click()
+      assert [] = Tuist.Projects.list_fly_oidc_trust_policies(project)
+      refute has_element?(lv, "#fly-oidc-policy-#{policy.id}")
+    end
+
+    test "rejects arbitrary issuers", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+
+      html =
+        lv
+        |> form("#fly-oidc-trust-policy-form", %{
+          "fly_oidc_trust_policy" => %{
+            "issuer" => "https://example.com",
+            "organization_id" => "123",
+            "application_id" => "456"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must be https://oidc.fly.io/"
+      assert [] = Tuist.Projects.list_fly_oidc_trust_policies(project)
+    end
+
+    test "cannot remove another project's policy", %{conn: conn, organization: organization, project: project} do
+      other = ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, policy} =
+        Tuist.Projects.create_fly_oidc_trust_policy(other, %{
+          issuer: "https://oidc.fly.io/example-org",
+          organization_id: "123",
+          application_id: "456"
+        })
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+      render_click(lv, "delete_fly_oidc_trust_policy", %{"policy-id" => to_string(policy.id)})
+      refute has_element?(lv, "#fly-oidc-policy-#{policy.id}")
+      assert [^policy] = Tuist.Projects.list_fly_oidc_trust_policies(other)
+    end
+
+    test "reauthorizes both policy mutations", %{project: project, user: user} do
+      socket = %Phoenix.LiveView.Socket{assigns: %{selected_project: project, current_user: user}}
+
+      expect(Tuist.Authorization, :authorize, 2, fn :project_update, ^user, %{id: id} ->
+        assert id == project.id
+        {:error, :forbidden}
+      end)
+
+      for {event, params} <- [
+            {"create_fly_oidc_trust_policy", %{"fly_oidc_trust_policy" => %{}}},
+            {"delete_fly_oidc_trust_policy", %{"policy-id" => "1"}}
+          ] do
+        assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+          TuistWeb.ProjectSettingsLive.handle_event(event, params, socket)
+        end
+      end
+    end
+  end
+
   describe "project logo" do
     test "renders the logo upload card", %{
       conn: conn,

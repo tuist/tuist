@@ -202,6 +202,7 @@ defmodule Tuist do
       AppBuilds.AppBuild,
       Projects,
       Projects.Project,
+      Projects.FlyOIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
       Apple,
       Xcode,

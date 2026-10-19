@@ -2,8 +2,8 @@ defmodule TuistWeb.API.OIDCController do
   @moduledoc """
   Controller for OIDC token exchange.
 
-  This controller handles the exchange of CI provider OIDC tokens for
-  short-lived Tuist access tokens. Supports GitHub Actions, CircleCI, and Bitrise.
+  This controller handles the exchange of CI and workload OIDC tokens for
+  short-lived Tuist access tokens. Supports GitHub Actions, CircleCI, Bitrise, and Fly.io.
   """
 
   use OpenApiSpex.ControllerSpecs
@@ -26,9 +26,9 @@ defmodule TuistWeb.API.OIDCController do
   @token_ttl_seconds 3600
 
   operation(:exchange_token,
-    summary: "Exchange a CI provider OIDC token for a Tuist access token.",
+    summary: "Exchange an OIDC identity token for a Tuist access token.",
     description: """
-    Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
     for a short-lived Tuist access token.
     """,
     operation_id: "exchangeOIDCToken",
@@ -38,9 +38,15 @@ defmodule TuistWeb.API.OIDCController do
          title: "OIDCTokenExchangeRequest",
          type: :object,
          properties: %{
+           account_handle: %Schema{
+             type: :string,
+             minLength: 1,
+             maxLength: 255,
+             description: "Target Tuist account for Fly.io workload authentication. Trust policies are still required."
+           },
            token: %Schema{
              type: :string,
-             description: "The OIDC JWT token from the CI provider."
+             description: "The OIDC JWT token from a supported CI or workload identity provider."
            }
          },
          required: [:token]
@@ -63,16 +69,16 @@ defmodule TuistWeb.API.OIDCController do
            },
            required: [:access_token, :expires_in]
          }},
-      bad_request: {"Unsupported CI provider or missing repository claim", "application/json", Error},
+      bad_request: {"Unsupported provider or missing identity claims", "application/json", Error},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
-      forbidden: {"No projects linked to the repository", "application/json", Error}
+      forbidden: {"No authorized projects or ambiguous account", "application/json", Error}
     }
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
     with {:ok, claims} <- OIDC.claims(token),
-         {:ok, projects} <- find_projects_by_repository(claims.repository),
-         {:ok, account} <- single_account(projects, claims.repository),
+         {:ok, projects} <- find_projects(claims, Map.get(conn.body_params, :account_handle)),
+         {:ok, account} <- single_account(projects, claims),
          {:ok, access_token} <- generate_token(account, projects) do
       conn
       |> put_status(:ok)
@@ -91,7 +97,7 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently supported: GitHub Actions, CircleCI, and Bitrise."
+            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently supported: GitHub Actions, CircleCI, Bitrise, and Fly.io."
         })
 
       {:error, :missing_repository_claim} ->
@@ -100,6 +106,29 @@ defmodule TuistWeb.API.OIDCController do
         |> json(%{
           message:
             "OIDC token does not contain required repository information used to verify it with the GitHub project connection."
+        })
+
+      {:error, :missing_workload_claim} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Fly.io OIDC token must contain organization and application IDs."})
+
+      {:error, :token_not_yet_valid} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "OIDC token is not yet valid"})
+
+      {:error, :no_trusted_projects} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "No projects trust this Fly.io workload. Add a trust policy in the project settings first."})
+
+      {:error, :ambiguous_workload} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Fly.io workload is trusted by projects in multiple Tuist accounts. Set TUIST_OIDC_ACCOUNT to the target account handle."
         })
 
       {:error, :invalid_signature} ->
@@ -144,7 +173,21 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp find_projects_by_repository(repository) do
+  defp find_projects(%{provider: :fly} = identity, account_handle) do
+    projects = Projects.projects_by_fly_oidc_identity(identity)
+
+    projects =
+      if is_nil(account_handle),
+        do: projects,
+        else: Enum.filter(projects, &(String.downcase(&1.account.name) == String.downcase(account_handle)))
+
+    case projects do
+      [] -> {:error, :no_trusted_projects}
+      projects -> {:ok, projects}
+    end
+  end
+
+  defp find_projects(%{repository: repository}, _account_handle) do
     case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
       [] -> {:error, :no_projects}
       projects -> {:ok, projects}
@@ -152,10 +195,17 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   # A token is scoped to one account, and project access requires the
-  # token's account to own the project. If the repository is linked from
-  # several accounts, no single token can serve every linked project, so
+  # token's account to own the project. If the identity maps to projects in
+  # several accounts, no single token can serve every project, so
   # refuse the exchange instead of picking an account by row order.
-  defp single_account(projects, repository) do
+  defp single_account(projects, %{provider: :fly}) do
+    case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
+      [account] -> {:ok, account}
+      _ -> {:error, :ambiguous_workload}
+    end
+  end
+
+  defp single_account(projects, %{repository: repository}) do
     case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
       [account] -> {:ok, account}
       accounts -> {:error, :ambiguous_repository, repository, accounts |> Enum.map(& &1.name) |> Enum.sort()}

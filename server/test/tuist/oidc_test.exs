@@ -4,6 +4,8 @@ defmodule Tuist.OIDCTest do
 
   alias Tuist.KeyValueStore
   alias Tuist.OIDC
+  alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
@@ -189,6 +191,117 @@ defmodule Tuist.OIDCTest do
       assert {:error, :unsupported_provider, "https://token.actions.githubusercontent.com/my-enterprise/evil"} =
                OIDC.claims(token)
     end
+  end
+
+  describe "Fly.io workload identities" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _} =
+        Projects.create_fly_oidc_trust_policy(project, %{
+          issuer: "https://oidc.fly.io/example-org",
+          organization_id: "123",
+          application_id: "456"
+        })
+
+      :ok
+    end
+
+    test "unconfigured Fly identities cause no outbound JWKS fetch or cache entry" do
+      reject(Req, :get, 2)
+      reject(KeyValueStore, :get_or_update, 3)
+      {token, _} = fly_token(%{"app_id" => "999"})
+      assert {:error, :invalid_signature} = OIDC.claims(token)
+    end
+
+    test "allows at most sixty seconds of signer clock skew" do
+      now = DateTime.to_unix(DateTime.utc_now())
+      {token, jwks} = fly_token(%{"nbf" => now + 60})
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      stub(DateTime, :utc_now, fn -> DateTime.from_unix!(now) end)
+      assert {:ok, %{provider: :fly}} = OIDC.claims(token)
+      {future_token, future_jwks} = fly_token(%{"nbf" => now + 61})
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: future_jwks}} end)
+      assert {:error, :token_not_yet_valid} = OIDC.claims(future_token)
+    end
+
+    test "verifies the organization-specific issuer and returns stable workload IDs, not a repository" do
+      {token, jwks} = fly_token()
+
+      expect(Req, :get, fn url, opts ->
+        assert url == "https://oidc.fly.io/example-org/.well-known/jwks"
+        assert opts[:redirect] == false
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok,
+              %{
+                provider: :fly,
+                issuer: "https://oidc.fly.io/example-org",
+                organization_id: "123",
+                application_id: "456"
+              } = identity} = OIDC.claims(token)
+
+      refute Map.has_key?(identity, :repository)
+    end
+
+    test "accepts an audience array containing tuist" do
+      {token, jwks} = fly_token(%{"aud" => ["another-service", "tuist"]})
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, %{provider: :fly}} = OIDC.claims(token)
+    end
+
+    for {claim, value, error} <- [
+          {"aud", "other-service", :invalid_audience},
+          {"aud", nil, :invalid_audience},
+          {"aud", ["other-service"], :invalid_audience},
+          {"org_id", nil, :missing_workload_claim},
+          {"org_id", "", :missing_workload_claim},
+          {"org_id", 123, :missing_workload_claim},
+          {"app_id", nil, :missing_workload_claim},
+          {"app_id", "", :missing_workload_claim},
+          {"app_id", "*", :missing_workload_claim},
+          {"exp", 0, :token_expired},
+          {"nbf", 99_999_999_999, :token_not_yet_valid},
+          {"nbf", "invalid", :invalid_token}
+        ] do
+      test "rejects #{claim}=#{inspect(value)}" do
+        {token, jwks} = fly_token(%{unquote(claim) => unquote(Macro.escape(value))})
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+        assert {:error, unquote(error)} = OIDC.claims(token)
+      end
+    end
+
+    test "rejects untrusted issuer URLs without making a network request" do
+      reject(Req, :get, 2)
+
+      for issuer <- [
+            "https://oidc.fly.io/",
+            "https://oidc.fly.io/example-org/extra",
+            "https://oidc.fly.io/../internal",
+            "https://oidc.fly.io/example-org?redirect=evil",
+            "https://oidc.fly.io/example-org#fragment",
+            "https://oidc.fly.io.evil.com/example-org",
+            "http://oidc.fly.io/example-org"
+          ] do
+        {token, _} = generate_test_token_and_jwks(issuer: issuer)
+        assert {:error, :unsupported_provider, ^issuer} = OIDC.claims(token)
+      end
+    end
+
+    test "rejects a Fly token signed by a different key" do
+      {token, _} = fly_token()
+      {_, jwks} = fly_token()
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:error, :invalid_signature} = OIDC.claims(token)
+    end
+  end
+
+  defp fly_token(claims \\ %{}) do
+    generate_test_token_and_jwks(
+      issuer: "https://oidc.fly.io/example-org",
+      claims: Map.merge(%{"org_id" => "123", "app_id" => "456", "nbf" => 0}, claims)
+    )
   end
 
   defp generate_test_token_and_jwks(opts \\ []) do

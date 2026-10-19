@@ -15,6 +15,7 @@ defmodule Tuist.Projects do
   alias Tuist.Base64
   alias Tuist.CommandEvents
   alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
+  alias Tuist.Projects.FlyOIDCTrustPolicy
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
@@ -794,6 +795,45 @@ defmodule Tuist.Projects do
         where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
+    )
+  end
+
+  def list_fly_oidc_trust_policies(%Project{id: project_id}) do
+    Repo.all(from p in FlyOIDCTrustPolicy, where: p.project_id == ^project_id, order_by: p.id)
+  end
+
+  def create_fly_oidc_trust_policy(%Project{id: project_id}, attrs) do
+    %FlyOIDCTrustPolicy{project_id: project_id}
+    |> FlyOIDCTrustPolicy.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def delete_fly_oidc_trust_policy(%Project{id: project_id}, policy_id) do
+    case Repo.get_by(FlyOIDCTrustPolicy, id: policy_id, project_id: project_id) do
+      nil -> {:error, :not_found}
+      policy -> Repo.delete(policy)
+    end
+  end
+
+  def fly_oidc_identity_trusted?(%{issuer: issuer, organization_id: organization_id, application_id: application_id}) do
+    Repo.exists?(
+      from policy in FlyOIDCTrustPolicy,
+        where:
+          policy.issuer == ^issuer and policy.organization_id == ^organization_id and
+            policy.application_id == ^application_id
+    )
+  end
+
+  def projects_by_fly_oidc_identity(%{issuer: issuer, organization_id: organization_id, application_id: application_id}) do
+    Repo.all(
+      from p in Project,
+        join: policy in FlyOIDCTrustPolicy,
+        on: policy.project_id == p.id,
+        where:
+          policy.issuer == ^issuer and policy.organization_id == ^organization_id and
+            policy.application_id == ^application_id,
+        order_by: p.id,
+        preload: [:account]
     )
   end
 

@@ -33,8 +33,11 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 - GitHub Actions
 - CircleCI
 - Bitrise
+- Fly.io Machines (using an explicit workload trust policy)
 
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
+
+For GitHub Actions, CircleCI, and Bitrise:
 
 1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
@@ -42,17 +45,66 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 
+### Fly.io Machines {#flyio-machines}
+
+[Fly.io supports OIDC workload identity](https://docs.fly.io/reference/openid-connect/). A Machine can request a short-lived, signed identity token from its local `/.fly/api` Unix socket, without a Fly API token or a long-lived Tuist secret.
+
+Fly tokens identify an organization and application, not a source repository. Configure trust explicitly instead of connecting a GitHub repository:
+
+1. Obtain the issuer (`iss`), organization ID (`org_id`), and application ID (`app_id`) from an identity token issued inside your Fly Machine. The issuer is `https://oidc.fly.io/<organization-slug>`. Use the numeric IDs, not organization or app names.
+2. In the Tuist dashboard, open your project's **Settings** > **General**. Under **Fly.io OIDC authentication**, add the issuer URL, organization ID, and application ID. You must have permission to update the project.
+3. Inside the Machine, set `TUIST_OIDC_ACCOUNT` to the Tuist account handle that owns the project (not the Fly organization slug). This selects the destination without granting access: a matching trust policy is still required. Request a token with audience `tuist` and pass it to `tuist auth login` using `TUIST_OIDC_TOKEN`:
+
+```bash
+set -euo pipefail
+export TUIST_OIDC_ACCOUNT="my-tuist-account"
+
+TUIST_OIDC_TOKEN="$(curl --fail --silent --show-error \
+  --unix-socket /.fly/api \
+  -X POST http://localhost/v1/tokens/oidc \
+  -H 'Content-Type: application/json' \
+  --data '{"aud":"tuist"}')"
+export TUIST_OIDC_TOKEN
+
+tuist auth login
+unset TUIST_OIDC_TOKEN
+```
+
+For the initial setup, you can inspect only the identity fields locally, after exporting the token and before unsetting it. This decodes claims for configuration; Tuist separately verifies the signature during authentication:
+
+```bash
+python3 - <<'PY'
+import base64, json, os
+payload = os.environ["TUIST_OIDC_TOKEN"].split(".")[1]
+claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+print(json.dumps({key: claims[key] for key in ("iss", "org_id", "app_id")}, indent=2))
+PY
+```
+
+For Elixir projects, you can replace `tuist auth login` with `mix tuist.login` using the same `TUIST_OIDC_TOKEN`. The Elixir integration can also exchange a freshly minted identity token automatically when no `TUIST_TOKEN` or valid stored credentials are available. Both clients forward `TUIST_OIDC_ACCOUNT` to select the target account.
+
+Do not print or commit the token itself. Run the token request and login before each job; setting `CI` is not required. Commands after login use the stored short-lived Tuist access token as usual, including for projects configured in `tuist.toml`.
+
+Every Machine in the authorized Fly app can authenticate to the project. Add a separate policy for each additional app or project that needs access. The exchange grants the `ci` scope group only for projects that explicitly trust the exact issuer, organization ID, and application ID. Setting `TUIST_OIDC_ACCOUNT` limits the exchange to that account, so another account's policies cannot block your login or add projects to your token. Without an explicit account, a workload trusted by multiple Tuist accounts is rejected rather than selecting one implicitly.
+
+Remove a policy in project settings to prevent new token exchanges. Already-issued Tuist access tokens remain valid until they expire, currently after one hour. These sessions have no refresh token. Fly identity tokens expire after approximately ten minutes, so keeping an old `TUIST_OIDC_TOKEN` is not a renewal strategy. For jobs or Machines running longer than an hour, request a new Fly identity token and run `tuist auth login` or `mix tuist.login` again before the Tuist session expires. No GitHub repository connection is required for Fly authentication.
+
+> [!NOTE]
+> `TUIST_OIDC_TOKEN` is a generic CLI token input, not a way to bypass server trust. It takes precedence over CI provider detection, and the server still accepts only supported providers and authorized identities. Do not put a Fly identity token in `TUIST_TOKEN`, which expects a Tuist credential.
+
+If authentication reports **OIDC token signature verification failed**, check that the policy exactly matches the token's `iss`, `org_id`, and `app_id`, and that it has not been removed. Unconfigured identities receive the same error as invalid signatures to avoid exposing trust registrations. Also check that `TUIST_OIDC_ACCOUNT` names the Tuist account that owns the trusted project.
+
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group, which provides access to all projects connected to the repository. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For repository-based providers, this provides access to all projects connected to the repository. For Fly.io, access is limited to projects with a matching workload trust policy. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security Benefits**
 >
 > OIDC authentication is more secure than long-lived tokens because:
 > - No secrets to rotate or manage
-> - Tokens are short-lived and scoped to individual workflow runs
-> - Authentication is tied to your repository identity
+> - Tokens are short-lived
+> - Authentication is tied to your repository identity or an explicitly authorized workload identity
 
 
 ## Gradle plugin authentication {#gradle-plugin-authentication}

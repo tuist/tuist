@@ -122,6 +122,7 @@ operations; retain them until an administrator removes them.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
+- Fly.io OIDC trust policies (`project_fly_oidc_trust_policies`, PostgreSQL): project-owned issuer URL, stable Fly organization ID, application ID, and creation/update timestamps. These authorize Machines in an explicitly selected Fly app to exchange identity tokens for project-scoped Tuist CI access. Policies remain until removed or the project is deleted (cascading deletion). Export by joining `project_id` to the account's projects. Fly identity tokens are verified transiently and are not stored in this table; issued Tuist JWTs follow the existing access-token lifetime.
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items
 - Test cases and test execution results

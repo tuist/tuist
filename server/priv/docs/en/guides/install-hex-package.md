@@ -76,6 +76,8 @@ jobs:
       - run: mix test
 ```
 
+On Fly.io Machines, configure a project trust policy, select its Tuist account with `TUIST_OIDC_ACCOUNT`, and supply a freshly minted Machine identity token with audience `tuist` through `TUIST_OIDC_TOKEN`. The integration exchanges it automatically when no account token or valid stored login is available; `mix tuist.login` also accepts it outside CI. Tuist sessions last one hour without refresh tokens. For longer-running Machines, mint a new Fly token and run `mix tuist.login` again before the session expires. Follow the <.localized_link href="/guides/server/authentication#flyio-machines">Fly.io OIDC setup</.localized_link> for token acquisition and authorization.
+
 Pull requests from forks don't get an OpenID Connect token, so their runs aren't reported and still pass or fail as usual. On other providers, set the `TUIST_TOKEN` environment variable to an account token. Follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to create one.
 
 ## 4. Keep using `mix test` and `mix compile` {#aliases}
@@ -110,6 +112,8 @@ Environment variables take precedence over `mix.exs`:
 | `TUIST_PROJECT` | The project identifier in `account/project` format. |
 | `TUIST_URL` | The base URL of the Tuist server. |
 | `TUIST_TOKEN` | The token to authenticate with, instead of the stored login. |
+| `TUIST_OIDC_TOKEN` | A freshly minted supported provider identity token with audience `tuist`, exchanged for a Tuist token. Used by `mix tuist.login` or as a fallback when no account token or valid stored login is available. |
+| `TUIST_OIDC_ACCOUNT` | Target Tuist account handle for Fly.io OIDC exchanges. Selects among existing project trust policies; it does not grant access on its own. |
 | `TUIST_TEST_RETRIES` | How many times to retry the tests that failed. |
 | `TUIST_TAGS` | Comma-separated tags to attach to the build. |
 | `TUIST_VALUES` | Comma-separated `key=value` pairs to attach to the build. |

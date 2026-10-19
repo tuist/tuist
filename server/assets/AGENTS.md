@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+- The Fly.io OIDC card in `app/css/pages/project_settings.css` reuses General settings typography and stacks its description/form below 768px. Wrap long issuer URLs and IDs without widening the page; keep policy-removal actions associated with their identity row.
 
 - `app/css/pages/auth.css` includes the shared integration organization chooser, reusing login's logo, dots, gradients and frame. Organization rows use Noora avatars, keyboard focus states, wrapping labels and a bounded scrolling list with inset padding to preserve row borders and shadows, with a Cancel action below. Keep both provider flows visually identical and support light/dark themes and narrow viewports.
 
