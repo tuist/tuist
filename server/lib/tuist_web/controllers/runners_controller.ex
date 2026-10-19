@@ -19,6 +19,7 @@ defmodule TuistWeb.RunnersController do
 
   use TuistWeb, :controller
 
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
 
@@ -372,6 +373,11 @@ defmodule TuistWeb.RunnersController do
         %{} = head -> Map.put(base, :volume_head, head)
         _ -> base
       end
+
+    base =
+      if fleet_platform == :macos and FeatureFlags.runner_opt_in_caches_enabled?(account),
+        do: Map.put(base, :automatic_caches, false),
+        else: base
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
