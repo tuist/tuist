@@ -485,7 +485,7 @@ type expectedSet struct {
 	vms map[string]struct{}
 	// imageRepos holds the repository (registry/name with the tag and
 	// digest stripped) of every referenced Pod image. The OCI branch
-	// matches against this rather than the full ref: a Pod requests its
+	// matches against this rather than the full ref: a Pod may request its
 	// image by tag (`…/tuist-runner:macos-26-5-0.7.0`), but Tart caches
 	// it under — and `tart list` reports it by — the resolved digest
 	// (`…/tuist-runner@sha256:…`). The old full-ref comparison never
@@ -542,8 +542,8 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 
 // ociRepository strips the tag and/or digest from an OCI image
 // reference, returning the bare `registry[:port]/name`. Pods reference
-// images by tag while Tart caches and lists them by digest, so the GC
-// has to compare on the repository the two share. A registry port (a
+// images by tag or digest while Tart caches and lists them by digest,
+// so the GC has to compare on the repository the two share. A registry port (a
 // ':' whose suffix still contains a '/') must survive the tag strip.
 func ociRepository(ref string) string {
 	if i := strings.IndexByte(ref, '@'); i >= 0 {

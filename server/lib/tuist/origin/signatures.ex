@@ -10,7 +10,8 @@ defmodule Tuist.Origin.Signatures do
 
   @issuer "https://api.cursor.com/v1/origin"
 
-  def verify_receipt(token, expected_state) when is_binary(token) and is_binary(expected_state) do
+  def verify_receipt(token, expected_state)
+      when is_binary(token) and (is_binary(expected_state) or is_nil(expected_state)) do
     with [_payload, _claims, _signature] <- String.split(token, "."),
          [header | _] = String.split(token, "."),
          {:ok, header} <- Base.url_decode64(header, padding: false),

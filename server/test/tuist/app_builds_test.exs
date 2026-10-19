@@ -6,6 +6,20 @@ defmodule Tuist.AppBuildsTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  describe "has_previews?/1" do
+    test "checks for previews in the selected project regardless of build system" do
+      for build_system <- [:once, :bazel, :mix, :cargo] do
+        project = ProjectsFixtures.project_fixture(build_system: build_system)
+        refute AppBuilds.has_previews?(project)
+
+        AppBuildsFixtures.preview_fixture(project: project)
+        assert AppBuilds.has_previews?(project)
+      end
+
+      refute AppBuilds.has_previews?(ProjectsFixtures.project_fixture())
+    end
+  end
+
   describe "create_preview/1" do
     test "creates a bundle preview" do
       # Given

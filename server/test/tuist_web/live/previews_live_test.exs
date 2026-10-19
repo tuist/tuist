@@ -6,8 +6,46 @@ defmodule TuistWeb.PreviewsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistWeb.Previews.AppPreview
+
+  for build_system <- [:once, :bazel, :mix, :cargo] do
+    @build_system build_system
+    test "shows previews in the #{@build_system} sidebar after the first upload", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: @build_system})
+      path = ~p"/#{organization.account.name}/#{project.name}/previews"
+      sidebar_link = "[data-part='sidebar'] a[href='#{path}']"
+      AppBuildsFixtures.preview_fixture()
+
+      {:ok, lv, _html} = live(conn, path)
+      refute has_element?(lv, sidebar_link)
+
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Atlas")
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, sidebar_link)
+      assert has_element?(lv, "#previews-table", "Atlas")
+    end
+  end
+
+  for build_system <- [:xcode, :gradle] do
+    @build_system build_system
+    test "keeps previews in the #{@build_system} sidebar before any upload", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: @build_system})
+      path = ~p"/#{organization.account.name}/#{project.name}/previews"
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "[data-part='sidebar'] a[href='#{path}']")
+    end
+  end
 
   test "renders empty view when no previews are available", %{
     conn: conn,

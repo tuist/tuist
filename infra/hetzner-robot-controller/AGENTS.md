@@ -121,6 +121,64 @@ and is applied by `mgmt-cluster-apply.yml`.
 | `--robot-pass-path`               | `/etc/hetzner-robot-controller/robot-pass`             | Same                                                                     |
 | `--leader-elect`                  | `true`                                                 | Required when `replicas > 1`                                             |
 
+## Fleet credentials
+
+Robot user/pass and the shared SSH key are fleet-level (one Hetzner
+Robot account spans every Robot host across staging, canary and
+production), so both 1Password items live in the mgmt cluster's own
+vault (`tuist-k8s-mgmt`).
+
+The mgmt cluster runs no external-secrets-operator, so the operator
+creates the two Secrets manually once per mgmt cluster bring-up:
+
+```bash
+# Robot webservice credentials: caph drives the Robot API with these
+op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/username" > /tmp/robot-user
+op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-robot-credentials \
+  --from-file=hetznerRobotUser=/tmp/robot-user \
+  --from-file=hetznerRobotPassword=/tmp/robot-pass
+# caph reads Robot keys from the SAME Secret as the hcloud token
+# (the one named in HetznerClusterTemplate.hetznerSecretRef, today
+# `hetzner`). Merge the keys in:
+ROBOT_USER_B64=$(base64 -w0 < /tmp/robot-user)
+ROBOT_PASS_B64=$(base64 -w0 < /tmp/robot-pass)
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist patch secret hetzner \
+  --type=merge -p "{\"data\":{\"hetznerRobotUser\":\"${ROBOT_USER_B64}\",\"hetznerRobotPassword\":\"${ROBOT_PASS_B64}\"}}"
+shred -u /tmp/robot-user /tmp/robot-pass
+
+# SSH key: caph SSHes into rescue mode with this
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-bare-metal-ssh-key \
+  --from-file=sshkey-name=/tmp/sshname \
+  --from-file=ssh-publickey=/tmp/sshpub \
+  --from-file=ssh-privatekey=/tmp/sshpriv
+shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
+```
+
+Once ESO lands on the mgmt cluster, both Secrets can move to
+`ExternalSecret` resources next to the `infra/k8s/clusters/bare-metal*.yaml`
+templates and this manual step goes away.
+
+### Emergency SSH access
+
+If a Robot host misbehaves and caph isn't responding, SSH in directly
+with the shared key. caph configures it into
+`/root/.ssh/authorized_keys` as part of the cloud-init bootstrap, so it
+stays valid through reinstalls:
+
+```bash
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key" \
+  --account=tuist.1password.com > /tmp/hbm
+chmod 600 /tmp/hbm
+ssh -i /tmp/hbm root@<host-ip>
+# remember to: shred -u /tmp/hbm afterwards
+```
+
 ## Selection conventions
 
 **Server name** (operator sets in Robot panel):

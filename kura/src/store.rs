@@ -194,6 +194,7 @@ pub struct Store {
     disk_pressure_requested: AtomicU64,
     disk_pressure_notify: Notify,
     disk_pressure_reclamation: Mutex<PressureReclamation>,
+    deferred_capacity_retirements: StdMutex<VecDeque<PressureRetirement>>,
     segment_pins: StdMutex<HashMap<String, Arc<SegmentPin>>>,
     #[cfg(test)]
     disk_available_override: Option<Arc<dyn Fn() -> u64 + Send + Sync>>,
@@ -1454,6 +1455,7 @@ impl Store {
             disk_pressure_requested: AtomicU64::new(0),
             disk_pressure_notify: Notify::new(),
             disk_pressure_reclamation: Mutex::new(PressureReclamation::default()),
+            deferred_capacity_retirements: StdMutex::new(VecDeque::new()),
             segment_pins: StdMutex::new(HashMap::new()),
             #[cfg(test)]
             disk_available_override: None,
@@ -3353,7 +3355,7 @@ impl Store {
         size: u64,
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+    ) -> Result<(SegmentLocation, RetiredSegments<'_>, u64), String> {
         let preload_reservation = if size <= SEGMENT_COPY_BUFFER_BYTES as u64 {
             self.memory.try_reserve_foreground_memory(size).ok()
         } else {
@@ -3407,7 +3409,7 @@ impl Store {
         source_cache_path: Option<&Path>,
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+    ) -> Result<(SegmentLocation, RetiredSegments<'_>, u64), String> {
         let drop_cached_pages = file_cache_policy.should_drop(
             self.memory.should_reclaim_file_cache(),
             self.memory.foreground_transient_reserved_bytes(),
@@ -3477,7 +3479,7 @@ impl Store {
         bytes: &[u8],
         durability: ApplyDurability,
         drop_cached_pages: Option<FileCachePolicy>,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
+    ) -> Result<(SegmentLocation, RetiredSegments<'_>, u64), String> {
         let pending_writer =
             PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
         let write_slot = self
@@ -3529,7 +3531,12 @@ impl Store {
                 )?;
                 let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
                 drop(range_guard);
-                Ok::<_, String>((location, Vec::new(), durability_seq, file))
+                Ok::<_, String>((
+                    location,
+                    RetiredSegments::new(self, Vec::new()),
+                    durability_seq,
+                    file,
+                ))
             })
         };
 
@@ -3607,7 +3614,7 @@ impl Store {
         &self,
         size: u64,
         writer: &mut ActiveSegmentWriter,
-    ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
+    ) -> Result<(SegmentReference, RetiredSegments<'_>), String> {
         let (segment, evicted_segments) = self.active_segment(size, writer).await?;
         let segment_path = self.segment_path(&segment.segment_id);
         let segment_dir = segment_path
@@ -3651,7 +3658,7 @@ impl Store {
         source_cache_path: Option<&Path>,
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String>
+    ) -> Result<(SegmentLocation, RetiredSegments<'_>, u64), String>
     where
         R: AsyncRead + Unpin,
     {
@@ -3674,7 +3681,7 @@ impl Store {
         source_cache_path: Option<&Path>,
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String>
+    ) -> Result<(SegmentLocation, RetiredSegments<'_>, u64), String>
     where
         R: AsyncRead + Unpin,
     {
@@ -3987,7 +3994,7 @@ impl Store {
         &self,
         incoming_size: u64,
         writer: &mut ActiveSegmentWriter,
-    ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
+    ) -> Result<(SegmentReference, RetiredSegments<'_>), String> {
         let snapshot = self.segment_state_snapshot();
         let needs_new_segment = match snapshot.state.active() {
             Some(segment) => {
@@ -4049,8 +4056,12 @@ impl Store {
             // The rotate decision above used a snapshot taken before the
             // state lock; that stays valid because evictions, the only other
             // mutator, never remove the active segment.
-            let evicted_segments = self
-                .mutate_segment_state(|state| {
+            // The ring drops these durably here, and the persist returns in the
+            // same poll, so the guard owns them before any later await can fail
+            // or be cancelled.
+            let evicted_segments = RetiredSegments::new(
+                self,
+                self.mutate_segment_state(|state| {
                     state.push_new(
                         segment.clone(),
                         limits.desired_old_segments,
@@ -4058,7 +4069,8 @@ impl Store {
                         limits.desired_new_segments,
                     )
                 })
-                .await?;
+                .await?,
+            );
             // Seal stat: drain the outgoing segment's running max only after
             // the snapshot above was replaced (the new segment is active), so
             // a manifest commit racing this rotation either landed in the map
@@ -4085,7 +4097,7 @@ impl Store {
                     .active()
                     .cloned()
                     .expect("current segment should exist when not rotating"),
-                Vec::new(),
+                RetiredSegments::new(self, Vec::new()),
             ))
         }
     }
@@ -4209,6 +4221,7 @@ impl Store {
             let requested = self.disk_pressure_requested.load(Ordering::Acquire);
             if requested == 0 {
                 let mut recovery = self.disk_pressure_reclamation.lock().await;
+                self.adopt_deferred_capacity_retirement(&mut recovery);
                 if let Err(error) = self.finish_segment_retirement(&mut recovery).await {
                     tracing::warn!(
                         error,
@@ -4244,6 +4257,8 @@ impl Store {
         let target =
             segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES);
         let mut recovery = self.disk_pressure_reclamation.lock().await;
+        // Segments already out of the ring are freed before any retained one.
+        self.adopt_deferred_capacity_retirement(&mut recovery);
         if recovery.pending.is_none() {
             let Some(available) = self.available_segment_disk_bytes() else {
                 return Ok(true);
@@ -4555,16 +4570,59 @@ impl Store {
             .copied())
     }
 
-    async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
-        for segment in evicted_segments {
+    async fn evict_segments(&self, mut retirements: RetiredSegments<'_>) -> Result<(), String> {
+        while let Some(segment) = retirements.remaining.front().cloned() {
             let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
             let artifact_count = self
                 .evict_segment(&segment.segment_id)
                 .await
                 .map_err(|error| error.to_string())?;
+            retirements.remaining.pop_front();
             self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
+    }
+
+    fn defer_capacity_retirements(&self, segments: impl IntoIterator<Item = SegmentReference>) {
+        let mut deferred = self
+            .deferred_capacity_retirements
+            .lock()
+            .expect("deferred capacity retirements poisoned");
+        for segment in segments {
+            tracing::warn!(
+                segment_id = %segment.segment_id,
+                "capacity eviction did not finish; deferring retired segment cleanup"
+            );
+            deferred.push_back(PressureRetirement {
+                bytes: try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0),
+                segment,
+                available_before: 0,
+                reason: "capacity",
+            });
+        }
+        drop(deferred);
+        self.disk_pressure_notify.notify_one();
+    }
+
+    // A planned handover refuses eviction commits, so a deferred retirement
+    // waits for the hold to clear rather than failing once per pass.
+    fn adopt_deferred_capacity_retirement(&self, recovery: &mut PressureReclamation) {
+        if recovery.pending.is_some() || self.handover_hold_active() {
+            return;
+        }
+        recovery.pending = self
+            .deferred_capacity_retirements
+            .lock()
+            .expect("deferred capacity retirements poisoned")
+            .pop_front();
+    }
+
+    fn handover_hold_active(&self) -> bool {
+        self.handover_enabled
+            && self
+                .handover_hold
+                .lock()
+                .map_or(true, |hold| hold.is_some())
     }
 
     fn record_capacity_eviction(
@@ -11262,6 +11320,38 @@ struct PressureRetirement {
     reason: &'static str,
 }
 
+/// Segments rotation has already removed from the durable ring. Whatever is
+/// still here when the guard drops (a failed manifest commit, a refused
+/// eviction, a cancelled request) goes to the reclamation worker instead of
+/// waiting for startup's orphan sweep.
+pub(crate) struct RetiredSegments<'a> {
+    store: &'a Store,
+    remaining: VecDeque<SegmentReference>,
+}
+
+impl<'a> RetiredSegments<'a> {
+    fn new(store: &'a Store, segments: Vec<SegmentReference>) -> Self {
+        Self {
+            store,
+            remaining: segments.into(),
+        }
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
+        self.remaining.is_empty()
+    }
+}
+
+impl Drop for RetiredSegments<'_> {
+    fn drop(&mut self) {
+        if !self.remaining.is_empty() {
+            self.store
+                .defer_capacity_retirements(self.remaining.drain(..));
+        }
+    }
+}
+
 #[derive(Default)]
 struct ActiveSegmentWriter {
     segment_id: Option<String>,
@@ -12789,6 +12879,7 @@ mod tests {
                         ApplyDurability::Sync,
                     )
                     .await
+                    .map(|(location, _, durability_seq)| (location, durability_seq))
             }
         });
 
@@ -17058,7 +17149,7 @@ mod tests {
             .expect("failed to seed segment state");
 
         store
-            .evict_segments(vec![reference])
+            .evict_segments(RetiredSegments::new(&store, vec![reference]))
             .await
             .expect("eviction should succeed");
 
@@ -17079,11 +17170,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn capacity_eviction_refused_by_handover_hold_is_reclaimed_after_release() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
+                instance: "test".into(),
+                namespace: "test".into(),
+                instance_uid: "test".into(),
+                pod_uid: "test".into(),
+                host: "test".into(),
+            });
+        });
+        let store = Arc::new(store);
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .unwrap();
+        let segment_id = manifest.segment_id.clone().unwrap();
+        let reference = SegmentReference::new(segment_id.clone(), 1_000);
+        // Rotation has already dropped the segment from the durable ring.
+        store
+            .save_segment_state(&SegmentState {
+                old: Vec::new(),
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 3_000)],
+            })
+            .unwrap();
+        *store.handover_hold.lock().unwrap() = Some("intent".into());
+
+        let error = store
+            .evict_segments(RetiredSegments::new(&store, vec![reference]))
+            .await
+            .unwrap_err();
+        assert!(error.contains("frozen for planned handover"), "{error}");
+        assert!(store.segment_path(&segment_id).exists());
+        assert!(store.manifest(&manifest.artifact_id).unwrap().is_some());
+
+        let worker = tokio::spawn({
+            let store = store.clone();
+            async move { store.run_segment_reclamation_worker().await }
+        });
+        tokio::time::sleep(Duration::from_millis(1_500)).await;
+        assert!(
+            store.segment_path(&segment_id).exists(),
+            "the held corpus must not be evicted"
+        );
+
+        *store.handover_hold.lock().unwrap() = None;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while store.segment_path(&segment_id).exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("released hold must let the worker reclaim the retired segment");
+        worker.abort();
+        assert!(store.manifest(&manifest.artifact_id).unwrap().is_none());
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].segment_id, segment_id);
+        assert_eq!(reports[0].artifact_count, 1);
+    }
+
+    #[tokio::test]
     async fn capacity_eviction_report_falls_back_to_created_at_without_a_seal_stat() {
         let (_temp_dir, _config, store) = temp_store();
 
         store
-            .evict_segments(vec![SegmentReference::new("segment-1".into(), 5_000)])
+            .evict_segments(RetiredSegments::new(
+                &store,
+                vec![SegmentReference::new("segment-1".into(), 5_000)],
+            ))
             .await
             .expect("eviction of an absent segment should still succeed");
 
@@ -22949,6 +23111,7 @@ mod tests {
             evicted.is_empty(),
             "rotation must not retire a fourth segment"
         );
+        drop(evicted);
         assert_eq!(store.effective_segment_ring_limits().total_segments(), 6);
         assert_eq!(store.backfill_capacity_inputs().ring_total_segments, 6);
         assert_eq!(
@@ -23060,6 +23223,75 @@ mod tests {
                 store.segment_ring_limits
             );
         }
+    }
+
+    #[tokio::test]
+    async fn held_promotion_rotation_hands_retired_segments_to_the_worker() {
+        let (_temp, _config, store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(10 * MAX_SEGMENT_BYTES);
+            config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
+                instance: "test".into(),
+                namespace: "test".into(),
+                instance_uid: "test".into(),
+                pod_uid: "test".into(),
+                host: "test".into(),
+            });
+        });
+        let store = Arc::new(store);
+        let manifests = seed_pressure_segments(&store, 10).await;
+        let victim = manifests[0].clone();
+        let victim_segment = victim.segment_id.clone().unwrap();
+        let source = manifests[1].clone();
+        let ring = store.segment_state_snapshot();
+        assert_eq!(ring.state.old[0].segment_id, victim_segment);
+        assert_eq!(
+            store
+                .segment_generation(source.segment_id.as_ref().unwrap())
+                .unwrap(),
+            Some(SegmentGeneration::Old)
+        );
+        *store.handover_hold.lock().unwrap() = Some("intent".into());
+        store.segment_write_lock.lock().await.len = MAX_SEGMENT_BYTES;
+
+        let error = store
+            .maybe_refresh_manifest(source.clone(), RefreshTrigger::Serve)
+            .await
+            .unwrap_err();
+        assert!(error.contains("frozen for planned handover"), "{error}");
+        assert!(
+            !store
+                .segment_state_snapshot()
+                .generations
+                .contains_key(&victim_segment),
+            "the promotion's rotation must have retired the oldest segment"
+        );
+        assert!(store.segment_path(&victim_segment).exists());
+        assert!(store.manifest(&victim.artifact_id).unwrap().is_some());
+
+        let worker = tokio::spawn({
+            let store = store.clone();
+            async move { store.run_segment_reclamation_worker().await }
+        });
+        tokio::time::sleep(Duration::from_millis(1_500)).await;
+        assert!(
+            store.segment_path(&victim_segment).exists(),
+            "the held corpus must not be evicted"
+        );
+
+        *store.handover_hold.lock().unwrap() = None;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while store.segment_path(&victim_segment).exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("released hold must let the worker reclaim the retired segment");
+        worker.abort();
+        assert!(store.manifest(&victim.artifact_id).unwrap().is_none());
+        assert!(store.manifest(&source.artifact_id).unwrap().is_some());
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].segment_id, victim_segment);
     }
 
     #[tokio::test]

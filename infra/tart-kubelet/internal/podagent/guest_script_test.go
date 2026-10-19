@@ -605,3 +605,78 @@ func TestGuestStagesNothingWithoutADivision(t *testing.T) {
 		t.Fatalf("the fixed split staged a division file")
 	}
 }
+
+// The image less the budget is the room every job starts with, so a master
+// holding more than the budget leaves the next job less than that room. One was
+// promoted at 87% (28.0 GB of a 30 GiB image against a 24 GiB budget), under the
+// 98% ceiling, and every job cloned from it then ran out of space mid-build.
+func TestGuestRefusesToPromoteAnImageOverItsBudget(t *testing.T) {
+	const (
+		gib       = int64(1) << 30
+		budget    = 24 * gib
+		capKiB    = 30 * gib / 1024
+		overUsed  = int64(28005814272)
+		underUsed = int64(18718982144)
+	)
+	for _, tc := range []struct {
+		name       string
+		usedBytes  int64
+		percent    int
+		budget     string
+		dfFails    bool
+		promotable bool
+		refusal    string
+	}{
+		{name: "under the budget", usedBytes: underUsed, percent: 59, budget: fmt.Sprint(budget), promotable: true},
+		{name: "over the budget and under the ceiling", usedBytes: overUsed, percent: 87, budget: fmt.Sprint(budget),
+			refusal: fmt.Sprintf("cache volume holds %dB, over its %dB budget", overUsed, budget)},
+		{name: "at the ceiling", usedBytes: 31 * gib, percent: 98, budget: fmt.Sprint(budget), refusal: "cache volume 98% full"},
+		{name: "no staged budget keeps the ceiling only", usedBytes: overUsed, percent: 87, promotable: true},
+		{name: "an unreadable sample promotes", dfFails: true, budget: fmt.Sprint(budget), promotable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			df := "#!/bin/bash\nexit 1\n"
+			if !tc.dfFails {
+				usedKiB := tc.usedBytes / 1024
+				df = fmt.Sprintf("#!/bin/bash\necho 'Filesystem 1024-blocks Used Available Capacity Mounted on'\necho '/dev/disk9s1 %d %d %d %d%% /mnt'\n",
+					capKiB, usedKiB, capKiB-usedKiB, tc.percent)
+			}
+			if err := os.WriteFile(filepath.Join(bin, "df"), []byte(df), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			statusDir := t.TempDir()
+
+			script := guestShellScript(t,
+				`if sample_cache_fill; then echo "promotable"; else echo "refused: ${CACHE_PROMOTE_REFUSAL}"; fi`,
+				"sample_cache_fill")
+			cmd := exec.Command("/bin/bash", "-c", script)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"CACHE_MOUNT="+t.TempDir(),
+				"STATUS_SHARE="+statusDir,
+				"CACHE_FILL_PROMOTE_CEILING=98",
+				"CACHE_BUDGET_BYTES="+tc.budget,
+				"CACHE_PROMOTE_REFUSAL=",
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("sample_cache_fill: %v\n%s", err, out)
+			}
+			want := "refused: " + tc.refusal
+			if tc.promotable {
+				want = "promotable"
+			}
+			if got := strings.TrimSpace(string(out)); got != want {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+			if tc.dfFails {
+				return
+			}
+			fill, err := os.ReadFile(filepath.Join(statusDir, "cache-fill-percent"))
+			if err != nil || string(fill) != fmt.Sprint(tc.percent) {
+				t.Fatalf("staged fill %q (%v), want %d", fill, err, tc.percent)
+			}
+		})
+	}
+}

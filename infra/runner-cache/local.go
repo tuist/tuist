@@ -25,6 +25,12 @@ type ImageTransfer interface {
 	Publish(Slot, string, string, string) (int64, error)
 }
 
+// HeadReader reports the HEAD a local master's lineage has reached, or
+// ErrConflict once that lineage was cleared or expired.
+type HeadReader interface {
+	Head(Slot) (Identity, error)
+}
+
 // LocalImages keeps immutable masters and reflinked private ext4 images on a
 // dedicated host filesystem. A clone must fail rather than fall back to copying.
 type LocalImages struct {
@@ -43,9 +49,15 @@ type LocalImages struct {
 	FreeBytesContext func(context.Context, string) (uint64, error)
 	// Reclaim makes room in another cache sharing this filesystem, after local
 	// masters have been evicted. It must preserve all active reservations.
-	Reclaim   func(context.Context, uint64) error
-	locks     sync.Map
-	admission contextMutex
+	Reclaim func(context.Context, uint64) error
+	// RefreshWithin, when positive, refreshes a stale master last used (cloned,
+	// restored or published) within it to the new HEAD in the background instead
+	// of removing it right away. Refreshes take this type's filesystem admission,
+	// not APFSImages' reservations.
+	RefreshWithin time.Duration
+	refresh       refresher
+	locks         sync.Map
+	admission     contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -203,7 +215,7 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		if err != nil {
 			return err
 		}
-		if free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour {
+		if b.refreshing(path) || (free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour) {
 			continue
 		}
 		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
@@ -422,7 +434,7 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	return b.publish(slot)
 }
 func (b *LocalImages) publish(slot Slot) error {
-	archive := b.image(slot) + ".gz"
+	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")
 	digest, content, err := compressImage(b.image(slot), archive)
@@ -506,7 +518,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".gz", ".checking", ".verified"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -545,54 +557,61 @@ func (b *LocalImages) recordMaster(slot Slot, master string) error {
 	return durableRename(master+".json.tmp", master+".json")
 }
 func (b *LocalImages) Maintain() error {
-	validator, ok := b.Transfer.(interface{ IsCurrent(Slot) (bool, error) })
+	heads, _ := b.Transfer.(HeadReader)
 	files, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
 	if err != nil {
 		return err
 	}
+	// One unreachable lineage must not stop the remaining masters from being
+	// validated or evicted.
+	var failures []error
 	for _, path := range files {
-		unlock := b.lock(filepath.Base(filepath.Dir(path)))
-		err = func() error {
-			info, err := os.Stat(path)
-			if os.IsNotExist(err) {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			remove := time.Since(info.ModTime()) >= 7*24*time.Hour
-			if !remove && ok {
-				data, err := os.ReadFile(path + ".json")
-				if os.IsNotExist(err) {
-					remove = true
-				} else if err != nil {
-					return err
-				} else {
-					var slot Slot
-					if err = json.Unmarshal(data, &slot); err != nil {
-						return err
-					}
-					current, err := validator.IsCurrent(slot)
-					if err != nil {
-						return err
-					}
-					remove = !current
-				}
-			}
-			if remove {
-				if err = os.Remove(path); err != nil {
-					return err
-				}
-				_ = os.Remove(path + ".json")
-			}
-			return nil
-		}()
-		unlock()
-		if err != nil {
-			return err
+		if _, queued := b.refresh.pending.Load(path); queued || b.refreshing(path) {
+			continue
 		}
+		failures = append(failures, b.maintainMaster(path, heads))
 	}
-	return nil
+	return errors.Join(failures...)
+}
+
+func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
+	unlock := b.lock(filepath.Base(filepath.Dir(path)))
+	defer unlock()
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if time.Since(info.ModTime()) >= 7*24*time.Hour {
+		return removeMaster(path)
+	}
+	if heads == nil {
+		return nil
+	}
+	data, err := os.ReadFile(path + ".json")
+	if os.IsNotExist(err) {
+		return removeMaster(path)
+	}
+	if err != nil {
+		return err
+	}
+	var slot Slot
+	if err = json.Unmarshal(data, &slot); err != nil {
+		return err
+	}
+	head, err := heads.Head(slot)
+	if errors.Is(err, ErrConflict) {
+		return removeMaster(path)
+	}
+	if err != nil {
+		return err
+	}
+	if head.BaseGeneration == slot.BaseGeneration || b.queueRefresh(path, slot, head, info.ModTime()) {
+		return nil
+	}
+	return removeMaster(path)
 }
 
 // Prefetch restores only a validated immutable master. It cannot mount a job's

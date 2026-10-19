@@ -4060,6 +4060,43 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "get_user_by_username/1" do
+    setup do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      :ok
+    end
+
+    test "looks the user up through the project's connected repository" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "acme/app", provider: :github])
+
+      expect(Client, :get_repository_user_by_username, fn %{
+                                                            repository_full_handle: repository_full_handle,
+                                                            username: username
+                                                          } ->
+        assert repository_full_handle == "acme/app"
+        assert username == "jane-doe_acme"
+        {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+      end)
+
+      # When
+      user = VCS.get_user_by_username(%{username: "jane-doe_acme", project: project})
+
+      # Then
+      assert user == {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+    end
+
+    test "returns no_vcs_connection for a project without a connected repository" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&Client.get_repository_user_by_username/1)
+
+      # When / Then
+      assert VCS.get_user_by_username(%{username: "jane-doe_acme", project: project}) == {:error, :no_vcs_connection}
+    end
+  end
+
   describe "api_url/2" do
     test "returns api.github.com for the default github.com client URL" do
       assert VCS.api_url(:github, "https://github.com") == "https://api.github.com"
