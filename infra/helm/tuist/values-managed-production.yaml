@@ -1327,6 +1327,16 @@ ovhFleets:
 rackFleet:
   enabled: true
   site: ber1
+  env: production
+  # The envs whose rack pools production lends hosts to (`lendTo` below). Each
+  # needs the borrowing env's rack-lender kubeconfig in this vault, once: see
+  # "Lending a host to another env" in infra/rack-nodes/AGENTS.md. Until its
+  # kubeconfigItem is set, an entry renders nothing and no host can name it.
+  borrowers:
+    staging:
+      namespace: tuist-staging
+    canary:
+      namespace: tuist-canary
   # The edges' own addresses on the machines segment
   # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
   # edge routes the tailnet's connections to a host with SNAT, from its own

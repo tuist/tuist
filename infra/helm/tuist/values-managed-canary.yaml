@@ -853,6 +853,15 @@ rackFleet:
   enabled: false
   name: tuist-canary-rack-fleet
   site: ber1
+  env: canary
+  # Rack hosts production lends canary with `lendTo: canary` (see "A host lent
+  # to another env" in infra/cluster-api-provider-tuist/AGENTS.md). Canary's
+  # operator runs their runtime and rolls it with canary's deploys.
+  # ber1-runner-b02 is still lent by hand (joiningNodes below) until its move
+  # in "Lending a host to another env" in infra/rack-nodes/AGENTS.md.
+  borrow:
+    enabled: true
+    hosts: []
   joiningNodes:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:

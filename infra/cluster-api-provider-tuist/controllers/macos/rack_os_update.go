@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -946,26 +945,7 @@ func (r *RackAppleSiliconMachineReconciler) nodeReady(ctx context.Context, name 
 
 // activePodsOn lists the pods still running work on the Node.
 func (r *RackAppleSiliconMachineReconciler) activePodsOn(ctx context.Context, nodeName string) ([]string, error) {
-	pods := &corev1.PodList{}
-	if err := r.List(ctx, pods); err != nil {
-		return nil, err
-	}
-	var active []string
-	for i := range pods.Items {
-		pod := &pods.Items[i]
-		if pod.Spec.NodeName != nodeName || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-			continue
-		}
-		if _, mirror := pod.Annotations[corev1.MirrorPodAnnotationKey]; mirror {
-			continue
-		}
-		if owner := metav1.GetControllerOf(pod); owner != nil && owner.Kind == "DaemonSet" {
-			continue
-		}
-		active = append(active, pod.Namespace+"/"+pod.Name)
-	}
-	sort.Strings(active)
-	return active, nil
+	return activePodsOnNode(ctx, r.Client, nodeName)
 }
 
 // suspendRemediationForOSUpdate sets skip-remediation on the owning CAPI

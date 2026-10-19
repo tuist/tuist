@@ -150,8 +150,21 @@ type RackAppleSiliconMachineReconciler struct {
 	// field for why this is not operator-facing.
 	PowerCycleSettle time.Duration
 
+	// Env is the environment this operator runs in. It is the runtime owner
+	// every push to a rack host claims (bootstrap.RuntimeOwnerPath) and the
+	// lender a RackHostLease names. Empty claims nothing and lends nothing.
+	Env string
+
+	// Borrowers reaches the clusters RackHost.spec.lendTo names. Nil lends to
+	// none.
+	Borrowers BorrowerClients
+
 	// osUpdateDial opens the SSH side of an in-place macOS update; nil dials the host.
 	osUpdateDial osUpdateDialFunc
+
+	// handOverRuntime moves a host's runtime owner and lease key; nil is
+	// bootstrap.HandOverRuntime.
+	handOverRuntime func(ctx context.Context, cfg bootstrap.Config, owner, leaseKey string) (string, error)
 }
 
 func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
@@ -304,6 +317,20 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		knownFingerprint = bootstrapCreds.HostFingerprint
 	}
 
+	// A host lent to another env runs that env's runtime, and this reconcile
+	// pushes nothing to it; see rack_lend.go.
+	gate, err := r.reconcileLending(ctx, machine, host, sshKey, knownFingerprint)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if gate.stop {
+		if osUpdateRunsFirst(machine) || osUpdatePending(machine) {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "OSUpdateWhileLent",
+				"Not updating %s's macOS while it is lent: return it first (drop lendTo)", host.Name)
+		}
+		return gate.result, nil
+	}
+
 	osUpdate := &osUpdateContext{
 		machine:          machine,
 		host:             host,
@@ -337,16 +364,19 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	// Bootstrap previously succeeded but the Node is gone: re-running bootstrap
 	// reloads launchd and tart-kubelet re-registers. Flipping the condition
 	// False lets the stage below drive the repair. A lent host's Node is in
-	// another cluster, so its absence here says nothing.
-	if missing, lookupErr := r.nodeMissingAfterBootstrap(ctx, machine); lookupErr != nil {
-		logger.Error(lookupErr, "Node existence check failed; will retry")
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	} else if missing {
-		conditions.MarkFalse(machine, BootstrappedCondition, "NodeMissing",
-			clusterv1.ConditionSeverityWarning,
-			"Node %s not found in cluster despite Bootstrapped=True; re-running bootstrap", machine.Name)
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NodeMissing",
-			"Node %s missing; reloading tart-kubelet on %s to re-register", machine.Name, host.Name)
+	// another cluster, so its absence here says nothing, and so may a host on
+	// its way to another env, which can already run that env's runtime.
+	if !gate.skipDrift {
+		if missing, lookupErr := r.nodeMissingAfterBootstrap(ctx, machine); lookupErr != nil {
+			logger.Error(lookupErr, "Node existence check failed; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		} else if missing {
+			conditions.MarkFalse(machine, BootstrappedCondition, "NodeMissing",
+				clusterv1.ConditionSeverityWarning,
+				"Node %s not found in cluster despite Bootstrapped=True; re-running bootstrap", machine.Name)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NodeMissing",
+				"Node %s missing; reloading tart-kubelet on %s to re-register", machine.Name, host.Name)
+		}
 	}
 
 	// Stage 2: bootstrap (idempotent; re-running picks up where it left off).
@@ -361,6 +391,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 				clusterv1.ConditionSeverityWarning, "%v", prepErr.err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		perHost.TailscaleForceReauth = gate.forceReauth
 
 		fingerprint, runErr := bootstrap.Run(ctx, r.hostConfig(machine, host, perHost))
 		// Persist whatever fingerprint Run captured even on the error path, so
@@ -371,6 +402,8 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
+		conditions.Delete(machine, LentCondition)
+		r.finishReclaim(ctx, host)
 		// A long retry chain that finally succeeded is, from the cluster's
 		// perspective, the same shape as a first-try success.
 		machine.Status.BootstrapAttempts = 0
@@ -388,8 +421,11 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	}
 
 	// Stage 3: host-config drift.
-	if result, driftErr := r.reconcileHostConfigDrift(ctx, machine, host, sshKey, sudoPassword, knownFingerprint); driftErr != nil || !result.IsZero() {
-		return result, driftErr
+	// Nothing is pushed while a lend settles.
+	if !gate.skipDrift {
+		if result, driftErr := r.reconcileHostConfigDrift(ctx, machine, host, sshKey, sudoPassword, knownFingerprint); driftErr != nil || !result.IsZero() {
+			return result, driftErr
+		}
 	}
 
 	// Stage 4: the per-machine Tailscale egress Service. Doesn't gate on
@@ -417,6 +453,9 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
 			return result, updateErr
 		}
+	}
+	if !gate.result.IsZero() {
+		return gate.result, nil
 	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
@@ -582,6 +621,15 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	cause error,
 ) ctrl.Result {
 	logger := log.FromContext(ctx)
+
+	// Another env runs the host, maybe with jobs on it. Nothing here may touch
+	// it until a person lends it back or takes it back (rack_lend.go).
+	if bootstrap.IsRuntimeOwnerError(cause) {
+		conditions.MarkFalse(machine, BootstrappedCondition, "RuntimeOwnedElsewhere", clusterv1.ConditionSeverityError,
+			"%v; set lendTo back, or annotate the RackHost %s=true to take it back", cause, ReclaimRuntimeAnnotation)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RuntimeOwnedElsewhere", "%v", cause)
+		return ctrl.Result{RequeueAfter: lendingRequeue}
+	}
 
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
@@ -904,6 +952,7 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 		NodeLabels:           rackMachineNodeLabels(machine),
 		KnownHostFingerprint: knownFingerprint,
 		ExpectedSerial:       host.Spec.Serial,
+		RuntimeOwner:         r.Env,
 	}, nil
 }
 

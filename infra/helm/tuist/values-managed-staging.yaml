@@ -1076,6 +1076,16 @@ rackFleet:
   enabled: false
   name: tuist-staging-rack-fleet
   site: ber1
+  env: staging
+  # Rack hosts production lends staging with `lendTo: staging` (see "A host
+  # lent to another env" in infra/cluster-api-provider-tuist/AGENTS.md).
+  # Staging's operator runs their runtime and rolls it with staging's deploys,
+  # so a rack runtime change reaches a rack host here first. ber1-runner-b01
+  # is still lent by hand until its move in "Lending a host to another env" in
+  # infra/rack-nodes/AGENTS.md.
+  borrow:
+    enabled: true
+    hosts: []
   # ber1-runner-b01 joins with the identity staging's operator minted for it
   # while the rack was here (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01),
   # which has the names and binding this list would render. List it here once
