@@ -11,7 +11,16 @@ test -d "$app_source" || fail "Run mise run build:ios-device first"
 # Sign a copy, keeping credentials outside Once's cache and the login keychain.
 tmp=$(mktemp -d)
 keychain="$tmp/signing.keychain-db"
+default_keychain=""
+restore_default_keychain=false
 cleanup() {
+    if "$restore_default_keychain"; then
+        if [[ -n "$default_keychain" ]]; then
+            security default-keychain -d user -s "$default_keychain" >/dev/null 2>&1 || true
+        else
+            security default-keychain -d user -s >/dev/null 2>&1 || true
+        fi
+    fi
     security delete-keychain "$keychain" >/dev/null 2>&1 || true
     rm -rf "$tmp"
 }
@@ -32,8 +41,17 @@ expires=$(plutil -extract ExpirationDate raw "$tmp/profile.plist")
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12"
 certificate_password=$(op read "op://tuist/Distribution Certificate/password")
 keychain_password=$(uuidgen)
+if [[ "${CI:-}" = true ]]; then
+    security default-keychain -d user > "$tmp/default-keychain.txt"
+    read -r default_keychain < "$tmp/default-keychain.txt" || true
+    default_keychain="${default_keychain//\"/}"
+    restore_default_keychain=true
+fi
 security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 3600 "$keychain"
+if "$restore_default_keychain"; then
+    security default-keychain -d user -s "$keychain"
+fi
 security unlock-keychain -p "$keychain_password" "$keychain"
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null
 unset certificate_password
@@ -55,9 +73,9 @@ plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entit
 mkdir -p "$app/Frameworks"
 xcrun swift-stdlib-tool --copy --scan-executable "$app/Atlas" --platform iphoneos --destination "$app/Frameworks"
 while IFS= read -r -d '' library; do
-    codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$library"
+    codesign --verbose=2 --force --sign "$identity" --keychain "$keychain" --timestamp=none "$library"
 done < <(find "$app/Frameworks" -name '*.dylib' -print0)
-codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none \
+codesign --verbose=2 --force --sign "$identity" --keychain "$keychain" --timestamp=none \
     --generate-entitlement-der --entitlements "$tmp/entitlements.plist" "$app"
 codesign --verify --deep --strict "$app"
 mkdir -p delivery/ios-device

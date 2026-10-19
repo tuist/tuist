@@ -6,6 +6,10 @@ use macOS `security`, `plutil`, PlistBuddy and `codesign` rather than a separate
 profile-validation framework.
 
 - Keep private keys in a temporary keychain and remove credentials on exit.
+  In CI, select it as the default before importing the certificate, following
+  `mise/tasks/app/bundle-ios.sh`. Save the prior default before creating the
+  keychain and restore it on exit, including failures and cancellation. If CI
+  had no default, restore that state. Local runs must not change the default.
   Never mutate Once's cached output or import keys into the login keychain.
 - Check the Atlas app identity, ad-hoc profile expiration and matching signing
   certificate. Use the profile's entitlements with Atlas-only Keychain access.
