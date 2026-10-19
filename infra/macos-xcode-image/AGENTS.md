@@ -103,9 +103,8 @@ macOS 26 `macosFleet`.
 Measured on a BER1 M5 Pro (macOS 27.0, Tart 2.32.1, 2026-10-19): the
 27.1 image built in 12.5 min from a cold base pull. The simulator
 dyld shared cache step reports every runtime's cache "usable" and
-leaves 4 KB directories behind: macOS 27 builds nothing there, and a
-job's own `simctl runtime dyld_shared_cache update --all` returns at
-once.
+leaves 4 KB directories behind, so on macOS 27 it writes no cache
+there.
 
 ## Why a separate layer
 
