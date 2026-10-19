@@ -1928,6 +1928,12 @@ rackLinuxFleet:
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
   #       activate: false        # default: amt.products decides
@@ -3353,6 +3359,12 @@ postgresql:
         # tailnet's ACL only permits Tuist-scoped tags; set this to the
         # env's permitted tag (e.g. "tag:tuist-k8s-production").
         tags: ""
+        # Name of a Tailscale ProxyGroup of type `ingress` to serve the pooler
+        # as the Tailscale Service `svc:<hostname>` instead of a standalone
+        # proxy, from a Service of its own. The tailnet policy must
+        # auto-approve that Service for the ProxyGroup's tag and grant the
+        # macOS fleet access to it.
+        proxyGroup: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"
@@ -3930,6 +3942,7 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
+  nodeSelector: {}
   # Both protocols must share this load balancer. The main nginx class sends
   # Connection: close upstream, which Go correctly rejects on HTTP/2.
   ingressClassName: nginx-grpc

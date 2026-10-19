@@ -59,6 +59,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         project_id: project_id,
         account_id: account_id,
         inserted_at: Keyword.get(attrs, :inserted_at),
+        started_at: Keyword.get(attrs, :started_at),
         status: Keyword.get(attrs, :status, "success"),
         category: Keyword.get(attrs, :category, "incremental"),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha),

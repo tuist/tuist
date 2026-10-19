@@ -314,6 +314,23 @@ defmodule TuistWeb.MixCacheLive do
     if length(series) == 1 or Enum.any?(series, &(value_fn.(&1) == nil)), do: "circle", else: "none"
   end
 
+  defp recent_hit_rate_label(%{hit_rate: nil, bypasses: bypasses}) when bypasses > 0,
+    do: dgettext("dashboard", "Not cached")
+
+  defp recent_hit_rate_label(%{hit_rate: nil}), do: dgettext("dashboard_builds", "No recorded lookups")
+  defp recent_hit_rate_label(%{hit_rate: rate}), do: value(rate)
+
+  defp recent_builds_coverage(rows) do
+    dngettext(
+      "dashboard_cache",
+      "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate.",
+      "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate.",
+      length(rows),
+      measured: format_number(Enum.count(rows, &(not is_nil(&1.cache.hit_rate)))),
+      total: format_number(length(rows))
+    )
+  end
+
   defp recent_chart_data(rows, account, project) do
     rows
     |> Enum.reverse()

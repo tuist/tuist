@@ -266,7 +266,7 @@ defmodule Atlas.MCP.ServerTest do
   test "hides audit tools from MCP sessions without admin scope" do
     conn = %{assigns: %{current_user: %User{}}}
 
-    stub(Users, :has_scope?, fn %User{}, scope when scope in ["admin:read", "admin:write"] -> false end)
+    stub(Users, :has_scope?, fn %User{}, _scope -> false end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -299,7 +299,7 @@ defmodule Atlas.MCP.ServerTest do
 
     stub(Users, :has_scope?, fn
       %User{}, "admin:read" -> true
-      %User{}, "admin:write" -> false
+      %User{}, _scope -> false
     end)
 
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
@@ -332,7 +332,11 @@ defmodule Atlas.MCP.ServerTest do
   test "shows server management tools only with administrator write access" do
     conn = %{assigns: %{current_user: %User{}}}
 
-    stub(Users, :has_scope?, fn %User{}, scope when scope in ["admin:read", "admin:write"] -> true end)
+    stub(Users, :has_scope?, fn
+      %User{}, scope when scope in ["admin:read", "admin:write"] -> true
+      %User{}, _scope -> false
+    end)
+
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
@@ -340,6 +344,7 @@ defmodule Atlas.MCP.ServerTest do
 
     assert Enum.any?(tools, &(&1["name"] == "create_mcp_server"))
     assert Enum.any?(tools, &(&1["name"] == "delete_mcp_server"))
+    refute Enum.any?(tools, &(&1["name"] == "review_holiday"))
   end
 
   test "returns a controlled tool error for scalar arguments" do

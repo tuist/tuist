@@ -64,31 +64,70 @@ defmodule TuistEx.DependencyCacheTest do
     %{dir: dir, project: project}
   end
 
-  @tag timeout: 300_000, bootstrap: true
-  test "the bootstrap-aware compile alias restores on a fully cold parallel build", %{
-    project: project
-  } do
-    package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
-    mixfile = Path.join(project, "mix.exs")
+  for bootstrap <- [:legacy, :ordinary] do
+    @tag timeout: 300_000, bootstrap: true
+    test "the #{bootstrap} compile alias restores on a fully cold parallel build", %{
+      project: project,
+      dir: dir
+    } do
+      package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
+      mixfile = Path.join(project, "mix.exs")
 
-    contents =
-      File.read!(mixfile)
-      |> String.replace(
-        "deps: [{:dep_probe,",
-        "aliases: [compile: &Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
-      )
+      compile_alias =
+        case unquote(bootstrap) do
+          :legacy ->
+            "&Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)"
 
-    File.write!(mixfile, contents)
-    {output, status} = mix(project, ["deps.get"])
-    assert status == 0, output
-    {first, status} = mix(project, ["compile"])
-    assert status == 0, first
-    assert first =~ "Generated dep_probe app"
-    File.rm_rf!(Path.join(project, "_build"))
-    {second, status} = mix(project, ["compile"])
-    assert status == 0, second
-    refute second =~ "Generated dep_probe app"
-    assert File.exists?(Path.join(project, "_build/dev/lib/dep_probe/ebin/Elixir.DepProbe.beam"))
+          :ordinary ->
+            inspect([
+              "deps.compile tuist_ex --include-children",
+              "deps.loadpaths --no-compile --no-deps-check",
+              "tuist.compile"
+            ])
+        end
+
+      contents =
+        String.replace(
+          File.read!(mixfile),
+          "deps: [{:dep_probe,",
+          "aliases: [compile: #{compile_alias}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
+        )
+
+      compile_args =
+        if unquote(bootstrap) == :ordinary,
+          do: ["compile", "--warnings-as-errors"],
+          else: ["compile"]
+
+      File.write!(mixfile, contents)
+      {output, status} = mix(project, ["deps.get"])
+      assert status == 0, output
+      {first, status} = mix(project, compile_args)
+      assert status == 0, first
+      assert first =~ "Generated dep_probe app"
+      assert [_snapshot] = File.ls!(Path.join(dir, "cache"))
+      File.rm_rf!(Path.join(project, "_build"))
+      {second, status} = mix(project, compile_args)
+      assert status == 0, second
+      refute second =~ "Generated dep_probe app"
+
+      assert File.exists?(
+               Path.join(project, "_build/test/lib/dep_probe/ebin/Elixir.DepProbe.beam")
+             )
+
+      if unquote(bootstrap) == :ordinary do
+        {output, status} =
+          mix(project, [
+            "tuist.test.build",
+            "--no-upload",
+            "--shard-reference",
+            "bootstrap-regression"
+          ])
+
+        assert status != 0, output
+        assert output =~ "No test files found"
+        refute output =~ "Generated dep_probe app"
+      end
+    end
   end
 
   test "the bundled compile script preserves cold and changed local dependencies", %{
@@ -181,7 +220,7 @@ defmodule TuistEx.DependencyCacheTest do
       cd: project,
       stderr_to_stdout: true,
       env: [
-        {"MIX_ENV", "dev"},
+        {"MIX_ENV", "test"},
         {"MIX_BUILD_PATH", nil},
         {"MIX_DEPS_PATH", nil},
         {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"},

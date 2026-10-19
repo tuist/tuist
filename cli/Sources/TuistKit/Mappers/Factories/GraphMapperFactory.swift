@@ -129,7 +129,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             configuration: String?,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            coverage: BinaryCacheCoverage = .off
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = []
 
@@ -198,7 +199,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         exceptions: includedTargets
                     ),
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    coverage: coverage
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -333,7 +335,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             cacheSources: Set<TargetQuery>,
             configuration: String,
             cacheStorage: CacheStoring,
-            targetHashes: [TargetReference: TargetContentHash] = [:]
+            targetHashes: [TargetReference: TargetContentHash] = [:],
+            coverage: BinaryCacheCoverage = .off
         ) -> [GraphMapping] {
             var mappers = self.default(
                 config: config,
@@ -349,9 +352,11 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 ),
                 configuration: configuration,
                 cacheStorage: cacheStorage,
+                coverage: coverage,
                 precomputedTargetHashes: targetHashes
             )
             mappers.append(focusTargetsGraphMapper)
+            if coverage != .off { mappers.append(InstrumentedBinaryCacheWarmGraphMapper()) }
             mappers.append(TreeShakePrunedTargetsGraphMapper())
             // Runs after the cache replacement so the schemes also build the cache hits kept as source.
             mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))

@@ -24,6 +24,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -54,6 +55,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -164,7 +166,10 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: tuist-macos-27-0
-    timeout-minutes: 60
+    # Two warms: the plain one and the coverage one below, which builds every
+    # changed repository target a second time, with coverage and without the
+    # compilation cache's replay.
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -198,6 +203,17 @@ jobs:
         run: tuist install --force-resolved-versions
       - name: Cache
         run: tuist cache
+      # The coverage variant of the binary cache, read by the runs that collect
+      # coverage: coverage.yml on main, and the unit tests above, which run with
+      # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
+      # with coverage counters; external packages are the plain warm's. Those
+      # builds get no compilation-cache replay: coverage builds leave Xcode's
+      # prefix mapping off by default, and `tuist cache` has no xcodebuild
+      # passthrough for the override the test runs use. The manifest option
+      # (`enableCoveragePrefixMapping`) would turn it on for both, once the
+      # backward-compatibility gate's CLI knows it.
+      - name: Cache with coverage
+        run: tuist cache --coverage
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -244,8 +260,11 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      # The derived data path is where the coverage export finds the test
+      # products and the run's profile; cached binaries only show up in the
+      # coverage when it reads them, never in the result bundle's own report.
       - name: Run tests
-        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
@@ -445,9 +464,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-musl-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
+            linux-cli-musl-${{ hashFiles('Package.swift') }}-
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
@@ -474,8 +493,14 @@ jobs:
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
+      # Releases ship a static musl binary, and the musl SDK exposes `Musl`
+      # rather than `Glibc`, so build against the same SDK the release uses.
+      - name: Install Swift Static Linux SDK
+        run: |
+          target=$(./mise/utilities/install_static_linux_sdk.sh)
+          echo "SWIFT_SDK_TARGET=$target" >> "$GITHUB_ENV"
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save

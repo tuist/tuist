@@ -76,6 +76,15 @@ current git ref, and any recognised continuous integration provider metadata
 travel with the payload so a dashboard can group runs by branch, commit, and
 CI run.
 
+On continuous integration, the run also uploads the checkout's commit history:
+commit SHAs, their parents, commit dates, and the branch the run and its pull
+request's base branch were on, which is how Tuist learns which commits landed
+on the default branch. It reads what the checkout has, and asks the remote
+for the base branch's latest commit (`git ls-remote`) when the checkout lacks
+it; only `--cover` fetches history. `TUIST_GIT_UPLOAD_ENABLED=false` turns it
+off, and `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps it from contacting the
+remote.
+
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
 uses the `TUIST_TOKEN` environment variable if set, then the credentials from
@@ -169,7 +178,12 @@ OTP runtimes and endpoints without compression use identity transport. CAS diges
 and reported transfer bytes always describe the uncompressed bundle. Set
 `remote: false` for local-only caching;
 `endpoint:` can select a self-hosted HTTPS REAPI endpoint (HTTP is limited to
-loopback development hosts). Authentication, unavailable
+loopback development hosts). A nonempty `TUIST_CACHE_ENDPOINT` takes precedence
+over `endpoint:` and account discovery. Hosted runners use this override to
+reach their in-cluster cache. The environment override explicitly permits HTTP
+on non-loopback hosts: bearer tokens travel unencrypted, so use it only on a
+trusted network. Invalid overrides fall back to local snapshots, not discovery.
+Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
@@ -244,8 +258,14 @@ machine compiles; the others download its build.
 On one machine, once per pipeline:
 
 ```sh
-mix tuist.test.build --shard-max 4
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 4
 ```
+
+The first command enters through the generated compile alias so dependency
+caching runs before Mix discovers the sharding task. On a cold checkout,
+direct task discovery can compile dependencies before Tuist can cache them.
+Keep both commands in the test environment.
 
 This compiles the project for testing, asks Tuist to split the test files
 into at most four shards, and uploads the `_build/test` directory. A test file
@@ -290,9 +310,27 @@ mix tuist.test --cover
 mix tuist.coverage.complete
 ```
 
-Tuist reads the counters Erlang's `cover` collected once the suite finishes,
-so your coverage tool keeps working as before: `mix test`'s HTML report and
-threshold, or excoveralls.
+Erlang's `cover` compiles every module of the project again at the start of
+each run, which on a large project costs a minute or more. So with `--cover`,
+Tuist recompiles the project's modules once with the runtime's native line
+counters, switches the counters on and counts with them instead of running
+Mix's coverage tool. Later runs recompile only the modules a compile wrote
+since. Only the modules Mimic copies are compiled for `cover`, and swapped
+for Mimic's copies before any test runs, because Mimic keeps a `cover`
+compiled module's counts across the swaps it makes and reloading a module
+resets its native counters.
+
+Mix's summary and threshold still apply: once the suite finishes, the task
+prints each module's coverage and fails the run (exit status 3) when the
+total is below `test_coverage: [summary: [threshold: N]]`, 90 unless set;
+`summary: false` turns both off, and `ignore_modules` is honoured. A shard
+prints no summary and isn't held to the threshold. Counting natively writes
+no HTML report: a project that sets `:output` is warned, and
+`mix test --cover --export-coverage NAME` followed by `mix test.coverage`
+produces one with Mix's tool. A project that sets another coverage tool
+(`test_coverage: [tool: ...]`, such as excoveralls) keeps it: Tuist reads the
+counters Erlang's `cover` collected once the suite finishes, as does a run on
+a runtime without the JIT, which cannot count natively.
 
 ### With shards
 
@@ -301,7 +339,8 @@ commit complete from a job that runs after all of them:
 
 ```sh
 # once, on the machine that builds
-mix tuist.test.build --shard-total 4 --cover
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
 
 # on each shard
 TUIST_SHARD_INDEX=0 mix tuist.test --cover
@@ -322,8 +361,9 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       # checkout, Elixir, mix deps.get
+      - run: MIX_ENV=test mix compile --warnings-as-errors
       - id: plan
-        run: mix tuist.test.build --shard-total 4 --cover
+        run: MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
   test:
     needs: build
     strategy:
@@ -342,21 +382,17 @@ jobs:
       - run: mix tuist.coverage.complete
 ```
 
-Each shard reports its share and Tuist merges them into one run. Erlang's
-`cover` compiles every module of the project again at the start of each run,
-which on a large project costs every shard a minute or more, so with `--cover`
-the build's modules are recompiled once, on the machine that builds, with the
-runtime's native line counters. Each shard switches the counters on and counts
-with them instead of running Mix's coverage tool, so no Mix coverage report is
-written. Only the modules Mimic copies are compiled for `cover`, because Mimic
-keeps a `cover` compiled module's counts across the swaps it makes and
-reloading a module resets its native counters.
+Each shard reports its share and Tuist merges them into one run. Shards count
+natively as an unsharded run does, and `mix tuist.test.build --cover`
+recompiles the build's modules with the counters once, on the machine that
+builds, so the shards don't each do it. A shard of a build made without
+`--cover` recompiles them itself.
 
-A shard on a runtime without the JIT cannot count natively and uses Mix's
-coverage tool, as does one built without `--cover`. Its coverage is then
-exported, under `cover/shard-<index>` unless you pass `--export-coverage`
-yourself, rather than held to the project's threshold, which a shard running
-part of the suite would not meet.
+A shard that uses Mix's coverage tool, on a runtime without the JIT or in a
+project that sets another tool, exports its coverage, under
+`cover/shard-<index>` unless you pass `--export-coverage` yourself, rather
+than holding it to the project's threshold, which a shard running part of
+the suite would not meet.
 
 ### What is reported
 
@@ -372,7 +408,8 @@ branch's coverage trend.
 
 The run's Git history is the merge base with the branch a pull request merges
 into and the commits Tuist does not have yet. A shallow
-clone is deepened, within a time budget, until the merge base is found.
+clone is deepened, within a time budget, until the merge base is found. With
+`--cover`, the commit's file listing is uploaded too.
 
 ## Optional reported actor
 

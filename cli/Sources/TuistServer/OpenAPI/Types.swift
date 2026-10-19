@@ -118,6 +118,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/profiles`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/get(listRunnerProfiles)`.
     func listRunnerProfiles(_ input: Operations.listRunnerProfiles.Input) async throws -> Operations.listRunnerProfiles.Output
+    /// Create a runner profile.
+    ///
+    /// Creates a profile that pins a platform, a machine shape and, on macOS, an Xcode version. Workflows reference it in runs-on with the returned runs_on_label.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/profiles`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)`.
+    func createRunnerProfile(_ input: Operations.createRunnerProfile.Input) async throws -> Operations.createRunnerProfile.Output
     /// Get the Git history settings in effect for a project.
     ///
     /// How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, how many commits to send per upload request, and how many files of a commit's tree to list. Server defaults with the project's overrides applied.
@@ -734,13 +741,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
-    /// Update which branches save a runner profile's cache volumes.
+    /// Update a runner profile.
     ///
-    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
     func updateRunnerProfile(_ input: Operations.updateRunnerProfile.Input) async throws -> Operations.updateRunnerProfile.Output
+    /// Delete a runner profile.
+    ///
+    /// Jobs that request the profile's runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)`.
+    func deleteRunnerProfile(_ input: Operations.deleteRunnerProfile.Input) async throws -> Operations.deleteRunnerProfile.Output
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -786,6 +800,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    func getRunnerCatalog(_ input: Operations.getRunnerCatalog.Input) async throws -> Operations.getRunnerCatalog.Output
     /// Find which commits have no file listing stored yet.
     ///
     /// Given commit SHAs, returns the ones whose file listing (every file of the commit's tree with its blob) the server lacks, so a clean checkout uploads it once per commit. The listing is what coverage is measured against, where the project's tracked files are read, and what evidence reuse compares.
@@ -1368,6 +1389,23 @@ extension APIProtocol {
         try await listRunnerProfiles(Operations.listRunnerProfiles.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Create a runner profile.
+    ///
+    /// Creates a profile that pins a platform, a machine shape and, on macOS, an Xcode version. Workflows reference it in runs-on with the returned runs_on_label.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/profiles`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)`.
+    public func createRunnerProfile(
+        path: Operations.createRunnerProfile.Input.Path,
+        headers: Operations.createRunnerProfile.Input.Headers = .init(),
+        body: Operations.createRunnerProfile.Input.Body? = nil
+    ) async throws -> Operations.createRunnerProfile.Output {
+        try await createRunnerProfile(Operations.createRunnerProfile.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Get the Git history settings in effect for a project.
@@ -2922,9 +2960,9 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Update which branches save a runner profile's cache volumes.
+    /// Update a runner profile.
     ///
-    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -2937,6 +2975,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Delete a runner profile.
+    ///
+    /// Jobs that request the profile's runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)`.
+    public func deleteRunnerProfile(
+        path: Operations.deleteRunnerProfile.Input.Path,
+        headers: Operations.deleteRunnerProfile.Input.Headers = .init()
+    ) async throws -> Operations.deleteRunnerProfile.Output {
+        try await deleteRunnerProfile(Operations.deleteRunnerProfile.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// List builds associated with a given project.
@@ -3057,6 +3110,21 @@ extension APIProtocol {
     ) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
         try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    public func getRunnerCatalog(
+        path: Operations.getRunnerCatalog.Input.Path,
+        headers: Operations.getRunnerCatalog.Input.Headers = .init()
+    ) async throws -> Operations.getRunnerCatalog.Output {
+        try await getRunnerCatalog(Operations.getRunnerCatalog.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -10795,6 +10863,46 @@ public enum Components {
                 case sso_provider
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerShape`.
+        public struct RunnerShape: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/default`.
+            public var _default: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case macos = "macos"
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/platform`.
+            public var platform: Components.Schemas.RunnerShape.platformPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerShape/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `RunnerShape`.
+            ///
+            /// - Parameters:
+            ///   - _default:
+            ///   - memory_gb:
+            ///   - platform:
+            ///   - vcpus:
+            public init(
+                _default: Swift.Bool,
+                memory_gb: Swift.Int,
+                platform: Components.Schemas.RunnerShape.platformPayload,
+                vcpus: Swift.Int
+            ) {
+                self._default = _default
+                self.memory_gb = memory_gb
+                self.platform = platform
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _default = "default"
+                case memory_gb
+                case platform
+                case vcpus
+            }
+        }
         /// Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
         ///
         /// - Remark: Generated from `#/components/schemas/WebhookTestCase`.
@@ -12062,7 +12170,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
             public var current_page: Swift.Int?
-            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/end_cursor`.
             public var end_cursor: Swift.String?
@@ -12078,7 +12186,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
             public var page_size: Swift.Int
-            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/start_cursor`.
             public var start_cursor: Swift.String?
@@ -12094,11 +12202,11 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
-            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
@@ -12562,7 +12670,7 @@ public enum Components {
             public var before: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/current_page`.
             public var current_page: Swift.Int?
-            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/end_cursor`.
             public var end_cursor: Swift.String?
@@ -12578,7 +12686,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/page_size`.
             public var page_size: Swift.Int
-            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildHistoryPagination/start_cursor`.
             public var start_cursor: Swift.String?
@@ -12596,11 +12704,11 @@ public enum Components {
             ///   - after:
             ///   - before:
             ///   - current_page:
-            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
@@ -12790,6 +12898,29 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case files
                 case partial
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion`.
+        public struct RunnerXcodeVersion: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion/default`.
+            public var _default: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerXcodeVersion/xcode_version`.
+            public var xcode_version: Swift.String
+            /// Creates a new `RunnerXcodeVersion`.
+            ///
+            /// - Parameters:
+            ///   - _default:
+            ///   - xcode_version:
+            public init(
+                _default: Swift.Bool,
+                xcode_version: Swift.String
+            ) {
+                self._default = _default
+                self.xcode_version = xcode_version
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _default = "default"
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
@@ -13404,6 +13535,7 @@ public enum Components {
                 case account_colon_registry_colon_read = "account:registry:read"
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
+                case account_colon_runners_colon_write = "account:runners:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -15294,7 +15426,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPage`.
         public typealias TestCaseRunsIndexPage = Swift.Int
-        /// The page number to return.
+        /// The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
         public typealias BuildsIndexPage = Swift.Int
@@ -17529,6 +17661,7 @@ public enum Components {
                     case account_colon_registry_colon_read = "account:registry:read"
                     case account_colon_registry_colon_write = "account:registry:write"
                     case account_colon_runners_colon_read = "account:runners:read"
+                    case account_colon_runners_colon_write = "account:runners:write"
                     case project_colon_previews_colon_read = "project:previews:read"
                     case project_colon_previews_colon_write = "project:previews:write"
                     case project_colon_admin_colon_read = "project:admin:read"
@@ -17905,6 +18038,10 @@ public enum Components {
             public var platform: Components.Schemas.RunnerProfile.platformPayload
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/protected`.
             public var protected: Swift.Bool
+            /// The label workflows reference in runs-on to run jobs on this profile.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerProfile/runs_on_label`.
+            public var runs_on_label: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/updated_at`.
             public var updated_at: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/vcpus`.
@@ -17922,6 +18059,7 @@ public enum Components {
             ///   - name:
             ///   - platform:
             ///   - protected:
+            ///   - runs_on_label: The label workflows reference in runs-on to run jobs on this profile.
             ///   - updated_at:
             ///   - vcpus:
             ///   - xcode_version:
@@ -17934,6 +18072,7 @@ public enum Components {
                 name: Swift.String,
                 platform: Components.Schemas.RunnerProfile.platformPayload,
                 protected: Swift.Bool,
+                runs_on_label: Swift.String,
                 updated_at: Foundation.Date,
                 vcpus: Swift.Int,
                 xcode_version: Swift.String? = nil
@@ -17946,6 +18085,7 @@ public enum Components {
                 self.name = name
                 self.platform = platform
                 self.protected = protected
+                self.runs_on_label = runs_on_label
                 self.updated_at = updated_at
                 self.vcpus = vcpus
                 self.xcode_version = xcode_version
@@ -17959,6 +18099,7 @@ public enum Components {
                 case name
                 case platform
                 case protected
+                case runs_on_label
                 case updated_at
                 case vcpus
                 case xcode_version
@@ -18355,6 +18496,7 @@ public enum Components {
                 case account_colon_registry_colon_read = "account:registry:read"
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
+                case account_colon_runners_colon_write = "account:runners:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -18570,6 +18712,96 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildFilesIndexPage`.
         public typealias BuildFilesIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RunnerCatalog`.
+        public struct RunnerCatalog: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload`.
+            public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/default`.
+                public var _default: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/memory_gb`.
+                public var memory_gb: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/platform`.
+                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case linux = "linux"
+                    case macos = "macos"
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/platform`.
+                public var platform: Components.Schemas.RunnerCatalog.shapesPayloadPayload.platformPayload
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapesPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `shapesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - _default:
+                ///   - memory_gb:
+                ///   - platform:
+                ///   - vcpus:
+                public init(
+                    _default: Swift.Bool,
+                    memory_gb: Swift.Int,
+                    platform: Components.Schemas.RunnerCatalog.shapesPayloadPayload.platformPayload,
+                    vcpus: Swift.Int
+                ) {
+                    self._default = _default
+                    self.memory_gb = memory_gb
+                    self.platform = platform
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case _default = "default"
+                    case memory_gb
+                    case platform
+                    case vcpus
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapes`.
+            public typealias shapesPayload = [Components.Schemas.RunnerCatalog.shapesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/shapes`.
+            public var shapes: Components.Schemas.RunnerCatalog.shapesPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload`.
+            public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload/default`.
+                public var _default: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versionsPayload/xcode_version`.
+                public var xcode_version: Swift.String
+                /// Creates a new `xcode_versionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - _default:
+                ///   - xcode_version:
+                public init(
+                    _default: Swift.Bool,
+                    xcode_version: Swift.String
+                ) {
+                    self._default = _default
+                    self.xcode_version = xcode_version
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case _default = "default"
+                    case xcode_version
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versions`.
+            public typealias xcode_versionsPayload = [Components.Schemas.RunnerCatalog.xcode_versionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerCatalog/xcode_versions`.
+            public var xcode_versions: Components.Schemas.RunnerCatalog.xcode_versionsPayload
+            /// Creates a new `RunnerCatalog`.
+            ///
+            /// - Parameters:
+            ///   - shapes:
+            ///   - xcode_versions:
+            public init(
+                shapes: Components.Schemas.RunnerCatalog.shapesPayload,
+                xcode_versions: Components.Schemas.RunnerCatalog.xcode_versionsPayload
+            ) {
+                self.shapes = shapes
+                self.xcode_versions = xcode_versions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case shapes
+                case xcode_versions
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/MissingCommitsRequest`.
         public struct MissingCommitsRequest: Codable, Hashable, Sendable {
             /// The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped.
@@ -27757,6 +27989,10 @@ public enum Operations {
                             public var platform: Operations.listRunnerProfiles.Output.Ok.Body.jsonPayload.profilesPayloadPayload.platformPayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/protected`.
                             public var protected: Swift.Bool
+                            /// The label workflows reference in runs-on to run jobs on this profile.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/runs_on_label`.
+                            public var runs_on_label: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/updated_at`.
                             public var updated_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/vcpus`.
@@ -27774,6 +28010,7 @@ public enum Operations {
                             ///   - name:
                             ///   - platform:
                             ///   - protected:
+                            ///   - runs_on_label: The label workflows reference in runs-on to run jobs on this profile.
                             ///   - updated_at:
                             ///   - vcpus:
                             ///   - xcode_version:
@@ -27786,6 +28023,7 @@ public enum Operations {
                                 name: Swift.String,
                                 platform: Operations.listRunnerProfiles.Output.Ok.Body.jsonPayload.profilesPayloadPayload.platformPayload,
                                 protected: Swift.Bool,
+                                runs_on_label: Swift.String,
                                 updated_at: Foundation.Date,
                                 vcpus: Swift.Int,
                                 xcode_version: Swift.String? = nil
@@ -27798,6 +28036,7 @@ public enum Operations {
                                 self.name = name
                                 self.platform = platform
                                 self.protected = protected
+                                self.runs_on_label = runs_on_label
                                 self.updated_at = updated_at
                                 self.vcpus = vcpus
                                 self.xcode_version = xcode_version
@@ -27811,6 +28050,7 @@ public enum Operations {
                                 case name
                                 case platform
                                 case protected
+                                case runs_on_label
                                 case updated_at
                                 case vcpus
                                 case xcode_version
@@ -28050,6 +28290,596 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listRunnerProfiles.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a runner profile.
+    ///
+    /// Creates a profile that pins a platform, a machine shape and, on macOS, an Xcode version. Workflows reference it in runs-on with the returned runs_on_label.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/profiles`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)`.
+    public enum createRunnerProfile {
+        public static let id: Swift.String = "createRunnerProfile"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.createRunnerProfile.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRunnerProfile.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRunnerProfile.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createRunnerProfile.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Additional branch names or * patterns that save. An empty list removes them.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_branches`.
+                    public var cache_writer_branches: [Swift.String]?
+                    /// Whether jobs on each repository's default branch save. Defaults to true.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_default_branch`.
+                    public var cache_writer_default_branch: Swift.Bool?
+                    /// Memory in GB of an available shape for the platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/memory_gb`.
+                    public var memory_gb: Swift.Int
+                    /// Up to 32 lowercase letters, digits, and hyphens, starting with a letter. runner, runners, and tuist are reserved.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/name`.
+                    public var name: Swift.String
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case linux = "linux"
+                        case macos = "macos"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/platform`.
+                    public var platform: Operations.createRunnerProfile.Input.Body.jsonPayload.platformPayload
+                    /// vCPUs of an available shape for the platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// An available Xcode version, for example 26.5. Required for macOS profiles.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
+                    ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
+                    ///   - memory_gb: Memory in GB of an available shape for the platform.
+                    ///   - name: Up to 32 lowercase letters, digits, and hyphens, starting with a letter. runner, runners, and tuist are reserved.
+                    ///   - platform:
+                    ///   - vcpus: vCPUs of an available shape for the platform.
+                    ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
+                    public init(
+                        cache_writer_branches: [Swift.String]? = nil,
+                        cache_writer_default_branch: Swift.Bool? = nil,
+                        memory_gb: Swift.Int,
+                        name: Swift.String,
+                        platform: Operations.createRunnerProfile.Input.Body.jsonPayload.platformPayload,
+                        vcpus: Swift.Int,
+                        xcode_version: Swift.String? = nil
+                    ) {
+                        self.cache_writer_branches = cache_writer_branches
+                        self.cache_writer_default_branch = cache_writer_default_branch
+                        self.memory_gb = memory_gb
+                        self.name = name
+                        self.platform = platform
+                        self.vcpus = vcpus
+                        self.xcode_version = xcode_version
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case cache_writer_branches
+                        case cache_writer_default_branch
+                        case memory_gb
+                        case name
+                        case platform
+                        case vcpus
+                        case xcode_version
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/content/application\/json`.
+                case json(Operations.createRunnerProfile.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createRunnerProfile.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createRunnerProfile.Input.Path,
+                headers: Operations.createRunnerProfile.Input.Headers = .init(),
+                body: Operations.createRunnerProfile.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_branches`.
+                        public var cache_writer_branches: [Swift.String]
+                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_default_branch`.
+                        public var cache_writer_default_branch: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/id`.
+                        public var id: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/memory_gb`.
+                        public var memory_gb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/name`.
+                        public var name: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case macos = "macos"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/platform`.
+                        public var platform: Operations.createRunnerProfile.Output.Created.Body.jsonPayload.platformPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/protected`.
+                        public var protected: Swift.Bool
+                        /// The label workflows reference in runs-on to run jobs on this profile.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/runs_on_label`.
+                        public var runs_on_label: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/vcpus`.
+                        public var vcpus: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - memory_gb:
+                        ///   - name:
+                        ///   - platform:
+                        ///   - protected:
+                        ///   - runs_on_label: The label workflows reference in runs-on to run jobs on this profile.
+                        ///   - updated_at:
+                        ///   - vcpus:
+                        ///   - xcode_version:
+                        public init(
+                            cache_writer_branches: [Swift.String],
+                            cache_writer_default_branch: Swift.Bool,
+                            id: Swift.Int,
+                            inserted_at: Foundation.Date,
+                            memory_gb: Swift.Int,
+                            name: Swift.String,
+                            platform: Operations.createRunnerProfile.Output.Created.Body.jsonPayload.platformPayload,
+                            protected: Swift.Bool,
+                            runs_on_label: Swift.String,
+                            updated_at: Foundation.Date,
+                            vcpus: Swift.Int,
+                            xcode_version: Swift.String? = nil
+                        ) {
+                            self.cache_writer_branches = cache_writer_branches
+                            self.cache_writer_default_branch = cache_writer_default_branch
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.memory_gb = memory_gb
+                            self.name = name
+                            self.platform = platform
+                            self.protected = protected
+                            self.runs_on_label = runs_on_label
+                            self.updated_at = updated_at
+                            self.vcpus = vcpus
+                            self.xcode_version = xcode_version
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cache_writer_branches
+                            case cache_writer_default_branch
+                            case id
+                            case inserted_at
+                            case memory_gb
+                            case name
+                            case platform
+                            case protected
+                            case runs_on_label
+                            case updated_at
+                            case vcpus
+                            case xcode_version
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/application\/json`.
+                    case json(Operations.createRunnerProfile.Output.Created.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createRunnerProfile.Output.Created.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerProfile.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Created runner profile
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createRunnerProfile.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createRunnerProfile.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerProfile.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Missing or malformed fields
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createRunnerProfile.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createRunnerProfile.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerProfile.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createRunnerProfile.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createRunnerProfile.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerProfile.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Runners are not enabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createRunnerProfile.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createRunnerProfile.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerProfile.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The profile is invalid or the account reached its profile limit
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createRunnerProfile.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createRunnerProfile.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createRunnerProfile.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerProfile.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createRunnerProfile.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createRunnerProfile.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/post(createRunnerProfile)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createRunnerProfile.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createRunnerProfile.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -31939,6 +32769,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
+                        /// When the build started. Null when unavailable, including historical builds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/started_at`.
+                        public var started_at: Foundation.Date?
                         /// Build status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -31981,6 +32815,7 @@ public enum Operations {
                         ///   - macos_version: macOS version.
                         ///   - model_identifier: Machine model identifier.
                         ///   - scheme: The scheme that was built.
+                        ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
@@ -32005,6 +32840,7 @@ public enum Operations {
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
+                            started_at: Foundation.Date? = nil,
                             status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
@@ -32029,6 +32865,7 @@ public enum Operations {
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
+                            self.started_at = started_at
                             self.status = status
                             self.url = url
                             self.xcode_version = xcode_version
@@ -32054,6 +32891,7 @@ public enum Operations {
                             case macos_version
                             case model_identifier
                             case scheme
+                            case started_at
                             case status
                             case url
                             case xcode_version
@@ -49205,6 +50043,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
+                        /// When the build started. Null when unavailable, including historical builds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/started_at`.
+                        public var started_at: Foundation.Date?
                         /// Build status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -49247,6 +50089,7 @@ public enum Operations {
                         ///   - macos_version: macOS version.
                         ///   - model_identifier: Machine model identifier.
                         ///   - scheme: The scheme that was built.
+                        ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
@@ -49271,6 +50114,7 @@ public enum Operations {
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
+                            started_at: Foundation.Date? = nil,
                             status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
@@ -49295,6 +50139,7 @@ public enum Operations {
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
+                            self.started_at = started_at
                             self.status = status
                             self.url = url
                             self.xcode_version = xcode_version
@@ -49320,6 +50165,7 @@ public enum Operations {
                             case macos_version
                             case model_identifier
                             case scheme
+                            case started_at
                             case status
                             case url
                             case xcode_version
@@ -56951,6 +57797,7 @@ public enum Operations {
                                 case account_colon_registry_colon_read = "account:registry:read"
                                 case account_colon_registry_colon_write = "account:registry:write"
                                 case account_colon_runners_colon_read = "account:runners:read"
+                                case account_colon_runners_colon_write = "account:runners:write"
                                 case project_colon_previews_colon_read = "project:previews:read"
                                 case project_colon_previews_colon_write = "project:previews:write"
                                 case project_colon_admin_colon_read = "project:admin:read"
@@ -57332,6 +58179,7 @@ public enum Operations {
                         case account_colon_registry_colon_read = "account:registry:read"
                         case account_colon_registry_colon_write = "account:registry:write"
                         case account_colon_runners_colon_read = "account:runners:read"
+                        case account_colon_runners_colon_write = "account:runners:write"
                         case project_colon_previews_colon_read = "project:previews:read"
                         case project_colon_previews_colon_write = "project:previews:write"
                         case project_colon_admin_colon_read = "project:admin:read"
@@ -57963,7 +58811,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -57979,7 +58827,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}/events/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -57997,11 +58845,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -59549,6 +60397,26 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/values`.
                 public var values: [Swift.String]?
+                /// Filter to builds executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/to`.
+                public var to: Swift.Int64?
+                /// Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/after`.
+                public var after: Swift.String?
+                /// Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/before`.
+                public var before: Swift.String?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/page_size`.
@@ -59567,6 +60435,11 @@ public enum Operations {
                 ///   - git_branch: Filter by git branch.
                 ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
                 ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
+                ///   - is_ci: Filter to builds executed on CI (true) or locally (false).
+                ///   - from: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///   - to: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///   - after: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///   - before: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -59577,6 +60450,11 @@ public enum Operations {
                     git_branch: Swift.String? = nil,
                     tags: [Swift.String]? = nil,
                     values: [Swift.String]? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -59587,6 +60465,11 @@ public enum Operations {
                     self.git_branch = git_branch
                     self.tags = tags
                     self.values = values
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
+                    self.after = after
+                    self.before = before
                     self.page_size = page_size
                     self.page = page
                 }
@@ -59765,6 +60648,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/scheme`.
                             public var scheme: Swift.String?
+                            /// When the build started. Null when unavailable, including historical builds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/started_at`.
+                            public var started_at: Foundation.Date?
                             /// Build status.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -59806,6 +60693,7 @@ public enum Operations {
                             ///   - model_identifier: Machine model identifier.
                             ///   - ran_by: The account that triggered the build.
                             ///   - scheme: The scheme that was built.
+                            ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
@@ -59827,6 +60715,7 @@ public enum Operations {
                                 model_identifier: Swift.String? = nil,
                                 ran_by: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.ran_byPayload? = nil,
                                 scheme: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
@@ -59848,6 +60737,7 @@ public enum Operations {
                                 self.model_identifier = model_identifier
                                 self.ran_by = ran_by
                                 self.scheme = scheme
+                                self.started_at = started_at
                                 self.status = status
                                 self.url = url
                                 self.xcode_version = xcode_version
@@ -59870,6 +60760,7 @@ public enum Operations {
                                 case model_identifier
                                 case ran_by
                                 case scheme
+                                case started_at
                                 case status
                                 case url
                                 case xcode_version
@@ -59941,6 +60832,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBuilds.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBuilds.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/get(listBuilds)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBuilds.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBuilds.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -66852,7 +67794,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -66868,7 +67810,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -66886,11 +67828,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -73985,7 +74927,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -74001,7 +74943,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/modules/{module_id}/compilations/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -74019,11 +74961,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -79581,9 +80523,9 @@ public enum Operations {
             }
         }
     }
-    /// Update which branches save a runner profile's cache volumes.
+    /// Update a runner profile.
     ///
-    /// Sets whether GitHub Actions jobs on each repository's default branch save the profile's custom cache volume changes, and replaces the additional branch names or * patterns that save. Omitted fields keep their value. Narrowing the policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -79634,25 +80576,49 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_branches`.
                     public var cache_writer_branches: [Swift.String]?
-                    /// Whether jobs on each repository's default branch save.
+                    /// Whether jobs on each repository's default branch save. Defaults to true.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_default_branch`.
                     public var cache_writer_default_branch: Swift.Bool?
+                    /// Memory in GB of an available shape for the platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/memory_gb`.
+                    public var memory_gb: Swift.Int?
+                    /// vCPUs of an available shape for the platform.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/vcpus`.
+                    public var vcpus: Swift.Int?
+                    /// An available Xcode version, for example 26.5. Required for macOS profiles.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
-                    ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save.
+                    ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
+                    ///   - memory_gb: Memory in GB of an available shape for the platform.
+                    ///   - vcpus: vCPUs of an available shape for the platform.
+                    ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
                     public init(
                         cache_writer_branches: [Swift.String]? = nil,
-                        cache_writer_default_branch: Swift.Bool? = nil
+                        cache_writer_default_branch: Swift.Bool? = nil,
+                        memory_gb: Swift.Int? = nil,
+                        vcpus: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.cache_writer_branches = cache_writer_branches
                         self.cache_writer_default_branch = cache_writer_default_branch
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case cache_writer_branches
                         case cache_writer_default_branch
+                        case memory_gb
+                        case vcpus
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/content/application\/json`.
@@ -79706,6 +80672,10 @@ public enum Operations {
                         public var platform: Operations.updateRunnerProfile.Output.Ok.Body.jsonPayload.platformPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/protected`.
                         public var protected: Swift.Bool
+                        /// The label workflows reference in runs-on to run jobs on this profile.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/runs_on_label`.
+                        public var runs_on_label: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/vcpus`.
@@ -79723,6 +80693,7 @@ public enum Operations {
                         ///   - name:
                         ///   - platform:
                         ///   - protected:
+                        ///   - runs_on_label: The label workflows reference in runs-on to run jobs on this profile.
                         ///   - updated_at:
                         ///   - vcpus:
                         ///   - xcode_version:
@@ -79735,6 +80706,7 @@ public enum Operations {
                             name: Swift.String,
                             platform: Operations.updateRunnerProfile.Output.Ok.Body.jsonPayload.platformPayload,
                             protected: Swift.Bool,
+                            runs_on_label: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
                             xcode_version: Swift.String? = nil
@@ -79747,6 +80719,7 @@ public enum Operations {
                             self.name = name
                             self.platform = platform
                             self.protected = protected
+                            self.runs_on_label = runs_on_label
                             self.updated_at = updated_at
                             self.vcpus = vcpus
                             self.xcode_version = xcode_version
@@ -79760,6 +80733,7 @@ public enum Operations {
                             case name
                             case platform
                             case protected
+                            case runs_on_label
                             case updated_at
                             case vcpus
                             case xcode_version
@@ -79994,7 +80968,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Invalid branch names
+            /// The changes are invalid
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)/responses/422`.
             ///
@@ -80129,6 +81103,365 @@ public enum Operations {
             }
         }
     }
+    /// Delete a runner profile.
+    ///
+    /// Jobs that request the profile's runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)`.
+    public enum deleteRunnerProfile {
+        public static let id: Swift.String = "deleteRunnerProfile"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The profile name, without the runs-on label prefix.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/path/profile_name`.
+                public var profile_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - profile_name: The profile name, without the runs-on label prefix.
+                public init(
+                    account_handle: Swift.String,
+                    profile_name: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.profile_name = profile_name
+                }
+            }
+            public var path: Operations.deleteRunnerProfile.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteRunnerProfile.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteRunnerProfile.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteRunnerProfile.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteRunnerProfile.Input.Path,
+                headers: Operations.deleteRunnerProfile.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The runner profile was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deleteRunnerProfile.Output.NoContent)
+            /// The runner profile was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.deleteRunnerProfile.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerProfile.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerProfile.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteRunnerProfile.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteRunnerProfile.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerProfile.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerProfile.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The profile was not found or runners are not enabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteRunnerProfile.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteRunnerProfile.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerProfile.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerProfile.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The profile is a default profile
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.deleteRunnerProfile.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.deleteRunnerProfile.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteRunnerProfile.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/DELETE/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerProfile.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteRunnerProfile.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.deleteRunnerProfile.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/delete(deleteRunnerProfile)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.deleteRunnerProfile.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.deleteRunnerProfile.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -80200,6 +81533,26 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/values`.
                 public var values: [Swift.String]?
+                /// Filter to builds executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/to`.
+                public var to: Swift.Int64?
+                /// Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/after`.
+                public var after: Swift.String?
+                /// Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/before`.
+                public var before: Swift.String?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/page_size`.
@@ -80218,6 +81571,11 @@ public enum Operations {
                 ///   - git_branch: Filter by git branch.
                 ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
                 ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
+                ///   - is_ci: Filter to builds executed on CI (true) or locally (false).
+                ///   - from: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///   - to: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///   - after: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///   - before: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -80228,6 +81586,11 @@ public enum Operations {
                     git_branch: Swift.String? = nil,
                     tags: [Swift.String]? = nil,
                     values: [Swift.String]? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -80238,6 +81601,11 @@ public enum Operations {
                     self.git_branch = git_branch
                     self.tags = tags
                     self.values = values
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
+                    self.after = after
+                    self.before = before
                     self.page_size = page_size
                     self.page = page
                 }
@@ -80416,6 +81784,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/scheme`.
                             public var scheme: Swift.String?
+                            /// When the build started. Null when unavailable, including historical builds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/started_at`.
+                            public var started_at: Foundation.Date?
                             /// Build status.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -80457,6 +81829,7 @@ public enum Operations {
                             ///   - model_identifier: Machine model identifier.
                             ///   - ran_by: The account that triggered the build.
                             ///   - scheme: The scheme that was built.
+                            ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
@@ -80478,6 +81851,7 @@ public enum Operations {
                                 model_identifier: Swift.String? = nil,
                                 ran_by: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.ran_byPayload? = nil,
                                 scheme: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
@@ -80499,6 +81873,7 @@ public enum Operations {
                                 self.model_identifier = model_identifier
                                 self.ran_by = ran_by
                                 self.scheme = scheme
+                                self.started_at = started_at
                                 self.status = status
                                 self.url = url
                                 self.xcode_version = xcode_version
@@ -80521,6 +81896,7 @@ public enum Operations {
                                 case model_identifier
                                 case ran_by
                                 case scheme
+                                case started_at
                                 case status
                                 case url
                                 case xcode_version
@@ -80592,6 +81968,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/get(listBuilds (2))/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -84434,6 +85861,411 @@ public enum Operations {
             }
         }
     }
+    /// List the machine shapes and Xcode versions runner profiles can use.
+    ///
+    /// Shapes are the vcpus and memory_gb pairs available per platform. Xcode versions apply to macOS profiles. Entries marked default are what the default profiles use.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/catalog`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)`.
+    public enum getRunnerCatalog {
+        public static let id: Swift.String = "getRunnerCatalog"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getRunnerCatalog.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerCatalog.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerCatalog.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRunnerCatalog.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getRunnerCatalog.Input.Path,
+                headers: Operations.getRunnerCatalog.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload`.
+                        public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/default`.
+                            public var _default: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/memory_gb`.
+                            public var memory_gb: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case macos = "macos"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/platform`.
+                            public var platform: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapesPayload/vcpus`.
+                            public var vcpus: Swift.Int
+                            /// Creates a new `shapesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - _default:
+                            ///   - memory_gb:
+                            ///   - platform:
+                            ///   - vcpus:
+                            public init(
+                                _default: Swift.Bool,
+                                memory_gb: Swift.Int,
+                                platform: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload.platformPayload,
+                                vcpus: Swift.Int
+                            ) {
+                                self._default = _default
+                                self.memory_gb = memory_gb
+                                self.platform = platform
+                                self.vcpus = vcpus
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case _default = "default"
+                                case memory_gb
+                                case platform
+                                case vcpus
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapes`.
+                        public typealias shapesPayload = [Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/shapes`.
+                        public var shapes: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload`.
+                        public struct xcode_versionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload/default`.
+                            public var _default: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versionsPayload/xcode_version`.
+                            public var xcode_version: Swift.String
+                            /// Creates a new `xcode_versionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - _default:
+                            ///   - xcode_version:
+                            public init(
+                                _default: Swift.Bool,
+                                xcode_version: Swift.String
+                            ) {
+                                self._default = _default
+                                self.xcode_version = xcode_version
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case _default = "default"
+                                case xcode_version
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versions`.
+                        public typealias xcode_versionsPayload = [Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/json/xcode_versions`.
+                        public var xcode_versions: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - shapes:
+                        ///   - xcode_versions:
+                        public init(
+                            shapes: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.shapesPayload,
+                            xcode_versions: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload.xcode_versionsPayload
+                        ) {
+                            self.shapes = shapes
+                            self.xcode_versions = xcode_versions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case shapes
+                            case xcode_versions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRunnerCatalog.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner catalog
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRunnerCatalog.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRunnerCatalog.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRunnerCatalog.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRunnerCatalog.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerCatalog.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Runners are not enabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getRunnerCatalog.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getRunnerCatalog.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRunnerCatalog.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/catalog/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerCatalog.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRunnerCatalog.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRunnerCatalog.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/catalog/get(getRunnerCatalog)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRunnerCatalog.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRunnerCatalog.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Find which commits have no file listing stored yet.
     ///
     /// Given commit SHAs, returns the ones whose file listing (every file of the commit's tree with its blob) the server lacks, so a clean checkout uploads it once per commit. The listing is what coverage is measured against, where the project's tracked files are read, and what evidence reuse compares.
@@ -86240,7 +88072,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -86256,7 +88088,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/tasks/{task_id}/executions/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -86274,11 +88106,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(
@@ -89158,6 +90990,7 @@ public enum Operations {
                             case account_colon_registry_colon_read = "account:registry:read"
                             case account_colon_registry_colon_write = "account:registry:write"
                             case account_colon_runners_colon_read = "account:runners:read"
+                            case account_colon_runners_colon_write = "account:runners:write"
                             case project_colon_previews_colon_read = "project:previews:read"
                             case project_colon_previews_colon_write = "project:previews:write"
                             case project_colon_admin_colon_read = "project:admin:read"
@@ -103559,7 +105392,7 @@ public enum Operations {
                             public var before: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/current_page`.
                             public var current_page: Swift.Int?
-                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/end_cursor`.
                             public var end_cursor: Swift.String?
@@ -103575,7 +105408,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/page_size`.
                             public var page_size: Swift.Int
-                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/files/{file_id}/compilations/GET/responses/200/content/json/pagination_metadata/start_cursor`.
                             public var start_cursor: Swift.String?
@@ -103593,11 +105426,11 @@ public enum Operations {
                             ///   - after:
                             ///   - before:
                             ///   - current_page:
-                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                             ///   - has_next_page: Whether there are more pages available.
                             ///   - has_previous_page: Whether there are previous pages available.
                             ///   - page_size: Number of items per page.
-                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                             ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
                             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
                             public init(

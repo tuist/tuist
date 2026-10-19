@@ -101,7 +101,7 @@ struct AutomaticManifestEnvironmentIntegrationTests {
             #expect(lockfile.contains("1.0.0"))
             if embedded {
                 let fingerprint = try await fileSystem.readTextFile(
-                    at: package.appending(components: ".build", "swifterpm", "manifests", "package.json.envhash")
+                    at: package.appending(components: ".build", "swifterpm", "manifests", "package.json.inputs.json")
                 )
                 if let firstFingerprint {
                     #expect(fingerprint == firstFingerprint)

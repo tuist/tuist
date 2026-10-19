@@ -223,7 +223,7 @@ msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
 #: lib/tuist_web/live/mix_cache_live.html.heex:237
-#: lib/tuist_web/live/mix_cache_live.html.heex:266
+#: lib/tuist_web/live/mix_cache_live.html.heex:269
 #: lib/tuist_web/live/module_cache_live.ex:389
 #: lib/tuist_web/live/module_cache_live.html.heex:147
 #: lib/tuist_web/live/module_cache_live.html.heex:676
@@ -337,7 +337,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
 #: lib/tuist_web/live/cache_runs_live.html.heex:101
-#: lib/tuist_web/live/mix_cache_live.html.heex:302
+#: lib/tuist_web/live/mix_cache_live.html.heex:305
 #: lib/tuist_web/live/module_cache_live.html.heex:766
 #: lib/tuist_web/live/xcode_cache_live.html.heex:895
 #, elixir-autogen, elixir-format
@@ -394,7 +394,7 @@ msgstr ""
 msgid "Fonts"
 msgstr ""
 
-#: lib/tuist_web/live/mix_cache_live.html.heex:296
+#: lib/tuist_web/live/mix_cache_live.html.heex:299
 #: lib/tuist_web/live/module_cache_live.html.heex:750
 #: lib/tuist_web/live/xcode_cache_live.html.heex:879
 #, elixir-autogen, elixir-format
@@ -512,7 +512,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundles_live.html.heex:427
 #: lib/tuist_web/live/cache_runs_live.html.heex:135
-#: lib/tuist_web/live/mix_cache_live.html.heex:317
+#: lib/tuist_web/live/mix_cache_live.html.heex:320
 #: lib/tuist_web/live/module_cache_live.html.heex:526
 #: lib/tuist_web/live/module_cache_live.html.heex:787
 #: lib/tuist_web/live/xcode_cache_live.html.heex:762
@@ -582,7 +582,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
 #: lib/tuist_web/live/cache_runs_live.html.heex:117
-#: lib/tuist_web/live/mix_cache_live.html.heex:308
+#: lib/tuist_web/live/mix_cache_live.html.heex:311
 #: lib/tuist_web/live/module_cache_live.html.heex:779
 #: lib/tuist_web/live/module_cache_module_live.html.heex:575
 #: lib/tuist_web/live/xcode_cache_live.html.heex:908
@@ -592,7 +592,7 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.ex:100
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
-#: lib/tuist_web/live/mix_cache_live.html.heex:299
+#: lib/tuist_web/live/mix_cache_live.html.heex:302
 #: lib/tuist_web/live/module_cache_live.html.heex:760
 #: lib/tuist_web/live/xcode_cache_live.html.heex:889
 #, elixir-autogen, elixir-format
@@ -1361,3 +1361,10 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
 msgstr ""
+
+#: lib/tuist_web/live/mix_cache_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate."
+msgid_plural "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate."
+msgstr[0] ""
+msgstr[1] ""

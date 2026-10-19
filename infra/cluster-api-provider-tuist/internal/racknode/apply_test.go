@@ -32,6 +32,8 @@ type fakeHost struct {
 	answers  map[string]string
 	failures map[string]int
 	ran      []string
+	// stdin is what each command that read standard input was given.
+	stdin []string
 	// onRun lets a test change the host when a command runs.
 	onRun func(command string)
 }
@@ -92,9 +94,12 @@ func (h *fakeHost) RemoveAll(p string) error {
 	return nil
 }
 
-func (h *fakeHost) Run(_ context.Context, _ []byte, name string, args ...string) ([]byte, error) {
+func (h *fakeHost) Run(_ context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
 	command := strings.Join(append([]string{name}, args...), " ")
 	h.ran = append(h.ran, command)
+	if stdin != nil {
+		h.stdin = append(h.stdin, string(stdin))
+	}
 	if h.onRun != nil {
 		h.onRun(command)
 	}

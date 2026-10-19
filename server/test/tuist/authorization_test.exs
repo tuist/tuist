@@ -826,6 +826,38 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:runners_read, subject, other_account) == {:error, :forbidden}
   end
 
+  test "can.read.account.runners when an account token has runner write scope" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.update.account.runners only when the subject is an admin of the organization" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    admin = AccountsFixtures.user_fixture()
+    member = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(admin, organization, role: :admin)
+    Accounts.add_user_to_organization(member, organization, role: :user)
+
+    assert Authorization.authorize(:runners_update, admin, account) == :ok
+    assert Authorization.authorize(:runners_update, member, account) == {:error, :forbidden}
+  end
+
+  test "can.update.account.runners when an account token has runner write scope for that account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_update, subject, account) == :ok
+    assert Authorization.authorize(:runners_update, subject, other_account) == {:error, :forbidden}
+
+    for scopes <- [["account:runners:read"], ["mcp"]] do
+      assert Authorization.authorize(:runners_update, %{subject | scopes: scopes}, account) == {:error, :forbidden}
+    end
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

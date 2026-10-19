@@ -389,6 +389,32 @@ kuraGatewayNetworkPolicy:
   # kura-controller's `gatewayGRPCPort`, the gRPC-only port the gRPC Ingress
   # routes to once an instance's pods serve it.
   grpcPort: 4001
+  # kura-controller's `peerPort`, which the regional peer demux forwards the
+  # public peer hosts to.
+  peerPort: 7443
+
+# Host policy that drops the cluster-internal node ports from `world`. Needs
+# Cilium with the host firewall enabled. See
+# templates/cluster-ports-host-policy.yaml.
+clusterPortsHostPolicy:
+  enabled: false
+  ports:
+    - port: 8472
+      protocol: UDP
+    - port: 4240
+      protocol: TCP
+    - port: 10250
+      protocol: TCP
+    - port: 9962
+      protocol: TCP
+    - port: 9965
+      protocol: TCP
+    - port: 9963
+      protocol: TCP
+    - port: 9964
+      protocol: TCP
+    - port: 9100
+      protocol: TCP
 
 external-dns:
   enabled: true

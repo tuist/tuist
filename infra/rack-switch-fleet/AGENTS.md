@@ -1139,8 +1139,12 @@ addresses and the gateways.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on
-  `wan0`, forwarded or not. The edges' SSH, kubelets and boot server are
-  reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  `wan0`, except what the edge translated itself (`ct status dnat`): the
+  cluster ports of the site's cluster-network storage host, from the
+  cluster's nodes only, in the `tuist_cluster_forwards` table the CAPI operator
+  renders into the edge's node configuration (see "A storage node on the
+  cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
+  and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
   no room for the machines.
 
 ### Cold boot

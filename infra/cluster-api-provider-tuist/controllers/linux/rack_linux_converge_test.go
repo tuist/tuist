@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 
@@ -114,6 +115,12 @@ func TestRackNodeConfigHash(t *testing.T) {
 		"node taints":      func(o *rackConvergeOptions) { o.NodeTaints = nil },
 		"provider ID":      func(o *rackConvergeOptions) { o.ProviderID = "rack-linux://ber1/other" },
 		"role":             func(o *rackConvergeOptions) { o.Role = "storage" },
+		"cluster network": func(o *rackConvergeOptions) {
+			o.ClusterNetwork = &infrav1.RackLinuxHostClusterNetwork{PublicAddress: "149.6.170.31", Address: "10.10.0.11"}
+		},
+		"forwards": func(o *rackConvergeOptions) {
+			o.Forwards = []infrav1.RackLinuxHostClusterNetwork{{PublicAddress: "149.6.170.31", Address: "10.10.0.11"}}
+		},
 	} {
 		changed := base
 		mutate(&changed)
@@ -333,7 +340,7 @@ func TestRackNodeConfigRoutesTheKubernetesServiceToTheAPIServer(t *testing.T) {
 			t.Errorf("the rules lack %q:\n%s", want, rules)
 		}
 	}
-	if len(cfg.Nftables) != 1 || cfg.Nftables[0] != rackKubernetesServicePath {
+	if !slices.Contains(cfg.Nftables, rackKubernetesServicePath) {
 		t.Fatalf("nftables %v, want the rules loaded", cfg.Nftables)
 	}
 }
@@ -348,7 +355,7 @@ func TestRackNodeConfigLeavesTheKubernetesServiceAloneWithoutAnAddressToTranslat
 		"an API server hostname": func() rackConvergeOptions { o := edgeConvergeOptions(); o.KubernetesServiceIP = "10.128.0.1"; return o }(),
 	} {
 		cfg := rackNodeConfig(o)
-		if len(cfg.Nftables) != 0 {
+		if slices.Contains(cfg.Nftables, rackKubernetesServicePath) {
 			t.Errorf("%s: loads %v", name, cfg.Nftables)
 		}
 		removed := false

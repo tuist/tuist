@@ -201,7 +201,7 @@ defmodule Tuist.Runners.Profile do
         changeset
 
       true ->
-        add_error(changeset, :vcpus, "must match one of the available resource configurations")
+        add_error(changeset, :vcpus, "must match one of the available resource configurations", validation: :shape)
     end
   end
 
@@ -216,7 +216,7 @@ defmodule Tuist.Runners.Profile do
         changeset
 
       true ->
-        add_error(changeset, :xcode_version, "must match one of the available Xcode versions")
+        add_error(changeset, :xcode_version, "must match one of the available Xcode versions", validation: :xcode_version)
     end
   end
 

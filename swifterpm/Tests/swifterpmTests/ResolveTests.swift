@@ -1,8 +1,45 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import SwifterPMCore
 
 struct ResolveTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0"])
+        let package = root.appendingPathComponent("App")
+        try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        let scratch = package.appendingPathComponent(".build")
+        let sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
+        var request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: sharedCache,
+            disableSandbox: true,
+            cachedDirectoryMaterialization: .symlink,
+            quiet: true
+        )
+        let initial = try await SwifterPM().resolve(request)
+        let lockfile = package.appendingPathComponent("Package.resolved")
+        let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+        if !retainWorkspace {
+            try await fileSystem.remove(scratch.absolutePath)
+        }
+        request.forceResolvedVersions = true
+        let warm = try await SwifterPM().resolve(request)
+        #expect(warm.pins == initial.pins)
+        #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+        #expect(try await fileSystem.exists(sharedCache.appendingPathComponent("manifests/manifest.db").absolutePath))
+        #expect(try await fileSystem.exists(scratch.appendingPathComponent("checkouts/dependency/Package.swift").absolutePath))
+        let pin = try #require(try await ResolvedFile.read(packageDir: package).pins.first)
+        let cache = try await Cache(root: sharedCache)
+        #expect(try await fileSystem.exists(cache.sourcePath(pin: pin).appendingPathComponent("Package.swift").absolutePath))
+    }
+
     @Test
     func defaultResolverShellsOutToSwiftPMWithoutWritingWhenRequested() async throws {
         try await withTemporaryDirectory { root in

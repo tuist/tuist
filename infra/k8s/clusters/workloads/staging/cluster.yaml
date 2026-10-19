@@ -88,6 +88,13 @@ spec:
               rollingUpdate:
                 maxSurge: 1
                 maxUnavailable: 0
+          # The same pool label production's md-0 carries: the tailnet-ingress
+          # ProxyGroup's static endpoints select these nodes' public IPs
+          # (infra/helm/tailscale-operator). A `node.cluster.x-k8s.io/` label is
+          # propagated to the Machines and Nodes in place, without a rollout.
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general
         # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors production so
         # the failover controller + cutover are exercised end to end on
         # staging before production. Nodes self-apply the candidate label

@@ -104,6 +104,61 @@ func TestEatonATSReadsTheSwitchPastAPreferredSourceItCannotDecode(t *testing.T) 
 	}
 }
 
+func TestEatonATSReadsItsOutputsEmbeddedOrApart(t *testing.T) {
+	for _, apart := range []bool{false, true} {
+		card, e, outlet := atsAgainst(t)
+		card.Mu.Lock()
+		card.ATS.Outputs = []map[string]any{{"current": 2.5, "voltage": 230.4, "activePower": 540.0, "apparentPower": 576.0, "powerFactor": 0.94}}
+		card.ATS.OutputMeasuresApart = apart
+		card.Mu.Unlock()
+
+		ats, err := e.ATS(context.Background(), outlet)
+		if err != nil {
+			t.Fatalf("apart %t: %v", apart, err)
+		}
+		if ats.OutputsUnread != "" || len(ats.Outputs) != 1 {
+			t.Fatalf("apart %t: outputs %+v, unread %q", apart, ats.Outputs, ats.OutputsUnread)
+		}
+		out := ats.Outputs[0]
+		if out.Number != 1 || *out.Current != 2.5 || *out.Voltage != 230.4 || *out.ActivePower != 540 || *out.ApparentPower != 576 {
+			t.Fatalf("apart %t: output %+v", apart, out)
+		}
+		if out.Detail() != "activePower=540 apparentPower=576 current=2.5 powerFactor=0.94 voltage=230.4" {
+			t.Fatalf("apart %t: detail %q", apart, out.Detail())
+		}
+		if ats.Inputs[0].Current == nil || *ats.Inputs[0].Current != 0.5 {
+			t.Fatalf("apart %t: input current %v", apart, ats.Inputs[0].Current)
+		}
+	}
+}
+
+// A card that serves no outputs is still read: only the outputs are missing,
+// with what the card answered.
+func TestEatonATSReadsTheSwitchWithoutOutputs(t *testing.T) {
+	card, e, outlet := atsAgainst(t)
+	ats, err := e.ATS(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("ATS: %v", err)
+	}
+	if len(ats.Outputs) != 0 || !strings.Contains(ats.OutputsUnread, "404") {
+		t.Fatalf("outputs %+v, unread %q: want none, saying the card answered 404", ats.Outputs, ats.OutputsUnread)
+	}
+	if active, err := ats.Active(); err != nil || active != 1 || len(ats.Inputs) != 2 || ats.Preferred != 1 {
+		t.Fatalf("active %d, %v, %d inputs, preferred %d", active, err, len(ats.Inputs), ats.Preferred)
+	}
+
+	card.Mu.Lock()
+	card.ATS.Outputs = []map[string]any{{"current": "2.5 A"}}
+	card.Mu.Unlock()
+	ats, err = e.ATS(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("ATS: %v", err)
+	}
+	if len(ats.Outputs) != 1 || ats.Outputs[0].Current != nil || ats.Outputs[0].Detail() != "current=2.5 A" {
+		t.Fatalf("outputs %+v: want the output, its unreadable current left out and kept verbatim", ats.Outputs)
+	}
+}
+
 // An input field in a form the driver cannot read loses that field alone.
 func TestEatonATSReadsTheSwitchPastAnOddInputField(t *testing.T) {
 	card, e, outlet := atsAgainst(t)

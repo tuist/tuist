@@ -43,7 +43,8 @@ import XcodeGraph
             await #expect(throws: HashCacheCommandServiceError.generatedProjectNotFound(path)) {
                 try await subject.run(
                     path: path.pathString,
-                    configuration: nil
+                    configuration: nil,
+                    coverage: false
                 )
             }
         }
@@ -71,15 +72,39 @@ import XcodeGraph
                     .generationOptions.defaultConfiguration
                 ),
                 excludedTargets: .value([]),
-                destination: .value(nil)
+                destination: .value(nil),
+                coverage: .value(.off)
             ).willReturn([
                 graphTarget: .test(hash: hash),
             ])
             // When
-            try await subject.run(path: path.pathString, configuration: "Debug")
+            try await subject.run(path: path.pathString, configuration: "Debug", coverage: false)
 
             // Then
             #expect(Logger.testingLogHandler.collected[.info, ==].contains(hash) == true)
+        }
+
+        @Test(.withMockedLogger()) func run_hashesTheCoverageVariant_whenAskedForCoverage() async throws {
+            let path = try AbsolutePath(validating: "/project")
+            let config = Tuist.test()
+            let generator = MockGenerating()
+            let graph = Graph.test()
+            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+            given(generatorFactory).binaryCacheWarmingPreload(config: .value(config), targetsToBinaryCache: .value([]))
+                .willReturn(generator)
+            given(generator).load(path: .value(path), options: .any).willReturn(graph)
+            given(manifestloader).hasRootManifest(at: .value(path)).willReturn(true)
+            given(cacheGraphContentHasher).contentHashes(
+                for: .value(graph), configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .value(.on)
+            ).willReturn([:])
+
+            try await subject.run(path: path.pathString, configuration: nil, coverage: true)
+
+            verify(cacheGraphContentHasher).contentHashes(
+                for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .value(.on)
+            ).called(1)
         }
     }
 #endif

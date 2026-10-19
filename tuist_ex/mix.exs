@@ -9,7 +9,7 @@ defmodule TuistEx.MixProject do
       elixir: "~> 1.18",
       # `cover` belongs to the :tools application, which `mix test --cover`
       # starts and which no project lists among its dependencies.
-      elixirc_options: [no_warn_undefined: [:cover, Mimic.Server]],
+      elixirc_options: [no_warn_undefined: [:cover, Mimic]],
       deps: [
         {:grpc, "~> 0.11"},
         {:quokka, "~> 2.13", only: [:dev, :test], runtime: false},
