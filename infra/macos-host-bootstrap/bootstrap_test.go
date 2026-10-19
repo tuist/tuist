@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -1961,15 +1962,45 @@ func TestRenderCommandLineToolsScript_NeverFailsAndOnlyInstallsWithoutGit(t *tes
 	if strings.Contains(script, "set -e") || !strings.HasSuffix(strings.TrimSpace(script), "exit 0") {
 		t.Fatal("the step must never fail the bootstrap")
 	}
-	if !strings.HasPrefix(script, "set -uo pipefail\nif /usr/bin/git --version") {
+	if !strings.Contains(script, "\nif xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version") {
 		t.Fatal("a host with a working git must skip the install")
 	}
-	for _, forbidden := range []string{"xcrun", "xcode-select", "python3"} {
+	for _, forbidden := range []string{"xcrun", "python3"} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("runs %q, which a host without the tools does not have", forbidden)
 		}
 	}
 	if !strings.Contains(script, ".com.apple.dt.CommandLineTools.installondemand.in-progress") {
 		t.Fatal("softwareupdate only offers the tools while the on-demand marker exists")
+	}
+}
+
+func TestRenderCommandLineToolsScript_FindsTheLabelOnEveryMacOS(t *testing.T) {
+	match := regexp.MustCompile(`sed -n '([^']+)'`).FindStringSubmatch(renderCommandLineToolsScript())
+	if match == nil {
+		t.Fatal("no label filter in the script")
+	}
+	for listing, want := range map[string]string{
+		"* Label: Command Line Tools for Xcode-16.0\n\tTitle: Command Line Tools for Xcode, Version: 16.0\n":           "Command Line Tools for Xcode-16.0",
+		"* Label: Command Line Tools for Xcode 27.0-27.0\n\tTitle: Command Line Tools for Xcode 27.0, Version: 27.0\n": "Command Line Tools for Xcode 27.0-27.0",
+		"* Label: macOS 27.0.1-26A434\n": "",
+	} {
+		cmd := exec.Command("sed", "-n", match[1])
+		cmd.Stdin = strings.NewReader(listing)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Errorf("label %q from %q, want %q", got, listing, want)
+		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_ProbesWithoutPromptingForTheTools(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	probe := strings.Index(script, "xcode-select -p")
+	if probe < 0 || probe > strings.Index(script, "/usr/bin/git --version") {
+		t.Fatal("the git stub asks a GUI to install the tools unless xcode-select finds them first")
 	}
 }

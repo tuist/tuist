@@ -1587,12 +1587,13 @@ func installCommandLineTools(ctx context.Context, client *ssh.Client) error {
 // jobs exactly as before.
 func renderCommandLineToolsScript() string {
 	return `set -uo pipefail
-if /usr/bin/git --version >/dev/null 2>&1; then
+# Without the tools, /usr/bin/git is a stub that asks a GUI to install them.
+if xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version >/dev/null 2>&1; then
   exit 0
 fi
 marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 sudo touch "$marker"
-label="$(softwareupdate --list 2>/dev/null | sed -n 's/^\* Label: \(Command Line Tools for Xcode-.*\)$/\1/p' | tail -n 1)"
+label="$(softwareupdate --list 2>/dev/null | sed -n 's/^\* Label: \(Command Line Tools.*\)$/\1/p' | tail -n 1)"
 if [ -n "$label" ]; then
   sudo softwareupdate --install "$label" --agree-to-license >/dev/null 2>&1 || echo "command line tools install failed" >&2
 else
