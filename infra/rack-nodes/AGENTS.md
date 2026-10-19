@@ -593,7 +593,11 @@ takes the Kura region with it.
   cannot be used: it starts from the registry's repository listing, which
   ghcr.io refuses. The tags come from the same catalog values as the pools'
   images; the deploy passes `runnersFleet.runnerImageSemver` to this release
-  too.
+  too. Pools name each image by the digest of that tag, so a host's probe
+  asks the cache for the digest and gets the manifest the prewarm synced. An
+  Xcode outside `prewarm` is synced on demand by digest, which zot stores
+  untagged, so retention frees it at the next garbage collection: list every
+  Xcode the rack keeps warm in `prewarm`.
 - **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
   within `keepPulledWithin`, and deletes the rest; garbage collection then
   frees their blobs. A release's previous images go a day after the rack has
