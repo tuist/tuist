@@ -4,15 +4,13 @@ import TuistSupport
 import XcodeGraph
 
 extension Project {
-    /// Whether the project's code is the repository's own: a project of the workspace, or a package the
-    /// manifest references by path, which resolves without a hash. A package resolved from source control
-    /// or a registry carries the hash of that resolution and lives outside the repository. This is the
-    /// rule the server applies to a reported target (`external_hash` empty), so coverage judges the two
-    /// alike.
-    public var isRepositoryOwned: Bool {
+    /// The hash of the resolution a package was taken from: its revision from source control, its version
+    /// from a registry. Nil for a project of the workspace and for a package the manifest references by
+    /// path. Hashed into a target's key as the `external` subhash, which the server stores as `external_hash`.
+    public var externalHash: String? {
         switch type {
-        case .local: return true
-        case let .external(hash): return hash == nil
+        case .local: nil
+        case let .external(hash): hash
         }
     }
 
