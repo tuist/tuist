@@ -3,6 +3,8 @@ package macos
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -210,6 +212,48 @@ type hostSizing struct {
 	MaxPods              int
 	GuestCapacity        int
 	RunnerCacheVolumeGiB int
+	// Tart is not sizing, but it is resolved the same way: fleet-wide, and
+	// overridable per Machine (see hostTart). Empty keeps the fleet's.
+	TartVersion string
+	TartTarball []byte
+}
+
+// TartVersionAnnotation pins one Machine's Tart to a release the operator
+// image carries, over the fleet's (--tart-version). It is how a new Tart
+// reaches one host before the fleet, and how one host is rolled back.
+const TartVersionAnnotation = "tuist.dev/tart-version"
+
+// hostTart resolves the Tart a Machine should run: the release its
+// TartVersionAnnotation names, or the fleet's. A pin naming a release the image
+// does not carry is ignored here and reported by reportUnavailableTartPin, so a
+// typo cannot push a host onto a version nobody chose.
+func hostTart(machine client.Object, fleet bootstrap.Config, releases map[string][]byte) (string, []byte) {
+	if pinned := machine.GetAnnotations()[TartVersionAnnotation]; pinned != "" {
+		if tarball, ok := releases[pinned]; ok {
+			return pinned, tarball
+		}
+	}
+	return fleet.TartVersion, fleet.TartTarball
+}
+
+// reportUnavailableTartPin warns on a Machine whose TartVersionAnnotation names
+// a release the operator image does not carry.
+func reportUnavailableTartPin(machine client.Object, fleet bootstrap.Config, releases map[string][]byte, recorder record.EventRecorder) {
+	pinned := machine.GetAnnotations()[TartVersionAnnotation]
+	if pinned == "" {
+		return
+	}
+	if _, ok := releases[pinned]; ok {
+		return
+	}
+	available := make([]string, 0, len(releases))
+	for version := range releases {
+		available = append(available, version)
+	}
+	slices.Sort(available)
+	recorder.Eventf(machine, corev1.EventTypeWarning, "TartVersionUnavailable",
+		"%s=%s names no Tart release in this operator image (it carries %s); the host stays on %s",
+		TartVersionAnnotation, pinned, strings.Join(available, ", "), fleet.TartVersion)
 }
 
 // applyHostSizing overlays one host's sizing onto the fleet config. It is the
@@ -224,6 +268,10 @@ func applyHostSizing(fleet bootstrap.Config, sizing hostSizing, perHost bootstra
 	cfg.HostMemoryMB = sizing.HostMemoryMB
 	cfg.MaxPods = sizing.MaxPods
 	cfg.RunnerCacheVolumeGiB = sizing.RunnerCacheVolumeGiB
+	if sizing.TartVersion != "" {
+		cfg.TartVersion = sizing.TartVersion
+		cfg.TartTarball = sizing.TartTarball
+	}
 
 	// Both of these are per-guest host resources, so they follow the host's
 	// guest capacity rather than being knobs of their own.

@@ -661,6 +661,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
+            {{- with (dig "tart" "version" "" .Values.macosFleet) }}
+            # An env var rather than a flag: an operator image older than this
+            # value ignores it instead of refusing to start.
+            - name: CAPI_TART_VERSION
+              value: {{ . | quote }}
+            {{- end }}
             {{- if $ovhAny }}
             # OVH dedicated-server reconciler creds. The OVH SDK reads these from
             # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the
