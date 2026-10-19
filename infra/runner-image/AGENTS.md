@@ -120,13 +120,18 @@ confirmed one. Seed the database tccd created for `runner` at
 `/Users/runner`, and do not move or copy a TCC.db into place.
 
 macOS 27 moves the user database to
-`/private/var/containers/Data/ProtectedSystem/<id>/Data/Library/Application Support/com.apple.TCC/TCC.db`.
-`tcc-approvals.sh` only knows the Tahoe path, and its `wait` step fails the
-image build when the database does not appear there, so a macOS 27 base
-breaks the build instead of shipping without approvals. The build-time
-approach should carry over, because the container lives on the image's
-disk, but resolve the path from runner's tccd (`lsof -p <pid>`) and verify
-it on a macOS 27 guest first.
+`/private/var/containers/Data/ProtectedSystem/<UUID>/Data/Library/Application Support/com.apple.TCC/TCC.db`,
+one data container per user and daemon (runner's tccd holds that file open,
+`lsof -p <pid>` shows it). The container metadata naming its owner
+(`com.apple.tccd`) is root-only, but only tccd's container has that path and
+other users' containers are closed to `runner`, so `tcc-approvals.sh`
+(`database`) takes the one runner owns, after the macOS 26 home path. That is
+why every `tcc-approvals.sh` call runs as `runner`, the build's `wait`
+included, and why `dispatch-poll.sh` asks `tcc-approvals.sh path` for the
+database its report reads. Verified on a golden-gate image build
+(2026-10-19): the database appeared at runner's login, the rows were seeded
+and were still there after the second reboot. The build-time approach carries
+over because the container lives on the image's disk.
 
 Some jobs on images that wrote the Finder approval at boot failed with an
 immediate `-1743` although boot logged approval. `dispatch-poll.sh`
@@ -733,6 +738,47 @@ Bumping the Xcode customers see on their runners:
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
    dispatch path above stays available for a one-off refresh if
    security work needs to land there.
+
+### Guest macOS majors
+
+A profile is the Xcode version for a macOS 26 guest, and
+`<codename>-<xcode>` for any other: `golden-gate-27.1` is Xcode 27.1 on
+macOS 27. `.github/scripts/macos-image-names.sh` maps one to the other, and
+the plan, release and dispatch workflows take the base, the push tag and the
+builder labels from it:
+
+| Profile            | Base                                  | Tag                                  | Builder labels            |
+|--------------------|---------------------------------------|--------------------------------------|---------------------------|
+| `27.1`             | `macos-tahoe-xcode:27-1`              | `tuist-runner:macos-27-1-<semver>`   | `vm-image-builder`        |
+| `golden-gate-27.1` | `macos-golden-gate-xcode:27-1`        | `tuist-runner:macos-golden-gate-27-1-<semver>` | `vm-image-builder`, `macos-27` |
+
+The 26 names are the ones every existing tag, digest key and RunnerPool
+uses, so nothing that predates 27 moves. Everything downstream of the
+profile string (the release's re-tag and publish checks,
+`server-deployment.yml`'s digest resolution, `runnersFleet.runnerImageDigests`)
+already keys on it and needs no change.
+
+A guest boots only on a host on its major or newer. The rented Scaleway
+fleet and the `vm-image-builder` hosts run macOS 26, the BER1 rack runs
+macOS 27, so a 27 profile is rack-only and per pool:
+`rackFleet.runners.xcodeOverrides[<xcode>].guestMacOS: 27` makes that
+Xcode's rack pools run `golden-gate-<xcode>` while its rented pools keep the
+26 image (`tuist.macosRunnerImage`). The pool keeps its name, so profiles
+route as before, but a job the site spills to the rented fleet runs on
+macOS 26: the guest OS is a property of where the job lands, not of the
+Runner Profile.
+
+Do not add a `golden-gate-*` entry to `profiles.json` before a builder with
+the `macos-27` label exists: the release's build job for it would queue
+forever and hold every other profile's release behind it.
+
+What differs on a macOS 27 guest, all verified on a golden-gate 27.1 image
+built and booted on a BER1 M5 Pro (2026-10-19):
+
+- `ImageOS` is `macos27`, from `sw_vers`.
+- The user TCC.db moved (above).
+- `/etc/kcpassword` survives (no `<sealed>` rewrite), so auto-login and the
+  LaunchAgent work unchanged.
 
 ### Betas enter as a channel
 
