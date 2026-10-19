@@ -14,7 +14,8 @@ struct CoverageInstrumentationTests {
         let plain = Target.test(name: "Plain", product: .staticFramework, productName: "Plain")
         let unlinked = Target.test(name: "Unlinked", product: .framework, productName: "Unlinked")
         let unlinkedPlain = Target.test(name: "UnlinkedPlain", product: .framework, productName: "UnlinkedPlain")
-        let project = Project.test(path: projectPath, targets: [app, lib, plain, unlinked, unlinkedPlain])
+        let assets = Target.test(name: "Assets", product: .bundle, productName: "Assets")
+        let project = Project.test(path: projectPath, targets: [app, lib, plain, unlinked, unlinkedPlain, assets])
         let graph = Graph.test(projects: [projectPath: project])
         let xcframework = { (name: String) throws in
             GraphDependency.XCFramework(
@@ -44,11 +45,14 @@ struct CoverageInstrumentationTests {
             "Plain": .test(name: "Plain", hash: "p", source: .local, cacheCategory: .binaries),
             "Unlinked": .test(name: "Unlinked", hash: "u", source: .local, cacheCategory: .binaries),
             "UnlinkedPlain": .test(name: "UnlinkedPlain", hash: "up", source: .local, cacheCategory: .binaries),
+            "Assets": .test(name: "Assets", hash: "as", source: .local, cacheCategory: .binaries),
         ]]
         // A hit the run does not link has no binary to read; its key tells how it was built.
         let subhashes: [String: TargetContentHashSubhashes] = [
             "u": .test(additionalStrings: ["Debug", CacheGraphContentHasher.coverageDimension]),
             "up": .test(additionalStrings: ["Debug"]),
+            // Keyed on coverage like every repository target, but a warm never instruments a bundle.
+            "as": .test(additionalStrings: ["Debug", CacheGraphContentHasher.coverageDimension]),
         ]
 
         let annotated = CoverageInstrumentation.annotate(
@@ -66,6 +70,7 @@ struct CoverageInstrumentationTests {
         #expect(byName["Plain"]?.instrumented == false)
         #expect(byName["Unlinked"]?.instrumented == true)
         #expect(byName["UnlinkedPlain"]?.instrumented == nil)
+        #expect(byName["Assets"]?.instrumented == nil)
         #expect(byName["Lib"]?.hash == "l")
         #expect(byName["Lib"]?.source == .remote)
     }
