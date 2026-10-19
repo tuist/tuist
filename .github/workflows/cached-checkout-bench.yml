@@ -1,0 +1,25 @@
+name: Cached checkout bench
+
+# Staging benchmark for cached checkouts (spec #99). Lives only on the
+# bench/cached-checkout branch; re-run it to collect more samples.
+on:
+  push:
+    branches: [bench/cached-checkout]
+
+jobs:
+  checkout:
+    runs-on: tuist-staging-cached-checkout-bench
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Verify workspace
+        run: |
+          set -euo pipefail
+          mount | grep -F " on ${GITHUB_WORKSPACE} " || echo "workspace is not a cached checkout mount"
+          git log --oneline -1
+          echo "files: $(git ls-files | wc -l | tr -d ' ')"
+          status="$(git status --porcelain)"
+          if [ -n "$status" ]; then echo "dirty workspace:"; echo "$status" | head; exit 1; fi
