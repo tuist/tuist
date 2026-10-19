@@ -7,7 +7,7 @@ This area owns the OpenAPI spec and schema definitions for the server API.
 - `Schemas.PaginationMetadata` supports offset, cursor, and first-page offset responses that also offer cursors. Preserve optional cursor fields and page-number/total fields so existing clients can decode the first page unchanged while new clients follow cursors.
 - Define the OpenAPI spec (`TuistWeb.API.Spec`) and security schemes.
 - Provide schema modules used by the API controllers and docs.
-- `Schemas.ReportActor` is additive response metadata. Keep provenance/source strings open for older generated clients, claims visibly unverified, and `actor` optional. Regenerate Swift contracts through `mise run generate-api-cli-code`; actor fields are server-derived, not request-body inputs.
+- `Schemas.ReportActor` is additive response metadata. Keep provenance/source strings open for older generated clients, claims visibly unverified, and `actor` optional. Regenerate Swift contracts through `mise run generate-api-cli-code`; actor fields are server-derived, not request-body inputs. Test creation accepts optional, bounded Mix formatter runtime/custom metadata for older SDK wire compatibility without storing it or interpreting it as authorization; unsigned field allowlists must remain aligned with the declared schemas.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
