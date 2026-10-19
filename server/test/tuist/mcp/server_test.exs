@@ -85,6 +85,9 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_test_case" in tool_names
       assert "get_test_run" in tool_names
       assert "get_test_case_run" in tool_names
+      assert "get_coverage" in tool_names
+      assert "list_coverage_files" in tool_names
+      assert "get_coverage_file" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
       assert "get_bundle_artifact_tree" in tool_names

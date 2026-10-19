@@ -858,6 +858,16 @@ defmodule TuistWeb.Router do
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          scope "/coverage" do
+            get "/", CoverageController, :show
+            get "/settings", CoverageController, :settings
+            get "/commits/:git_commit_sha", CoverageController, :show_commit
+            get "/commits/:git_commit_sha/files", CoverageController, :list_files
+            get "/commits/:git_commit_sha/file", CoverageController, :show_file
+            post "/uploads", CoverageController, :create_upload
+            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
@@ -866,12 +876,6 @@ defmodule TuistWeb.Router do
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
-
-          scope "/coverage" do
-            get "/settings", CoverageController, :settings
-            post "/uploads", CoverageController, :create_upload
-            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
-          end
 
           scope "/git-history" do
             get "/settings", GitHistoryController, :settings
