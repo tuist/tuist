@@ -164,8 +164,8 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return err
 	}
 	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
-	prefetch := newCustomPrefetcher(prefetchCtx, func(ctx context.Context, slot cachevolumes.Slot, urgent bool) error {
-		if urgent {
+	prefetch := newCustomPrefetcher(prefetchCtx, func(ctx context.Context, slot cachevolumes.Slot, requested bool) error {
+		if requested {
 			return backend.Prefetch(ctx, slot)
 		}
 		return backend.PrefetchSpare(ctx, slot)
@@ -405,19 +405,12 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
 		} else {
-			prefetch := c.prefetch.Load()
-			if ready := prefetch.start(identity, true); ready != nil {
-				select {
-				case <-ready:
-				case <-acquireCtx.Done():
-				}
-			}
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
 			} else {
 				if errors.Is(err, context.DeadlineExceeded) {
-					prefetch.start(identity, false)
+					c.prefetch.Load().start(identity, true)
 				}
 				response["reason"] = cachevolumes.Result(err)
 				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",

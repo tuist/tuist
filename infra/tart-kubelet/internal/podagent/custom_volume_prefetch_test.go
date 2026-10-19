@@ -35,15 +35,15 @@ func waitClosed(t *testing.T, done <-chan struct{}, what string) {
 	}
 }
 
-func TestCustomPrefetchJoinsDuplicatesAndServesWaitingJobsFirst(t *testing.T) {
+func TestCustomPrefetchJoinsDuplicatesAndServesRequestedMastersFirst(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	release := make(chan struct{})
 	started := make(chan struct{}, 4)
 	var mu sync.Mutex
 	var order []string
-	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, urgent bool) error {
-		if urgent != (slot.Scope[0] != 'a' && slot.Scope[0] != 'b') {
-			t.Error("lost a download's urgency", slot.Scope[:1], urgent)
+	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, requested bool) error {
+		if requested != (slot.Scope[0] != 'a' && slot.Scope[0] != 'b') {
+			t.Error("lost whether a job requested a download", slot.Scope[:1], requested)
 		}
 		mu.Lock()
 		order = append(order, slot.Scope[:1])
@@ -86,7 +86,7 @@ func TestCustomPrefetchJoinsDuplicatesAndServesWaitingJobsFirst(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if got := strings.Join(order[:3], ""); got != "acb" {
-		t.Fatal("a waiting job did not go first", order)
+		t.Fatal("a requested master did not go first", order)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestCustomPrefetchBoundsEachDownload(t *testing.T) {
 	defer cancel()
 	finished := make(chan error, 1)
 	p := &customPrefetcher{ctx: ctx, budget: 20 * time.Millisecond, pending: map[string]*customPrefetch{},
-		urgent: make(chan *customPrefetch, 1), background: make(chan *customPrefetch, 1),
+		requested: make(chan *customPrefetch, 1), background: make(chan *customPrefetch, 1),
 		restore: func(ctx context.Context, _ cachevolumes.Slot, _ bool) error {
 			<-ctx.Done()
 			finished <- ctx.Err()
@@ -130,21 +130,23 @@ func TestCustomPrefetchShutdownReleasesWaiters(t *testing.T) {
 	}
 }
 
-type recordingCustomBackend struct {
+// slowCustomBackend restores until the request deadline when slow is set.
+type slowCustomBackend struct {
 	cachevolumes.Backend
-	installed atomic.Bool
-	sawMaster atomic.Bool
+	slow atomic.Bool
 }
 
-func (b *recordingCustomBackend) Attach(ctx context.Context, _ cachevolumes.Slot, _ string) error {
-	b.sawMaster.Store(b.installed.Load())
+func (b *slowCustomBackend) Attach(ctx context.Context, _ cachevolumes.Slot, _ string) error {
+	if b.slow.Load() {
+		<-ctx.Done()
+	}
 	return ctx.Err()
 }
-func (b *recordingCustomBackend) Measure(cachevolumes.Slot, string) (int64, int64, error) {
+func (b *slowCustomBackend) Measure(cachevolumes.Slot, string) (int64, int64, error) {
 	return 0, 20_000_000_000, nil
 }
 
-func customMailbox(t *testing.T, identity cachevolumes.Identity, requestAge time.Duration) (*CustomVolumes, *recordingCustomBackend, *corev1.Pod, string) {
+func customMailbox(t *testing.T, identity cachevolumes.Identity, requestAge time.Duration) (*CustomVolumes, *slowCustomBackend, *corev1.Pod, string) {
 	t.Helper()
 	root := t.TempDir()
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "job", Namespace: "runners", UID: "job-uid"}}
@@ -164,7 +166,7 @@ func customMailbox(t *testing.T, identity cachevolumes.Identity, requestAge time
 		_ = json.NewEncoder(w).Encode(identity)
 	}))
 	t.Cleanup(server.Close)
-	backend := &recordingCustomBackend{}
+	backend := &slowCustomBackend{}
 	store, err := cachevolumes.Open(root, backend)
 	if err != nil {
 		t.Fatal(err)
@@ -188,36 +190,45 @@ func readCustomResponse(t *testing.T, path string) map[string]any {
 	return response
 }
 
-func TestCustomMailboxWaitsForAMasterThisHostLacks(t *testing.T) {
+func TestCustomMailboxNeverWaitsOnABackgroundDownload(t *testing.T) {
 	identity := warmCustomIdentity("a", 2)
-	c, backend, pod, response := customMailbox(t, identity, 0)
+	c, _, pod, response := customMailbox(t, identity, 0)
 	ctx, cancel := context.WithCancel(context.Background())
+	release := make(chan struct{})
 	p := newCustomPrefetcher(ctx, func(context.Context, cachevolumes.Slot, bool) error {
-		time.Sleep(50 * time.Millisecond)
-		backend.installed.Store(true)
+		<-release
 		return nil
-	}, func(cachevolumes.Identity) bool { return backend.installed.Load() })
+	}, nil)
 	defer func() {
+		close(release)
 		cancel()
 		p.wait.Wait()
 	}()
 	c.prefetch.Store(p)
+	p.start(identity, false)
+	started := time.Now()
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
-	got := readCustomResponse(t, response)
-	if got["id"] != identity.ID || got["warm"] != true || !backend.sawMaster.Load() {
-		t.Fatal("job did not wait for the master", got)
+	if time.Since(started) > time.Second {
+		t.Fatal("the job waited on a background download")
+	}
+	if got := readCustomResponse(t, response); got["id"] != identity.ID {
+		t.Fatal(got)
 	}
 }
 
-func TestCustomMailboxExplainsTimeoutAndKeepsDownloading(t *testing.T) {
+func TestCustomMailboxQueuesATimedOutMasterAndExplains(t *testing.T) {
 	identity := warmCustomIdentity("a", 2)
-	c, _, pod, response := customMailbox(t, identity, customAcquireBudget-100*time.Millisecond)
+	c, backend, pod, response := customMailbox(t, identity, customAcquireBudget-100*time.Millisecond)
+	backend.slow.Store(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	release := make(chan struct{})
 	interrupted := make(chan bool, 1)
-	p := newCustomPrefetcher(ctx, func(ctx context.Context, _ cachevolumes.Slot, _ bool) error {
+	p := newCustomPrefetcher(ctx, func(ctx context.Context, _ cachevolumes.Slot, requested bool) error {
+		if !requested {
+			t.Error("a master the job asked for was queued as speculative")
+		}
 		select {
 		case <-release:
 			interrupted <- false

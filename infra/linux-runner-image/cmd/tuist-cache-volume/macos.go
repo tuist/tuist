@@ -25,10 +25,6 @@ type macResponse struct {
 	Reason    string `json:"reason"`
 }
 
-// The host waits up to three minutes for a saved volume to download to it.
-const macAcquireTimeout = 3*time.Minute + 30*time.Second
-const macWaitNotice = 10 * time.Second
-
 func macUnavailable(reason string) error {
 	switch reason {
 	case "timeout":
@@ -43,7 +39,7 @@ func macUnavailable(reason string) error {
 }
 
 func acquireMac(key string) (string, string, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), macAcquireTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
@@ -83,7 +79,6 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		return "", "", false, err
 	}
 	var response macResponse
-	notice := time.After(macWaitNotice)
 	for {
 		data, err = os.ReadFile(filepath.Join(share, name+".response"))
 		if err == nil && json.Unmarshal(data, &response) == nil {
@@ -92,8 +87,6 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		select {
 		case <-ctx.Done():
 			return "", "", false, ctx.Err()
-		case <-notice:
-			fmt.Println("Waiting for the Tuist cache volume to become available on this runner host...")
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
