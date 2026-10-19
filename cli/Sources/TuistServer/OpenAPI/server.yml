@@ -21255,6 +21255,12 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "GitHub couldn't be reached to check the installation's repositories"
       summary: Link a project to a GitHub repository.
       tags:
         - Projects

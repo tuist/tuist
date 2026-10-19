@@ -24,20 +24,19 @@ enum DisconnectProjectRepositoryServiceError: LocalizedError, Equatable {
 }
 
 public struct DisconnectProjectRepositoryService: DisconnectProjectRepositoryServicing {
-    private let fullHandleService: FullHandleServicing
+    private let makeClient: @Sendable (URL) -> Client
 
     public init() {
-        self.init(fullHandleService: FullHandleService())
+        self.init(makeClient: { Client.authenticated(serverURL: $0) })
     }
 
-    init(fullHandleService: FullHandleServicing) {
-        self.fullHandleService = fullHandleService
+    init(makeClient: @escaping @Sendable (URL) -> Client) {
+        self.makeClient = makeClient
     }
 
     public func disconnectProjectRepository(fullHandle: String, serverURL: URL) async throws {
-        let client = Client.authenticated(serverURL: serverURL)
-        let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.disconnectProjectRepository(
+        let handles = try FullHandleService().parse(fullHandle)
+        let response = try await makeClient(serverURL).disconnectProjectRepository(
             .init(path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle))
         )
         switch response {
