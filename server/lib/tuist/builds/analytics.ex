@@ -2363,7 +2363,6 @@ defmodule Tuist.Builds.Analytics do
         FROM xcode_targets_by_project AS xt
         INNER JOIN command_events AS e ON xt.command_event_id = e.id
         #{module_cache_availability_join()}
-        #{missed_dependencies_join()}
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
@@ -2458,29 +2457,28 @@ defmodule Tuist.Builds.Analytics do
   end
 
   # A binary is only used when every direct dependency is also a binary, so a
-  # dependency's miss makes its dependents miss with unchanged keys. Collect the
-  # missed dependencies of the batched modules per command event; the name range
-  # keeps the scan bounded like the rest of the batch.
-  defp missed_dependencies_join do
-    """
-    LEFT JOIN (
-      SELECT md_xt.command_event_id AS command_event_id, groupArray(md_xt.name) AS names
-      FROM xcode_targets_by_project AS md_xt
-      WHERE md_xt.name IN (
-          SELECT arrayJoin(dep_xt.dependencies)
-          FROM xcode_targets_by_project AS dep_xt
-          WHERE dep_xt.name IN {names:Array(String)}
-            AND dep_xt.binary_cache_hit = 'miss'#{xcode_target_pruning("dep_xt")}
-        )
-        AND md_xt.binary_cache_hit = 'miss'
-        AND md_xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning("md_xt")}
-      GROUP BY command_event_id
-    ) AS missed_dependencies ON missed_dependencies.command_event_id = xt.command_event_id
-    """
-  end
-
+  # dependency's miss makes its dependents miss with unchanged keys. The set
+  # holds (command event, name) for the missed dependencies of the batched
+  # modules; a set lookup instead of a join keeps the batch's peak memory close
+  # to the query without it.
   defp dependency_missed do
-    "hasAny(xt.dependencies, missed_dependencies.names)"
+    """
+    arrayExists(
+      dependency -> (xt.command_event_id, dependency) IN (
+        SELECT md_xt.command_event_id, md_xt.name
+        FROM xcode_targets_by_project AS md_xt
+        WHERE md_xt.name IN (
+            SELECT arrayJoin(dep_xt.dependencies)
+            FROM xcode_targets_by_project AS dep_xt
+            WHERE dep_xt.name IN {names:Array(String)}
+              AND dep_xt.binary_cache_hit = 'miss'#{xcode_target_pruning("dep_xt")}
+          )
+          AND md_xt.binary_cache_hit = 'miss'
+          AND md_xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning("md_xt")}
+      ),
+      xt.dependencies
+    )
+    """
   end
 
   defp module_cache_reason do
@@ -2919,7 +2917,6 @@ defmodule Tuist.Builds.Analytics do
           FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
           #{module_cache_availability_join()}
-          #{missed_dependencies_join()}
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
           -- project and window so the join builds a small hash table.

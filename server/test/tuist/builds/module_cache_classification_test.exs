@@ -375,6 +375,24 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     assert Enum.all?(rows, &(&1.evicted == 1 and &1.unclassified == 0))
   end
 
+  test "a dependency miss in another command does not make a previously served key upstream", %{
+    project: project,
+    opts: opts
+  } do
+    warmed = observation(project, 1)
+    insert_target(warmed, "A", :remote, "A-v1")
+    insert_target(warmed, "B", :remote, "B-v1", ["A"])
+    current = observation(project, 2)
+    insert_target(current, "A", :remote, "A-v1")
+    insert_target(current, "B", :miss, "B-v1", ["A"])
+    concurrent = observation(project, 2, observed_at: ~N[2024-04-02 10:00:30])
+    insert_target(concurrent, "A", :miss, "A-v2")
+
+    page = Analytics.module_build_history(Keyword.put(opts, :name, "B"))
+    assert [%{reason: "evicted"}] = Enum.filter(page.rows, &(&1.id == current.id))
+    assert [%{evicted: 1, dependency_induced: 0}] = Analytics.module_invalidations(Keyword.put(opts, :name, "B"))
+  end
+
   test "a dependency miss is found when the dependency is in another name batch", %{project: project, opts: opts} do
     warmed = observation(project, 1)
     insert_target(warmed, "A", :local, "A-v1")
