@@ -148,6 +148,34 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
              Query.run(:jobs, account.id, %{"volume_id" => use.volume_id, "page_size" => 1, "page" => 2})
   end
 
+  test "says when a job started from an older saved copy", %{account: account, uses: [use | _]} do
+    use
+    |> Ecto.Changeset.change(
+      status: "discarded",
+      warm: true,
+      base_generation: 3,
+      mounted_generation: 2,
+      attached_at: DateTime.utc_now()
+    )
+    |> Repo.update!()
+
+    assert {:ok, %{jobs: [job]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert job.cache_hit
+    assert job.cache_status_description =~ "started from an older saved copy"
+
+    assert_schema(:jobs, %{
+      jobs: [job],
+      pagination_metadata: %{
+        current_page: 1,
+        page_size: 20,
+        total_count: 1,
+        total_pages: 1,
+        has_next_page: false,
+        has_previous_page: false
+      }
+    })
+  end
+
   test "analytics compares known outcomes in equal periods and preserves empty buckets", %{
     account: account,
     uses: [first, second, third]

@@ -8,6 +8,10 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
+- A report's `mounted_generation` records the older saved generation a macOS host
+  mounted when the use's base was not local; only values below the base are kept.
+  Such uses may still publish (last publication wins). `older_copy?/1` drives the
+  "Older copy" dashboard badge and the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope

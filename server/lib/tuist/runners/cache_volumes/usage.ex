@@ -8,6 +8,7 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:generation, :integer)
     field(:parent_id, :binary_id)
     field(:base_generation, :integer, default: 0)
+    field(:mounted_generation, :integer)
     field(:image_digest, :string)
     field(:content_digest, :string)
     field(:published_generation, :integer)

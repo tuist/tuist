@@ -449,6 +449,30 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert [] = CacheVolumes.recent_macos_heads(["node"], since, 8)
   end
 
+  test "records the older generation a host mounted, and only that", %{job: job} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, second} = CacheVolumes.allocate_for_job(job, identity(), attrs("second"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", second.id)
+    {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+    {:ok, current} = CacheVolumes.allocate_for_job(job, identity(), attrs("current"))
+    assert stale.base_generation == 2
+
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 1))
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 0))
+    assert %Usage{mounted_generation: 1} = stale = Repo.get!(Usage, stale.id)
+    assert CacheVolumes.older_copy?(stale)
+
+    for generation <- [2, 5, "1"] do
+      assert {:ok, _} =
+               CacheVolumes.report("node", current.id, Map.put(report("active", false), "mounted_generation", generation))
+    end
+
+    assert %Usage{mounted_generation: nil} = current = Repo.get!(Usage, current.id)
+    refute CacheVolumes.older_copy?(current)
+  end
+
   test "a job's download keeps its own base after the head advances", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
     complete(job)
