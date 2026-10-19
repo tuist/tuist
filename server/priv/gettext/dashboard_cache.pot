@@ -1364,8 +1364,8 @@ msgstr ""
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:384
 #, elixir-autogen, elixir-format
-msgid "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate."
-msgid_plural "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate."
+msgid "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate."
+msgid_plural "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate."
 msgstr[0] ""
 msgstr[1] ""
 
