@@ -854,6 +854,9 @@ macosFleet:
 # automation lands when the image flow gets its own
 # release-bump workflow.
 runnersFleet:
+  # Custom volumes, and the checkout volumes built on them, as on canary and production.
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 1
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
