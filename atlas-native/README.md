@@ -132,8 +132,60 @@ xcrun simctl install booted .once/out/AtlasIOS/Atlas.app
 xcrun simctl launch booted dev.tuist.atlas
 ```
 
-The app supports iOS 17+ and links the Rust core statically. The current target
-builds for arm64 simulators, not physical devices or TestFlight.
+The app supports iOS 17+ and links the Rust core statically. `AtlasIOS` builds
+for arm64 simulators; `AtlasIOSDevice` builds for physical devices. Neither
+build includes the isolated screenshot fixtures.
+
+### Signed device previews
+
+Device previews use ad-hoc distribution, not TestFlight. We can reuse the
+**Apple Distribution** certificate used by the Tuist app; no new certificate is
+needed while it remains valid. Provisioning profiles are app-specific, so the
+Tuist app's existing profile cannot sign Atlas.
+
+One-time setup in Apple Developer (Tuist GmbH, team `U6LC622NKF`):
+
+1. Register the explicit app identifier `dev.tuist.atlas`.
+2. Register each team iPhone/iPad's UDID (or select the devices already registered
+   for the Tuist app).
+3. Create an **Ad Hoc** profile named **Atlas App Ad Hoc** for that identifier,
+   selecting the existing distribution certificate and those devices.
+4. Store the downloaded profile in the `tuist` 1Password vault as an attachment
+   named `Atlas_App_Ad_Hoc.mobileprovision` on an item named `Atlas App Ad Hoc`.
+5. Ensure the GitHub `OP_SERVICE_ACCOUNT_TOKEN` can read that item and the
+   existing `Distribution Certificate` item (`distribution.p12` and `password`).
+   Keep access limited to the protected `atlas-mobile-previews` environment.
+
+Never revoke or replace the Tuist app's certificate just to add Atlas. Regenerate
+Atlas's profile when adding devices or renewing its certificate/profile, and
+replace the attachment. A device not included in the profile cannot install the
+IPA, even if it can access the private preview page.
+
+Build and package locally on macOS with Xcode and authorized 1Password access:
+
+```sh
+mise exec -- rustup target add aarch64-apple-ios
+ONCE_CACHE_PROVIDER=local mise run build:ios-device
+mise run bundle:ios
+mise exec -- tuist share delivery/ios-device/Atlas.ipa --track nightly
+```
+
+Once 0.68.2 builds ad-hoc-signed device bundles but cannot apply distribution
+identities/profiles. `ios/distribution/bundle.sh` therefore copies the built app,
+validates the app-specific profile and matching certificate, embeds the profile,
+derives device/Keychain entitlements from it, signs in a disposable keychain and
+packages `delivery/ios-device/Atlas.ipa`. It never mutates cached build outputs or
+imports the private key into the login keychain. Signing inputs stay outside the
+repository and caches. The IPA embeds the provisioning profile, as required by
+iOS, but never the certificate's private key. Only the trusted main-branch
+publication job receives 1Password access; PR and fork builds compile the same
+device target without distribution secrets.
+
+Open the private [Atlas previews](https://tuist.dev/tuist/atlas-mobile/previews)
+page on a registered device to install the `nightly` iOS preview. Tuist accepts
+app bundles/IPAs/APKs independently of the project's build system. Once and
+other non-Xcode/Gradle projects show Previews in the sidebar after their first
+preview upload; there is no need to change the project to Xcode.
 
 ## Tuist integration and delivery
 
@@ -166,14 +218,15 @@ mise run build:android
 - Builds the Rust CLI, Android and iOS in build jobs, independently of the core,
   CLI and iOS test jobs. The Swift tests exercise the adapter against the real
   Rust library.
-- Retains the CLI tar archive, APK, simulator ZIP and test reports as GitHub
+- Retains the CLI tar archive, APK, simulator/device ZIPs and test reports as GitHub
   artifacts for 14 days. The CLI archive preserves executable permissions and
   its artifact name identifies the build host's OS and architecture.
 - Uses shared caching in trusted jobs when authentication succeeds. Forks build
   with only the local cache and have no OIDC permission.
-- Publishes the built artifacts to Tuist's `nightly` preview track only after all
-  main-branch build, test and lint jobs pass. A manual dispatch on `main` also
-  publishes previews.
+- Publishes the APK, simulator app and signed device IPA to Tuist's `nightly`
+  preview track only after all main-branch build, test and lint jobs pass.
+  A manual dispatch on `main` also publishes previews. Device signing requires
+  the one-time profile setup above and fails visibly if credentials are missing.
 - Never publishes from pull requests. Cache authentication failure can fall back
   to a local build; delivery failures remain visible.
 
@@ -185,5 +238,5 @@ from its authored graph.
 
 Delivery uses the `atlas-mobile-previews` GitHub environment. Add protection rules
 there if preview publication needs approval. App Store and Google Play publishing
-are intentionally not enabled: they require device/release targets, signing
-identities, store registrations and platform-specific distribution credentials.
+are intentionally not enabled; store registration and platform-specific store
+credentials remain separate from internal ad-hoc distribution.
