@@ -376,7 +376,7 @@ defmodule Tuist.Runners.JobLogsTest do
              }
     end
 
-    test "leaves every step unmapped when the boundaries don't match the executed steps" do
+    test "marks executed steps unattributed when the boundaries don't match them" do
       job_id = 90_009
 
       append_messages(job_id, [
@@ -394,10 +394,17 @@ defmodule Tuist.Runners.JobLogsTest do
         %{number: 1, name: "Set up job", conclusion: "success"},
         %{number: 2, name: "a", conclusion: "success"},
         %{number: 3, name: "b", conclusion: "success"},
-        %{number: 4, name: "Complete job", conclusion: "success"}
+        %{number: 4, name: "c", conclusion: "skipped"},
+        %{number: 5, name: "Complete job", conclusion: "success"}
       ]
 
-      assert JobLogs.step_line_ranges(job_id, steps) == %{1 => nil, 2 => nil, 3 => nil, 4 => nil}
+      assert JobLogs.step_line_ranges(job_id, steps) == %{
+               1 => :unattributed,
+               2 => :unattributed,
+               3 => :unattributed,
+               4 => nil,
+               5 => :unattributed
+             }
     end
 
     test "empty log -> every step is unmapped" do

@@ -197,11 +197,12 @@ defmodule Tuist.Runners.JobLogs do
 
   @doc """
   For each step, the `{first_line_number, last_line_number}` slice
-  of the job's log that belongs to that step, or `nil` if no slice
-  could be derived (e.g. the step was skipped and produced no
-  output). The Steps card uses this to render headers eagerly and
-  fetch each step's lines via `list_step_lines/3` only on expand,
-  so a 200k-line job never materialises in the socket.
+  of the job's log that belongs to that step, `nil` if the step
+  produced no output (e.g. it was skipped), or `:unattributed` if the
+  step ran but its output can't be told apart from the rest of the
+  log (see below). The Steps card uses this to render headers
+  eagerly and fetch each step's lines via `list_step_lines/3` only
+  on expand, so a 200k-line job never materialises in the socket.
 
   Two small ClickHouse queries: the job's `max(line_number)` and the
   handful of structural lines the runner writes around steps.
@@ -233,9 +234,9 @@ defmodule Tuist.Runners.JobLogs do
 
   When the boundaries don't line up one-to-one with the executed
   steps (background steps, whose output isn't written in step order,
-  or a step printing `::group::Run …`), every step is left unmapped
-  instead of showing another step's output. A log without any
-  boundary is attributed to the first step.
+  or a step printing `::group::Run …`), every executed step is
+  `:unattributed` instead of showing another step's output. A log
+  without any boundary is attributed to the first step.
   """
   def step_line_ranges(workflow_job_id, steps) when is_integer(workflow_job_id) and is_list(steps) do
     steps_sorted = Enum.sort_by(steps, & &1.number)
@@ -296,7 +297,7 @@ defmodule Tuist.Runners.JobLogs do
       |> Enum.zip(Enum.zip([1 | starts], ends))
       |> Map.new(fn {step, {first, last}} -> {step.number, valid_range(first, last)} end)
     else
-      %{}
+      Map.new(executed, fn step -> {step.number, :unattributed} end)
     end
   end
 

@@ -95,6 +95,80 @@ defmodule Tuist.Runners.LogFormatterTest do
                {:line, Enum.at(lines, 1)}
              ]
     end
+
+    test "wraps a composite action's step into an {:action, header, children} node" do
+      lines = [
+        line(1, "##[group]Run ./.github/actions/simulator-workaround"),
+        line(2, "##[endgroup]"),
+        line(3, "##[start-action display=Apply Simulator Workaround;id=__self_5.__run]"),
+        line(4, "##[group]Run echo workaround"),
+        line(5, "##[endgroup]"),
+        line(6, "##[error]Process completed with exit code 26."),
+        line(7, "##[end-action id=__self_5.__run;outcome=failure;conclusion=failure;duration_ms=204]")
+      ]
+
+      assert [
+               {:group, %{line_number: 1}, []},
+               {:action, header, children}
+             ] = LogFormatter.group_lines(lines)
+
+      assert header == %{
+               line: Enum.at(lines, 2),
+               name: "Apply Simulator Workaround",
+               conclusion: "failure",
+               duration_ms: 204
+             }
+
+      assert [
+               {:group, %{line_number: 4}, []},
+               {:line, %{line_number: 6}}
+             ] = children
+    end
+
+    test "nests composite actions and keeps names containing semicolons" do
+      lines = [
+        line(1, "##[start-action display=Upload Tuist Logs;id=__self_7.__self]"),
+        line(2, "##[start-action display=Archive; then upload;id=__self_7.__self.archive]"),
+        line(3, "archived"),
+        line(4, "##[end-action id=__self_7.__self.archive;outcome=success;conclusion=success;duration_ms=15]"),
+        line(5, "##[start-action display=Upload;id=__self_7.__self.upload]"),
+        line(6, "##[end-action id=__self_7.__self.upload;outcome=skipped;conclusion=skipped;duration_ms=0]"),
+        line(7, "##[end-action id=__self_7.__self;outcome=success;conclusion=success;duration_ms=265]")
+      ]
+
+      assert [{:action, %{name: "Upload Tuist Logs", conclusion: "success"}, children}] =
+               LogFormatter.group_lines(lines)
+
+      assert [
+               {:action, %{name: "Archive; then upload", duration_ms: 15}, [{:line, %{message: "archived"}}]},
+               {:action, %{name: "Upload", conclusion: "skipped"}, []}
+             ] = children
+    end
+
+    test "an end-action closes groups left open inside its action" do
+      lines = [
+        line(1, "##[start-action display=Step;id=__self.__run]"),
+        line(2, "##[group]Unterminated"),
+        line(3, "inside"),
+        line(4, "##[end-action id=__self.__run;outcome=success;conclusion=success;duration_ms=1]"),
+        line(5, "after")
+      ]
+
+      assert [
+               {:action, %{name: "Step"}, [{:group, %{line_number: 2}, [{:line, %{message: "inside"}}]}]},
+               {:line, %{message: "after"}}
+             ] = LogFormatter.group_lines(lines)
+    end
+
+    test "closes unterminated actions at end-of-stream" do
+      lines = [
+        line(1, "##[start-action display=Step;id=__self.__run]"),
+        line(2, "running")
+      ]
+
+      assert [{:action, %{name: "Step", conclusion: nil, duration_ms: nil}, [{:line, %{message: "running"}}]}] =
+               LogFormatter.group_lines(lines)
+    end
   end
 
   describe "group_label/1" do

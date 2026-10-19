@@ -1081,11 +1081,11 @@ defmodule TuistWeb.RunnerJobLive do
   def log_ts(_), do: ""
 
   # Renders a list of grouped log nodes (`{:line, line}` /
-  # `{:group, header, children}`) as the Steps tab body. Groups
-  # become collapsible `<details>` elements that match GitHub's
-  # own log UI; lines render with ANSI SGR codes decoded into
-  # `<span>` classes so the user sees colours instead of literal
-  # `[36;1m` artefacts.
+  # `{:group, header, children}` / `{:action, header, children}`) as
+  # the Steps tab body. Groups and composite-action steps become
+  # collapsible `<details>` elements that match GitHub's own log UI;
+  # lines render with ANSI SGR codes decoded into `<span>` classes so
+  # the user sees colours instead of literal `[36;1m` artefacts.
   attr(:tree, :list, required: true)
 
   def log_tree(assigns) do
@@ -1131,6 +1131,48 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
+  # A step of a composite action, rendered like GitHub's nested step
+  # header: status icon, name, and duration. Failed steps start
+  # expanded so the error is visible without a click.
+  def log_node(%{node: {:action, _header, _children}} = assigns) do
+    {:action, header, children} = assigns.node
+
+    assigns =
+      assigns
+      |> assign(:header, header)
+      |> assign(:children, children)
+      |> assign(:status, step_status(%{conclusion: header.conclusion}))
+
+    ~H"""
+    <details data-part="log-group" data-kind="action" open={@header.conclusion == "failure"}>
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.line.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron" data-empty={to_string(@children == [])}>
+            <.chevron_right />
+          </span>
+          <span data-part="log-action-icon" data-status={@status}>
+            <.circle_check :if={@status == :success} />
+            <.alert_circle :if={@status == :failure} />
+            <.alert_hexagon :if={@status == :warning} />
+            <.circle_dashed :if={@status == :processing} />
+          </span>
+          <span data-part="log-action-name">{@header.name}</span>
+          <span :if={@header.duration_ms} data-part="log-action-duration">
+            {DateFormatter.format_duration_from_milliseconds(@header.duration_ms,
+              fractional_seconds: false
+            )}
+          </span>
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} />
+      </div>
+    </details>
+    """
+  end
+
   # Per-step ranges are computed once (two small ClickHouse queries,
   # no log-body scan); the expanded step's lines are fetched on demand
   # and cached individually. A user who never opens a step pays
@@ -1151,6 +1193,9 @@ defmodule TuistWeb.RunnerJobLive do
         case Map.get(ranges, number) do
           {first, last} ->
             JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+
+          :unattributed ->
+            :unattributed
 
           _ ->
             []

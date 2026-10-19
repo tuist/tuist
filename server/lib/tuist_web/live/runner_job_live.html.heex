@@ -562,11 +562,23 @@
           <div :if={expanded} data-part="step-expanded">
             <div data-part="step-logs">
               <% step_lines = Map.get(@step_logs, step.number, []) %>
+              <div :if={step_lines == :unattributed} data-part="log-empty">
+                {dgettext(
+                  "dashboard_runners",
+                  "This step's output couldn't be separated from the rest of the job's log."
+                )}
+                <.link
+                  patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+                  data-part="log-empty-link"
+                >
+                  {dgettext("dashboard_runners", "View the full log")}
+                </.link>
+              </div>
               <div :if={step_lines == []} data-part="log-empty">
                 {dgettext("dashboard_runners", "No logs were captured for this step.")}
               </div>
               <TuistWeb.RunnerJobLive.log_tree
-                :if={step_lines != []}
+                :if={is_list(step_lines) and step_lines != []}
                 tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
               />
             </div>

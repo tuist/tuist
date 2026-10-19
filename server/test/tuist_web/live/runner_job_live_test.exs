@@ -1074,6 +1074,53 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute panel =~ "Current runner version"
   end
 
+  test "renders a composite action's steps as nested step headers", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_603, 316_030, ["Set up job", "Apply Simulator Workaround", "Complete job"], [
+      "Current runner version",
+      "##[group]Run ./.github/actions/simulator-workaround",
+      "##[endgroup]",
+      "##[start-action display=Apply workaround;id=__self.__run]",
+      "##[group]Run echo workaround",
+      "##[endgroup]",
+      "##[error]Process completed with exit code 26.",
+      "##[end-action id=__self.__run;outcome=failure;conclusion=failure;duration_ms=204]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
+    assert has_element?(lv, ~s{[data-kind="action"] [data-part="log-action-icon"][data-status="failure"]})
+    assert panel =~ "Process completed with exit code 26."
+    refute panel =~ "##[start-action"
+    refute panel =~ "##[end-action"
+  end
+
+  test "explains when a step's output can't be separated from the job log", %{conn: conn, account: account} do
+    # Two `##[group]Run` lines for a single user step: the boundaries
+    # don't line up with the steps, so no step gets a slice.
+    complete_job_with_logs!(account, 31_604, 316_040, ["Set up job", "Test", "Complete job"], [
+      "Current runner version",
+      "##[group]Run make test",
+      "##[endgroup]",
+      "##[group]Run tests",
+      "##[endgroup]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "be separated from the rest of the job"
+    refute panel =~ "No logs were captured for this step."
+    assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
+  end
+
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
     conn: conn,
     account: account
@@ -2041,6 +2088,61 @@ defmodule TuistWeb.RunnerJobLiveTest do
     roomy = %{usage | size_bytes: 10_000_000_000}
     html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
     refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-x", claimed_at)
+    {:ok, _} = Jobs.complete(workflow_job_id, "success")
+
+    :ok =
+      step_names
+      |> Enum.with_index(1)
+      |> Enum.map(fn {name, number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: number,
+          name: name,
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:01.000000Z]
+        }
+      end)
+      |> JobSteps.record()
+
+    :ok =
+      messages
+      |> Enum.with_index(1)
+      |> Enum.map(fn {message, line_number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          line_number: line_number,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: message
+        }
+      end)
+      |> JobLogs.append()
+
+    flush_outbox!()
   end
 
   defp flush_outbox! do
