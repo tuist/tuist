@@ -115,6 +115,20 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
     assert is_nil(Repo.reload!(session).executed_workflow_job_id)
   end
 
+  test "never reads another account's runs in the same fleet", %{account: account} do
+    other_account = AccountsFixtures.account_fixture()
+    workflow_job(other_account, %{repository: "other-org/repo"})
+    minted = workflow_job(account, %{})
+    session = session(account, minted)
+
+    expect(Client, :list_workflow_run_jobs, fn _installation, "org/repo", _run_id ->
+      {:ok, [%{id: minted.workflow_job_id, status: "queued", runner_name: nil}]}
+    end)
+
+    assert :ok = perform(session)
+    assert is_nil(Repo.reload!(session).executed_workflow_job_id)
+  end
+
   test "skips sessions that are already bound, closed or not GitHub", %{account: account} do
     reject(&Client.list_workflow_run_jobs/3)
     minted = workflow_job(account, %{})

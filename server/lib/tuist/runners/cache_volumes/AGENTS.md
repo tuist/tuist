@@ -34,6 +34,8 @@ these schemas persist volume identities and per-job uses.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   runner's `in_progress` job from GitHub's API and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  An agent that is still answered 425 at its deadline reports `execution_pending`
+  (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
