@@ -5,7 +5,6 @@ defmodule TuistWeb.ProjectSettingsLive do
 
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Projects.FlyOIDCTrustPolicy
   alias Tuist.Projects.Project
   alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.OpenGraph
@@ -28,8 +27,6 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(rename_project_form: rename_project_form)
       |> assign(default_branch_form: default_branch_form)
       |> assign(delete_project_form: delete_project_form)
-      |> assign(fly_oidc_trust_policies: Projects.list_fly_oidc_trust_policies(selected_project))
-      |> assign(fly_oidc_form: to_form(FlyOIDCTrustPolicy.changeset(%{})))
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign(
         OpenGraph.project_image_assigns(selected_project,
@@ -165,37 +162,6 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("create_fly_oidc_trust_policy", %{"fly_oidc_trust_policy" => attrs}, socket) do
-    project = authorize_fly_oidc_update!(socket)
-
-    case Projects.create_fly_oidc_trust_policy(project, attrs) do
-      {:ok, _policy} ->
-        {:noreply,
-         socket
-         |> assign(fly_oidc_trust_policies: Projects.list_fly_oidc_trust_policies(project))
-         |> assign(fly_oidc_form: to_form(FlyOIDCTrustPolicy.changeset(%{})))
-         |> put_flash(:info, dgettext("dashboard_projects", "Fly.io trust policy added."))}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, fly_oidc_form: to_form(changeset))}
-    end
-  end
-
-  def handle_event("delete_fly_oidc_trust_policy", %{"policy-id" => policy_id}, socket) do
-    project = authorize_fly_oidc_update!(socket)
-
-    case Projects.delete_fly_oidc_trust_policy(project, policy_id) do
-      {:ok, _policy} ->
-        {:noreply,
-         socket
-         |> assign(fly_oidc_trust_policies: Projects.list_fly_oidc_trust_policies(project))
-         |> put_flash(:info, dgettext("dashboard_projects", "Fly.io trust policy removed."))}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_projects", "Trust policy not found."))}
-    end
-  end
-
   def handle_event("validate_logo", _params, socket) do
     {:noreply, socket}
   end
@@ -272,17 +238,6 @@ defmodule TuistWeb.ProjectSettingsLive do
            dgettext("dashboard_projects", "We couldn't remove the logo. Please try again.")
          )}
     end
-  end
-
-  defp authorize_fly_oidc_update!(socket) do
-    project = Projects.get_project_by_id(socket.assigns.selected_project.id)
-
-    if Authorization.authorize(:project_update, socket.assigns.current_user, project) != :ok do
-      raise UnauthorizedError,
-            dgettext("dashboard_projects", "You are not authorized to perform this action.")
-    end
-
-    project
   end
 
   def logo_upload_error_message(:too_large) do

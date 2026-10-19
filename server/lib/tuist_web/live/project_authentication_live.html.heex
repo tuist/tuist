@@ -1,0 +1,107 @@
+<div id="project-authentication">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Authentication")}
+      selected={true}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/authentication"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      :if={
+        Tuist.Projects.Project.xcode_project?(@selected_project) or
+          Tuist.Projects.Project.bazel_project?(@selected_project)
+      }
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
+      label={dgettext("dashboard_projects", "Bundles")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_projects", "Workload identities")}
+  </h2>
+
+  <.card_section id="fly-oidc-trust-policies" data-part="fly-oidc-card-section">
+    <div data-part="header">
+      <span data-part="title">Fly.io</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "Allow Machines in a specific Fly.io organization and app to access this project with CI permissions."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div
+        :for={policy <- @fly_oidc_trust_policies}
+        id={"fly-oidc-policy-#{policy.id}"}
+        data-part="policy"
+      >
+        <div data-part="identity">
+          <span data-part="issuer">{policy.issuer}</span>
+          <span data-part="ids">
+            {dgettext("dashboard_projects", "Organization ID: %{id}", id: policy.organization_id)} · {dgettext(
+              "dashboard_projects",
+              "Application ID: %{id}",
+              id: policy.application_id
+            )}
+          </span>
+        </div>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard_projects", "Remove")}
+          phx-click="delete_fly_oidc_trust_policy"
+          phx-value-policy-id={policy.id}
+        />
+      </div>
+      <.form
+        for={@fly_oidc_form}
+        id="fly-oidc-trust-policy-form"
+        data-part="form"
+        phx-submit="create_fly_oidc_trust_policy"
+      >
+        <.text_input
+          label={dgettext("dashboard_projects", "Issuer URL")}
+          field={@fly_oidc_form[:issuer]}
+          type="basic"
+          placeholder="https://oidc.fly.io/my-organization"
+        />
+        <.text_input
+          label={dgettext("dashboard_projects", "Organization ID")}
+          field={@fly_oidc_form[:organization_id]}
+          type="basic"
+        />
+        <.text_input
+          label={dgettext("dashboard_projects", "Application ID")}
+          field={@fly_oidc_form[:application_id]}
+          type="basic"
+        />
+        <.button
+          type="submit"
+          variant="primary"
+          label={dgettext("dashboard_projects", "Add trust policy")}
+        />
+      </.form>
+    </div>
+  </.card_section>
+</div>

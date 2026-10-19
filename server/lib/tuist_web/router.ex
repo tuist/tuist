@@ -1611,6 +1611,7 @@ defmodule TuistWeb.Router do
           :download
 
       live "/settings", ProjectSettingsLive
+      live "/settings/authentication", ProjectAuthenticationLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive

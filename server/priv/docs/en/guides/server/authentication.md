@@ -52,7 +52,7 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 Fly tokens identify an organization and application, not a source repository. Configure trust explicitly instead of connecting a GitHub repository:
 
 1. Obtain the issuer (`iss`), organization ID (`org_id`), and application ID (`app_id`) from an identity token issued inside your Fly Machine. The issuer is `https://oidc.fly.io/<organization-slug>`. Use the numeric IDs, not organization or app names.
-2. In the Tuist dashboard, open your project's **Settings** > **General**. Under **Fly.io OIDC authentication**, add the issuer URL, organization ID, and application ID. You must have permission to update the project.
+2. In the Tuist dashboard, open your project's **Settings** > **Authentication**. Under **Workload identities** > **Fly.io**, add the issuer URL, organization ID, and application ID. You must have permission to update the project.
 3. Inside the Machine, set `TUIST_OIDC_ACCOUNT` to the Tuist account handle that owns the project (not the Fly organization slug). This selects the destination without granting access: a matching trust policy is still required. Request a token with audience `tuist` and pass it to `tuist auth login` using `TUIST_OIDC_TOKEN`:
 
 ```bash

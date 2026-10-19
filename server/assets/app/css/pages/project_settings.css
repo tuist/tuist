@@ -86,8 +86,7 @@
   & > [data-part="delete-project-card-section"],
   & > [data-part="preview-access-card-section"],
   & > [data-part="default-branch-card-section"],
-  & > [data-part="logo-card-section"],
-  & > [data-part="fly-oidc-card-section"] {
+  & > [data-part="logo-card-section"] {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -105,61 +104,6 @@
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
-    }
-  }
-
-  & > [data-part="fly-oidc-card-section"] {
-    align-items: flex-start;
-    gap: var(--noora-spacing-7);
-
-    & > [data-part="header"],
-    & > [data-part="content"] {
-      flex: 1;
-      min-width: 0;
-    }
-
-    & > [data-part="content"],
-    & [data-part="form"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-5);
-    }
-
-    & [data-part="policy"] {
-      display: flex;
-      align-items: center;
-      gap: var(--noora-spacing-4);
-      box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-4);
-      padding: var(--noora-spacing-4);
-    }
-
-    & [data-part="identity"] {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-      min-width: 0;
-      overflow-wrap: anywhere;
-    }
-
-    & [data-part="issuer"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-    }
-
-    & [data-part="ids"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    }
-
-    & [data-part="form"] > .noora-button {
-      align-self: flex-end;
-    }
-
-    @media (max-width: 768px) {
-      flex-direction: column;
-      align-items: stretch;
     }
   }
 
