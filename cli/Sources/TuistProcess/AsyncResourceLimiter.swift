@@ -124,7 +124,9 @@ extension FileHandle {
                         while true {
                             #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
                                 var events = pollfd(fd: self.fileDescriptor, events: Int16(POLLIN), revents: 0)
-                                let ready = poll(&events, 1, 50)
+                                let buffered = poll(&events, 1, 0)
+                                if buffered == 0, shouldStop(false) { break }
+                                let ready = buffered == 0 ? poll(&events, 1, 50) : buffered
                                 if ready == 0 {
                                     if shouldStop(false) { break }
                                     continue

@@ -87,6 +87,9 @@ private final class ProcessOutputDrain: Sendable {
         var activeHandlers = 0
         var bytesAfterExit: [ProcessEvent.Pipeline: Int] = [:]
         var lastActivity = ContinuousClock.now
+        var exitedAt = ContinuousClock.now
+        var forwardingTime: Duration = .zero
+        var forwardingStarted: ContinuousClock.Instant?
     }
 
     private let state = Mutex(State())
@@ -96,21 +99,34 @@ private final class ProcessOutputDrain: Sendable {
             if state.stopped { return true }
             guard state.exited else { return false }
             let exhausted = state.bytesAfterExit[pipeline, default: 0] >= 8_000_000
+            let now = ContinuousClock.now
+            let waiting = state.exitedAt.duration(to: now) - state.forwardingTime
+                - (state.forwardingStarted?.duration(to: now) ?? .zero)
             let idle = state.activeHandlers == 0 && !hasBufferedData
-                && state.lastActivity.duration(to: .now) >= .milliseconds(250)
-            guard exhausted || idle else { return false }
+                && state.lastActivity.duration(to: now) >= .milliseconds(250)
+            let deadline = !hasBufferedData && waiting >= .seconds(2)
+            guard exhausted || idle || deadline else { return false }
             state.incomplete = true
             return true
         }
     }
 
     func forward(bytes: Int, pipeline: ProcessEvent.Pipeline, _ handler: () -> Void) {
-        state.withLock { $0.activeHandlers += 1 }
+        state.withLock { state in
+            if state.exited, state.activeHandlers == 0 { state.forwardingStarted = .now }
+            state.activeHandlers += 1
+        }
         defer {
             state.withLock { state in
                 state.activeHandlers -= 1
                 state.lastActivity = .now
-                if state.exited { state.bytesAfterExit[pipeline, default: 0] += bytes }
+                if state.exited {
+                    state.bytesAfterExit[pipeline, default: 0] += bytes
+                    if state.activeHandlers == 0, let started = state.forwardingStarted {
+                        state.forwardingTime += started.duration(to: state.lastActivity)
+                        state.forwardingStarted = nil
+                    }
+                }
             }
         }
         handler()
@@ -123,6 +139,8 @@ private final class ProcessOutputDrain: Sendable {
         state.withLock { state in
             state.exited = true
             state.lastActivity = .now
+            state.exitedAt = state.lastActivity
+            if state.activeHandlers > 0 { state.forwardingStarted = state.lastActivity }
         }
         do {
             try await withThrowingTaskGroup(of: Void.self) { group in

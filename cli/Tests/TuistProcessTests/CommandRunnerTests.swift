@@ -4,6 +4,13 @@ import Foundation
 import Synchronization
 import Testing
 @testable import TuistProcess
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
 
 @Suite struct CommandRunnerTests {
     #if os(macOS)
@@ -81,7 +88,42 @@ import Testing
         }
         #expect(count.withLock { $0 } >= 8_000_000)
         #expect(incomplete.withLock { $0 })
-        #expect(Date().timeIntervalSince(start) < 3)
+        #expect(Date().timeIntervalSince(start) < 5)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [0, 23])
+    func boundsPeriodicallyWritingDescendantsAfterPrimaryExit(code: Int) async throws {
+        let output = Mutex("")
+        let count = Mutex(0)
+        let incomplete = Mutex(false)
+        let start = Date()
+        defer {
+            if let pid = Int32(output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }), pid > 0 {
+                _ = kill(pid, SIGTERM)
+            }
+        }
+        do {
+            try await CommandRunner().runWithOutputHandler(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "(while :; do printf x >&2; /bin/sleep 0.05; done) & printf '%s\\n' \"$!\"; exit \(code)",
+                ],
+                environment: [:], workingDirectory: nil,
+                onIncompleteOutput: { incomplete.withLock { $0 = true } }
+            ) { event in
+                switch event {
+                case let .standardOutput(bytes): output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
+                case let .standardError(bytes): count.withLock { $0 += bytes.count }
+                }
+            }
+            #expect(code == 0)
+        } catch let CommandError.terminated(actual, _, _) {
+            #expect(actual == Int32(code))
+        }
+        #expect(incomplete.withLock { $0 })
+        #expect(count.withLock { $0 } > 0)
+        #expect(count.withLock { $0 } < 8_000_000)
+        #expect(Date().timeIntervalSince(start) < 5)
     }
 
     @Test(.inTemporaryDirectory) func preservesBufferedTailWhenTheOutputHandlerIsStalled() async throws {
@@ -103,7 +145,7 @@ import Testing
                     output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
                     if !FileManager.default.fileExists(atPath: marker.pathString) {
                         #expect(FileManager.default.createFile(atPath: marker.pathString, contents: Data()))
-                        Thread.sleep(forTimeInterval: 1)
+                        Thread.sleep(forTimeInterval: 3)
                     }
                 }
             }
@@ -134,10 +176,11 @@ import Testing
             #expect(actual == Int32(code))
         }
         let elapsed = Date().timeIntervalSince(start)
-        let pid = output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        try await CommandRunner().run(arguments: ["/bin/kill", "-TERM", pid]).awaitCompletion()
+        let pid = try #require(Int32(output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
+        try #require(pid > 0)
+        _ = kill(pid, SIGTERM)
         #expect(incomplete.withLock { $0 })
-        #expect(elapsed < 3)
+        #expect(elapsed < 5)
     }
 
     @Test func streamsStandardOutputAndStandardError() async throws {
