@@ -488,7 +488,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
             return mappers
         }
+    }
 
+    extension CacheGraphMapperFactory {
         private func hashingGraphNormalizationMappers(
             config: Tuist,
             includeWorkspaceScheme: Bool
