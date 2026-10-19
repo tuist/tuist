@@ -80,7 +80,11 @@ thin runtime on top — ~2 min instead of ~30.
   `/Applications/Xcode_<major>.<minor>.app` symlink resolves to
   the same bundle.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
-  `xcodebuild -downloadAllPlatforms`.
+  `xcodebuild -downloadAllPlatforms`, with their dyld shared caches
+  prebuilt by `xcrun simctl runtime dyld_shared_cache update --all`.
+  A VM without them builds the caches at job start, and a customer
+  step that deletes runtimes while one is being built fails with
+  `dyld shared cache update was cancelled`.
 - The Metal compiler toolchain from
   `xcodebuild -downloadComponent MetalToolchain -buildVersion <build>`,
   where `<build>` is the toolchain Apple's downloadable index
