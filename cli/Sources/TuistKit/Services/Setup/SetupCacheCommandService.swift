@@ -466,7 +466,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 // Disable automatic selection only after the replacement is ready.
                 // Failed readiness must not also discard the previous launch files.
                 try await installationStore.invalidate()
-                if started { casPlugin = try await installCASPlugin() } else if try await fileSystem.exists(Environment.current.casPluginInstallPath()) {
+                if started { casPlugin = try await installCASPlugin() }
+                else if try await fileSystem.exists(Environment.current.casPluginInstallPath()) {
                     casPlugin = Environment.current.casPluginInstallPath()
                 }
             } else if try await fileSystem.exists(Environment.current.casPluginInstallPath()) {
