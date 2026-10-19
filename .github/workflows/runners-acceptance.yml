@@ -33,6 +33,9 @@ on:
         default: ""
   schedule:
     - cron: "23 * * * *"
+  push:
+    branches: [ci/runners-acceptance-gate]
+    paths: [.github/workflows/runners-acceptance.yml]
 
 permissions: {}
 
@@ -49,7 +52,7 @@ jobs:
     steps:
       - id: plan
         env:
-          ENVIRONMENT: ${{ inputs.environment || 'production' }}
+          ENVIRONMENT: ${{ inputs.environment || 'canary' }}
         # Canary has one rented Mac mini, its own runner-cache region on the
         # Elastic Metal node beside it, and a Linux pool. The BER1 rack is a
         # production fleet only. `tuist-runners-acceptance` is a pool on
