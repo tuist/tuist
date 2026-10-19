@@ -71,6 +71,16 @@
         )
         var configuration: String?
 
+        @Flag(
+            name: .long,
+            inversion: .prefixedNo,
+            help: """
+            Whether the project's own targets are read from the instrumented variant of the binary cache. Overrides \
+            `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s `coverage: .coverage(enabled:)`; omit it to follow them.
+            """
+        )
+        var coverage: Bool?
+
         public func run() async throws {
             if !binaryCache {
                 AlertController.current.warning(.alert(
@@ -88,7 +98,8 @@
                 noOpen: !open,
                 configuration: configuration,
                 ignoreBinaryCache: !binaryCache,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                coverage: coverage
             )
         }
     }

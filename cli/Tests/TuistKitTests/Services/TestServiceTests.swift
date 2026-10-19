@@ -682,6 +682,99 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    /// The variant follows `--coverage` / `--no-coverage`, then `TUIST_COVERAGE_ENABLED`, then `Tuist.swift`, and
+    /// never the run's `-enableCodeCoverage`, which only decides whether the run collects coverage.
+    func test_run_reads_the_variant_resolved_from_the_flag_the_environment_and_the_config() async throws {
+        let cases: [(flag: Bool?, variable: String?, option: Bool, expected: BinaryCacheCoverage)] = [
+            (nil, nil, false, .off),
+            (nil, nil, true, .on),
+            (nil, "1", false, .on),
+            (nil, "0", true, .off),
+            (true, "0", false, .on),
+            (false, "1", true, .off),
+        ]
+        for (flag, variable, option, expected) in cases {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = variable
+                generatorFactory.reset()
+                configLoader.reset()
+                givenGenerator()
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: option))))))
+                given(generator)
+                    .generateWithGraph(path: .any, options: .any)
+                    .willProduce { path, _ in
+                        (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+                    }
+                given(buildGraphInspector)
+                    .testableTarget(
+                        scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                        graphTraverser: .any,
+                        action: .any
+                    )
+                    .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
+                given(simulatorController)
+                    .findAvailableDevice(udid: .any)
+                    .willReturn(.test(device: .test(name: "Test iPhone")))
+
+                try await testRun(
+                    schemeName: "TestScheme",
+                    path: try temporaryPath(),
+                    generateOnly: true,
+                    passthroughXcodeBuildArguments: ["-enableCodeCoverage", "YES"],
+                    coverage: flag
+                )
+
+                verify(generatorFactory)
+                    .testing(
+                        config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
+                        skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
+                        cacheStorage: .any, destination: .any, schemeName: .any,
+                        coverage: .value(expected)
+                    )
+                    .called(1)
+            }
+        }
+    }
+
+    func test_run_reads_the_plain_variant_without_the_feature_flag() async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = "1"
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true))))))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+                }
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
+            given(simulatorController)
+                .findAvailableDevice(udid: .any)
+                .willReturn(.test(device: .test(name: "Test iPhone")))
+
+            try await testRun(schemeName: "TestScheme", path: try temporaryPath(), generateOnly: true)
+
+            verify(generatorFactory)
+                .testing(
+                    config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
+                    skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
+                    cacheStorage: .any, destination: .any, schemeName: .any,
+                    coverage: .value(.off)
+                )
+                .called(1)
+        }
+    }
+
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
@@ -6933,7 +7026,8 @@ final class TestServiceTests: TuistUnitTestCase {
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = .local
+        mode: TestProcessingMode? = .local,
+        coverage: Bool? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -6958,6 +7052,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: testPlanConfiguration,
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
+                coverage: coverage,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
@@ -8648,21 +8743,32 @@ struct TestServiceCoverageEnabledTests {
         #expect(TestService.coverageEnabled(testAction: nil, xcodebuildArguments: [], config: config) == nil)
     }
 
-    @Test(.withMockedEnvironment())
-    func picksTheBinaryCacheVariantByTheSameRule() {
-        let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
-        let covered = ["-enableCodeCoverage", "YES"]
+    @Test func findsTheTestedScheme() {
+        let graph = Graph.test(workspace: .test(name: "App", schemes: [.test(name: "App-Workspace"), .test(name: "Custom")]))
 
-        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .off)
+        #expect(TestService.testedScheme(named: "Custom", in: graph)?.name == "Custom")
+        #expect(TestService.testedScheme(named: nil, in: graph)?.name == "App-Workspace")
+        #expect(TestService.testedScheme(named: "Missing", in: graph) == nil)
+    }
 
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .on)
-        #expect(
-            TestService.binaryCacheCoverage(
-                schemeName: "App", xcodebuildArguments: ["-enableCodeCoverage", "NO"], config: config
-            ) == .off
-        )
-        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: [], config: config) == .scheme("App"))
-        #expect(TestService.binaryCacheCoverage(schemeName: nil, xcodebuildArguments: [], config: config) == .scheme(nil))
+    @Test func listsTheRepositoryTargetsThatCameFromTheCacheAsPlainBinaries() throws {
+        let repositoryPath = try AbsolutePath(validating: "/repo")
+        let packagePath = try AbsolutePath(validating: "/repo/.build/checkouts/Package")
+        let graph = Graph.test(projects: [
+            repositoryPath: .test(path: repositoryPath),
+            packagePath: .test(path: packagePath, type: .external(hash: "revision")),
+        ])
+        let items: [AbsolutePath: [String: CacheItem]] = [
+            repositoryPath: [
+                "Plain": .test(name: "Plain", source: .remote, cacheCategory: .binaries, instrumented: false),
+                "Instrumented": .test(name: "Instrumented", source: .remote, cacheCategory: .binaries, instrumented: true),
+                "Unknown": .test(name: "Unknown", source: .miss, cacheCategory: .binaries),
+            ],
+            packagePath: [
+                "Package": .test(name: "Package", source: .remote, cacheCategory: .binaries, instrumented: false),
+            ],
+        ]
+
+        #expect(TestService.plainRepositoryBinaries(items, graph: graph) == ["Plain"])
     }
 }

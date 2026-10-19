@@ -4,7 +4,7 @@ public protocol HashCacheServicing {
     func run(
         path: String?,
         configuration: String?,
-        coverage: Bool
+        coverage: Bool?
     ) async throws
 }
 
@@ -18,7 +18,7 @@ public protocol CacheServicing {
         noUpload: Bool,
         cacheProfile: String?,
         scratchDirectory: String?,
-        coverage: Bool
+        coverage: Bool?
     ) async throws
 }
 
@@ -27,7 +27,7 @@ public struct EmptyHashCacheService: HashCacheServicing {
     public func run(
         path _: String?,
         configuration _: String?,
-        coverage _: Bool
+        coverage _: Bool?
     ) async throws {}
 }
 
@@ -42,7 +42,7 @@ public struct EmptyCacheService: CacheServicing {
         noUpload _: Bool,
         cacheProfile _: String?,
         scratchDirectory _: String?,
-        coverage _: Bool
+        coverage _: Bool?
     ) async throws {
         print(
             "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."

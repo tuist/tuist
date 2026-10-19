@@ -34,7 +34,11 @@
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            let generator = generatorFactory.defaultGenerator(
+                config: config,
+                includedTargets: [],
+                coverage: .resolved(flag: nil, config: config)
+            )
             let graph = try await generator.load(
                 path: path,
                 options: config.project.generatedProject?.generationOptions

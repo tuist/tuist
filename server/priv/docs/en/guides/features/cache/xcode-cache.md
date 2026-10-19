@@ -158,7 +158,7 @@ let tuist = Tuist(
     project: .tuist(
         generationOptions: .options(
             enableCaching: true,
-            enableCoveragePrefixMapping: true
+            coverage: .coverage(prefixMapping: true)
         )
     )
 )

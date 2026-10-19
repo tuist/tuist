@@ -170,7 +170,7 @@ import XcodeGraph
             noUpload: Bool,
             cacheProfile: String?,
             scratchDirectory: String?,
-            coverage: Bool
+            coverage coverageFlag: Bool?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
@@ -183,9 +183,11 @@ import XcodeGraph
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+            let resolvedCoverage = BinaryCacheCoverage.resolved(flag: coverageFlag, config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: requestedTargetsToBinaryCache
+                targetsToBinaryCache: requestedTargetsToBinaryCache,
+                coverage: resolvedCoverage
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -200,13 +202,16 @@ import XcodeGraph
             )
             let isReleaseConfiguration = graph.projects.values.flatMap(\.settings.configurations.keys)
                 .first(where: { $0.name == configuration })?.variant == .release
-            if coverage, isReleaseConfiguration {
+            // Release binaries are never instrumented. A release warm driven by the environment or `Tuist.swift`
+            // warms the plain variant, which is what every command reads for release; only an explicit --coverage fails.
+            if coverageFlag == true, resolvedCoverage == .on, isReleaseConfiguration {
                 throw CacheWarmCommandServiceError.coverageOnReleaseConfiguration(configuration)
             }
+            let coverage: BinaryCacheCoverage = isReleaseConfiguration ? .off : resolvedCoverage
             // The settings that build the repository's own targets with coverage counters, under the key a
             // run collecting coverage reads. Resolved before anything is built, so a checkout the coverage
             // couldn't be tied to fails the warm before it spends a build on it.
-            let instrumentationSettings = try await instrumentationSettings(coverage: coverage, path: path)
+            let instrumentationSettings = try await instrumentationSettings(coverage: coverage == .on, path: path)
 
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
@@ -242,7 +247,7 @@ import XcodeGraph
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
-                coverage: coverage ? .on : .off
+                coverage: coverage
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -278,7 +283,7 @@ import XcodeGraph
                     configuration: configuration,
                     cacheStorage: cacheStorage,
                     targetHashes: hashedGraph.targetHashes,
-                    coverage: coverage ? .on : .off
+                    coverage: coverage
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 

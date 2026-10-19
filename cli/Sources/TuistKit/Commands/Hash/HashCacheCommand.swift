@@ -32,14 +32,14 @@ public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
 
     @Flag(
         name: .long,
+        inversion: .prefixedNo,
         help: """
-        When passed, the hashes are those of the coverage variant of the binary cache: the keys a `tuist test` run \
-        that collects coverage reads, and `tuist cache --coverage` fills. Repository-owned targets of a debug \
-        configuration differ from the plain hashes; external packages and release configurations keep them.
-        """,
-        envKey: .hashCacheCoverage
+        Whether the hashes are those of the instrumented variant of the binary cache. Repository-owned targets of a \
+        debug configuration differ from the plain hashes; external packages and release configurations keep them. \
+        Overrides `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s `coverage: .coverage(enabled:)`; omit it to follow them.
+        """
     )
-    var coverage: Bool = false
+    var coverage: Bool?
 
     public func run() async throws {
         try await HashCacheCommandService().run(path: path, configuration: configuration, coverage: coverage)

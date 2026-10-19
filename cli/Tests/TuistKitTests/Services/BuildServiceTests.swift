@@ -56,7 +56,8 @@ struct BuildServiceTests {
                 config: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .willReturn(generator)
         buildGraphInspector = .init()

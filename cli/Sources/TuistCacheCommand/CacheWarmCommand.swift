@@ -88,15 +88,15 @@
 
         @Flag(
             name: .long,
+            inversion: .prefixedNo,
             help: """
-            When passed, the project's own targets are built with code coverage and stored under the cache key a \
-            `tuist test` run that collects coverage reads, so such runs link cached binaries their coverage measures. \
-            The plain binaries other builds read are not warmed by this run; warm them with a run without the flag. \
-            Only debug configurations can be warmed with coverage.
-            """,
-            envKey: .cacheCoverage
+            Whether the project's own targets are warmed with code coverage counters, under the key every command that \
+            reads the instrumented variant uses. Overrides `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s \
+            `coverage: .coverage(enabled:)`; omit it to follow them. External packages are always warmed plain. A \
+            release configuration is warmed plain unless --coverage is passed, which fails instead.
+            """
         )
-        var coverage: Bool = false
+        var coverage: Bool?
 
         public func run() async throws {
             if printHashes {

@@ -68,8 +68,6 @@ struct CacheGraphContentHasherTests {
             (BinaryCacheCoverage.off, "Debug", false),
             (.on, "Debug", true),
             (.on, "Release", false),
-            (.scheme("Covered"), "Debug", true),
-            (.scheme("Plain"), "Debug", false),
         ]
     ) func keysRepositoryTargetsOnCoverage(
         coverage: BinaryCacheCoverage,

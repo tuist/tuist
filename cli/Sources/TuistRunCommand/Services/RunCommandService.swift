@@ -625,7 +625,11 @@ struct RunCommandService {
         ) async throws {
             let graph: Graph
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            let generator = generatorFactory.defaultGenerator(
+                config: config,
+                includedTargets: [],
+                coverage: .resolved(flag: nil, config: config)
+            )
             let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
             if generate || workspacePath == nil {
                 Logger.current.notice("Generating project for running", metadata: .section)
