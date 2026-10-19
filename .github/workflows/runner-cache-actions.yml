@@ -30,6 +30,7 @@ jobs:
           persist-credentials: false
       - run: bash .github/actions/xcode-cache/action_test.sh
       - run: bash .github/actions/module-cache/action_test.sh
+      - run: bash infra/runner-image/runner-caches_test.sh
       - name: Actions share their scripts
         run: |
           cmp .github/actions/xcode-cache/activate.sh .github/actions/module-cache/activate.sh

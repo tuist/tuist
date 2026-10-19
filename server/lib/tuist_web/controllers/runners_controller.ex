@@ -374,10 +374,7 @@ defmodule TuistWeb.RunnersController do
         _ -> base
       end
 
-    base =
-      if fleet_platform == :macos and FeatureFlags.runner_opt_in_caches_enabled?(account),
-        do: Map.put(base, :automatic_caches, false),
-        else: base
+    base = Map.merge(base, opt_in_cache_fields(credential, fleet_platform, account))
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
@@ -388,6 +385,13 @@ defmodule TuistWeb.RunnersController do
       _ -> base
     end
   end
+
+  # Only GitHub jobs can opt back in, through the cache actions.
+  defp opt_in_cache_fields(%{kind: :github}, :macos, account) do
+    if FeatureFlags.runner_opt_in_caches_enabled?(account), do: %{automatic_caches: false}, else: %{}
+  end
+
+  defp opt_in_cache_fields(_credential, _fleet_platform, _account), do: %{}
 
   # The VM branches on which of these two key sets it receives, so the
   # response stays a single shape per provider rather than a discriminator

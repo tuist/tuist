@@ -122,7 +122,7 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's macOS runner jobs use the built-in Tuist and Xcode
+  Whether the account's GitHub jobs on macOS runners use the built-in Tuist and Xcode
   caches only through the `tuist/module-cache` and `tuist/xcode-cache` actions.
   Off, every job gets them automatically. Actor gates take precedence over the
   boolean gate, so an account can be held on automatic caches after the flag is

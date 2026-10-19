@@ -100,7 +100,8 @@ these schemas persist volume identities and per-job uses.
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - `FeatureFlags.runner_opt_in_caches_enabled?/1` puts `automatic_caches: false`
-  in macOS dispatch responses. The guest then exposes the built-in caches only
+  in GitHub macOS dispatch responses (Buildkite and GitLab jobs keep automatic
+  caches until they have wrappers). The guest then exposes the built-in caches only
   through the `tuist/module-cache` and `tuist/xcode-cache` actions, and a job
   that uses neither sends no `Builtin` report. Storage identity is unchanged.
 

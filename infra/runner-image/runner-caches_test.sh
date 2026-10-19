@@ -7,7 +7,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 eq() { [ "$1" = "$2" ] || fail "expected [$1], got [$2]"; }
 
-eval "$(awk '/^(stage_runner_caches|runner_caches_used)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
+eval "$(awk '/^(stage_runner_caches|runner_caches_used|cache_passed|report_cache_dirty)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
 declare -F stage_runner_caches >/dev/null || fail 'stage_runner_caches missing'
 declare -F runner_caches_used >/dev/null || fail 'runner_caches_used missing'
 base=$(mktemp -d)
@@ -71,6 +71,54 @@ test_xcode_activation_includes_the_workflow_xcconfig_last() {
   eq 1 "$(grep -c '^#include' "$work/cas.xcconfig")"
   grep -qx "XCODE_XCCONFIG_FILE=$work/cas.xcconfig" "$work/env" || fail 'activation does not export the runner xcconfig'
   [ -e "$RUNNER_CACHES_DIR/xcode.used" ] || fail 'xcode activation not recorded'
+}
+
+test_xcode_activation_resolves_a_relative_workflow_xcconfig() {
+  setup
+  AUTOMATIC_CACHES=0
+  stage_runner_caches >/dev/null
+  mkdir -p "$work/workspace/Config"
+  printf 'SWIFT_VERSION = 6\n' >"$work/workspace/Config/CI.xcconfig"
+  (cd "$work/workspace" && XCODE_XCCONFIG_FILE=Config/CI.xcconfig activate xcode >/dev/null 2>&1) || fail 'xcode activation failed'
+  eq "#include \"$work/workspace/Config/CI.xcconfig\"" "$(tail -n 1 "$work/cas.xcconfig")"
+}
+
+test_staging_failure_keeps_the_caches_automatic() {
+  setup
+  AUTOMATIC_CACHES=0
+  printf 'not a directory' >"$work/caches"
+  stage_runner_caches >/dev/null
+  eq 1 "$AUTOMATIC_CACHES"
+  eq "$CACHE_MOUNT" "${TUIST_XDG_CACHE_HOME:-}"
+  [ -f "$STATUS_SHARE/cache-usage.json" ] || fail 'staging failure dropped the usage sample'
+  runner_caches_used || fail 'caches the job inherited read as unused'
+}
+
+test_only_a_successful_job_that_reached_the_caches_promotes() {
+  setup
+  AUTOMATIC_CACHES=0
+  stage_runner_caches >/dev/null
+  JOB_PASSED=1
+  eq 0 "$(cache_passed)"
+  activate module >/dev/null 2>&1
+  eq 1 "$(cache_passed)"
+  JOB_PASSED=0
+  eq 0 "$(cache_passed)"
+  AUTOMATIC_CACHES=1
+  rm -f "$RUNNER_CACHES_DIR/module.used"
+  JOB_PASSED=1
+  eq 1 "$(cache_passed)"
+}
+
+test_unused_caches_are_reported_clean() {
+  setup
+  JOB_RESULT=succeeded
+  CACHE_INVENTORY_BEFORE=before
+  CACHE_INVENTORY_AFTER=after
+  report_cache_dirty 0 >/dev/null
+  eq 0 "$(cat "$STATUS_SHARE/cache-dirty")"
+  report_cache_dirty 1 >/dev/null
+  eq 1 "$(cat "$STATUS_SHARE/cache-dirty")"
 }
 
 test_unavailable_caches_warn_without_exporting() {

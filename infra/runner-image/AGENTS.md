@@ -256,8 +256,8 @@ added to catch that failed on `admin`'s unwritable cache instead.
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
   **Opt-in caches.** When the dispatch response carries `"automatic_caches":
-  false` (the server's `:runner_opt_in_caches` flag for the account, macOS
-  fleets only), everything above still runs, but `stage_runner_caches` moves
+  false` (the server's `:runner_opt_in_caches` flag for the account, GitHub
+  jobs on macOS fleets only), everything above still runs, but `stage_runner_caches` moves
   the module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
   Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
   `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
@@ -268,7 +268,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
   with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).
   `mode` (`automatic` or `opt-in`) tells the helper which case it is in; an
-  absent `mode` means a runner that never staged caches. Keep the helper's env
+  absent `mode` means a runner that never staged caches. If the directory
+  cannot be created, the job keeps automatic caches. A workflow's relative
+  `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
   contract in step with these exports. Run `runner-caches_test.sh`.
   Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that

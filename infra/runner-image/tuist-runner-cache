@@ -55,8 +55,14 @@ fi
 if [ "${cache}" = "xcode" ]; then
   # The runner's xcconfig carries the store location and its size limit. A
   # workflow's own XCODE_XCCONFIG_FILE is included last so its settings win.
+  # Xcode resolves an #include against the including file's directory, so a
+  # path relative to the step's working directory has to be made absolute.
   ours=$(sed -n 's/^XCODE_XCCONFIG_FILE=//p' "${env_file}")
   theirs="${XCODE_XCCONFIG_FILE:-}"
+  case "${theirs}" in
+    "" | /*) ;;
+    *) theirs="${PWD}/${theirs}" ;;
+  esac
   if [ -n "${ours}" ] && [ -n "${theirs}" ] && [ "${theirs}" != "${ours}" ] && [ -f "${theirs}" ]; then
     include="#include \"${theirs}\""
     if ! grep -qxF "${include}" "${ours}" 2>/dev/null; then

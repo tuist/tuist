@@ -1352,7 +1352,13 @@ wait_for_cache_ready() {
 # the caches is not reported as a volume use. Nothing after the runner starts
 # reads these variables; teardown works from the CACHE_* and CAS_* state.
 stage_runner_caches() {
-  mkdir -p "${RUNNER_CACHES_DIR}" 2>/dev/null || return 0
+  # Without the directory no action can activate a cache, so the job keeps
+  # them automatically rather than losing them.
+  if ! mkdir -p "${RUNNER_CACHES_DIR}" 2>/dev/null; then
+    AUTOMATIC_CACHES=1
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING cannot stage opt-in caches; keeping them automatic"
+    return 0
+  fi
   if [ "${AUTOMATIC_CACHES}" = "1" ]; then
     printf 'automatic' >"${RUNNER_CACHES_DIR}/mode" 2>/dev/null || true
     return 0
@@ -1384,6 +1390,17 @@ stage_runner_caches() {
 runner_caches_used() {
   [ "${AUTOMATIC_CACHES}" = "1" ] && return 0
   [ -e "${RUNNER_CACHES_DIR}/module.used" ] || [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]
+}
+
+# cache_passed prints 1 when the job may promote the caches: it succeeded and
+# reached them. On opt-in caches, a job that used neither action left nothing of
+# its own in the image.
+cache_passed() {
+  if [ "${JOB_PASSED}" = "1" ] && runner_caches_used; then
+    echo 1
+  else
+    echo 0
+  fi
 }
 
 # Measure the mounted APFS filesystem, not the sparse image's host allocation.
@@ -2255,12 +2272,9 @@ HOOK
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
-      # CACHE_PASSED gates promotion: only a job that succeeded and reached the
-      # caches advances the master. On opt-in caches, a job that used neither
-      # action left nothing of its own in the image.
-      CACHE_PASSED="${JOB_PASSED}"
+      # CACHE_PASSED gates promotion (see cache_passed).
+      CACHE_PASSED=$(cache_passed)
       if ! runner_caches_used; then
-        CACHE_PASSED=0
         echo "$(date -u +%FT%TZ) dispatch-poll: no cache action used the caches; host will discard this branch"
       fi
       # If the CAS feature was turned off, drop its stale store from the image

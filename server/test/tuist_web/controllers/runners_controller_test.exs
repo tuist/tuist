@@ -331,7 +331,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
 
-    test "withholds automatic caches from macOS jobs of opted-in accounts", %{conn: conn} do
+    test "withholds automatic caches from GitHub macOS jobs of opted-in accounts", %{conn: conn} do
       account = account_fixture()
       other_account = account_fixture()
 
@@ -341,11 +341,21 @@ defmodule TuistWeb.RunnersControllerTest do
 
       stub(FeatureFlags, :runner_opt_in_caches_enabled?, fn candidate -> candidate.id == account.id end)
 
-      dispatch = fn account, platform ->
+      github = %{kind: :github, jit: "JITCONFIG"}
+
+      buildkite = %{
+        kind: :buildkite,
+        token: "bkjat_opaque",
+        job_uuid: "0189abcd-0000-4000-8000-000000000000",
+        organization_slug: "acme",
+        report_token: "report-token"
+      }
+
+      dispatch = fn account, platform, credential ->
         stub(Runners, :dispatch_for_sa, fn _, _ ->
           {:ok,
            %{
-             credential: %{kind: :github, jit: "JITCONFIG"},
+             credential: credential,
              account: account,
              runner_name: "pod-1",
              workflow_job_id: 4242,
@@ -360,9 +370,10 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
       end
 
-      assert dispatch.(account, :macos)["automatic_caches"] == false
-      refute Map.has_key?(dispatch.(account, :linux), "automatic_caches")
-      refute Map.has_key?(dispatch.(other_account, :macos), "automatic_caches")
+      assert dispatch.(account, :macos, github)["automatic_caches"] == false
+      refute Map.has_key?(dispatch.(account, :linux, github), "automatic_caches")
+      refute Map.has_key?(dispatch.(account, :macos, buildkite), "automatic_caches")
+      refute Map.has_key?(dispatch.(other_account, :macos, github), "automatic_caches")
     end
   end
 
