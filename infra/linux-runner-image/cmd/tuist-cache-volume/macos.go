@@ -22,10 +22,28 @@ type macResponse struct {
 	ID        string `json:"id"`
 	Warm      bool   `json:"warm"`
 	Error     string `json:"error"`
+	Reason    string `json:"reason"`
+}
+
+// The host waits up to three minutes for a saved volume to download to it.
+const macAcquireTimeout = 3*time.Minute + 30*time.Second
+const macWaitNotice = 10 * time.Second
+
+func macUnavailable(reason string) error {
+	switch reason {
+	case "timeout":
+		return errors.New("the saved volume is still downloading to this runner host; later jobs on this host will use it")
+	case "capacity":
+		return errors.New("this runner host has no room for the volume right now")
+	case "denied":
+		return errors.New("the Tuist server did not authorize a volume for this job")
+	default:
+		return errors.New("cache unavailable")
+	}
 }
 
 func acquireMac(key string) (string, string, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), macAcquireTimeout)
 	defer cancel()
 	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
@@ -65,6 +83,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		return "", "", false, err
 	}
 	var response macResponse
+	notice := time.After(macWaitNotice)
 	for {
 		data, err = os.ReadFile(filepath.Join(share, name+".response"))
 		if err == nil && json.Unmarshal(data, &response) == nil {
@@ -73,6 +92,8 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		select {
 		case <-ctx.Done():
 			return "", "", false, ctx.Err()
+		case <-notice:
+			fmt.Println("Waiting for the Tuist cache volume to become available on this runner host...")
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
@@ -80,7 +101,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		return "", "", false, err
 	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
-		return "", "", false, errors.New("cache unavailable")
+		return "", "", false, macUnavailable(response.Reason)
 	}
 	base := filepath.Join(mountRoot, response.Directory)
 	shared := filepath.Join(share, response.Directory)

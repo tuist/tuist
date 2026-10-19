@@ -71,7 +71,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
 
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
-  Background master prefetch is single-slot, bounded, reserved and joined at stop.
+  Master prefetch runs one download at a time from a bounded, deduplicated queue:
+  jobs waiting on a master first, then the custom HEADs the server lists for the
+  host class (free space only, no eviction). It is reserved and joined at stop.
+  A job waits up to three minutes for its warm master; a download it stops
+  waiting for keeps going. Responses carry a bounded `reason` and the host logs why.
   Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
   cold request has no archive to budget beside its image.
 - Expose mailboxes while the filesystem is mounted, independently of worker

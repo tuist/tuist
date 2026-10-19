@@ -256,10 +256,21 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 func (b *APFSImages) Keep(slot Slot, path string) error { return b.Delete(slot, path) }
 
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
+	return b.prefetchWith(ctx, slot, b.reserve)
+}
+
+// PrefetchSpare restores a master like Prefetch, but only into free space: it
+// never evicts a master or reclaims a sharing cache, so a speculative download
+// cannot push out masters that jobs on this host still read.
+func (b *APFSImages) PrefetchSpare(ctx context.Context, slot Slot) error {
+	return b.prefetchWith(ctx, slot, b.reserveSpare)
+}
+
+func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context) error) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
-	if err := b.reserve(ctx); err != nil {
+	if err := reserve(ctx); err != nil {
 		return err
 	}
 	if b.Reserve != nil {

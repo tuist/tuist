@@ -206,12 +206,22 @@ an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
 
-Acquisition follows Linux's 25-second host budget and 30-second client budget.
-Cancellation reaches APFS creation/cloning, remote restore and admission waits;
-an expired response cannot trigger a guest mount. Like Linux, macOS can prefetch
-one immutable master after a restore timeout, with a two-minute budget, no queue,
-and a separate disk reservation for the archive and expanded image. Agent shutdown
-cancels and joins that worker. macOS custom volumes emit the shared
+Acquisition has a three-minute host budget and a three-and-a-half-minute client
+budget. A warm volume whose master is not on the host is queued for download
+ahead of any speculative prefetch, and the request waits for it within that
+budget; the download continues for later jobs if the budget runs out. Cancellation
+reaches APFS creation/cloning, remote restore and admission waits; an expired
+response cannot trigger a guest mount. The unavailable response carries a bounded
+reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its warning.
+
+One worker downloads masters, each within five minutes and with a separate disk
+reservation for the archive and expanded image. Requests for the same master join.
+The converge worker also hands it the saved custom-volume HEADs the server lists
+for the host class: dispatch cannot know which custom volumes a job attaches, so
+every host of the class warms them. These speculative downloads use free space
+only and never evict a master. Read-only `retain` and `download` image requests
+may name a use allocated on another node, since such a master is held under the
+use that published it. Agent shutdown cancels and joins the worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.
 Custom admission counts outstanding built-in convergence downloads, and built-in
 convergence reserves space for live custom images before starting a download.

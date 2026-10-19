@@ -186,6 +186,25 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 	return b.reserveBytes(ctx, b.MinFreeBytes)
 }
 
+// reserveSpare admits work only while free space already covers it.
+func (b *LocalImages) reserveSpare(ctx context.Context) error {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return err
+	}
+	defer b.admission.Unlock()
+	if b.FreeBytes == nil && b.FreeBytesContext == nil {
+		return errors.New("missing filesystem admission")
+	}
+	free, err := b.freeBytes(ctx)
+	if err != nil {
+		return err
+	}
+	if free < b.MinFreeBytes {
+		return ErrCapacity
+	}
+	return nil
+}
+
 func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	if err := b.admission.LockContext(ctx); err != nil {
 		return err
@@ -612,6 +631,16 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 		return nil
 	}
 	return removeMaster(path)
+}
+
+// HasMaster reports whether the immutable master a warm identity clones from is
+// already on this host.
+func (b *LocalImages) HasMaster(identity Identity) bool {
+	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
+		return false
+	}
+	_, err := os.Stat(b.master(Slot{Identity: identity}))
+	return err == nil
 }
 
 // Prefetch restores only a validated immutable master. It cannot mount a job's

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
@@ -38,7 +39,7 @@ type CustomVolumes struct {
 	Running                                    func(context.Context, string) (bool, error)
 	shareMu                                    sync.Mutex
 	reservations                               map[string]cachevolumes.Slot
-	prefetch                                   *customPrefetcher
+	prefetch                                   atomic.Pointer[customPrefetcher]
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
@@ -163,12 +164,18 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return err
 	}
 	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
-	c.prefetch = &customPrefetcher{slots: make(chan struct{}, 1), budget: 2 * time.Minute, restore: backend.Prefetch}
+	prefetch := newCustomPrefetcher(prefetchCtx, func(ctx context.Context, slot cachevolumes.Slot, urgent bool) error {
+		if urgent {
+			return backend.Prefetch(ctx, slot)
+		}
+		return backend.PrefetchSpare(ctx, slot)
+	}, backend.HasMaster)
+	c.prefetch.Store(prefetch)
 	defer func() {
+		c.prefetch.Store(nil)
 		stopPrefetch()
-		c.prefetch.wait.Wait()
+		prefetch.wait.Wait()
 	}()
-	c.prefetch.ctx = prefetchCtx
 	requests := time.NewTicker(time.Second)
 	defer requests.Stop()
 	reports := time.NewTicker(30 * time.Second)
@@ -383,8 +390,8 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if err != nil {
 			continue
 		}
-		deadline := time.Now().Add(25 * time.Second)
-		if requestDeadline := info.ModTime().Add(25 * time.Second); requestDeadline.Before(deadline) {
+		deadline := time.Now().Add(customAcquireBudget)
+		if requestDeadline := info.ModTime().Add(customAcquireBudget); requestDeadline.Before(deadline) {
 			deadline = requestDeadline
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
@@ -394,13 +401,27 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			cancel()
 			continue
 		}
-		response := map[string]any{"error": "unavailable"}
-		if err == nil {
+		response := map[string]any{"error": "unavailable", "reason": "denied"}
+		if err != nil {
+			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
+		} else {
+			prefetch := c.prefetch.Load()
+			if ready := prefetch.start(identity, true); ready != nil {
+				select {
+				case <-ready:
+				case <-acquireCtx.Done():
+				}
+			}
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
-			} else if errors.Is(err, context.DeadlineExceeded) {
-				c.prefetch.start(identity)
+			} else {
+				if errors.Is(err, context.DeadlineExceeded) {
+					prefetch.start(identity, false)
+				}
+				response["reason"] = cachevolumes.Result(err)
+				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
+					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
 			}
 		}
 		cancel()
