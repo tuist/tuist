@@ -136,10 +136,14 @@ eviction and project-cleanup rules.
 - CAS records can arrive after the build report. Refresh to see newly ingested
   transfers. Local hits and legacy builds have no remote CAS outputs.
 
-For self-hosted servers, deploy support for compile-report contract `0.2` before
-upgrading the package that reports `up_to_date` local hits. Older servers reject
-this reason and cannot ingest those build reports; changing the contract version
-alone does not negotiate support.
+Servers need support for compile-report contract `0.2` to record `up_to_date`
+local hits. If an older server explicitly rejects the cache data or a schema
+enumeration value, the package retries the report once without these new reuse
+observations. Compilation details and other cache results are preserved; the
+new local reuse remains unavailable until the server is upgraded. Deploying the
+server first avoids this extra request. The contract version does not negotiate
+support, and authentication, transport and unrelated validation errors are not
+retried.
 
 ## Manual compile integration
 

@@ -146,6 +146,9 @@ This observes Mix's reuse decision, not a snapshot restore or retrospective
 publication. These hits have no artifact key, transfer bytes, restore latency or
 estimated compilation time saved. Warm builds only enumerate source paths for
 structural eligibility; they do not hash dependency contents or declared inputs.
+Older servers can reject this new reason. On an explicit cache/schema-enumeration
+validation rejection, the package retries once without the new reuse observations,
+preserving the rest of the build report. Upgrade the server to see these local hits.
 
 Declare extra compile-time file or directory inputs with `inputs: ["path"]`
 and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,
