@@ -1164,7 +1164,10 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 2
+    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
+    # At two the region reserved 1228 GiB against an admission line of 1267, so
+    # Admission refused every storage claim growth for the accounts it hosts.
+    replicas: 3
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
