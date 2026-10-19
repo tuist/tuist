@@ -22,13 +22,31 @@ export async function fixture(
   const created = [],
     api = `${prefix}-api`,
     urls = ports.map((p) => `http://127.0.0.1:${p}`);
+  // Observations can race normal connection aging. Keep retries restricted to
+  // idempotent reads; workload writes and stale-channel probes remain exact.
+  const observe = async (url) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        assert.equal(response.status, 200);
+        return await response.text();
+      } catch (error) {
+        if (
+          attempt === 1 ||
+          !["UND_ERR_SOCKET", "ECONNRESET"].includes(
+            error.cause?.code ?? error.code,
+          )
+        )
+          throw error;
+        await sleep(100);
+      }
+    }
+  };
   const report = async (i) =>
     JSON.parse(
-      await (
-        await fetch(`${urls[i]}/status/rollout`, {
-          signal: AbortSignal.timeout(5000),
-        })
-      ).text(),
+      await observe(`${urls[i]}/status/rollout`),
       (_key, value, context) =>
         typeof value === "number" && !Number.isSafeInteger(value)
           ? JSON.rawJSON(context.source)
@@ -41,10 +59,7 @@ export async function fixture(
       path.join(output, "grant.json"),
     );
   };
-  const metric = async (i) =>
-    await (
-      await fetch(`${urls[i]}/metrics`, { signal: AbortSignal.timeout(5000) })
-    ).text();
+  const metric = async (i) => observe(`${urls[i]}/metrics`);
   const snapshot = () =>
     names.map((name) => ({
       name,
