@@ -14,6 +14,7 @@ This module loads and evaluates Tuist manifests (e.g., `Project.swift`, `Workspa
 
 ## Invariants
 - Manifest loading emits clear `FatalError` types for missing or malformed manifests.
+- Scheme build-action targets and Build For override keys use the same resolved project paths. Merge purposes for aliases of the same target and keep one target entry in first-occurrence order.
 - Preserve the manifest's `enableCachingPrefixMapping` opt-out and `enableCoveragePrefixMapping` opt-in in generated-project configuration. Cache prefix mapping remains enabled by default; coverage prefix mapping remains disabled by default for `xccov` compatibility. Historical serialized configurations without the cache-prefix option retain its enabled default.
 - Preserve native package dynamic-linkage hints and their platform conditions when mapping manifest dependencies; do not infer linkage from the embedding role.
 - Swift package bundle identifiers preserve underscores as hyphens, including leading, trailing, and repeated underscores, so targets such as `IssueReporting` and `_IssueReporting` can coexist as embedded dynamic frameworks.
