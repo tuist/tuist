@@ -169,6 +169,13 @@ func writeWorkspaceState(prebuilts: [[String: Any]], scratchDir: URL) async thro
     )
 }
 
+func recordedPrebuiltPaths(scratchDir: URL) async throws -> [String?] {
+    let data = try await fileSystem.readFile(at: scratchDir.appendingPathComponent("workspace-state.json").absolutePath)
+    let state = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    let object = state?["object"] as? [String: Any]
+    return (object?["prebuilts"] as? [[String: Any]] ?? []).map { $0["path"] as? String }
+}
+
 /// A swift-syntax prebuilt entry laid out the way SwiftPM extracts it.
 func swiftSyntaxPrebuilt(scratchDir: URL, version: String, compilerTag: String) -> [String: Any] {
     [

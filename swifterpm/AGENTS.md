@@ -42,7 +42,7 @@
 
 
 - Stale-pin pruning must only inspect version-specific cached sources or registry downloads. If a reachable manifest is missing or cannot be evaluated, retain the seed and defer to normal resolution. Never infer reachability from an unverified scratch checkout or a local repository working tree.
-- The restoration path never fetches prebuilts; it carries over the ones native SwiftPM recorded in `workspace-state.json`. Carry over only entries whose directory starts with the compiler tag SwiftPM would use (`WorkspacePrebuilts.compilerTag`) and whose version matches the pin: binary modules from another compiler cannot be imported. When a restoring resolution finds an entry that no longer applies, take the native path so SwiftPM recomputes prebuilts for the current toolchain. Probe the compiler only when prebuilts are recorded.
+- The restoration path never fetches prebuilts; it carries over the ones native SwiftPM recorded in `workspace-state.json`. Carry over only entries whose version matches the resolved pin and whose directory starts with the compiler tag SwiftPM would use (`WorkspacePrebuilts.compilerTag`): binary modules from another compiler cannot be imported. Decide against the pins being written, not the seed lockfile, so `update` and `restore` follow the same rule. Keep entries when the compiler cannot be probed. Probe only when prebuilts are recorded, running `swift` the way native resolution does. A dropped entry is not replaced, so the package builds from source until a native resolution records it again.
 
 ## Manifest caches
 

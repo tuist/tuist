@@ -1844,48 +1844,6 @@ struct ResolveTests {
     }
 
     @Test
-    func nativeColdPathRefreshesPrebuiltsRecordedForAnotherCompilerOrVersion() async throws {
-        try await withTemporaryDirectory { root in
-            let package = root.appendingPathComponent("App")
-            let scratch = root.appendingPathComponent("scratch")
-            try await writeMinimalPackageManifest(at: package, name: "App")
-            let cache = try await Cache(root: root.appendingPathComponent("cache"))
-            let pin = swiftSyntaxPin(version: "603.0.0")
-            let cachedSource = try cache.sourcePath(pin: pin)
-            try await fileSystem.makeDirectory(
-                at: cachedSource.absolutePath,
-                options: [.createTargetParentDirectories]
-            )
-            try await writeMinimalPackageManifest(at: cachedSource, name: "swift-syntax")
-            try await ResolvedFile.write(
-                packageDir: package,
-                resolved: .init(originHash: "origin", pins: [pin], version: 3),
-                mirrors: MirrorConfig()
-            )
-            func usesNativeColdPath(recorded prebuilt: [String: Any], compilerTag: String) async throws -> Bool {
-                try await writeWorkspaceState(prebuilts: [prebuilt], scratchDir: scratch)
-                return try await WorkspacePrebuilts.$compilerTag.withValue(.init(probe: { compilerTag })) {
-                    try await PackageResolver.shouldUseNativeColdPath(
-                        packageDir: package,
-                        cacheRoot: cache.root,
-                        registryConfig: RegistryConfig(),
-                        scratchDir: scratch
-                    )
-                }
-            }
-
-            let current = swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", compilerTag: "swiftlang-6.3.1.2.3")
-            #expect(try await !usesNativeColdPath(recorded: current, compilerTag: "swiftlang-6.3.1.2.3"))
-            #expect(try await usesNativeColdPath(recorded: current, compilerTag: "swiftlang-6.4.0.1.1"))
-
-            let previousVersion = swiftSyntaxPrebuilt(
-                scratchDir: scratch, version: "602.0.0", compilerTag: "swiftlang-6.3.1.2.3"
-            )
-            #expect(try await usesNativeColdPath(recorded: previousVersion, compilerTag: "swiftlang-6.3.1.2.3"))
-        }
-    }
-
-    @Test
     func registryPinsKeepTheRestorationPathWhenTheCacheHoldsTheRelease() async throws {
         try await withTemporaryDirectory { root in
             let graph = try await writeMixedRegistryAndSourceControlGraph(

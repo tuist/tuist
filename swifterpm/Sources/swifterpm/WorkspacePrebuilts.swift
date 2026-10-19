@@ -1,71 +1,56 @@
 import Foundation
 
 /// SwiftPM records prebuilts such as swift-syntax `MacroSupport` in `workspace-state.json` for the
-/// compiler and package version it resolved with, and recomputes them on every resolution. Warm
-/// restores reuse the recorded entries instead, so they must drop the ones SwiftPM would no longer
-/// produce: modules built by another compiler cannot be imported (they ship without interfaces), and
-/// a prebuilt for another version does not match the checked-out sources.
+/// compiler and package version it resolved with, and recomputes them on every resolution. The
+/// restoration path carries the recorded entries over instead, so it must drop the ones SwiftPM would
+/// no longer produce: modules built by another compiler cannot be imported (they ship without
+/// interfaces), and a prebuilt for another version does not match the restored sources.
+///
+/// A dropped entry is not replaced. The restoration path cannot fetch prebuilts, so those packages
+/// build from source until a native resolution records them again, as they do in a fresh scratch
+/// directory.
 enum WorkspacePrebuilts {
-    /// The compiler native resolution runs with, probed at most once per invocation, including
-    /// failures. `ManifestCache.withContext` installs a fresh one; tests pass a fixed probe.
-    actor CompilerTag {
-        private let probe: @Sendable () async -> String?
-        private var result: Task<String?, Never>?
-
-        init(probe: @escaping @Sendable () async -> String? = WorkspacePrebuilts.probeCompilerTag) {
-            self.probe = probe
-        }
-
-        func value() async -> String? {
-            if let result { return await result.value }
-            let result = Task {
-                await probe()
-            }
-            self.result = result
-            return await result.value
-        }
+    /// Tests replace the probe to simulate a toolchain change without launching `swift`.
+    @TaskLocal static var compilerTagProbe: @Sendable (_ packageDir: URL) async -> String? = {
+        await probeCompilerTag(packageDir: $0)
     }
 
-    @TaskLocal static var compilerTag = CompilerTag()
-
-    static func existing(scratchDir: URL) async throws -> [[String: Any]] {
-        let statePath = scratchDir.appendingPathComponent("workspace-state.json")
-        guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
-
-        let state = try JSONSerialization.jsonObject(
-            with: await fileSystem.readFile(at: statePath.absolutePath)
-        ) as? [String: Any]
-        let object = state?["object"] as? [String: Any]
-
-        return object?["prebuilts"] as? [[String: Any]] ?? []
-    }
-
-    static func applicable(_ prebuilts: [[String: Any]], pins: [ResolvedPin]) async -> [[String: Any]] {
-        // Only probe the compiler when there is something to check; most graphs have no prebuilts.
+    static func applicable(
+        _ prebuilts: [[String: Any]],
+        pins: [ResolvedPin],
+        packageDir: URL
+    ) async -> [[String: Any]] {
+        // Most graphs record no prebuilts; only launch the compiler when there is something to check.
         guard !prebuilts.isEmpty else { return [] }
-        let compilerTag = await compilerTag.value()
+        let compilerTag = await compilerTagProbe(packageDir)
         return prebuilts.filter { isApplicable($0, pins: pins, compilerTag: compilerTag) }
     }
 
-    static func hasInapplicable(scratchDir: URL, pins: [ResolvedPin]) async throws -> Bool {
-        let prebuilts = try await existing(scratchDir: scratchDir)
-        return await applicable(prebuilts, pins: pins).count != prebuilts.count
-    }
-
     static func isApplicable(_ prebuilt: [String: Any], pins: [ResolvedPin], compilerTag: String?) -> Bool {
-        guard let compilerTag,
-              let identity = prebuilt["identity"] as? String,
-              let version = prebuilt["version"] as? String,
-              let path = prebuilt["path"] as? String
-        else { return false }
-        // SwiftPM names the extracted directory `<compiler tag>-<platform>-<library>`.
-        guard URL(fileURLWithPath: path).lastPathComponent.hasPrefix("\(compilerTag)-") else { return false }
-        return pins.contains { $0.identity.lowercased() == identity.lowercased() && $0.state.version == version }
+        if let identity = prebuilt["identity"] as? String, let version = prebuilt["version"] as? String,
+           !pins.contains(where: { $0.identity.lowercased() == identity.lowercased() && $0.state.version == version })
+        {
+            return false
+        }
+        // SwiftPM names the extracted directory `<compiler tag>-<platform>-<library>`. A failed probe
+        // says nothing about the prebuilt; treating it as a mismatch would drop valid prebuilts on
+        // every restore.
+        if let compilerTag, let path = prebuilt["path"] as? String,
+           !URL(fileURLWithPath: path).lastPathComponent.hasPrefix("\(compilerTag)-")
+        {
+            return false
+        }
+        return true
     }
 
-    static func probeCompilerTag() async -> String? {
+    /// Runs `swift` the way native resolution does, so a toolchain selected per package (for example
+    /// through swiftly's `.swift-version`) yields the tag of the prebuilts that resolution records.
+    static func probeCompilerTag(packageDir: URL) async -> String? {
         guard let output = try? await SystemProcess.run(
-            "swift", ["-print-target-info"], customEnvironment: Environment.resolution
+            "swift",
+            ["-print-target-info"],
+            workingDirectory: packageDir,
+            customEnvironment: Environment.resolution
         ).stdoutString,
             let targetInfo = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
         else { return nil }

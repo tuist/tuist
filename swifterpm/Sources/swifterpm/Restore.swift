@@ -1506,8 +1506,9 @@ enum WorkspaceRestorer {
                 "artifacts": artifacts,
                 "dependencies": dependencies,
                 "prebuilts": try await WorkspacePrebuilts.applicable(
-                    WorkspacePrebuilts.existing(scratchDir: scratchDir).map(sanitizeWorkspacePrebuilt),
-                    pins: resolved.pins
+                    existingWorkspacePrebuilts(scratchDir: scratchDir),
+                    pins: resolved.pins,
+                    packageDir: packageDir
                 ),
             ],
             "version": 7,
@@ -1524,6 +1525,18 @@ enum WorkspaceRestorer {
             retainedPackages += resolved.pins.compactMap { try? Cache.sourcePath(root: sourceCacheDirectory, pin: $0) }
         }
         try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
+    }
+
+    private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
+        let statePath = scratchDir.appendingPathComponent("workspace-state.json")
+        guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
+
+        let state = try JSONSerialization.jsonObject(
+            with: await fileSystem.readFile(at: statePath.absolutePath)
+        ) as? [String: Any]
+        let object = state?["object"] as? [String: Any]
+
+        return (object?["prebuilts"] as? [[String: Any]])?.map(sanitizeWorkspacePrebuilt) ?? []
     }
 
     private static func sanitizeWorkspacePrebuilt(_ prebuilt: [String: Any]) -> [String: Any] {

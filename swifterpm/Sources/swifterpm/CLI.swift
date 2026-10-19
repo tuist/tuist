@@ -687,8 +687,7 @@ enum CLIRunner {
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
             cacheRoot: cacheRoot,
-            registryConfig: registryConfig,
-            scratchDir: shouldRestore(restore: restore, printOnly: printOnly) ? scratch : nil
+            registryConfig: registryConfig
         ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
