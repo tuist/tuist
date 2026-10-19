@@ -1253,25 +1253,56 @@ grpc
 {{- end -}}
 
 {{/*
-The runner image for a catalog Xcode version: the `imageTag` its
-`runnersFleet.xcodeOverrides` entry pins, else
-`<runnersFleet.runnerImageRepository>@<digest>` with the digest
-`runnersFleet.runnerImageDigests` resolves for it, else
-`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+The codename a macOS major's image chain is named after: the vendor base
+(`ghcr.io/cirruslabs/macos-<codename>-base`), the Xcode layer
+(`ghcr.io/tuist/macos-<codename>-xcode`) and, for every major but 26, the
+runner image profile (`<codename>-<xcode>`). Kept in step with
+`.github/scripts/macos-image-names.sh`.
+*/}}
+{{- define "tuist.macosCodename" -}}
+{{- $codenames := dict "26" "tahoe" "27" "golden-gate" -}}
+{{- $major := . | toString -}}
+{{- if not (hasKey $codenames $major) -}}
+  {{- fail (printf "macOS %s has no runner image chain; known majors are %s" $major (keys $codenames | sortAlpha | join ", ")) -}}
+{{- end -}}
+{{- get $codenames $major -}}
+{{- end -}}
+
+{{/*
+The runner image for a catalog Xcode version on a guest macOS major
+(`guestMacOS`, 26 when unset).
+
+The image is keyed by its runner image profile: the Xcode version for a
+macOS 26 guest, `<codename>-<xcode>` for any other (`golden-gate-27.1`). It is
+the `imageTag` pin, else `<runnersFleet.runnerImageRepository>@<digest>` with
+the digest `runnersFleet.runnerImageDigests` resolves for the profile, else
+`<runnersFleet.runnerImageRepository>:macos-<profile-dashes>-<runnerImageSemver>`.
+The pin is the Xcode's `runnersFleet.xcodeOverrides` entry for a macOS 26
+guest, and the caller's `guestOverride` for any other, since a tag pinned for
+the 26 guest names a different image.
+
 Deploys resolve the digests, so a release that re-tags an unchanged profile
 leaves its pools' image as it was: the controller does not roll their Pods
-and hosts keep the golden the ref names. The image is a property of the Xcode,
-not of the fleet it runs on, so every pool that runs an Xcode (the rented
-fleet's, a rack's, an explicit pool naming `xcodeVersion`) takes it from here
-and follows a release together.
+and hosts keep the golden the ref names. On a macOS 26 guest the image is a
+property of the Xcode, not of the fleet it runs on, so every pool that runs an
+Xcode (the rented fleet's, a rack's, an explicit pool naming `xcodeVersion`)
+takes it from here and follows a release together. Only a rack placement can
+choose another guest (`rackFleet.runners.xcodeOverrides[].guestMacOS`), since
+the rented fleet's hosts run macOS 26 and cannot boot a newer guest.
 */}}
 {{- define "tuist.macosRunnerImage" -}}
 {{- $root := .root -}}
 {{- $xcodeVersion := .xcodeVersion | toString -}}
+{{- $guest := .guestMacOS | default "26" | toString -}}
 {{- $repo := $root.Values.runnersFleet.runnerImageRepository | default "" -}}
 {{- $semver := $root.Values.runnersFleet.runnerImageSemver | default "" -}}
+{{- $profile := $xcodeVersion -}}
 {{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
-{{- $digest := get ($root.Values.runnersFleet.runnerImageDigests | default dict) $xcodeVersion | default "" | toString -}}
+{{- if ne $guest "26" -}}
+  {{- $profile = printf "%s-%s" (include "tuist.macosCodename" $guest) $xcodeVersion -}}
+  {{- $override = .guestOverride | default dict -}}
+{{- end -}}
+{{- $digest := get ($root.Values.runnersFleet.runnerImageDigests | default dict) $profile | default "" | toString -}}
 {{- if not $repo -}}
   {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" -}}
 {{- end -}}
@@ -1279,13 +1310,13 @@ and follows a release together.
   {{- printf "%s:%s" $repo $override.imageTag -}}
 {{- else if $digest -}}
   {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
-    {{- fail (printf "runnersFleet.runnerImageDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $xcodeVersion $digest) -}}
+    {{- fail (printf "runnersFleet.runnerImageDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $profile $digest) -}}
   {{- end -}}
   {{- printf "%s@%s" $repo $digest -}}
 {{- else if $semver -}}
-  {{- printf "%s:macos-%s-%s" $repo ($xcodeVersion | replace "." "-") $semver -}}
+  {{- printf "%s:macos-%s-%s" $repo ($profile | replace "." "-") $semver -}}
 {{- else -}}
-  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and Xcode %s has no runnerImageDigests entry or imageTag override" $xcodeVersion) -}}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and runner image profile %s has no runnerImageDigests entry or imageTag override" $profile) -}}
 {{- end -}}
 {{- end -}}
 

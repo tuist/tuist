@@ -180,6 +180,18 @@ test_check_reports_missing_database() {
   grep -q 'TCC.db missing' "$work/output" || fail 'missing database not named'
   [ ! -e "$RUNNER_TCC_DB" ] || fail 'created a database tccd does not own'
 }
+test_path_finds_the_tccd_container_database() {
+  local tcc="$work/containers/6DC947A4/Data/Library/Application Support/com.apple.TCC"
+  mkdir -p "$tcc" "$work/containers/4AD52730/Data/Library"
+  : > "$tcc/TCC.db"
+  eq "$tcc/TCC.db" "$(TUIST_TCC_CONTAINERS="$work/containers" /bin/bash "$ROOT/tcc-approvals.sh" path)"
+}
+test_path_fails_without_a_database() {
+  mkdir -p "$work/containers/4AD52730/Data/Library"
+  ! TUIST_TCC_CONTAINERS="$work/containers" /bin/bash "$ROOT/tcc-approvals.sh" path > "$work/output" || fail 'path named a database that does not exist'
+  ! TUIST_TCC_CONTAINERS="$work/containers" /bin/bash "$ROOT/tcc-approvals.sh" check > "$work/output" || fail 'check accepted a missing database'
+  grep -q "runner's TCC.db missing" "$work/output" || fail 'missing database not named'
+}
 if [ "${1:-}" = --case ]; then
   work="$3"
   fixture
