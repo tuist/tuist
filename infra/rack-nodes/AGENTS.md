@@ -1026,8 +1026,8 @@ entry on a newer guest needs the hosts updated first.
 A rack host can run another env's runners while it stays in the rack's env:
 its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
 registers its Node in the other env's cluster, whose runner pools and server
-then drive its guests. Staging borrows production's this way, so staging jobs
-run on rack hardware. The borrowing env's chart issues the host a node
+then drive its guests. Staging borrows production's ber1-runner-b01 and canary
+its ber1-runner-b02 this way, so their jobs run on rack hardware. The borrowing env's chart issues the host a node
 identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
 host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
 kubeconfig, then revokes the host's identity in its own cluster, deletes its
