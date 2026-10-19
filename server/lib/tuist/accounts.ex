@@ -2802,7 +2802,7 @@ defmodule Tuist.Accounts do
   """
   def custom_cache_endpoints_available?(%Account{} = account) do
     if Environment.tuist_hosted?() do
-      case Billing.get_current_active_subscription(account) do
+      case Billing.get_current_entitled_subscription(account) do
         %{plan: :enterprise} -> true
         _ -> false
       end

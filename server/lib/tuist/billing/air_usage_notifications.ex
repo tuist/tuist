@@ -23,7 +23,7 @@ defmodule Tuist.Billing.AirUsageNotifications do
   def enqueue(account_id, updated_at) do
     account = Repo.get!(Account, account_id)
 
-    if current_month?(updated_at) && Billing.effective_plan(account) == :air do
+    if current_month?(updated_at) && Billing.effective_plan(account) == :air && not Billing.payment_failed?(account) do
       for metric <- @metrics, eligible?(account, metric) do
         enqueue_metric(account, updated_at, metric)
       end

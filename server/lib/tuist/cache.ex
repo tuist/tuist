@@ -44,7 +44,7 @@ defmodule Tuist.Cache do
   @doc """
   The handles of `payment_required_handles/1` under `:payment_required`, and
   under `:payment_failed` the subset of them whose paid plan lapsed because
-  Stripe gave up collecting a subscription payment. A cache node tells the
+  Stripe stopped collecting or the payment grace period expired. A cache node tells the
   second apart so the caller is told to settle the payment, not to upgrade.
   """
   def billing_refusals(resource) do

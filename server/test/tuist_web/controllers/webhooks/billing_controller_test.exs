@@ -68,6 +68,22 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
     end
   end
 
+  test "subscription lifecycle events retain Stripe's creation time for grace and ordering" do
+    timestamp = 1_792_137_600
+    subscription = %{id: "sub_event_time"}
+
+    Mimic.expect(Tuist.Billing, :on_subscription_change, 5, fn ^subscription, ^timestamp -> :ok end)
+
+    for event_type <- ~w(created updated deleted resumed paused) do
+      assert :ok =
+               BillingController.handle_event(%Stripe.Event{
+                 type: "customer.subscription.#{event_type}",
+                 created: timestamp,
+                 data: %{object: subscription}
+               })
+    end
+  end
+
   describe "handle_event/1 for invoice.payment_failed" do
     test "queues the failed-payment email" do
       user = AccountsFixtures.user_fixture(customer_id: "cus_#{System.unique_integer([:positive])}", preload: [:account])

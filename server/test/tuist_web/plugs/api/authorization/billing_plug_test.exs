@@ -4,6 +4,8 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -45,7 +47,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     account = project.account
 
     Enum.reduce(0..10, Billing, fn _idx, mod ->
-      expect(mod, :get_current_active_subscription, 1, fn ^account ->
+      expect(mod, :get_current_entitled_subscription, 1, fn ^account ->
         %Subscription{plan: :enterprise, status: "active"}
       end)
     end)
@@ -71,7 +73,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :enterprise, status: "active"}
     end)
 
@@ -97,7 +99,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :enterprise, status: "canceled"}
     end)
 
@@ -127,7 +129,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :air}
     end)
 
@@ -157,7 +159,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :pro, status: "trialing"}
     end)
 
@@ -183,7 +185,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :pro, status: "canceled"}
     end)
 
@@ -213,7 +215,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :pro, status: "active"}
     end)
 
@@ -239,7 +241,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :open_source, status: "active"}
     end)
 
@@ -265,7 +267,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    stub(Billing, :get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_entitled_subscription, fn ^account ->
       %Subscription{plan: :open_source, status: "canceled"}
     end)
 
@@ -309,6 +311,58 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     # Then
     assert got == conn
+  end
+
+  @tag current_month_remote_cache_hits_count: 1000
+  test "uses the metered allowance rather than hit count on usage-based pricing", %{conn: conn, project: project} do
+    stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+    conn = assign(conn, :selected_project, project)
+    assert BillingPlug.call(conn, BillingPlug.init([])) == conn
+  end
+
+  @tag current_month_remote_cache_hits_count: 50
+  test "refuses expired grace when metered usage exceeded its allowance, even below the hit allowance",
+       %{conn: conn, project: project} do
+    stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+    project.account
+    |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests())
+    |> Repo.update!()
+
+    BillingFixtures.subscription_fixture(
+      account_id: project.account.id,
+      status: "past_due",
+      past_due_since: DateTime.truncate(DateTime.add(DateTime.utc_now(), -8, :day), :second)
+    )
+
+    conn = assign(conn, :selected_project, project)
+    response = BillingPlug.call(conn, BillingPlug.init([]))
+    assert json_response(response, :payment_required)["message"] =~ "A payment for the subscription"
+  end
+
+  @tag current_month_remote_cache_hits_count: 1000
+  test "refuses an expired grace period even while Stripe keeps retrying", %{conn: conn, project: project} do
+    BillingFixtures.subscription_fixture(
+      account_id: project.account.id,
+      status: "past_due",
+      past_due_since: DateTime.truncate(DateTime.add(DateTime.utc_now(), -8, :day), :second)
+    )
+
+    conn = assign(conn, :selected_project, project)
+    response = BillingPlug.call(conn, BillingPlug.init([]))
+    assert json_response(response, :payment_required)["message"] =~ "A payment for the subscription"
+  end
+
+  @tag current_month_remote_cache_hits_count: 50
+  test "keeps the free allowance available after grace expires", %{conn: conn, project: project} do
+    BillingFixtures.subscription_fixture(
+      account_id: project.account.id,
+      status: "past_due",
+      past_due_since: DateTime.truncate(DateTime.add(DateTime.utc_now(), -8, :day), :second)
+    )
+
+    conn = assign(conn, :selected_project, project)
+    assert BillingPlug.call(conn, BillingPlug.init([])) == conn
   end
 
   @tag current_month_remote_cache_hits_count: 1000

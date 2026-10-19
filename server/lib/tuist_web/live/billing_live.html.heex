@@ -8,20 +8,8 @@
     status="error"
     type="secondary"
     size="large"
-    title={dgettext("dashboard_account", "A payment for your subscription failed")}
-    description={
-      if @payment_issue == :past_due do
-        dgettext(
-          "dashboard_account",
-          "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
-        )
-      else
-        dgettext(
-          "dashboard_account",
-          "Your plan is limited to the free tier of the Air plan until the open invoice is paid."
-        )
-      end
-    }
+    title={payment_issue_title(@payment_issue)}
+    description={payment_issue_description(@payment_issue, @payment_grace_ends_at)}
   >
     <:action>
       <.button
@@ -161,7 +149,7 @@
         <div data-part="header">
           <div data-part="title">
             <span data-part="label">
-              {case @plan do
+              {case @displayed_plan do
                 :air -> dgettext("dashboard_account", "Air")
                 :open_source -> dgettext("dashboard_account", "Open source")
                 :pro -> dgettext("dashboard_account", "Pro")
@@ -170,7 +158,7 @@
             </span>
             <.badge
               label={
-                case @plan do
+                case @displayed_plan do
                   :air -> dgettext("dashboard_account", "Free")
                   :open_source -> dgettext("dashboard_account", "Free")
                   :pro -> dgettext("dashboard_account", "Usage-based")
@@ -181,27 +169,47 @@
               size="small"
               style="light-fill"
             />
+            <.badge
+              :if={@payment_issue == :grace_expired}
+              id="billing-current-plan-payment-overdue"
+              label={dgettext("dashboard_account", "Payment overdue")}
+              color="destructive"
+              size="small"
+              style="light-fill"
+            />
           </div>
-          <span :if={@plan == :air} data-part="subtitle">
+          <span :if={@payment_issue == :grace_expired} data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Usage is capped at the free tier until the overdue invoice is paid."
+            )}
+          </span>
+          <span
+            :if={@displayed_plan == :air and @payment_issue != :grace_expired}
+            data-part="subtitle"
+          >
             {dgettext(
               "dashboard_account",
               "Get started with no credit card required—try with no commitment."
             )}
           </span>
-          <span :if={@plan == :pro} data-part="subtitle">
+          <span :if={@displayed_plan == :pro} data-part="subtitle">
             {dgettext("dashboard_account", "Usage-based pricing after free tier.")}
           </span>
-          <span :if={@plan == :enterprise} data-part="subtitle">
+          <span :if={@displayed_plan == :enterprise} data-part="subtitle">
             {dgettext("dashboard_account", "Create your plan or self-host your instance.")}
           </span>
-          <span :if={@plan == :open_source} data-part="subtitle">
+          <span :if={@displayed_plan == :open_source} data-part="subtitle">
             {dgettext(
               "dashboard_account",
               "Use all Tuist features as long as you stay open source."
             )}
           </span>
         </div>
-        <ul :if={@plan == :air} data-part="feature-list">
+        <ul
+          :if={@displayed_plan == :air and @payment_issue != :grace_expired}
+          data-part="feature-list"
+        >
           <.plan_feature label={
             dgettext(
               "dashboard_account",
@@ -218,7 +226,7 @@
             dgettext("dashboard_account", "Community support: Support via community forum")
           } />
         </ul>
-        <ul :if={@plan == :pro} data-part="feature-list">
+        <ul :if={@displayed_plan == :pro} data-part="feature-list">
           <.plan_feature label={
             dgettext(
               "dashboard_account",
@@ -235,7 +243,7 @@
             dgettext("dashboard_account", "Standard support: Via Slack and email")
           } />
         </ul>
-        <ul :if={@plan == :enterprise} data-part="feature-list">
+        <ul :if={@displayed_plan == :enterprise} data-part="feature-list">
           <.plan_feature label={
             dgettext(
               "dashboard_account",
@@ -249,13 +257,25 @@
             dgettext("dashboard_account", "Priority support: Via shared Slack channel")
           } />
         </ul>
-        <ul :if={@plan == :open_source} data-part="feature-list">
+        <ul :if={@displayed_plan == :open_source} data-part="feature-list">
           <.plan_feature label={
             dgettext("dashboard_account", "Completely free for open source projects")
           } />
         </ul>
+        <%!--
+          An account that owes a subscription payment settles it rather than
+          upgrading. One whose subscription is still live can change it in
+          place, a downgrade included; one without has nothing to change.
+        --%>
+        <.button
+          :if={not is_nil(@payment_issue)}
+          id="billing-current-plan-pay-open-invoice"
+          label={dgettext("dashboard_account", "Pay open invoice")}
+          variant="primary"
+          href={~p"/#{@selected_account.name}/billing/pay"}
+        />
         <.modal
-          :if={@plan in [:air, :pro]}
+          :if={@plan in [:air, :pro] and @payment_issue != :payment_failed}
           id="billing-upgrade-modal"
           description={
             dgettext("dashboard_account", "Change your subscription to fit your needs.")
@@ -266,8 +286,16 @@
         >
           <:trigger :let={attrs}>
             <.button
+              :if={is_nil(@payment_issue)}
               label={dgettext("dashboard_account", "Upgrade plan")}
               variant="primary"
+              {attrs}
+            />
+            <.button
+              :if={not is_nil(@payment_issue)}
+              id="billing-change-plan"
+              label={dgettext("dashboard_account", "Change plan")}
+              variant="secondary"
               {attrs}
             />
           </:trigger>
@@ -286,7 +314,11 @@
             </.button>
           </:header_button>
           <div data-part="plans">
-            <.pricing_cards id="billing-modal-pricing-plans" plan={@plan} />
+            <.pricing_cards
+              id="billing-modal-pricing-plans"
+              plan={@plan}
+              pay_url={@payment_issue && ~p"/#{@selected_account.name}/billing/pay"}
+            />
           </div>
           <:footer>
             <.modal_footer>
@@ -304,7 +336,11 @@
     </div>
   </.card>
   <div :if={@plan == :air} data-part="plans">
-    <.pricing_cards id="billing-pricing-plans" plan={@plan} />
+    <.pricing_cards
+      id="billing-pricing-plans"
+      plan={@plan}
+      pay_url={@payment_issue && ~p"/#{@selected_account.name}/billing/pay"}
+    />
   </div>
   <.card
     :if={

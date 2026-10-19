@@ -59,6 +59,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"30 3 * * *", Tuist.Billing.Workers.SwitchUsageBasedPricingWorker},
+    {"*/15 * * * *", Tuist.Billing.Workers.PaymentGraceExpirySweepWorker},
     {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},

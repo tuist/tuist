@@ -4,7 +4,7 @@ defmodule Tuist.Billing do
   """
   use Gettext, backend: TuistWeb.Gettext
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
@@ -33,12 +33,9 @@ defmodule Tuist.Billing do
   # neither is billed.
   @holdable_subscription_statuses ~w(active trialing past_due unpaid paused incomplete)
 
-  # The statuses whose subscription the account keeps its plan through.
-  # `past_due` is a renewal Stripe failed to charge and is still retrying, so
-  # the customer has not lost anything yet. Once Stripe stops retrying it
-  # moves the subscription to `unpaid` or `canceled`, and the plan goes with
-  # it. `incomplete` never reached a first payment and `paused` is a trial
-  # that ended without one, so neither carries a plan either.
+  # Billing subscriptions remain live while Stripe retries. Paid access has
+  # its own deadline, enforced by entitled_subscriptions_query/0 even when
+  # Stripe leaves the subscription past_due indefinitely.
   @live_subscription_statuses ~w(active trialing past_due)
 
   # The statuses whose subscription has an invoice the customer still owes.
@@ -856,7 +853,7 @@ defmodule Tuist.Billing do
     |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
     |> Enum.filter(fn account ->
       # The plan check goes first so ClickHouse is only asked about Air accounts.
-      effective_plan(account) == :air and
+      billing_plan(account) == :air and
         account.id
         |> UsagePricing.metered_cache_usage(period_start, period_end)
         |> UsagePricing.cache_allowance_reached?()
@@ -886,7 +883,7 @@ defmodule Tuist.Billing do
       held_usage_based_pricing_account_ids()
       |> Enum.chunk_every(1_000)
       |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
-      |> Enum.filter(&(effective_plan(&1) == :air))
+      |> Enum.filter(&(billing_plan(&1) == :air))
       |> Enum.reduce(%{released: [], failed: []}, fn account, result ->
         case FunWithFlags.clear(:usage_based_pricing, for_actor: account) do
           :ok -> %{result | released: result.released ++ [account]}
@@ -912,8 +909,8 @@ defmodule Tuist.Billing do
   The accounts carrying an active or past due Pro subscription, which are the
   ones the switch to usage-based pricing applies to. Whether a given one is
   switched is decided per account by `:usage_based_pricing_switch`. A past due
-  subscription keeps its plan while Stripe retries, so it is switched with the
-  rest rather than left behind on the previous pricing.
+  subscription remains billable after its access grace expires, so it is switched
+  with the rest rather than left behind on the previous pricing.
 
   Only Pro subscriptions. Enterprise terms are contracted per account, and
   open source accounts pay nothing, so neither is migrated by a schedule.
@@ -1112,7 +1109,7 @@ defmodule Tuist.Billing do
   """
   def on_invoice_payment_failed(invoice), do: PaymentFailedNotifications.enqueue(invoice)
 
-  def on_subscription_change(subscription) do
+  def on_subscription_change(subscription, event_created_at \\ nil) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
         # We had a race-condition that caused multiple customers to be created on Stripe
@@ -1122,61 +1119,177 @@ defmodule Tuist.Billing do
         :ok
 
       {:ok, account} ->
-        on_subscription_change_for_account(subscription, account)
+        apply_subscription_change(subscription, account, stripe_event_time(event_created_at))
     end
   end
 
-  defp on_subscription_change_for_account(subscription, account) do
+  @doc false
+  def with_subscription_lock(account_id, fun) do
+    Repo.transaction(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["billing_subscription:#{account_id}"])
+      fun.()
+    end)
+  end
+
+  defp apply_subscription_change(subscription, account, observed_at, reconciled? \\ false) do
+    {:ok, result} =
+      with_subscription_lock(account.id, fn ->
+        current = Repo.get_by(Subscription, subscription_id: subscription.id)
+
+        cond do
+          stale_subscription_event?(current, observed_at) ->
+            :ignored
+
+          not reconciled? and ambiguous_subscription_event?(current, observed_at) ->
+            :reconcile
+
+          true ->
+            grace_observed_at = if reconciled?, do: DateTime.truncate(DateTime.utc_now(), :second), else: observed_at
+            on_subscription_change_for_account(subscription, account, current, observed_at, grace_observed_at)
+            :applied
+        end
+      end)
+
+    case result do
+      :reconcile ->
+        # Legacy rows have no event watermark, and Stripe events can tie or
+        # predate a previous authoritative read. Fetch outside the transaction
+        # rather than guessing the order of those states.
+        {:ok, latest} = Stripe.Subscription.retrieve(subscription.id)
+        apply_subscription_change(latest, account, observed_at, true)
+
+      :applied ->
+        hold_unswitched_pro_subscription(account, get_plan(subscription), subscription)
+        :ok
+
+      :ignored ->
+        :ok
+    end
+  end
+
+  defp ambiguous_subscription_event?(%{stripe_event_created_at: nil}, %DateTime{}), do: true
+
+  defp ambiguous_subscription_event?(
+         %{stripe_event_created_at: %DateTime{} = latest, updated_at: updated_at},
+         %DateTime{} = observed_at
+       ) do
+    # Allow for second precision and small clock differences with Stripe.
+    confirmed_at = updated_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.add(30, :second)
+    DateTime.compare(observed_at, latest) == :eq or DateTime.before?(observed_at, confirmed_at)
+  end
+
+  defp ambiguous_subscription_event?(_current_subscription, _observed_at), do: false
+
+  defp stripe_event_time(timestamp) when is_integer(timestamp), do: DateTime.from_unix!(timestamp)
+  defp stripe_event_time(_timestamp), do: nil
+
+  defp stale_subscription_event?(%{stripe_event_created_at: %DateTime{} = latest}, %DateTime{} = observed_at) do
+    DateTime.before?(observed_at, latest)
+  end
+
+  defp stale_subscription_event?(_current_subscription, _observed_at), do: false
+
+  defp on_subscription_change_for_account(subscription, account, current_subscription, observed_at, grace_observed_at) do
     plan = get_plan(subscription)
-    current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
+    past_due_since = past_due_since(subscription, current_subscription, grace_observed_at)
+    stripe_event_created_at = observed_at || (current_subscription && current_subscription.stripe_event_created_at)
+
+    payment_grace_expiry_notified_at = grace_expiry_notified_at(subscription, current_subscription)
 
     trial_end = stripe_timestamp(subscription, :trial_end)
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    cond do
-      plan == :none ->
-        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+    saved_subscription =
+      cond do
+        plan == :none ->
+          raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
-      is_nil(current_subscription) ->
-        %Subscription{}
-        |> Subscription.create_changeset(%{
-          plan: plan,
-          subscription_id: subscription.id,
-          status: subscription.status,
-          account_id: account.id,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.insert!()
+        is_nil(current_subscription) ->
+          %Subscription{}
+          |> Subscription.create_changeset(%{
+            plan: plan,
+            subscription_id: subscription.id,
+            status: subscription.status,
+            past_due_since: past_due_since,
+            stripe_event_created_at: stripe_event_created_at,
+            payment_grace_expiry_notified_at: payment_grace_expiry_notified_at,
+            account_id: account.id,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.insert!()
 
-      true ->
-        current_subscription
-        |> Subscription.update_changeset(%{
-          plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.update!()
-    end
+        true ->
+          current_subscription
+          |> Subscription.update_changeset(%{
+            plan: plan,
+            status: subscription.status,
+            past_due_since: past_due_since,
+            stripe_event_created_at: stripe_event_created_at,
+            payment_grace_expiry_notified_at: payment_grace_expiry_notified_at,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.update!()
+      end
 
-    hold_unswitched_pro_subscription(account, plan, subscription)
+    notify_when_turned_past_due(account, current_subscription, subscription, saved_subscription)
     notify_when_turned_unpaid(account, current_subscription, subscription)
 
     :ok
   end
 
+  defp grace_expiry_notified_at(%{status: status}, _current) when status in ["active", "trialing"], do: nil
+  defp grace_expiry_notified_at(_subscription, %{status: status}) when status in ["active", "trialing"], do: nil
+  defp grace_expiry_notified_at(_subscription, current), do: current && current.payment_grace_expiry_notified_at
+
+  defp notify_when_turned_past_due(account, current, %{status: "past_due", collection_method: "send_invoice"}, saved) do
+    if is_nil(current) or current.status != "past_due" do
+      PaymentFailedNotifications.enqueue_payment_grace_started(account, saved)
+    end
+  end
+
+  defp notify_when_turned_past_due(_account, _current, _subscription, _saved), do: nil
+
+  defp past_due_since(%{status: status}, _current, _observed_at) when status in ["active", "trialing"], do: nil
+
+  defp past_due_since(_subscription, %{status: status, past_due_since: %DateTime{} = since}, _observed_at)
+       when status not in ["active", "trialing"], do: since
+
+  defp past_due_since(%{status: "past_due"}, %{status: "past_due", updated_at: updated_at}, _observed_at) do
+    DateTime.from_naive!(updated_at, "Etc/UTC")
+  end
+
+  defp past_due_since(%{status: "past_due"}, _current, observed_at) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    if observed_at && DateTime.before?(observed_at, now), do: observed_at, else: now
+  end
+
+  defp past_due_since(_subscription, _current, _observed_at), do: nil
+
   # Only the transition is news. The row read before the update carries the
   # previous status, so a redelivered event finds it already `unpaid`.
   defp notify_when_turned_unpaid(account, current_subscription, %{status: "unpaid"}) do
-    if is_nil(current_subscription) or current_subscription.status != "unpaid" do
+    already_notified? =
+      case current_subscription do
+        %{payment_grace_expiry_notified_at: %DateTime{} = notified_at} = current ->
+          case Subscription.payment_grace_ends_at(current) do
+            %DateTime{} = deadline -> not DateTime.before?(notified_at, deadline)
+            nil -> false
+          end
+
+        _ ->
+          false
+      end
+
+    if not already_notified? and (is_nil(current_subscription) or current_subscription.status != "unpaid") do
       PaymentFailedNotifications.enqueue_subscription_unpaid(account)
     end
   end
@@ -1343,14 +1456,15 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  The subscription statuses an account keeps its plan through: `active`,
-  `trialing`, and `past_due` while Stripe retries a failed renewal.
+  Billing subscription statuses: `active`, `trialing`, and `past_due`.
+  These identify the subscription to manage and bill, not paid access.
+  Access checks must use `entitled_subscriptions_query/0` or `effective_plan/1`.
   """
   def live_subscription_statuses, do: @live_subscription_statuses
 
   @doc """
-  Given an account, it returns the latest subscription it keeps its plan
-  through. See `live_subscription_statuses/0`.
+  Returns the latest live billing subscription, including overdue ones whose
+  access grace period has expired. Never use this lookup to grant paid access.
   """
   def get_current_active_subscription(%Account{} = account) do
     Repo.one(
@@ -1364,8 +1478,31 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Whether the account lost its paid plan because Stripe gave up collecting a
-  subscription payment, and nothing has replaced that subscription since.
+  Subscriptions that currently grant their plan. A past due subscription gets
+  seven days from its first overdue event, independently of Stripe retries.
+  """
+  def entitled_subscriptions_query do
+    cutoff = DateTime.add(DateTime.utc_now(), -Subscription.payment_grace_period_days(), :day)
+
+    from(s in Subscription,
+      where:
+        s.status in ["active", "trialing"] or
+          (s.status == "past_due" and
+             fragment("COALESCE(?, ? AT TIME ZONE 'UTC')", s.past_due_since, s.updated_at) > ^cutoff)
+    )
+  end
+
+  def get_current_entitled_subscription(%Account{} = account) do
+    entitled_subscriptions_query()
+    |> where([s], s.account_id == ^account.id)
+    |> order_by([s], desc: s.inserted_at, desc: s.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Whether the account lost its paid plan because a subscription is unpaid or
+  its payment grace period expired, and no entitled subscription replaced it.
 
   Such an account resolves to Air like one that never subscribed, but what
   brings its plan back is paying the open invoice, not upgrading.
@@ -1380,15 +1517,14 @@ defmodule Tuist.Billing do
   def payment_failed_account_ids([]), do: MapSet.new()
 
   def payment_failed_account_ids(account_ids) do
-    live_account_ids =
-      from(s in Subscription,
-        where: s.account_id in ^account_ids and s.status in ^@live_subscription_statuses,
-        select: s.account_id
-      )
+    entitled_account_ids =
+      entitled_subscriptions_query()
+      |> where([s], s.account_id in ^account_ids)
+      |> select([s], s.account_id)
 
     from(s in Subscription,
-      where: s.account_id in ^account_ids and s.status == "unpaid",
-      where: s.account_id not in subquery(live_account_ids),
+      where: s.account_id in ^account_ids and s.status in ["unpaid", "past_due"] and s.plan != :air,
+      where: s.account_id not in subquery(entitled_account_ids),
       distinct: true,
       select: s.account_id
     )
@@ -1436,12 +1572,14 @@ defmodule Tuist.Billing do
   @doc """
   Returns the effective plan for an account.
 
-  Accounts without a live subscription use the Air plan. See
-  `live_subscription_statuses/0`.
+  Accounts without an entitled subscription use the Air plan, including
+  subscriptions whose seven-day payment grace period expired.
   """
   def effective_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
+    now = DateTime.utc_now()
+
     subscriptions
-    |> Enum.filter(&(&1.status in @live_subscription_statuses))
+    |> Enum.filter(&Subscription.entitled?(&1, now))
     |> case do
       [] -> :air
       active -> active |> latest_subscription() |> Map.fetch!(:plan)
@@ -1449,9 +1587,18 @@ defmodule Tuist.Billing do
   end
 
   def effective_plan(%Account{} = account) do
-    case get_current_active_subscription(account) do
+    case get_current_entitled_subscription(account) do
       %{plan: plan} when is_atom(plan) -> plan
       _ -> :air
+    end
+  end
+
+  defp billing_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
+    subscriptions
+    |> Enum.filter(&(&1.status in @live_subscription_statuses))
+    |> case do
+      [] -> :air
+      live -> live |> latest_subscription() |> Map.fetch!(:plan)
     end
   end
 
@@ -1461,8 +1608,8 @@ defmodule Tuist.Billing do
 
   Only Air accounts are gated. An account whose paid subscription lapsed
   resolves to Air, so it is gated on the same terms as one that never
-  subscribed. A subscription Stripe is still retrying a payment for has not
-  lapsed, see `live_subscription_statuses/0`. What exhausts the free tier
+  subscribed. A past due subscription keeps its plan only within the payment
+  grace period, even if Stripe keeps retrying. What exhausts the free tier
   depends on the pricing the account is on: 200 remote cache hits, or either
   cache allowance on usage-based pricing.
   """
@@ -1526,12 +1673,10 @@ defmodule Tuist.Billing do
   # is given within each group, and comparing `inserted_at` structs by term
   # order is not chronological.
   defp latest_active_plans(account_ids) do
-    from(s in Subscription,
-      where: s.account_id in ^account_ids,
-      where: s.status in ^@live_subscription_statuses,
-      order_by: [desc: s.inserted_at, desc: s.id],
-      select: {s.account_id, s.plan}
-    )
+    entitled_subscriptions_query()
+    |> where([s], s.account_id in ^account_ids)
+    |> order_by([s], desc: s.inserted_at, desc: s.id)
+    |> select([s], {s.account_id, s.plan})
     |> Repo.all()
     |> Enum.group_by(fn {account_id, _plan} -> account_id end, fn {_account_id, plan} -> plan end)
     |> Map.new(fn {account_id, [latest | _]} -> {account_id, latest} end)
