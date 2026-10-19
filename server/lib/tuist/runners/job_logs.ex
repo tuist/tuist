@@ -198,43 +198,44 @@ defmodule Tuist.Runners.JobLogs do
   @doc """
   For each step, the `{first_line_number, last_line_number}` slice
   of the job's log that belongs to that step, or `nil` if no slice
-  could be derived (e.g. the step ran but produced no captured
+  could be derived (e.g. the step was skipped and produced no
   output). The Steps card uses this to render headers eagerly and
   fetch each step's lines via `list_step_lines/3` only on expand,
   so a 200k-line job never materialises in the socket.
 
-  Three small ClickHouse queries: the job's `max(line_number)`, the
-  `##[group]Run` marker line numbers, and (if there's a teardown
-  step) the first line at or after its `started_at`. Nothing scans
-  the log body.
+  Two small ClickHouse queries: the job's `max(line_number)` and the
+  handful of structural lines the runner writes around steps.
 
-  ## Why markers, not timestamp windows
+  ## Step boundaries
 
   GitHub stamps each step's `started_at` / `completed_at` at second
-  resolution. Adjacent steps that finish in under a second (very
-  common: `echo` statements, env setup) share the same second, so a
-  `[step.started_at, next_step.started_at)` window collapses to zero
-  width and the step row stays blank. GitHub's runner emits a
-  literal `##[group]Run …` line per user-defined `run:` step, in
-  order, into the log it returns from the Logs API. Slicing on those
-  markers gives 1:1 alignment with `workflow_job.steps` regardless
-  of how fast each step ran.
+  resolution, so adjacent fast steps can't be told apart by time.
+  Instead, the log is sliced on the first line the runner writes for
+  every step it executes:
 
-  ## Anchoring the auto-injected steps
+    * `##[group]Run …` for a main step (`run:` or `uses:`).
+    * `Post job cleanup.` for a post step.
+    * `##[group]Checking docker version` for "Initialize containers".
+    * `Stop and remove container: …` / `Remove container network: …`
+      for "Stop containers".
+    * `Evaluate and set job outputs` / `Cleaning up orphan processes`
+      for "Complete job".
 
-  "Set up job" and "Complete job" never get a `##[group]Run` marker.
-  They're anchored positionally:
+  "Set up job" is everything before the first boundary. The lines the
+  runner writes right before a step's header (`Prepare all required
+  actions`, action downloads, the job hook notice) belong to that
+  step, as in GitHub's own Steps UI. Skipped steps write nothing.
 
-    * The first step (if `step_count > marker_count`) absorbs every
-      line before the first `##[group]Run` marker — runner banner,
-      token-permission group, prepare-workflow-dir lines, etc.
-    * The last step (if `step_count > marker_count + 1`) absorbs
-      everything from the first line whose `ts` is at or after its
-      own `started_at` — the cleanup phase ("Cleaning up orphan
-      processes", etc.). This is the one place we still fall back
-      to GitHub's coordinator timestamp; the boundary is coarse-
-      grained (cleanup happens seconds after the last user step's
-      last line), so second-resolution is enough.
+  Composite actions write each nested step between
+  `##[start-action …]` and `##[end-action …]`, and nested steps carry
+  their own `##[group]Run …` header, so only headers outside those
+  pairs start a step.
+
+  When the boundaries don't line up one-to-one with the executed
+  steps (background steps, whose output isn't written in step order,
+  or a step printing `::group::Run …`), every step is left unmapped
+  instead of showing another step's output. A log without any
+  boundary is attributed to the first step.
   """
   def step_line_ranges(workflow_job_id, steps) when is_integer(workflow_job_id) and is_list(steps) do
     steps_sorted = Enum.sort_by(steps, & &1.number)
@@ -247,8 +248,11 @@ defmodule Tuist.Runners.JobLogs do
         Map.new(sorted, fn step -> {step.number, nil} end)
 
       {sorted, total_max} ->
-        markers = marker_line_numbers(workflow_job_id)
-        compute_ranges(sorted, markers, total_max, workflow_job_id)
+        starts = workflow_job_id |> structural_lines() |> step_start_lines()
+
+        sorted
+        |> compute_ranges(starts, total_max)
+        |> fill_unmapped(sorted)
     end
   end
 
@@ -280,96 +284,66 @@ defmodule Tuist.Runners.JobLogs do
 
   def list_step_lines(_workflow_job_id, _first_line, _last_line), do: []
 
-  defp compute_ranges(steps_sorted, [], total_max, _workflow_job_id) do
-    # No markers — single-step semantics: the first step absorbs
-    # the whole log, the rest are unmappable.
-    first = List.first(steps_sorted)
+  defp compute_ranges([first | _], [], total_max), do: %{first.number => {1, total_max}}
 
-    Map.new(steps_sorted, fn step ->
-      if step.number == first.number,
-        do: {step.number, {1, total_max}},
-        else: {step.number, nil}
-    end)
-  end
+  defp compute_ranges(steps_sorted, starts, total_max) do
+    executed = Enum.reject(steps_sorted, &(Map.get(&1, :conclusion) == "skipped"))
 
-  defp compute_ranges(steps_sorted, markers, total_max, workflow_job_id) do
-    {setup_steps, user_steps, teardown_steps} = partition_steps(steps_sorted, length(markers))
-    last_user_end = end_of_last_user_step(workflow_job_id, total_max, teardown_steps)
+    if length(executed) == length(starts) + 1 do
+      ends = Enum.map(starts, &(&1 - 1)) ++ [total_max]
 
-    %{}
-    |> Map.merge(setup_range(setup_steps, markers))
-    |> Map.merge(user_ranges(user_steps, markers, last_user_end, setup_steps != []))
-    |> Map.merge(teardown_range(teardown_steps, last_user_end, total_max))
-    |> fill_unmapped(steps_sorted)
-  end
-
-  # Split the ordered step list into (setup, user, teardown) buckets
-  # by where the `##[group]Run` markers fall. GitHub's contract: 1
-  # auto setup step at the head, N user-Run steps in the middle, 1
-  # auto teardown step at the tail. Anything that doesn't fit (rare:
-  # cancelled job with no user-Run, or a custom workflow that hand-
-  # rolls the steps) degrades to "no setup / all user / no teardown".
-  defp partition_steps(steps_sorted, user_step_count) do
-    step_count = length(steps_sorted)
-
-    cond do
-      step_count <= user_step_count ->
-        {[], Enum.take(steps_sorted, user_step_count), []}
-
-      step_count == user_step_count + 1 ->
-        {Enum.take(steps_sorted, 1), Enum.slice(steps_sorted, 1, user_step_count), []}
-
-      true ->
-        {
-          Enum.take(steps_sorted, 1),
-          Enum.slice(steps_sorted, 1, user_step_count),
-          Enum.drop(steps_sorted, 1 + user_step_count)
-        }
+      executed
+      |> Enum.zip(Enum.zip([1 | starts], ends))
+      |> Map.new(fn {step, {first, last}} -> {step.number, valid_range(first, last)} end)
+    else
+      %{}
     end
   end
 
-  defp end_of_last_user_step(_workflow_job_id, total_max, []), do: total_max
+  defp step_start_lines(structural_lines) do
+    {starts, _depth, _preamble, _last_kind} =
+      Enum.reduce(structural_lines, {[], 0, MapSet.new(), nil}, fn %{line_number: line_number, message: message},
+                                                                   {starts, depth, preamble, last_kind} = acc ->
+        case {classify(message), depth} do
+          {:enter, _} ->
+            {starts, depth + 1, preamble, last_kind}
 
-  defp end_of_last_user_step(workflow_job_id, total_max, [%{started_at: %DateTime{} = teardown_start} | _]) do
-    case teardown_anchor_line(workflow_job_id, teardown_start) do
-      nil -> total_max
-      anchor -> anchor - 1
-    end
+          {:exit, _} ->
+            {starts, max(depth - 1, 0), preamble, last_kind}
+
+          {_, nested_depth} when nested_depth > 0 ->
+            acc
+
+          {:preamble, _} ->
+            {starts, depth, MapSet.put(preamble, line_number), last_kind}
+
+          {{:boundary, kind}, _} when kind in [:stop_containers, :complete] and kind == last_kind ->
+            acc
+
+          {{:boundary, kind}, _} ->
+            {[first_preamble_line(line_number, preamble) | starts], depth, preamble, kind}
+        end
+      end)
+
+    Enum.reverse(starts)
   end
 
-  defp end_of_last_user_step(_workflow_job_id, total_max, _teardown_steps), do: total_max
-
-  defp setup_range([], _markers), do: %{}
-
-  defp setup_range([first | _rest], [first_marker | _]) do
-    if first_marker > 1, do: %{first.number => {1, first_marker - 1}}, else: %{first.number => nil}
+  defp first_preamble_line(line_number, preamble) do
+    if MapSet.member?(preamble, line_number - 1),
+      do: first_preamble_line(line_number - 1, preamble),
+      else: line_number
   end
 
-  defp user_ranges(user_steps, markers, last_user_end, has_setup) do
-    user_step_count = length(user_steps)
-
-    user_steps
-    |> Enum.with_index()
-    |> Map.new(fn {step, idx} ->
-      start_line =
-        if idx == 0 and not has_setup,
-          do: 1,
-          else: Enum.at(markers, idx)
-
-      end_line =
-        if idx == user_step_count - 1,
-          do: last_user_end,
-          else: Enum.at(markers, idx + 1) - 1
-
-      {step.number, valid_range(start_line, end_line)}
-    end)
-  end
-
-  defp teardown_range([], _last_user_end, _total_max), do: %{}
-
-  defp teardown_range([first | _rest], last_user_end, total_max) do
-    %{first.number => valid_range(last_user_end + 1, total_max)}
-  end
+  defp classify("##[start-action" <> _), do: :enter
+  defp classify("##[end-action" <> _), do: :exit
+  defp classify("##[group]Run " <> _), do: {:boundary, :run}
+  defp classify("##[group]Checking docker version"), do: {:boundary, :initialize_containers}
+  defp classify("Post job cleanup."), do: {:boundary, :post}
+  defp classify("Stop and remove container: " <> _), do: {:boundary, :stop_containers}
+  defp classify("Remove container network: " <> _), do: {:boundary, :stop_containers}
+  defp classify("Evaluate and set job outputs"), do: {:boundary, :complete}
+  defp classify("Cleaning up orphan processes"), do: {:boundary, :complete}
+  defp classify(_), do: :preamble
 
   defp valid_range(first, last) when is_integer(first) and is_integer(last) and last >= first, do: {first, last}
   defp valid_range(_, _), do: nil
@@ -392,33 +366,25 @@ defmodule Tuist.Runners.JobLogs do
     end
   end
 
-  # `##[group]Run ` (trailing space) is the literal prefix GitHub's
-  # runner emits per user-defined `run:` step. The HAVING runs against
-  # the deduped message so a retried row can't slip past the filter.
-  defp marker_line_numbers(workflow_job_id) do
+  # Every line `classify/1` recognises. Lines that aren't markers or
+  # boundaries are the runner's per-step preamble. The HAVING runs
+  # against the deduped message so a retried row can't slip past the
+  # filter.
+  @structural_line_pattern "^(##\\[(start-action|end-action|group\\]Run |group\\]Checking docker version$)|Post job cleanup\\.$|Stop and remove container: |Remove container network: |Evaluate and set job outputs$|Cleaning up orphan processes$|Prepare all required actions$|Getting action download info$|Download action repository |A job (started|completed) hook has been configured)"
+
+  defp structural_lines(workflow_job_id) do
     ClickHouseRepo.all(
       from(l in JobLog,
         where: l.workflow_job_id == ^workflow_job_id,
         group_by: [l.workflow_job_id, l.line_number],
-        having: fragment("startsWith(argMax(?, ?), '##[group]Run ')", l.message, l.inserted_at),
+        having: fragment("match(argMax(?, ?), ?)", l.message, l.inserted_at, ^@structural_line_pattern),
         order_by: [asc: l.line_number],
-        select: l.line_number
+        select: %{
+          line_number: l.line_number,
+          message: fragment("leftUTF8(argMax(?, ?), 64)", l.message, l.inserted_at)
+        }
       )
     )
-  end
-
-  # `ts` comes from the GH log line itself, so a retried row carries
-  # an identical ts — no dedup needed for this anchor.
-  defp teardown_anchor_line(workflow_job_id, teardown_started_at) do
-    from(l in JobLog,
-      where: l.workflow_job_id == ^workflow_job_id and l.ts >= ^teardown_started_at,
-      select: fragment("min(?)", l.line_number)
-    )
-    |> ClickHouseRepo.one()
-    |> case do
-      0 -> nil
-      value -> value
-    end
   end
 
   @doc """

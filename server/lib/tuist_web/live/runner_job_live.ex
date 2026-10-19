@@ -1131,7 +1131,7 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  # Per-step ranges are computed once (three small ClickHouse queries,
+  # Per-step ranges are computed once (two small ClickHouse queries,
   # no log-body scan); the expanded step's lines are fetched on demand
   # and cached individually. A user who never opens a step pays
   # nothing beyond mount; a job with hundreds of thousands of lines

@@ -984,8 +984,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     # Three GH-shaped steps: an auto "Set up job" head, a single
     # user "Build" step delimited by `##[group]Run`, and an auto
-    # "Complete job" tail anchored to its own `started_at`. Slicing
-    # walks the marker, not the timestamps — see Tuist.Runners.JobLogs.
+    # "Complete job" tail starting at the runner's cleanup line.
+    # Slicing walks those markers, not the timestamps — see
+    # Tuist.Runners.JobLogs.
     :ok =
       JobSteps.record([
         %{
@@ -1055,7 +1056,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
           account_id: account.id,
           line_number: 5,
           ts: ~U[2026-05-28 12:02:00.000000Z],
-          message: "after the build step"
+          message: "Cleaning up orphan processes"
         }
       ])
 
@@ -1069,7 +1070,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
-    refute panel =~ "after the build step"
+    refute panel =~ "Cleaning up orphan processes"
     refute panel =~ "Current runner version"
   end
 
