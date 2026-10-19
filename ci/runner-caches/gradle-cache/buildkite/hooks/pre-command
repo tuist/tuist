@@ -8,7 +8,7 @@ if command -v tuist-cache-volume >/dev/null 2>&1; then
     *) tuist_gradle_home="$PWD/$tuist_gradle_home" ;;
   esac
   tuist_gradle_status=0
-  tuist-cache-volume --key gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
+  tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
   if [ "$tuist_gradle_status" = 0 ]; then
     mkdir -p "$tuist_gradle_home/init.d"
     cat >"$tuist_gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'

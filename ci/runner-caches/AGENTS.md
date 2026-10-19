@@ -8,7 +8,7 @@ and `gitlab/`. The GitHub actions live in `../../.github/actions/<cache>/`.
   `tuist-runner-cache` (`infra/runner-image/`): run `activate <cache>` and export
   the `NAME=VALUE` lines it prints. Activation, trust and saving stay in the
   image and the server. Those two differ only by name; the test enforces it.
-- Gradle entry points call `tuist-cache-volume` with key `gradle` for
+- Gradle entry points call `tuist-cache-volume` with key `tuist-gradle` for
   `$GRADLE_USER_HOME/{caches,wrapper}` and install the same cleanup init script
   as `.github/actions/gradle-cache/setup.sh`; the test compares them byte for byte.
 - Both providers keep exports only if the entry point runs in the build's shell:

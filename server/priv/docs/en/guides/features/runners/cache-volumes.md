@@ -249,6 +249,8 @@ snapshot like an `actions/cache` key.
   saved yet starts empty.
 - **Start over on purpose.** Change the key, or clear the volume in the
   dashboard, when you want a job to start empty.
+- **Leave `tuist-` keys to Tuist.** The managed caches use keys that start
+  with `tuist-`, so pick a different name for your own volumes.
 
 On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.

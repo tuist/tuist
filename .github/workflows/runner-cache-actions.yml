@@ -55,7 +55,7 @@ jobs:
           cat > "$RUNNER_TEMP/helper-bin/tuist-cache-volume" <<'CLIENT'
           #!/usr/bin/env bash
           set -euo pipefail
-          [[ "$1" == --key && "$2" == gradle ]]
+          [[ "$1" == --key && "$2" == tuist-gradle ]]
           printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
           CLIENT
           chmod +x "$RUNNER_TEMP/helper-bin/tuist-cache-volume"

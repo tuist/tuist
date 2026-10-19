@@ -17,7 +17,7 @@ case "$gradle_home" in
 esac
 
 status=0
-"$client" --key gradle --path "$gradle_home/caches" --path "$gradle_home/wrapper" || status=$?
+"$client" --key tuist-gradle --path "$gradle_home/caches" --path "$gradle_home/wrapper" || status=$?
 if [ "$status" != 0 ]; then
   echo "::warning::Could not attach the Gradle cache (tuist-cache-volume exited $status); the job runs with an empty one."
   exit 0

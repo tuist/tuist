@@ -86,7 +86,7 @@ run_gradle() {
 for entry in "bash $gradle_hook" "bash $fixture/gradle-gitlab.sh" "sh $fixture/gradle-gitlab.sh"; do
   read -r shell script <<< "$entry"
   [[ $(run_gradle "$shell" "$script") == *after ]]
-  printf '%s\n' --key gradle --path "$fixture/gradle-home/.gradle/caches" --path "$fixture/gradle-home/.gradle/wrapper" > "$fixture/expected-args"
+  printf '%s\n' --key tuist-gradle --path "$fixture/gradle-home/.gradle/caches" --path "$fixture/gradle-home/.gradle/wrapper" > "$fixture/expected-args"
   cmp "$fixture/expected-args" "$CAPTURE_ARGS"
   cmp "$fixture/expected-init" "$fixture/gradle-home/.gradle/init.d/tuist-gradle-cache.gradle"
 

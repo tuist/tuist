@@ -22,14 +22,14 @@ setup() { (cd "$fixture/workspace" && PATH="$fixture/bin:/usr/bin:/bin" /bin/bas
 
 unset GRADLE_USER_HOME
 setup
-printf '%s\n' --key gradle --path "$fixture/home/.gradle/caches" --path "$fixture/home/.gradle/wrapper" > "$fixture/expected"
+printf '%s\n' --key tuist-gradle --path "$fixture/home/.gradle/caches" --path "$fixture/home/.gradle/wrapper" > "$fixture/expected"
 cmp "$fixture/expected" "$CAPTURE_ARGS"
 grep -q 'Cleanup' "$fixture/home/.gradle/init.d/tuist-gradle-cache.gradle"
 grep -q 'setRemoveUnusedEntriesAfterDays(7)' "$fixture/home/.gradle/init.d/tuist-gradle-cache.gradle"
 echo 'ok: the default Gradle user home is cached and cleaned up'
 
 GRADLE_USER_HOME=.gradle setup
-printf '%s\n' --key gradle --path "$fixture/workspace/.gradle/caches" --path "$fixture/workspace/.gradle/wrapper" > "$fixture/expected"
+printf '%s\n' --key tuist-gradle --path "$fixture/workspace/.gradle/caches" --path "$fixture/workspace/.gradle/wrapper" > "$fixture/expected"
 cmp "$fixture/expected" "$CAPTURE_ARGS"
 [[ -f "$fixture/workspace/.gradle/init.d/tuist-gradle-cache.gradle" ]]
 echo 'ok: a relative GRADLE_USER_HOME resolves against the working directory'
