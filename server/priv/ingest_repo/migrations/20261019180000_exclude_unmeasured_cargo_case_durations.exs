@@ -39,7 +39,7 @@ defmodule Tuist.IngestRepo.Migrations.ExcludeUnmeasuredCargoCaseDurations do
       quantileState(0.9)(duration) AS p90_duration,
       quantileState(0.99)(duration) AS p99_duration
     FROM test_case_runs
-    WHERE test_case_id IS NOT NULL AND (#{measured})
+    WHERE test_case_id IS NOT NULL AND submission_auth != 'network_trusted' AND (#{measured})
     GROUP BY project_id, date, test_case_id, is_ci
     """
   end
