@@ -37,6 +37,7 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             disableSandbox: manifest.disableSandbox,
             includeGenerateScheme: manifest.includeGenerateScheme,
             enableCaching: manifest.enableCaching,
+            enableCachingPrefixMapping: manifest.enableCachingPrefixMapping,
             enableCoveragePrefixMapping: manifest.enableCoveragePrefixMapping,
             registryEnabled: manifest.registryEnabled,
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
