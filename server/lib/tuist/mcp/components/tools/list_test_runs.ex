@@ -26,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         "query" => %{
           "type" => "string",
           "description" =>
-            ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit arguments using AND semantics.)
+            ~s(Search query for richer filtering. Supported fields: `git_branch`, `scheme`, and `status`. Supports exact matches with `field:"value"` and case-insensitive substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"` excludes branches containing `gh-readonly-queue`. Whitespace-separated query filters compose with each other and the explicit arguments using AND semantics.)
         },
         "status" => %{
           "type" => "string",
