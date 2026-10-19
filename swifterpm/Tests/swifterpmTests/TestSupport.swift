@@ -156,3 +156,39 @@ func writeMirrorsConfiguration(_ mirrors: [String: String], to path: URL) async 
     )
     try await fileSystem.atomicWrite(data, to: path)
 }
+
+/// Writes a `workspace-state.json` that only records `prebuilts`, as a previous native resolution would.
+func writeWorkspaceState(prebuilts: [[String: Any]], scratchDir: URL) async throws {
+    try await fileSystem.makeDirectory(at: scratchDir.absolutePath, options: [.createTargetParentDirectories])
+    try await fileSystem.atomicWrite(
+        JSONFormatter.prettyData([
+            "object": ["artifacts": [], "dependencies": [], "prebuilts": prebuilts],
+            "version": 7,
+        ]),
+        to: scratchDir.appendingPathComponent("workspace-state.json")
+    )
+}
+
+/// A swift-syntax prebuilt entry laid out the way SwiftPM extracts it.
+func swiftSyntaxPrebuilt(scratchDir: URL, version: String, compilerTag: String) -> [String: Any] {
+    [
+        "identity": "swift-syntax",
+        "version": version,
+        "libraryName": "MacroSupport",
+        "path": scratchDir
+            .appendingPathComponent("prebuilts/swift-syntax/\(version)/\(compilerTag)-macosx26.0-MacroSupport").path,
+        "checkoutPath": scratchDir.appendingPathComponent("checkouts/swift-syntax").path,
+        "products": ["SwiftSyntax"],
+        "includePath": ["Sources/_SwiftSyntaxCShims/include"],
+        "cModules": [],
+    ]
+}
+
+func swiftSyntaxPin(version: String) -> ResolvedPin {
+    ResolvedPin(
+        identity: "swift-syntax",
+        kind: "remoteSourceControl",
+        location: "https://github.com/swiftlang/swift-syntax.git",
+        state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: version)
+    )
+}

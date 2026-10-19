@@ -281,7 +281,8 @@ public struct SwifterPM: Sendable {
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
             cacheRoot: cacheRoot,
-            registryConfig: registryConfig
+            registryConfig: registryConfig,
+            scratchDir: request.restorePackage ? scratch : nil
         ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,

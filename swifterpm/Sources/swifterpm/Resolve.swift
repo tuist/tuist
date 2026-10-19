@@ -223,10 +223,16 @@ enum PackageResolver {
     /// Registry pins are probed the same way, against the checksum marker the cache keeps
     /// inside each registry release. Keying the cache path on identity, version and registry
     /// URL alone is what makes that probe possible without asking the registry anything.
+    ///
+    /// When `scratchDir` is given, prebuilts recorded there for another compiler or pinned version
+    /// also return true. The restoration path only carries recorded prebuilts over, so dropping them
+    /// there would build those packages from source until the next native resolution. SwiftPM
+    /// recomputes them instead, for the toolchain it now runs with.
     static func shouldUseNativeColdPath(
         packageDir: URL,
         cacheRoot: URL,
-        registryConfig: RegistryConfig
+        registryConfig: RegistryConfig,
+        scratchDir: URL? = nil
     ) async throws -> Bool {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else {
@@ -261,6 +267,9 @@ enum PackageResolver {
             guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {
                 return true
             }
+        }
+        if let scratchDir {
+            return try await WorkspacePrebuilts.hasInapplicable(scratchDir: scratchDir, pins: pins)
         }
         return false
     }

@@ -465,7 +465,11 @@ struct RestoreTests {
             let package = root.appendingPathComponent("Package")
             let scratch = root.appendingPathComponent("scratch")
             let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let prebuiltPath = "\(scratch.path)/prebuilts/swift-syntax/601.0.0/swiftlang-6.2.0.19.9-macosx26.0-SwiftSyntax"
             try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeCachedManifest(
+                emptyManifest(name: "SwiftSyntax"), packageDir: scratch.appendingPathComponent("checkouts/swift-syntax")
+            )
             try await fileSystem.makeDirectory(at: scratch.absolutePath, options: [.createTargetParentDirectories])
             try await fileSystem.atomicWrite(
                 JSONFormatter.prettyData([
@@ -477,7 +481,7 @@ struct RestoreTests {
                                 "identity": "swift-syntax",
                                 "version": "601.0.0",
                                 "libraryName": "SwiftSyntax",
-                                "path": "\(scratch.path)/prebuilts/swift-syntax\u{0}",
+                                "path": "\(prebuiltPath)\u{0}",
                                 "checkoutPath": "\(scratch.path)/checkouts/swift-syntax\u{0}",
                                 "products": ["SwiftSyntax"],
                                 "includePath": ["Sources/_SwiftSyntaxCShims/include\u{0}"],
@@ -490,13 +494,15 @@ struct RestoreTests {
                 to: statePath
             )
 
-            try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package,
-                scratchDir: scratch,
-                mirrors: MirrorConfig(),
-                resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
-                disableSandbox: false
-            )
+            try await WorkspacePrebuilts.$compilerTag.withValue(.init(probe: { "swiftlang-6.2.0.19.9" })) {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    mirrors: MirrorConfig(),
+                    resolved: ResolvedPins(originHash: "origin", pins: [swiftSyntaxPin(version: "601.0.0")], version: 3),
+                    disableSandbox: false
+                )
+            }
 
             let state = try #require(
                 try JSONSerialization.jsonObject(
@@ -509,13 +515,101 @@ struct RestoreTests {
             #expect(prebuilts.count == 1)
             #expect(prebuilt["identity"] as? String == "swift-syntax")
             #expect(prebuilt["libraryName"] as? String == "SwiftSyntax")
-            #expect(prebuilt["path"] as? String == "\(scratch.path)/prebuilts/swift-syntax")
+            #expect(prebuilt["path"] as? String == prebuiltPath)
             #expect(prebuilt["checkoutPath"] as? String == "\(scratch.path)/checkouts/swift-syntax")
             #expect(
                 prebuilt["includePath"] as? [String] == [
                     "Sources/_SwiftSyntaxCShims/include",
                 ])
         }
+    }
+
+    @Test
+    func writeWorkspaceStateDropsPrebuiltsForAnotherCompilerOrVersion() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeCachedManifest(
+                emptyManifest(name: "SwiftSyntax"), packageDir: scratch.appendingPathComponent("checkouts/swift-syntax")
+            )
+            try await writeWorkspaceState(
+                prebuilts: [
+                    swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", compilerTag: "swiftlang-6.3.0.1.1"),
+                    swiftSyntaxPrebuilt(scratchDir: scratch, version: "602.0.0", compilerTag: "swiftlang-6.3.1.2.3"),
+                    swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", compilerTag: "swiftlang-6.3.1.2.3"),
+                ],
+                scratchDir: scratch
+            )
+
+            try await WorkspacePrebuilts.$compilerTag.withValue(.init(probe: { "swiftlang-6.3.1.2.3" })) {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    mirrors: MirrorConfig(),
+                    resolved: ResolvedPins(originHash: "origin", pins: [swiftSyntaxPin(version: "603.0.0")], version: 3),
+                    disableSandbox: false
+                )
+            }
+
+            let prebuilts = try await WorkspacePrebuilts.existing(scratchDir: scratch)
+            #expect(prebuilts.map { $0["path"] as? String } == [
+                swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", compilerTag: "swiftlang-6.3.1.2.3")["path"]
+                    as? String,
+            ])
+        }
+    }
+
+    private actor CompilerProbe {
+        var calls = 0
+
+        func tag() -> String? {
+            calls += 1
+            return "swiftlang-6.3.1.2.3"
+        }
+    }
+
+    @Test
+    func compilerIsProbedOnceAndOnlyWhenPrebuiltsAreRecorded() async throws {
+        try await withTemporaryDirectory { root in
+            let scratch = root.appendingPathComponent("scratch")
+            let pins = [swiftSyntaxPin(version: "603.0.0")]
+            let probe = CompilerProbe()
+            try await WorkspacePrebuilts.$compilerTag.withValue(.init(probe: { await probe.tag() })) {
+                #expect(try await !WorkspacePrebuilts.hasInapplicable(scratchDir: scratch, pins: pins))
+                #expect(await probe.calls == 0)
+
+                try await writeWorkspaceState(
+                    prebuilts: [
+                        swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", compilerTag: "swiftlang-6.3.1.2.3"),
+                    ],
+                    scratchDir: scratch
+                )
+                #expect(try await !WorkspacePrebuilts.hasInapplicable(scratchDir: scratch, pins: pins))
+                #expect(try await !WorkspacePrebuilts.hasInapplicable(scratchDir: scratch, pins: pins))
+                #expect(await probe.calls == 1)
+            }
+        }
+    }
+
+    @Test
+    func compilerTagMatchesTheNameSwiftPMGivesPrebuilts() {
+        #expect(
+            WorkspacePrebuilts.compilerTag(targetInfo: [
+                "swiftCompilerTag": "swiftlang-6.4.2.1.4",
+                "compilerVersion": "Apple Swift version 6.4.2 (swiftlang-6.4.2.1.4 clang-2100.4.1.1)",
+            ]) == "swiftlang-6.4.2.1.4"
+        )
+        #expect(
+            WorkspacePrebuilts.compilerTag(targetInfo: [
+                "compilerVersion": "Apple Swift version 6.1 (swiftlang-6.1.0.110.21 clang-1700.0.13.3)",
+            ]) == "swiftlang-6.1.0.110.21"
+        )
+        #expect(
+            WorkspacePrebuilts.compilerTag(targetInfo: [
+                "compilerVersion": "Swift version 6.1.2 (swift-6.1.2-RELEASE)",
+            ]) == "swift-6.1.2-RELEASE"
+        )
     }
 
     @Test
