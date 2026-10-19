@@ -2,6 +2,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.HTTP, as: AnalyticsHTTP
   alias TuistEx.Auth
   alias TuistEx.HTTP
@@ -53,12 +54,10 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     opts = options(directory, %{"TUIST_TAGS" => "compatibility"})
 
     {:ok, state} =
-      TuistEx.Analytics.ExUnitFormatter.init(
-        opts ++ [submit: fn _, _ -> :ok end, mode: {:defer, self()}]
-      )
+      ExUnitFormatter.init(opts ++ [submit: fn _, _ -> :ok end, mode: {:defer, self()}])
 
     {:noreply, _} =
-      TuistEx.Analytics.ExUnitFormatter.handle_cast({:suite_finished, %{run: 1_000}}, state)
+      ExUnitFormatter.handle_cast({:suite_finished, %{run: 1_000}}, state)
 
     assert_receive {:deferred_test_run, {payload, _, false}}
     runtime_fields = ~w(contract_version elixir_version otp_version mix_env custom_metadata)

@@ -124,6 +124,7 @@ class TokenProviderTest {
 
     @Test
     fun `valid directory links and future credential metadata remain readable`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
         val target = File(tempDir, "real-credentials").apply { mkdirs() }
         Files.createSymbolicLink(File(tempDir, "credentials").toPath(), target.toPath())
         File(target, "Tuist.Dev..json").writeText(
@@ -135,6 +136,7 @@ class TokenProviderTest {
 
     @Test
     fun `broken credential directory links and credential file links are errors not absence`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
         val target = File(tempDir, "missing-target").toPath()
         val directory = File(tempDir, "credentials")
         Files.createSymbolicLink(directory.toPath(), target)
