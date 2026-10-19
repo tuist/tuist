@@ -18,6 +18,12 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   this acknowledgment never authorizes another replica. Handover batches must
   negotiate support, bound descriptors and referenced bytes, preserve ordered
   full-corpus verification, and retain the individual-record fallback.
+  A preparation-capable destination may first reconcile under the exact Serving
+  intent while the source continues writing. Keep its fixed deadline, source
+  epoch/incarnation binding, normal background bandwidth admission and shared
+  preparation mutex. It takes no hold and grants no receipt or serving rights.
+  Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
+  expired grants, epoch/identity changes and drain must stop blocked peer I/O.
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
