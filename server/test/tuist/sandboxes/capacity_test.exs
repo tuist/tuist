@@ -366,21 +366,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
   end
 
   describe "elastic carve-outs" do
+    setup do
+      # The Pod status reads as a resize still in flight unless a test says
+      # the kubelet applied or deferred it.
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => %{}}} end)
+      :ok
+    end
+
     # Floor 8 GiB, ceiling 16 GiB; the daemon reports the floor until the
     # stubbed resize applies a new limit, as the kubelet would.
     defp connect_elastic(template, overrides \\ %{}) do
       name = node_name()
 
+      elastic =
+        Map.merge(
+          %{pod_name: "sandboxd-#{name}", memory_floor_bytes: 8 * @gib, memory_ceiling_bytes: 16 * @gib},
+          Map.get(overrides, :elastic, %{})
+        )
+
       connect(
         name,
         template,
-        Map.merge(
-          %{
-            capacity: %{memory_bytes: 8 * @gib, cpus: 16},
-            elastic: %{pod_name: "sandboxd-#{name}", memory_floor_bytes: 8 * @gib, memory_ceiling_bytes: 16 * @gib}
-          },
-          overrides
-        )
+        Map.merge(%{capacity: %{memory_bytes: 8 * @gib, cpus: 16}}, Map.put(overrides, :elastic, elastic))
       )
     end
 
@@ -446,6 +453,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
       node = connect_elastic(template)
       resident(template, node)
       expect(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => deferred_status()}} end)
       sandbox = new_sandbox(template)
 
       assert {:error, :no_capacity} = Capacity.place(sandbox)
@@ -554,6 +562,70 @@ defmodule Tuist.Sandboxes.CapacityTest do
       reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
 
       assert :unchanged = Capacity.shrink(node_info(node))
+    end
+
+    defp deferred_status do
+      %{"conditions" => [%{"type" => "PodResizePending", "status" => "True", "reason" => "Deferred"}]}
+    end
+
+    defp applied_status(quantity) do
+      %{"containerStatuses" => [%{"name" => "sandboxd", "resources" => %{"limits" => %{"memory" => quantity}}}]}
+    end
+
+    test "moves on to the next node when the first defers its growth, and gives that growth back", %{
+      template: template
+    } do
+      # The roomier ceiling puts `full` first.
+      full = connect_elastic(template, %{elastic: %{memory_floor_bytes: 8 * @gib, memory_ceiling_bytes: 20 * @gib}})
+      free = connect_elastic(template)
+      resident(template, full)
+      resident(template, free)
+      test_pid = self()
+
+      stub(KubernetesClient, :get_pod, fn "tuist-sandboxes", pod ->
+        if pod == "sandboxd-" <> full, do: {:ok, %{"status" => deferred_status()}}, else: {:ok, %{"status" => %{}}}
+      end)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", pod, bytes ->
+        send(test_pid, {:resized, pod, bytes})
+        if pod == "sandboxd-" <> free, do: :ok = Nodes.update(free, %{capacity: %{memory_bytes: bytes, cpus: 16}})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, ^free} = Capacity.place(new_sandbox(template))
+      full_pod = "sandboxd-" <> full
+      assert_received {:resized, ^full_pod, grown} when grown == 9 * @gib
+      assert_received {:resized, ^full_pod, released} when released == 8 * @gib
+      assert %SandboxNode{memory_limit_bytes: limit} = Repo.get(SandboxNode, full)
+      assert limit == 8 * @gib
+    end
+
+    test "admits a work item once the kubelet applies its growth, before the daemon reports it", %{
+      template: template
+    } do
+      node = connect_elastic(template)
+      resident(template, node)
+      agent_environment = agent_environment_fixture(template: template)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => applied_status("9Gi")}} end)
+
+      assert Capacity.admissible?(agent_environment, "sesn_new")
+      # The placement still waits for the daemon to report the new limit.
+      assert Capacity.memory_limit_bytes(node_info(node)) == 8 * @gib
+    end
+
+    test "a node at a 1 GiB floor holds no sandbox until a sandbox needs it", %{template: template} do
+      node =
+        connect_elastic(template, %{
+          capacity: %{memory_bytes: @gib, cpus: 16},
+          elastic: %{memory_floor_bytes: @gib, memory_ceiling_bytes: 16 * @gib}
+        })
+
+      apply_resizes(node)
+
+      # One 4160 MiB guest plus the 512 MiB reserve rounds up to 5 GiB.
+      assert {:ok, ^node} = Capacity.place(new_sandbox(template))
+      assert Capacity.memory_limit_bytes(node_info(node)) == 5 * @gib
     end
 
     defp insert_row(node, pod_name, limit, grown_at) do

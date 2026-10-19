@@ -32,12 +32,14 @@ defmodule Tuist.Sandboxes.Capacity do
   which the reserved sums count.
 
   A node whose daemon reports a memory ceiling above its floor has an
-  elastic carve-out: the daemon's Pod starts at the floor, and when
-  nothing fits even after pausing idle sandboxes the Pod's memory is grown
-  in place, in whole GiB, up to the ceiling. The kubelet applies a growth
-  that fits the node at once and defers one that does not until room
-  frees, which the runners controller provides by retiring idle warm
-  runners on that node; the scheduler counts the requested size either
+  elastic carve-out: the daemon's Pod starts at the floor, normally just
+  the daemon's own memory so runners keep the node until a sandbox needs
+  it, and when nothing fits even after pausing idle sandboxes the Pod's
+  memory is grown in place, in whole GiB, up to the ceiling. The kubelet
+  applies a growth that fits the node at once and defers one that does
+  not; a deferred growth is given back and the next node tried, and only
+  the last one stays asked for, so the runners controller retires idle
+  warm runners there. The scheduler counts the requested size either
   way, so runner Pods cannot take room a growth is waiting for. The size
   the server asked for is a `Tuist.Sandboxes.SandboxNode` row, and
   placements budget against the smaller of it and the limit the node
@@ -314,8 +316,7 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp place_by_growing(ranked, charge, reserve) do
-    with {:ok, node} <- most_growable(ranked, charge),
-         {:ok, grown} <- grow(node, charge, wait_ms(:grow_wait_ms)),
+    with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported),
          :ok <- reserve.(grown) do
       {:ok, grown.name}
     else
@@ -360,9 +361,9 @@ defmodule Tuist.Sandboxes.Capacity do
   would not fit anywhere, so the queue rather than a forced stop holds it
   until a pause frees memory. When only a growth of an elastic node's
   carve-out would fit it, the growth is asked for here and the item is
-  admissible if the node reports it within a couple of seconds; a growth
-  the kubelet defers stays asked for, and the item, left queued, fits once
-  the node has room. Sessions whose sandbox already holds memory and
+  admissible if the kubelet applies it within a couple of seconds on one
+  of the nodes tried; a growth the kubelet defers on the last one stays
+  asked for, and the item, left queued, fits once that node has room. Sessions whose sandbox already holds memory and
   environments with no connected node at all are admissible; the latter
   fail on dispatch as before.
   """
@@ -396,34 +397,92 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  # The admission check only needs to know the kubelet applied the growth;
+  # the placement that follows waits for the daemon to report it.
   defp grown_in_time?(nodes, sized) when is_list(nodes) do
-    case nodes |> Enum.filter(&disk_space?(&1, sized)) |> most_growable(charge_bytes(sized)) do
-      {:ok, node} -> grown_in_time?(node, sized)
-      {:error, :no_capacity} -> false
-    end
+    with_space = Enum.filter(nodes, &disk_space?(&1, sized))
+    result = grow_somewhere(with_space, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied)
+    match?({:ok, _node}, result)
   end
 
   defp grown_in_time?(node, sized) do
-    disk_space?(node, sized) and match?({:ok, _node}, grow(node, charge_bytes(sized), wait_ms(:admission_grow_wait_ms)))
+    disk_space?(node, sized) and
+      match?({:ok, _node}, grow(node, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied))
+  end
+
+  # Tries the elastic nodes that could hold the charge, most room under the
+  # ceiling first, and moves on from one whose growth the kubelet defers
+  # (the node has no memory no Pod requests), releasing that growth. The
+  # last node's deferred growth stays asked for, so the runners controller
+  # frees room there and the next attempt fits.
+  defp grow_somewhere(nodes, charge, wait_ms, until) do
+    deadline = System.monotonic_time(:millisecond) + wait_ms
+    nodes |> growable(charge) |> try_growing(charge, deadline, until)
+  end
+
+  defp try_growing([], _charge, _deadline, _until), do: {:error, :no_capacity}
+
+  defp try_growing([node | rest], charge, deadline, until) do
+    remaining = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    case grow(node, charge, remaining, until) do
+      {:deferred, limit} when rest != [] ->
+        release_growth(node, limit)
+        try_growing(rest, charge, deadline, until)
+
+      result ->
+        result
+    end
   end
 
   @doc """
   Grows an elastic node's carve-out so `charge` more bytes fit on top of
   what its sandboxes hold, rounded up to whole GiB and capped at the
-  node's ceiling, and waits up to `wait_ms` for the daemon to report the
-  new limit. Returns `{:ok, node}` with the node's fresh report,
-  `{:pending, limit}` when the kubelet has not applied the growth in time
-  (it stays asked for and applies once the node has room), or
-  `{:error, reason}` when the ceiling cannot hold it or the resize failed.
+  node's ceiling, and waits up to `wait_ms` for it to land: until the
+  daemon reports the new limit (`until: :reported`, what a placement
+  budgets against) or until the kubelet has applied it (`:applied`).
+  Returns `{:ok, node}` with the node's latest report, `{:deferred, limit}`
+  when the kubelet deferred it for lack of room on the node,
+  `{:pending, limit}` when it has not landed in time, or `{:error, reason}`
+  when the ceiling cannot hold it or the resize failed. A deferred or
+  pending growth stays asked for.
   """
-  def grow(%{name: node_name} = node, charge, wait_ms) when is_integer(charge) and is_integer(wait_ms) do
+  def grow(%{name: _node_name} = node, charge, wait_ms, until \\ :reported)
+      when is_integer(charge) and is_integer(wait_ms) and until in [:reported, :applied] do
     if elastic?(node) do
       with {:ok, limit} <- ask_for_growth(node, charge),
            :ok <- resize(node, limit) do
-        await_limit(node_name, limit, wait_ms)
+        await_growth(node, limit, wait_ms, until)
       end
     else
       {:error, :no_capacity}
+    end
+  end
+
+  # Gives a deferred growth back: the size asked for returns to what the
+  # Pod holds, so the scheduler stops counting the growth against the node.
+  defp release_growth(%{name: node_name, elastic: %{pod_name: pod_name}} = node, limit) do
+    fn ->
+      lock(node_name)
+      held = reported_limit(node) || node.elastic.memory_floor_bytes
+
+      case Repo.get(SandboxNode, node_name) do
+        %SandboxNode{pod_name: ^pod_name, memory_limit_bytes: ^limit} = row when held < limit ->
+          row |> SandboxNode.changeset(%{memory_limit_bytes: held}) |> Repo.update!()
+          held
+
+        _changed_since ->
+          Repo.rollback(:unchanged)
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, held} ->
+        Logger.info("sandboxes: released a deferred carve-out growth", node: node_name, memory_bytes: held)
+        resize(node, held)
+
+      {:error, :unchanged} ->
+        :ok
     end
   end
 
@@ -457,21 +516,82 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp await_limit(node_name, limit, wait_ms) do
+  # The daemon reports a new limit within a second or two; the Pod's status
+  # says sooner whether the kubelet applied the resize or deferred it.
+  defp await_growth(%{name: node_name, elastic: %{pod_name: pod_name}} = node, limit, wait_ms, until) do
     Nodes.await(
       fn ->
-        case Nodes.lookup(node_name) do
-          {:ok, _pid, info} ->
-            node = Map.put(info, :name, node_name)
-            if (reported_limit(node) || 0) >= limit, do: {:ok, node}, else: {:retry, {:pending, limit}}
+        latest =
+          case Nodes.lookup(node_name) do
+            {:ok, _pid, info} -> Map.put(info, :name, node_name)
+            {:error, :not_connected} -> node
+          end
 
-          {:error, :not_connected} ->
-            {:retry, {:pending, limit}}
+        if (reported_limit(latest) || 0) >= limit do
+          {:ok, latest}
+        else
+          case resize_status(pod_name, limit) do
+            :applied when until == :applied -> {:ok, latest}
+            :deferred -> {:deferred, limit}
+            _waiting -> {:retry, {:pending, limit}}
+          end
         end
       end,
       wait_ms
     )
   end
+
+  defp resize_status(pod_name, limit) do
+    case KubernetesClient.get_pod(Environment.sandboxes_namespace(), pod_name) do
+      {:ok, %{"status" => status}} when is_map(status) ->
+        cond do
+          applied_memory(status) >= limit -> :applied
+          resize_deferred?(status) -> :deferred
+          true -> :waiting
+        end
+
+      _unknown ->
+        :waiting
+    end
+  end
+
+  defp applied_memory(status) do
+    status
+    |> Map.get("containerStatuses", [])
+    |> Enum.find(%{}, &(&1["name"] == "sandboxd"))
+    |> get_in(["resources", "limits", "memory"])
+    |> memory_quantity()
+  end
+
+  defp resize_deferred?(status) do
+    status
+    |> Map.get("conditions", [])
+    |> Enum.any?(
+      &(&1["type"] == "PodResizePending" and &1["status"] == "True" and &1["reason"] in ["Deferred", "Infeasible"])
+    )
+  end
+
+  @quantity_multipliers %{
+    "" => 1,
+    "k" => 1000,
+    "M" => 1000 ** 2,
+    "G" => 1000 ** 3,
+    "T" => 1000 ** 4,
+    "Ki" => 1024,
+    "Mi" => 1024 ** 2,
+    "Gi" => 1024 ** 3,
+    "Ti" => 1024 ** 4
+  }
+
+  defp memory_quantity(quantity) when is_binary(quantity) do
+    case Regex.run(~r/^(\d+)(Ki|Mi|Gi|Ti|k|M|G|T)?$/, quantity) do
+      [_all, digits] -> String.to_integer(digits)
+      [_all, digits, suffix] -> String.to_integer(digits) * Map.fetch!(@quantity_multipliers, suffix)
+      nil -> 0
+    end
+  end
+
+  defp memory_quantity(_quantity), do: 0
 
   defp resize(%{name: node_name, elastic: %{pod_name: pod_name}}, limit) do
     case KubernetesClient.resize_sandbox_daemon_memory(Environment.sandboxes_namespace(), pod_name, limit) do
@@ -589,16 +709,13 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp round_up_to_step(bytes), do: div(bytes + @carve_out_step_bytes - 1, @carve_out_step_bytes) * @carve_out_step_bytes
 
-  defp most_growable(nodes, charge) do
+  defp growable(nodes, charge) do
     nodes
     |> Enum.filter(&elastic?/1)
     |> Enum.map(&{&1, &1.elastic.memory_ceiling_bytes - @daemon_reserve_bytes - reserved_bytes(&1.name)})
     |> Enum.filter(fn {_node, room} -> room >= charge end)
-    |> Enum.max_by(fn {_node, room} -> room end, fn -> nil end)
-    |> case do
-      {node, _room} -> {:ok, node}
-      nil -> {:error, :no_capacity}
-    end
+    |> Enum.sort_by(fn {node, room} -> {-room, node.name} end)
+    |> Enum.map(fn {node, _room} -> node end)
   end
 
   defp reclaim_and_reserve(node, charge, reserve) do
