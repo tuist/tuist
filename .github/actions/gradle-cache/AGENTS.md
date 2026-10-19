@@ -15,3 +15,5 @@ GitLab entry points are in `ci/runner-caches/gradle-cache/`.
 - Never fail the job: a missing client is a no-op and a client failure warns.
 - Keep the distribution self-contained: `action.yml`, `setup.sh`, README,
   license and source commit. Run `bash .github/actions/gradle-cache/action_test.sh`.
+- Releases ship with the Buildkite and GitLab entry points as one `runner-caches`
+  version; see `ci/runner-caches/AGENTS.md`.

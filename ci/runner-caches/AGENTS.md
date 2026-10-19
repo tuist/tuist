@@ -16,5 +16,12 @@ and `gitlab/`. The GitHub actions live in `../../.github/actions/<cache>/`.
   in one shell. So never `exit`, never enable errexit, and never fail the job
   on a cache problem. GitLab snippets must stay POSIX `sh`.
 - Run `bash ci/runner-caches/integrations_test.sh`.
-- Distribution repositories (`tuist/<cache>-buildkite-plugin`,
-  `tuist/<cache>-gitlab`) and release wiring do not exist yet.
+- Releases: `distributions` lists the nine distribution repositories and the
+  package script for each. Relevant pushes to `main` release all nine together
+  through the `runner-caches` component (`ci/runner-caches/cliff.toml`,
+  `mise/tasks/release/components.json`) and `.github/workflows/runner-cache-actions.yml`:
+  `prepare-release.sh` packages them, recovering an incomplete release from its
+  original `SOURCE_COMMIT` first, and `ci/cache-volume/publish.sh` pushes each
+  with an immutable `vX.Y.Z` tag and a moving major tag. Each repository needs a
+  `main` branch and write access for `TUIST_RELEASE_GITHUB_TOKEN`. Run
+  `prepare-release_test.sh` and `release_check_test.sh` here when changing this.

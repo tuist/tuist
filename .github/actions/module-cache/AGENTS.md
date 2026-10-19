@@ -18,3 +18,5 @@ The Buildkite and GitLab entry points for the same caches are in `ci/runner-cach
   `:runner_opt_in_caches` flag is on for them; otherwise they stay automatic and
   the action is a no-op. See the "Opt-in caches" section of
   `infra/runner-image/AGENTS.md`.
+- Releases ship with the Buildkite and GitLab entry points as one `runner-caches`
+  version; see `ci/runner-caches/AGENTS.md`.
