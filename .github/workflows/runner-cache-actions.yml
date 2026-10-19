@@ -111,6 +111,15 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check runner-caches
+      - name: Verify distribution credential access
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          while IFS=$'\t' read -r repository _; do
+            gh api "repos/tuist/$repository" --jq '.permissions.push' | grep -qx true
+          done < ci/runner-caches/distributions
       - name: Check out distribution repositories
         if: steps.check.outputs.runner-caches-should-release == 'true'
         env:
