@@ -333,10 +333,10 @@ defmodule Tuist.GitHistory do
 
   @doc """
   Places again the refs that numbered a child of one of `shas`
-  (`late_children/2`) while that commit was not stored: each such ref releases its commits from the lowest
-  such child up and advances again from its own head, now through the
-  arrived commit down to where it really connects, and so does every ref
-  forked from a released commit. Heads and observation times stay as they
+  (`late_children/2`) while that commit was not stored: each such ref
+  releases its commits from the lowest such child up and advances again from
+  its own head, now through the arrived commit down to where it really
+  connects, and so does every ref forked from a released commit. Heads and observation times stay as they
   are, so no ref moves back; the coverage copies follow
   (`Tuist.GitHistory.Workers.RepairWorker` runs it).
   """

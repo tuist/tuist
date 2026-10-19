@@ -549,6 +549,28 @@ defmodule Tuist.GitHistoryTest do
       assert {owned(repository, "main"), owned(repository, "pull/1"), coverage_places(project)} == snapshot
     end
 
+    test "fork a pull request from the default branch once its late parent arrives", %{repository: repository} do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.record_commits(repository, "sha1", [commit("h", ["g"], 10), commit("p1", ["h"], 11)])
+
+      # Nothing connects the pull request to the default branch yet, so it
+      # numbers what it walked from the bottom.
+      GitHistory.advance_ref(repository, "pull/1", "main", "p1")
+
+      assert {GitHistory.ref(repository, "pull/1").fork_position, owned(repository, "pull/1")} ==
+               {0, [{"h", 1}, {"p1", 2}]}
+
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9)])
+      assert [job] = all_enqueued(worker: RepairWorker)
+      assert :ok = perform_job(RepairWorker, job.args)
+
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
+
+      assert {GitHistory.ref(repository, "pull/1").fork_position, owned(repository, "pull/1")} ==
+               {4, [{"g", 5}, {"h", 6}, {"p1", 7}]}
+    end
+
     test "leave a child stored more than a day before its parent arrives as it was", %{
       project: project,
       repository: repository
