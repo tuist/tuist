@@ -391,10 +391,20 @@ defmodule TuistWeb.RunnerVolumesLive do
     )
   end
 
-  def volume_name(key) do
-    if String.length(key) > @volume_name_max_length,
-      do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",
-      else: key
+  # Managed caches show what they hold rather than their storage key; the
+  # Xcode and module caches share the built-in volume.
+  def display_name(%{builtin_name: name}) when is_binary(name),
+    do: dgettext("dashboard_runners", "Xcode and module caches")
+
+  def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: key}), do: key
+
+  def volume_name(volume) do
+    name = display_name(volume)
+
+    if String.length(name) > @volume_name_max_length,
+      do: String.slice(name, 0, @volume_name_max_length - 1) <> "…",
+      else: name
   end
 
   def bytes(nil), do: "—"

@@ -93,7 +93,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
-  test "built-in volumes use the same presentation and measured sizes without a type label" do
+  test "built-in volumes are named after the caches they hold" do
     assigns = assigns(true)
 
     volume = %{
@@ -109,7 +109,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     data = %{data | volumes: [volume], stats: stats}
     assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
     detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail =~ "tuist-cache"
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
     assert detail =~ "macOS"
     assert detail =~ "20.0 GB"
     refute detail =~ "Automatic"
@@ -118,9 +118,25 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute badges =~ "Custom"
     refute detail =~ "phx-click=\"request_delete\""
     inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    assert inventory =~ "tuist-cache"
+    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
+    assert Floki.text(cell) =~ "Xcode and module caches"
+    refute inventory =~ "tuist-cache"
     assert inventory =~ "20.0 GB"
     assert inventory =~ "/runners/volumes/#{volume.id}"
+  end
+
+  test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
+    assigns = assigns(true)
+    gradle = %{assigns.selected | key: "tuist-gradle"}
+    custom = %{assigns.selected | id: Ecto.UUID.generate(), key: "gradle"}
+    data = %{assigns.data.result | volumes: [gradle, custom]}
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+    names = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
+    assert Enum.map(names, &String.trim/1) == ["Gradle cache", "gradle"]
+
+    detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: gradle})
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Gradle cache"
   end
 
   test "inventory truncates long volume names and keeps the full name in the title" do

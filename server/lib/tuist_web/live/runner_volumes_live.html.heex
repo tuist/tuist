@@ -12,7 +12,7 @@
   <div :if={@selected} data-part="header">
     <div data-part="title">
       <div data-part="volume-icon"><.database /></div>
-      <h1>{@selected.key}</h1>
+      <h1>{display_name(@selected)}</h1>
     </div>
     <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
       <.button
@@ -203,7 +203,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume_name(volume.key)} title={volume.key} />
+            <.text_cell label={volume_name(volume)} title={display_name(volume)} />
           </:col>
           <:col
             :let={volume}

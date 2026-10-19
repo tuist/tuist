@@ -172,7 +172,9 @@ defmodule TuistWeb.RunnerJobLive do
           type="secondary"
           size="large"
           title={
-            dgettext("dashboard_runners", "%{volume} ran out of space", volume: usage.volume.key)
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
           }
           description={
             dgettext(
@@ -189,7 +191,7 @@ defmodule TuistWeb.RunnerJobLive do
           row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
         >
           <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
-            <.text_cell label={usage.volume.key} />
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
           </:col>
           <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
             <.badge_cell
