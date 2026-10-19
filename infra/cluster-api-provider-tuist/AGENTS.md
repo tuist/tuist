@@ -343,6 +343,12 @@ carve-outs, and nothing else: not the host's listeners on any of its addresses
   link-local, multicast). The PN carve-out covers 443 as well as the
   NodePorts: the fr-par runner cache is a private gateway whose HTTPS
   hostname resolves to a PN address.
+- The cluster's node ports (8472/udp Cilium VXLAN, 4240/tcp cilium-health,
+  10250/tcp kubelet) are dropped to every destination, public ones included.
+  A rack guest leaves through the rack's public address, which is also the
+  storage node's cluster InternalIP, so every Cilium node takes its packets
+  for that node's (`remote-node`). Cilium trusts the identity in a VXLAN
+  header from a node address.
 - The host's own connections to a guest (the metrics forwarder, VNC relays)
   get state from an outbound pass, or the guest's reply would hit the drop.
 - IPv6 is keyed on the vmnet bridges (`bridge100`-`bridge103`; `bridge0` is
@@ -852,8 +858,12 @@ for three minutes while the PDU's stayed current. Nothing names the outlets of t
 so their series are told apart by outlet number alone. The per-site sum of
 `capt_rackpdu_outlet_active_power_watts` is what "Rack power draw near its
 contracted limit" in `infra/helm/k8s-monitoring/alerts.md` compares with the
-site's `capt_racksite_contracted_power_watts` ("RackSite" below). Loads on a
-transfer switch's own outlets are not in it.
+site's `capt_racksite_contracted_power_watts` ("RackSite" below), together
+with the output of each transfer switch that feeds no reporting PDU. For that,
+every RackPDU with a `chain` exports `capt_rackpdu_chain{pdu, site, ats}` = 1
+while it reports active power on at least one outlet, naming the transfer
+switch whose output its outlet readings already cover. A PDU that stops
+reporting drops the series, and its switch's output then stands in for it.
 
 **The administrator login for people** is `admin` with the password
 `mise run rack:card-password <name>` prints ("Rack card passwords" below), or
@@ -1007,17 +1017,25 @@ the card does not say which source powers the load.
 
 **Outputs.** Each observation also reads `powerDistributions/1/outputs`, and
 each listed output's measures, embedded in it or at its own `measures`
-resource. No collection documents outputs for a transfer switch, so this is
-how the controller learns what the card serves. `status.outputs` carries
+resource. `status.outputs` carries
 `current`, `voltage`, `activePower` and `apparentPower` when the card reports
 them as numbers, and every measure verbatim in `detail`, for a key the
 controller does not recognise. A card that serves no outputs, or one the
 controller cannot read, leaves `status.outputs` empty and says why in
 `status.outputsMessage`. It fails nothing else: redundancy, the active source
 and `Ready` stand without it. The output gauges exist only for a measure the
-card reported. The EATS16N's manual lists output current and voltage among its
-front-panel measures, and no active power. The input's `current` is read from
-the same `measures` object as its voltage.
+card reported. The input's `current` is read from the same `measures` object
+as its voltage.
+
+What the BER1 switches' Network-M3 cards (firmware 2.1.2) serve, read on
+2026-10-16: one output, with its measures embedded, as `current`, `voltage`,
+`frequency` and `percentLoad` (current as a share of the 16 A rating). There's no
+active or apparent power, which matches the EATS16N manual's front-panel
+measures. Current comes in 0.1 A steps and reads coarsely at a few percent of
+the rating: at 184 W downstream, `ber1-ats-3` read 0.7 A where the load needs at
+least 0.8 A. The current on the input powering the load equals the output
+current.
+
 The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
@@ -1809,11 +1827,15 @@ configuration (`rack_linux_converge.go`):
 - sets the Cilium nodes' `lxc*` rp_filter sysctl.
 
 The operator removes the Cilium exclusion from an existing Node itself, since a
-kubelet registers labels only once. Every edge of the host's site renders
+kubelet registers labels only once, and only once the host has applied the
+configuration carrying the dummy (`clusterAddressApplied`: the agent's, or the
+SSH converge's, applied hash equals the published one). Cilium binds its health
+responder to the node IP once at start and never retries, so a Cilium that
+starts before the address exists answers no node probe until it restarts. Every edge of the host's site renders
 `tuist_cluster_forwards`: DNAT of 8472/udp, 4240/tcp and 10250/tcp on each
 cluster-network host's public address to its address, from the set `nodes`.
 `RackNodeConfig.clusterNodeSets` asks the node agent to keep that set equal to
-the Cilium nodes' IPv4 InternalIPs (`racknode.ClusterNodeAddresses`). The
+the Cilium nodes' IPv4 InternalIPs and ExternalIPs (`racknode.ClusterNodeAddresses`): a Hetzner Cloud node, the control plane included, has only an ExternalIP. The
 agent replaces it in one nft transaction when the Nodes change and every
 reapply. The addresses stay out of the configuration and its hash, because a
 hash change restarts the edge's kubelet, containerd and networkd. The file

@@ -1,8 +1,9 @@
 {{- /*
-Drops the cluster-internal ports (VXLAN, cilium-health, kubelet) from sources
-outside the cluster. Node addresses resolve to `remote-node` or
-`kube-apiserver`, so only `world` is denied. A host policy default-denies the
-node's ingress, so the `all` rule keeps every other flow open.
+Drops the cluster-internal ports (VXLAN, cilium-health, kubelet, Cilium and
+node metrics) from sources outside the cluster. Node addresses resolve to
+`remote-node` or `kube-apiserver`, so only `world` is denied. A host policy
+default-denies the node's ingress, so the `all` rule keeps every other flow
+open.
 */ -}}
 {{- if .Values.clusterPortsHostPolicy.enabled }}
 apiVersion: cilium.io/v2

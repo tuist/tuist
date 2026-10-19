@@ -21,10 +21,19 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
-  subject to store capacity/version/tombstone rules. Named repair bypasses
+  subject to store capacity/version/tombstone rules. Repair outlives
+  the request: a disconnected begin caller must not cancel/restart the
+  serialized preparation. Runtime drain still cancels it, and retries never
+  extend the original authority intent deadline. Named repair bypasses
   the recency selection cutoff at listing and dispatch: an old missing record
   is still required by the barrier. Keep normal ring rotation and disk admission;
   final verification must reject any retained holes caused by rotation.
+  Before named repair, a complete source-index walk may reclaim sealed,
+  unpinned destination-only segments when bodies are missing. Track segment
+  identities rather than buffering the corpus; preserve every segment containing
+  a source-listed local record, including newer local versions. Failed/incomplete
+  listing must reclaim nothing. Durable retirements use supervised, resumable
+  cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking
   commit and compare it under the same lock that acquires the destination hold.

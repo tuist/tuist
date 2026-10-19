@@ -227,6 +227,28 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert [{%{scheme: "clickhouse-floor"}, _, false}] = ExUnitFormatter.take_deferred()
   end
 
+  # Mimic swaps its copies back after the suite, which resets their native
+  # counters, so the summary's counts are read when the suite finishes.
+  test "reads the coverage summary's counts when the suite finishes, only when asked to" do
+    events = [{:suite_started, []}, {:suite_finished, %{run: 1_000}}]
+
+    for summary <- [true, false] do
+      {:ok, pid} =
+        GenServer.start_link(ExUnitFormatter,
+          environment: &environment/1,
+          submit: fn _payload, _opts -> :ok end,
+          mode: {:defer, self()},
+          coverage_summary: summary
+        )
+
+      send_lifecycle(pid, events)
+      :ok = GenServer.stop(pid)
+
+      assert [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+      assert Map.has_key?(payload, :coverage_lines) == summary
+    end
+  end
+
   test "keeps the run for the caller in defer mode and writes outcomes to a file in collect mode" do
     parent = self()
     submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end

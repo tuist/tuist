@@ -5,6 +5,56 @@ import Testing
 @testable import SwifterPMCore
 
 struct ManifestCacheTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func nativeManifestCacheHonorsExplicitPathForRootAndDependency(localDependency: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let package = root.appendingPathComponent("App")
+        let dependency = root.appendingPathComponent("Local")
+        let sharedCache = package.appendingPathComponent(".build/shared cache")
+        try await writeMinimalPackageManifest(at: package, name: "App")
+        try await writeMinimalPackageManifest(at: dependency, name: "Local")
+
+        try await ManifestCache.withContext(
+            packageDirectory: package, scratchDirectory: nil, sharedCacheDirectory: sharedCache
+        ) {
+            let manifest = try await ManifestLoader.dumpPackage(
+                packageDir: localDependency ? dependency : package, disableSandbox: true
+            )
+            #expect(ManifestParser.packageName(manifest) == (localDependency ? "Local" : "App"))
+            #expect(try await fileSystem.exists(sharedCache.appendingPathComponent("manifests/manifest.db").absolutePath))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func restoreUsesExplicitManifestCache(standalone: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let package = root.appendingPathComponent("App")
+        let sharedCache = package.appendingPathComponent(".build/shared cache")
+        try await writeMinimalPackageManifest(at: package, name: "App")
+        try await fileSystem.atomicWrite(
+            #"{"pins":[],"version":3}"#, to: package.appendingPathComponent("Package.resolved")
+        )
+
+        if standalone {
+            try await CLIRunner.run(CLI(
+                chdir: CLIPath(root.path),
+                cachePath: CLIPath("unused-cache"),
+                disableSandbox: true,
+                quiet: true,
+                command: .restore(.init(packageDir: CLIPath("App"), cacheDir: CLIPath("App/.build/shared cache")))
+            ))
+            #expect(try await fileSystem.exists(root.appendingPathComponent("unused-cache").absolutePath) == false)
+        } else {
+            try await SwifterPM().restore(SwifterPMRestoreRequest(
+                packageDirectory: package, cacheDirectory: sharedCache, disableSandbox: true, quiet: true
+            ))
+        }
+
+        #expect(try await fileSystem.exists(sharedCache.appendingPathComponent("manifests/manifest.db").absolutePath))
+        #expect(try await fileSystem
+            .exists(package.appendingPathComponent(".build/swifterpm/package-info/root.json").absolutePath))
+    }
+
     private actor Probe {
         private(set) var calls = 0
 

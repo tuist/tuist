@@ -2705,12 +2705,12 @@ msgstr ""
 msgid "Reported name"
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:342
+#: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:345
+#: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
 msgstr ""
@@ -2818,11 +2818,6 @@ msgstr ""
 msgid "Compiler jobs could not be loaded."
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:327
-#, elixir-autogen, elixir-format
-msgid "Compiler work is not wall-clock time saved"
-msgstr ""
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
@@ -2851,11 +2846,6 @@ msgstr ""
 #: lib/tuist_web/live/cargo_build_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr ""
-
-#: lib/tuist_web/components/cargo_cache_inspection.ex:329
-#, elixir-autogen, elixir-format
-msgid "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap."
 msgstr ""
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:325

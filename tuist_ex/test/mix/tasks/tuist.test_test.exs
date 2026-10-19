@@ -79,7 +79,8 @@ defmodule Mix.Tasks.Tuist.TestTest do
     Mix.start()
     Mix.env(:test)
 
-    Mix.Project.in_project(:tuist_ex, File.cwd!(), fn _ ->
+    # Keep coverage local to the fixture without instrumenting shared build files.
+    Mix.Project.in_project(:tuist_ex, File.cwd!(), [test_coverage: [tool: :custom]], fn _ ->
       {:ok, _} = Application.ensure_all_started(:mimic)
       Code.require_file("test/test_helper.exs")
       ExUnit.configure(autorun: false)

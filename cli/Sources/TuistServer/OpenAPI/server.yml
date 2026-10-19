@@ -1886,7 +1886,7 @@ components:
     BuildsIndexPageSize:
       default: 20
       description: The maximum number of builds to return in a single page.
-      maximum: 100
+      maximum: 1000
       minimum: 1
       title: BuildsIndexPageSize
       type: integer
@@ -5481,7 +5481,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5502,7 +5502,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5863,7 +5863,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5884,7 +5884,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -7800,8 +7800,7 @@ components:
       x-struct:
       x-validate:
     BuildsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
       minimum: 1
       title: BuildsIndexPage
       type: integer
@@ -15582,6 +15581,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  started_at:
+                    description: When the build started. Null when unavailable, including historical builds.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   status:
                     description: Build status.
                     enum:
@@ -21534,6 +21540,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  started_at:
+                    description: When the build started. Null when unavailable, including historical builds.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   status:
                     description: Build status.
                     enum:
@@ -24577,7 +24590,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -24598,7 +24611,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -25292,6 +25305,48 @@ paths:
             x-struct:
             x-validate:
           style: form
+        - description: Filter to builds executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+          in: query
+          name: from
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+          in: query
+          name: to
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -25299,7 +25354,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of builds to return in a single page.
-            maximum: 100
+            maximum: 1000
             minimum: 1
             title: BuildsIndexPageSize
             type: integer
@@ -25310,8 +25365,7 @@ paths:
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -25450,6 +25504,13 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        started_at:
+                          description: When the build started. Null when unavailable, including historical builds.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         status:
                           description: Build status.
                           enum:
@@ -25496,6 +25557,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of builds
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -27941,7 +28008,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -27962,7 +28029,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -30381,7 +30448,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -30402,7 +30469,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -32213,6 +32280,48 @@ paths:
             x-struct:
             x-validate:
           style: form
+        - description: Filter to builds executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+          in: query
+          name: from
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+          in: query
+          name: to
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -32220,7 +32329,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of builds to return in a single page.
-            maximum: 100
+            maximum: 1000
             minimum: 1
             title: BuildsIndexPageSize
             type: integer
@@ -32231,8 +32340,7 @@ paths:
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -32371,6 +32479,13 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        started_at:
+                          description: When the build started. Null when unavailable, including historical builds.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         status:
                           description: Build status.
                           enum:
@@ -32417,6 +32532,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of builds
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -34308,7 +34429,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -34329,7 +34450,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -40467,7 +40588,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -40488,7 +40609,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:

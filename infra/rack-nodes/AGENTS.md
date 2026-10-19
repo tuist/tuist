@@ -459,7 +459,8 @@ server reaches its kubelet on 10250/tcp. So:
   machines address, from the cluster's Cilium nodes only. The forwards are the
   edge's `tuist_cluster_forwards` table, in its node configuration. The node
   agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
-  InternalIPs without the Cilium exclusion. The set is not in the
+  addresses without the Cilium exclusion, ExternalIPs included: Hetzner
+  Cloud nodes and the control plane have no InternalIP. The set is not in the
   configuration, so a node joining the cluster restarts nothing on the edge.
   The WAN filter lets through what the edge translated (`ct status dnat`).
   Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
@@ -471,8 +472,12 @@ server reaches its kubelet on 10250/tcp. So:
 
 Switching a host is a deploy. The operator rewrites the host's
 configuration: dummy, health rule, no bridge CNI, kubelet at the public
-address. It removes the Node's Cilium exclusion and repoints its addresses,
-and Cilium's DaemonSet schedules there. Pods that started on the bridge keep
+address. It repoints the Node's addresses, and once the host has applied that
+configuration it removes the Node's Cilium exclusion, and Cilium's DaemonSet
+schedules there. Cilium binds its health responder to the public address once,
+at start: a Cilium that starts before the dummy exists (as on ber1-store-a on
+2026-10-16, before the operator waited) answers no node probe on 4240 until
+its pod is deleted. Pods that started on the bridge keep
 their bridge addresses until they are recreated. Delete them (`kubectl delete
 pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
 once Cilium is Ready on the node. The bridge interface goes at the next reboot.
@@ -489,13 +494,13 @@ the cluster reaches it.
   to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
   which the node agent loads on every apply), so an in-cluster client on the
   node, host network or not, reaches the API at the address it is given.
-- **Names.** A pod that needs them sets its own nameservers. Kura's
-  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
-  answers tailnet names and fails others over, then public resolvers.
+- **Names.** A pod that needs them sets its own nameservers, such as
+  Tailscale's `100.100.100.100`, which answers tailnet names and fails others
+  over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs, scrapes its node-local Kura pods and exports the
-  host's own metrics, and pushes them to the Alloy receiver at its tailnet
-  name. Kura exports its traces there too.
+  ships its pods' logs, scrapes any node-local Kura pods (none since the
+  storage node joined the cluster network) and exports the host's own
+  metrics, and pushes them to the Alloy receiver at its tailnet name.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
@@ -625,10 +630,20 @@ Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
 layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
 distinct blobs; a release shares about 57% of its blobs with the one before,
 so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
-928 GB, also home to the Kura region, so production's 400 GiB holds one
-release of what the rack runs plus the previous one while the rack rolls off
-it, rather than the whole catalog twice. A second disk in store-a's spare M.2
-slots, or store-b, is what makes room for more.
+928 GB, also home to the Kura region, which takes precedence on it. So
+production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
+which moves to the next minor when one ships. The other versions come from
+ghcr.io, and so does 27.1 for about a day after a new image, until the old
+tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
+version beside it needs about 160 GiB through a release change, and every
+image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+gives the site more disk.
+
+The claim is named after its size, because a claim cannot shrink: a new
+`sizeGi` makes a new volume, which the cache fills again from the upstream,
+and Helm deletes the old claim once the Deployment's Recreate has released
+it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
+is what the Kura region's placement counts.
 
 Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
 `enabled`; once

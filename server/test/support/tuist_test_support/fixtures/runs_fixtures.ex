@@ -62,6 +62,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         claimed_actor_id: Keyword.get(attrs, :claimed_actor_id, ""),
         submission_auth: Keyword.get(attrs, :submission_auth, ""),
         inserted_at: Keyword.get(attrs, :inserted_at),
+        started_at: Keyword.get(attrs, :started_at),
         status: Keyword.get(attrs, :status, "success"),
         category: Keyword.get(attrs, :category, "incremental"),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha),

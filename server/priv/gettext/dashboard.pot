@@ -47,7 +47,7 @@ msgstr ""
 msgid "Account settings"
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:347
+#: lib/tuist_web/components/cargo_cache_inspection.ex:334
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:123
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:127
 #: lib/tuist_web/live/gradle_tasks_live.ex:431
