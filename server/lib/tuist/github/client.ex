@@ -109,30 +109,43 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_username(%{username: username, installation: installation}) do
+  @doc """
+  Looks a user up through a repository the installation can read.
+
+  `/users/:username` is not used because, for an Enterprise Managed User, it
+  is guarded by the enterprise's IP allow list, which the repository's
+  collaborator permission endpoint is not.
+  """
+  def get_repository_user_by_username(%{
+        repository_full_handle: repository_full_handle,
+        username: username,
+        installation: installation
+      }) do
     api_url = installation_api_url(installation)
-    url = "#{api_url}/users/#{username}"
+    url = "#{api_url}/repos/#{repository_full_handle}/collaborators/#{username}/permission"
 
     case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
-      {:ok, %{"id" => id, "login" => login}} ->
+      {:ok, %{"user" => %{"id" => id, "login" => login}}} ->
         {:ok, %VCS.User{id: to_string(id), username: login}}
 
       {:ok, _} ->
         {:error, :not_found}
 
       # `github_request/2` flattens every non-2xx into a message. Only a 404
-      # says the account does not exist. A 5xx, a secondary rate limit, an
-      # expired installation token or a transport failure all mean the
-      # question could not be asked, which is a different thing to tell the
-      # caller than "no such user".
+      # says the account does not exist. A 403, a 5xx, a secondary rate
+      # limit, an expired installation token or a transport failure all mean
+      # the question could not be asked, which is a different thing to tell
+      # the caller than "no such user".
       {:error, message} when is_binary(message) ->
         if String.starts_with?(message, "Unexpected status code: 404") do
           {:error, :not_found}
         else
+          Logger.warning("github: user lookup failed: #{message}", repo: repository_full_handle)
           {:error, :unavailable}
         end
 
-      _ ->
+      error ->
+        Logger.warning("github: user lookup failed: #{inspect(error)}", repo: repository_full_handle)
         {:error, :unavailable}
     end
   end
