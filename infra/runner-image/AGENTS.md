@@ -772,13 +772,16 @@ Do not add a `golden-gate-*` entry to `profiles.json` before a builder with
 the `macos-27` label exists: the release's build job for it would queue
 forever and hold every other profile's release behind it.
 
-What differs on a macOS 27 guest, all verified on a golden-gate 27.1 image
-built and booted on a BER1 M5 Pro (2026-10-19):
+What differs on a macOS 27 guest:
 
-- `ImageOS` is `macos27`, from `sw_vers`.
+- `ImageOS` is `macos27`, from `sw_vers`. Setup actions that pick a prebuilt
+  binary by it may not know that value yet.
 - The user TCC.db moved (above).
-- `/etc/kcpassword` survives (no `<sealed>` rewrite), so auto-login and the
-  LaunchAgent work unchanged.
+
+What was checked unchanged while building the golden-gate 27.1 image on a
+BER1 M5 Pro (2026-10-19): `/etc/kcpassword` is not rewritten to `<sealed>`,
+`runner` auto-logs in on both build reboots, and the brew, Metal and
+xcresulttool checks pass as `runner`.
 
 ### Betas enter as a channel
 
