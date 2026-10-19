@@ -405,6 +405,73 @@ defmodule TuistEx.Analytics.CoverageTest do
                %{name: "unused/1", line: 8, covered: 0, executable: 1}
              ] = functions
     end
+
+    # In a runtime of its own: the swaps outlive the test, and Mimic swaps the
+    # modules back after the suite from a build the test removes.
+    test "cover compiles and swaps every module Mimic copies before a test runs", %{
+      directory: directory,
+      config: config,
+      ebin: ebin,
+      source: source
+    } do
+      doubler = Path.join(directory, "lib/doubler.ex")
+
+      File.write!(doubler, """
+      defmodule TuistExNativeFixture.Doubler do
+        def double(x) do
+          x * 2
+        end
+      end
+      """)
+
+      previous = Map.take(Code.compiler_options(), [:debug_info])
+      Code.compiler_options(debug_info: true)
+
+      {:ok, _modules, _} =
+        Kernel.ParallelCompiler.compile_to_path([doubler], ebin, return_diagnostics: true)
+
+      Code.compiler_options(previous)
+      :code.purge(TuistExNativeFixture.Doubler)
+      :code.delete(TuistExNativeFixture.Doubler)
+
+      paths =
+        Enum.map(
+          [:tuist_ex, :mimic, :ham],
+          &(&1 |> :code.lib_dir() |> to_string() |> Path.join("ebin"))
+        )
+
+      script = """
+      Mix.start()
+      Enum.each(#{inspect([ebin | paths])}, &Code.prepend_path/1)
+      :ok = Application.load(:ex_unit)
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Mimic.copy(TuistExNativeFixture.Calc)
+      Mimic.copy(TuistExNativeFixture.Doubler)
+      TuistEx.Analytics.Coverage.prepare_native(#{inspect(config)})
+      true = Mimic.Module.copied?(TuistExNativeFixture.Calc)
+      true = Mimic.Module.copied?(TuistExNativeFixture.Doubler)
+      3 = TuistExNativeFixture.Calc.add(1, 2)
+      4 = TuistExNativeFixture.Doubler.double(2)
+      snapshot = TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)})
+      IO.write(snapshot |> :erlang.term_to_binary() |> Base.encode64())
+      """
+
+      {output, 0} =
+        System.cmd(System.find_executable("elixir"), ["-e", script],
+          cd: directory,
+          env: [{"MIX_ENV", "test"}]
+        )
+
+      snapshot =
+        output
+        |> String.split("\n")
+        |> List.last()
+        |> Base.decode64!()
+        |> :erlang.binary_to_term()
+        |> Map.new(&{&1.path, &1.lines})
+
+      assert snapshot == %{source => %{5 => 1, 9 => 0, 12 => 0}, doubler => %{3 => 1}}
+    end
   end
 
   describe "with_shard_export/2" do
