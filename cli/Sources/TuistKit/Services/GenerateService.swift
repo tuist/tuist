@@ -2,8 +2,10 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
+import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistGenerator
@@ -29,6 +31,8 @@ public struct GenerateService {
     private let installService: InstallServicing
     private let outdatedDependenciesChecker: OutdatedDependenciesChecking
     private let generationMetadataStore: GenerationMetadataStoring
+    private let cacheInstallationChecker: XcodeCacheInstallationStoring
+    private let resourceLocator: ResourceLocating
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -38,7 +42,9 @@ public struct GenerateService {
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore(),
+        resourceLocator: ResourceLocating = ResourceLocator()
     ) {
         self.init(
             cacheStorageFactory: cacheStorageFactory,
@@ -50,7 +56,9 @@ public struct GenerateService {
             configLoader: configLoader,
             installService: InstallService(),
             outdatedDependenciesChecker: OutdatedDependenciesChecker(),
-            generationMetadataStore: generationMetadataStore
+            generationMetadataStore: generationMetadataStore,
+            cacheInstallationChecker: cacheInstallationChecker,
+            resourceLocator: resourceLocator
         )
     }
 
@@ -64,7 +72,9 @@ public struct GenerateService {
         configLoader: ConfigLoading = ConfigLoader(),
         installService: InstallServicing,
         outdatedDependenciesChecker: OutdatedDependenciesChecking,
-        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore(),
+        resourceLocator: ResourceLocating = ResourceLocator()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -76,6 +86,8 @@ public struct GenerateService {
         self.installService = installService
         self.outdatedDependenciesChecker = outdatedDependenciesChecker
         self.generationMetadataStore = generationMetadataStore
+        self.cacheInstallationChecker = cacheInstallationChecker
+        self.resourceLocator = resourceLocator
     }
 
     public func run(
@@ -108,6 +120,8 @@ public struct GenerateService {
                 errorMessageOverride:
                 "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
+
+        await advanceCacheProxy(config: config)
 
         if let generatedProject = config.project.generatedProject,
            try await outdatedDependenciesChecker.packageDependenciesAreOutdated(at: path)
@@ -158,6 +172,28 @@ public struct GenerateService {
     }
 
     // MARK: - Helpers
+
+    private func advanceCacheProxy(config: Tuist) async {
+        guard config.fullHandle != nil, config.project.generatedProject?.generationOptions.enableCaching == true,
+              !["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
+              .contains(where: { !(Environment.current.variables[$0] ?? "").isEmpty })
+        else { return }
+        do {
+            // Source-built CLIs without bundled cache components cannot replace a release.
+            guard try await resourceLocator.casProxy() != nil, try await resourceLocator.casPlugin() != nil else { return }
+            let executable: AbsolutePath
+            if let invokedPath = Environment.current.currentExecutablePath() {
+                executable = invokedPath
+            } else {
+                executable = try await resourceLocator.cliPath()
+            }
+            _ = try await cacheInstallationChecker.update(
+                executable: executable, tuistVersion: Constants.version, onlyIfInstalled: true
+            )
+        } catch {
+            Logger.current.debug("Could not advance the cache proxy launcher: \(error.localizedDescription)")
+        }
+    }
 
     /// Mints a generation identifier, records it on the run so the generate command event carries it
     /// alongside the uploaded graph, and persists it keyed by the generated workspace so a later

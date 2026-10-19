@@ -801,10 +801,10 @@ cas_spool_records() {
 # the gate waits on the publisher itself instead of sampling a directory) and to
 # prune (so the compilation cache is bounded at all).
 #
-# The launch agent `tuist setup cache` installed is the reliable pointer: its
-# `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
-# binary ships beside it. It is preferred over the image's own copy because it
-# matches the proxy actually running, which is what a drain has to talk to.
+# Follow the installed agent's custom proxy or stable launch target before PATH
+# and the image fallback. Legacy agents name the CLI in Program; stable agents
+# run /bin/sh and name their JSON pointer in ProgramArguments[2]. The drain wire
+# operation remains compatible while the old proxy drains before adopting it.
 #
 # The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
 # that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
@@ -814,17 +814,31 @@ cas_spool_records() {
 # could ever prune, which is the unbounded growth this path exists to stop. (The
 # drain is a legitimate no-op for them: no plugin means no spool.)
 cas_proxy_client() {
-  local candidate program plist
+  local candidate program plist target configured_proxy
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
   program=""
+  configured_proxy=""
   if [ -r "${plist}" ]; then
     program=$(/usr/libexec/PlistBuddy -c 'Print :Program' "${plist}" 2>/dev/null)
+    configured_proxy=$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:TUIST_CAS_PROXY_PATH' "${plist}" 2>/dev/null)
+    if [ "${program}" = /bin/sh ]; then
+      target=$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:2' "${plist}" 2>/dev/null)
+      case "${target}" in
+        */cas-launch-target.json)
+          program=$(/usr/bin/plutil -extract executable raw -o - "${target}" 2>/dev/null)
+          ;;
+        *)
+          program=$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:4' "${plist}" 2>/dev/null)
+          ;;
+      esac
+    fi
   fi
   for candidate in \
     "${TUIST_CAS_PROXY_PATH:-}" \
-    "$(command -v tuist-cas-proxy 2>/dev/null)" \
+    "${configured_proxy}" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
     "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
+    "$(command -v tuist-cas-proxy 2>/dev/null)" \
     /opt/tuist/tuist-cas-proxy; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
