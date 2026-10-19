@@ -230,6 +230,28 @@ defmodule Tuist.Runners.LogFormatter do
   def group_label(%{message: "##[group]" <> label}), do: label
   def group_label(%{message: message}), do: message
 
+  # `##[error]`, `##[warning]`, and `##[notice]` are how the runner
+  # writes the `::error::` / `::warning::` / `::notice::` workflow
+  # commands (and its own failures, e.g. a non-zero exit code) into the
+  # log. Workflow commands can carry properties (`file=…,line=…`)
+  # before the closing bracket.
+  @annotation_pattern ~r/^##\[(error|warning|notice)(?: [^\]]*)?\](.*)$/s
+
+  @doc """
+  The annotation kind of a `##[error]…`, `##[warning]…`, or
+  `##[notice]…` line (`"error"`, `"warning"`, or `"notice"`), or `nil`
+  for any other line. The template tints annotated lines with it, as
+  GitHub does.
+  """
+  def annotation(message) when is_binary(message) do
+    case Regex.run(@annotation_pattern, message, capture: :all_but_first) do
+      [kind, _text] -> kind
+      nil -> nil
+    end
+  end
+
+  def annotation(_message), do: nil
+
   @doc """
   Renders a log message as a single iodata `Phoenix.HTML.safe` value
   with one `<span>` per ANSI run. We compose the spans by hand
@@ -238,12 +260,26 @@ defmodule Tuist.Runners.LogFormatter do
   whitespace gets honoured by `white-space: pre-wrap` on the
   surrounding container and shows up as visible blank rows between
   every segment.
+
+  An annotation line renders like GitHub's: the `##[error]` marker
+  becomes an `Error:` label (`Warning:` / `Notice:` likewise) in front
+  of the message.
   """
   def render_message(message) when is_binary(message) do
+    case Regex.run(@annotation_pattern, message, capture: :all_but_first) do
+      [kind, text] -> Phoenix.HTML.raw([annotation_label(kind), " ", segments_to_iodata(text)])
+      nil -> Phoenix.HTML.raw(segments_to_iodata(message))
+    end
+  end
+
+  defp annotation_label("error"), do: ~s(<span class="log-annotation-label">Error:</span>)
+  defp annotation_label("warning"), do: ~s(<span class="log-annotation-label">Warning:</span>)
+  defp annotation_label("notice"), do: ~s(<span class="log-annotation-label">Notice:</span>)
+
+  defp segments_to_iodata(message) do
     message
     |> to_segments()
     |> Enum.map(&segment_to_iodata/1)
-    |> Phoenix.HTML.raw()
   end
 
   defp segment_to_iodata({text, []}) do

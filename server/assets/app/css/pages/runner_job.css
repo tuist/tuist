@@ -721,6 +721,37 @@
       line-height: inherit;
       white-space: pre-wrap;
       word-break: break-word;
+
+      & .log-annotation-label {
+        font-weight: var(--noora-font-weight-bold);
+      }
+    }
+
+    /* `##[error]` / `##[warning]` / `##[notice]` lines: a tinted row
+       with a coloured "Error:" / "Warning:" / "Notice:" label, as in
+       GitHub's log view. */
+    &[data-annotation="error"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-destructive-label);
+      }
+    }
+
+    &[data-annotation="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-warning-label);
+      }
+    }
+
+    &[data-annotation="notice"] {
+      background: var(--noora-badge-light-fill-information-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-information-label);
+      }
     }
   }
 

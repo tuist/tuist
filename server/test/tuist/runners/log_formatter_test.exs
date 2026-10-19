@@ -180,4 +180,46 @@ defmodule Tuist.Runners.LogFormatterTest do
       assert LogFormatter.group_label(%{message: "plain"}) == "plain"
     end
   end
+
+  describe "annotation/1" do
+    test "returns the kind of an error, warning, or notice line" do
+      assert LogFormatter.annotation("##[error]Process completed with exit code 26.") == "error"
+      assert LogFormatter.annotation("##[warning]Node.js 20 is deprecated.") == "warning"
+      assert LogFormatter.annotation("##[notice]Cache restored") == "notice"
+    end
+
+    test "accepts workflow command properties before the closing bracket" do
+      assert LogFormatter.annotation("##[error file=App.swift,line=3]Missing return") == "error"
+    end
+
+    test "returns nil for any other line" do
+      assert LogFormatter.annotation("##[group]Run echo hi") == nil
+      assert LogFormatter.annotation("error: something failed") == nil
+    end
+  end
+
+  describe "render_message/1" do
+    defp rendered(message), do: message |> LogFormatter.render_message() |> Phoenix.HTML.safe_to_string()
+
+    test "replaces the error marker with an Error: label" do
+      assert rendered("##[error]Process completed with exit code 26.") ==
+               ~s(<span class="log-annotation-label">Error:</span> Process completed with exit code 26.)
+    end
+
+    test "labels warnings and notices, dropping command properties" do
+      assert rendered("##[warning file=a.js,line=1]Deprecated") ==
+               ~s(<span class="log-annotation-label">Warning:</span> Deprecated)
+
+      assert rendered("##[notice]Cache restored") == ~s(<span class="log-annotation-label">Notice:</span> Cache restored)
+    end
+
+    test "escapes the annotation text and keeps its ANSI colours" do
+      assert rendered("##[error]\e[31m<b>bad</b>\e[0m") ==
+               ~s(<span class="log-annotation-label">Error:</span> <span class="ansi-fg-1">&lt;b&gt;bad&lt;/b&gt;</span>)
+    end
+
+    test "renders other lines unchanged" do
+      assert rendered("plain <text>") == "plain &lt;text&gt;"
+    end
+  end
 end

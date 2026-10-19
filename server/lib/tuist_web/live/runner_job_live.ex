@@ -1101,7 +1101,7 @@ defmodule TuistWeb.RunnerJobLive do
     assigns = assign(assigns, :line, line)
 
     ~H"""
-    <div data-part="log-line">
+    <div data-part="log-line" data-annotation={LogFormatter.annotation(@line.message)}>
       <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>

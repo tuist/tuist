@@ -1021,7 +1021,7 @@ msgstr ""
 msgid "Download logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:672
+#: lib/tuist_web/live/runner_job_live.html.heex:676
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr ""
@@ -1117,7 +1117,7 @@ msgstr ""
 msgid "In"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:699
+#: lib/tuist_web/live/runner_job_live.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
 msgstr ""
@@ -1125,7 +1125,7 @@ msgstr ""
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
 #: lib/tuist_web/live/runner_job_live.html.heex:89
 #: lib/tuist_web/live/runner_job_live.html.heex:393
-#: lib/tuist_web/live/runner_job_live.html.heex:694
+#: lib/tuist_web/live/runner_job_live.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr ""
@@ -1160,7 +1160,7 @@ msgstr ""
 msgid "Wait"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:817
+#: lib/tuist_web/live/runner_job_live.html.heex:826
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
 msgstr ""
@@ -1180,7 +1180,7 @@ msgstr ""
 msgid "VNC is available for macOS runner jobs."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:858
+#: lib/tuist_web/live/runner_job_live.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr ""
@@ -1190,34 +1190,34 @@ msgstr ""
 msgid "You are not authorized to request interactive access."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:804
+#: lib/tuist_web/live/runner_job_live.html.heex:813
 #, elixir-autogen, elixir-format
 msgid "Exit full screen"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:799
-#: lib/tuist_web/live/runner_job_live.html.heex:800
-#: lib/tuist_web/live/runner_job_live.html.heex:803
+#: lib/tuist_web/live/runner_job_live.html.heex:808
+#: lib/tuist_web/live/runner_job_live.html.heex:809
+#: lib/tuist_web/live/runner_job_live.html.heex:812
 #, elixir-autogen, elixir-format
 msgid "Full screen"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:867
+#: lib/tuist_web/live/runner_job_live.html.heex:876
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:864
+#: lib/tuist_web/live/runner_job_live.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "VNC session ready"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:870
+#: lib/tuist_web/live/runner_job_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "VNC session unavailable"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:861
+#: lib/tuist_web/live/runner_job_live.html.heex:870
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner relay"
 msgstr ""
@@ -1326,44 +1326,44 @@ msgstr ""
 msgid "Step"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:721
+#: lib/tuist_web/live/runner_job_live.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "Start terminal"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:95
-#: lib/tuist_web/live/runner_job_live.html.heex:710
+#: lib/tuist_web/live/runner_job_live.html.heex:719
 #, elixir-autogen, elixir-format
 msgid "Terminal"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:771
+#: lib/tuist_web/live/runner_job_live.html.heex:780
 #, elixir-autogen, elixir-format
 msgid "Terminal session active"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:762
+#: lib/tuist_web/live/runner_job_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Terminal session idle"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:768
+#: lib/tuist_web/live/runner_job_live.html.heex:777
 #, elixir-autogen, elixir-format
 msgid "Terminal session ready"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:774
+#: lib/tuist_web/live/runner_job_live.html.heex:783
 #, elixir-autogen, elixir-format
 msgid "Terminal session unavailable"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:101
-#: lib/tuist_web/live/runner_job_live.html.heex:788
+#: lib/tuist_web/live/runner_job_live.html.heex:797
 #, elixir-autogen, elixir-format
 msgid "VNC"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:765
+#: lib/tuist_web/live/runner_job_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner shell"
 msgstr ""

@@ -1095,6 +1095,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
     assert has_element?(lv, ~s{[data-kind="action"] [data-part="log-action-icon"][data-status="failure"]})
     assert panel =~ "Process completed with exit code 26."
+    assert has_element?(lv, ~s{[data-part="log-line"][data-annotation="error"] .log-annotation-label}, "Error:")
+    refute panel =~ "##[error]"
     refute panel =~ "##[start-action"
     refute panel =~ "##[end-action"
   end
