@@ -487,3 +487,20 @@ func TestCheckoutNewerRequestReplacesAWaitingBuild(t *testing.T) {
 		t.Fatal("the waiting build was not replaced by the newer request")
 	}
 }
+
+func TestCheckoutEvictableCountsOnlyMastersNoBuildHolds(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.process(context.Background(), checkoutTestTask())
+	other := checkoutTestTask()
+	other.Scope = strings.Repeat("b", 64)
+	c.process(context.Background(), other)
+	size := func(string) (uint64, error) { return 3, nil }
+
+	if got := c.Evictable(size); got != 6 {
+		t.Fatalf("evictable %d, want both masters", got)
+	}
+	c.setBusy(other.Scope, true)
+	if got := c.Evictable(size); got != 3 {
+		t.Fatalf("evictable %d, want only the idle master", got)
+	}
+}

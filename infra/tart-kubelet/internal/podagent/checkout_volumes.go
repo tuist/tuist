@@ -566,6 +566,23 @@ func (c *Checkouts) Maintain() {
 	}
 }
 
+// Evictable is what evicting every master no build holds would free.
+func (c *Checkouts) Evictable(size func(string) (uint64, error)) uint64 {
+	if c == nil {
+		return 0
+	}
+	var total uint64
+	for _, master := range c.masters() {
+		if c.isBusy(master.scope) {
+			continue
+		}
+		if bytes, err := size(master.path); err == nil {
+			total += bytes
+		}
+	}
+	return total
+}
+
 // Evict removes least recently used masters that no clone or build holds,
 // until enough is gone or nothing evictable is left. It reports whether it
 // removed anything; callers remeasure the filesystem afterwards.
