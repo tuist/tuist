@@ -537,3 +537,113 @@ func TestParseDFCapacityPercent(t *testing.T) {
 		})
 	}
 }
+
+// scriptedTart writes a stub `tart` from body, which can append its argv to
+// $CALLS, and returns the stub's path and the calls file.
+func scriptedTart(t *testing.T, body string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	path := filepath.Join(dir, "faketart")
+	script := "#!/bin/sh\nCALLS='" + calls + "'\necho \"$*\" >> \"$CALLS\"\n" + body
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path, calls
+}
+
+func recordedCalls(t *testing.T, calls string) []string {
+	t.Helper()
+	out, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// Tart 2.40.1 refuses to clone over an existing directory, including a
+// leftover too incomplete for `tart delete` to remove. Without the retry such
+// a name could never be cloned again, and for a runner clone the reconciler
+// would also drop the golden and re-pull it on every attempt.
+func TestCloneFromReplacesALeftoverOnTartThatRefusesOverwrites(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) exit 0 ;;
+esac
+echo 'Error: VM "dst" already exists, use --overwrite to replace it' >&2
+exit 64
+`)
+	c := &Client{Binary: bin}
+	if err := c.CloneFrom(context.Background(), "ghcr.io/tuist/runner@sha256:abc", "dst", true); err != nil {
+		t.Fatalf("clone over a leftover: %v", err)
+	}
+	want := []string{
+		"clone --insecure ghcr.io/tuist/runner@sha256:abc dst",
+		"clone --overwrite --insecure ghcr.io/tuist/runner@sha256:abc dst",
+	}
+	if got := recordedCalls(t, calls); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("tart calls = %q, want %q", got, want)
+	}
+}
+
+// Tart before 2.40.1 rejects `--overwrite` outright, so it must only ever be
+// passed after a refusal that names it.
+func TestCloneFromNeverPassesOverwriteToTartThatLacksIt(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) echo "Error: Unknown option '--overwrite'" >&2; exit 64 ;;
+esac
+exit 0
+`)
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err != nil {
+		t.Fatalf("clone: %v", err)
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 || got[0] != "clone golden dst" {
+		t.Fatalf("tart calls = %q, want one plain clone", got)
+	}
+}
+
+func TestCloneFromSurfacesOtherFailuresWithoutRetrying(t *testing.T) {
+	bin, calls := scriptedTart(t, "echo 'Error: no space left on device' >&2\nexit 1\n")
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err == nil {
+		t.Fatal("clone succeeded")
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 {
+		t.Fatalf("tart calls = %q, want no retry", got)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	bin, _ := scriptedTart(t, "echo 2.41.1\n")
+	c := &Client{Binary: bin}
+	got, err := c.Version(context.Background())
+	if err != nil || got != "2.41.1" {
+		t.Fatalf("Version() = %q, %v; want 2.41.1", got, err)
+	}
+}
+
+// Output captured from `tart list --format json` and `tart get --format json`
+// on 2.32.1 and 2.41.1. 2.39.0 also reports Disk as null while a running VM
+// holds an ASIF disk open; nothing here reads Disk, but the documents must
+// still decode.
+func TestVMUnmarshalAcrossTartVersions(t *testing.T) {
+	for name, payload := range map[string]string{
+		"list 2.32.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Accessed":"2026-10-19T15:27:11Z","Running":false,"State":"stopped"}]`,
+		"list 2.41.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Running":false,"State":"stopped","Accessed":"2026-10-19T15:27:13Z"}]`,
+		"list ASIF busy": `[{"Disk":null,"Name":"base","Source":"local","Size":0,"Running":true,"State":"running","Accessed":"2026-10-19T15:27:13Z"}]`,
+	} {
+		var vms []VM
+		if err := json.Unmarshal([]byte(payload), &vms); err != nil || len(vms) != 1 || vms[0].Name != "base" || vms[0].Source != "local" {
+			t.Errorf("%s: decoded %+v, %v", name, vms, err)
+		}
+	}
+	for name, payload := range map[string]string{
+		"get 2.32.1": `{"Running":false,"CPU":4,"OS":"linux","Size":"0.000","Memory":4096,"DiskFormat":"raw","Disk":1,"State":"stopped","Display":"1024x768"}`,
+		"get 2.41.1": `{"MACAddress":"ee:60:8f:30:86:76","Memory":4096,"Running":false,"DiskFormat":"raw","OS":"linux","Disk":null,"Display":"1024x768","CPU":4,"Size":"0.000","State":"stopped"}`,
+	} {
+		var vm VM
+		if err := json.Unmarshal([]byte(payload), &vm); err != nil || vm.CPU != 4 {
+			t.Errorf("%s: decoded %+v, %v", name, vm, err)
+		}
+	}
+}

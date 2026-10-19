@@ -2049,6 +2049,14 @@ macosFleet:
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
   # baked into the operator's own image — bumping
   # `macosFleet.image.tag` rolls a new kubelet.
+  # Tart on every Mac mini this release manages, rented and rack. It
+  # must be one of the releases the operator image carries (TART_RELEASES
+  # in infra/cluster-api-provider-tuist/Dockerfile); empty runs the image's
+  # TART_DEFAULT_VERSION. A change reaches existing hosts in place through
+  # the host-config drift loop, without draining them. Annotate one machine
+  # `tuist.dev/tart-version=<version>` to move it ahead of the rest first.
+  tart:
+    version: ""
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
     # Matches the default `macosFleet.machine.type = M2-L` on Scaleway

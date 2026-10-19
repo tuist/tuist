@@ -1354,8 +1354,7 @@ func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
 // that installs the script driving it.
 //
 // Bootstrap-only work must not appear in the hash at all rather than
-// appear here unmapped: TartTarball is the standing example, omitted
-// because the hypervisor cannot be swapped under running VMs.
+// appear here unmapped.
 var hashPartInstaller = map[string]string{
 	"firewall":                "installVMEgressFirewall",
 	"vmnat":                   "installVMEgressFirewall",
@@ -1374,8 +1373,11 @@ var hashPartInstaller = map[string]string{
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
+	"tart-install":            "installTart",
+	"tart-prune":              "installTart",
 
 	"tart-kubelet":         "installTartKubelet",
+	"tart-tarball":         "installTart",
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",

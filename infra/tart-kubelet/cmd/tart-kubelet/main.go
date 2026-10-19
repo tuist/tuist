@@ -500,16 +500,17 @@ func main() {
 	}
 
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:      mgr.GetClient(),
-		NodeName:    nodeName,
-		ProviderID:  providerID,
-		NodeIP:      nodeIP,
-		NodeLabels:  nodeLabels,
-		CPU:         hostCPU,
-		MemoryMB:    hostMemoryMB,
-		MaxPods:     maxPods,
-		Heartbeat:   30 * time.Second,
-		PrewarmGate: prewarmGate,
+		Client:         mgr.GetClient(),
+		NodeName:       nodeName,
+		ProviderID:     providerID,
+		NodeIP:         nodeIP,
+		NodeLabels:     nodeLabels,
+		CPU:            hostCPU,
+		MemoryMB:       hostMemoryMB,
+		MaxPods:        maxPods,
+		Heartbeat:      30 * time.Second,
+		PrewarmGate:    prewarmGate,
+		RuntimeVersion: tartClient.Version,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config

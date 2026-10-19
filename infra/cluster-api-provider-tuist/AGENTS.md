@@ -138,7 +138,7 @@ Beyond first bootstrap, a drift loop re-pushes host config to already-Ready
 hosts when the operator's `bootstrap.HostConfigHash` differs from the
 Machine's `Status.HostConfigHash`. That hash is a fleet-wide fingerprint over
 everything the operator pushes — the rendered install scripts plus the
-embedded binaries (tart-kubelet, tailscale, node_exporter, tuist-log-shipper) — computed once at
+embedded binaries (tart-kubelet, the Tart release, tailscale, node_exporter, tuist-log-shipper) — computed once at
 startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
@@ -2016,6 +2016,42 @@ RackHost's address after the erase; the key is not pinned and nothing else
 touches that host. A reinstall that failed after the host came back on the
 target is finished with `tuist.dev/os-update=<target>`, which converges and
 uncordons without erasing again.
+
+## Host Tart upgrades
+
+Tart is upgraded and rolled back in place by the host-config drift loop, on
+rented and rack hosts alike, with no drain and no Machine replacement. The image
+carries every release in `TART_RELEASES` (Dockerfile) under
+`/opt/tart/<version>/tart.tar.gz`. A host runs:
+
+1. the release its Machine's `tuist.dev/tart-version` annotation names, else
+2. `macosFleet.tart.version` (`CAPI_TART_VERSION`), else
+3. the image's `TART_DEFAULT_VERSION`.
+
+The resolved version and tarball are part of the host config, so changing any
+of the three drifts exactly the hosts it changes. `installTart` puts the new
+release beside the one running VMs use and switches `/usr/local/bin/tart` (see
+[`macos-host-bootstrap/AGENTS.md`](../macos-host-bootstrap/AGENTS.md)). Those
+VMs finish on the old binary and the new one manages them. An annotation naming
+a release the image does not carry is ignored, with a `TartVersionUnavailable`
+Warning event on the machine.
+
+Roll a release out one host first, then per environment:
+
+```bash
+kubectl annotate samm <machine> tuist.dev/tart-version=2.41.1   # or rasm
+kubectl get nodes -o wide   # CONTAINER-RUNTIME reads tart://2.41.1 once it lands
+```
+
+Then set `macosFleet.tart.version` for staging, canary and production in turn,
+and remove the annotations. Roll back by pointing either back at the previous
+release. Keep the version a fleet runs in `TART_RELEASES` until no environment
+selects it, so a rollback never needs an image build. Before adding a release,
+check its changelog against "Tart versions" in
+[`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md).
+
+Staging's operator manages the BER1 rack hosts, including one lent to canary,
+so a staging value reaches that host too.
 
 ## Module layout
 

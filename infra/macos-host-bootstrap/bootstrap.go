@@ -12,8 +12,8 @@
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
 //   - Tart install (the caller-supplied tart.app tarball pinned in
-//     the operator image is extracted to /usr/local/lib/tart.app
-//     with a /usr/local/bin/tart wrapper).
+//     the operator image is extracted to /usr/local/lib/tart/<version>
+//     with a /usr/local/bin/tart wrapper; see tart.go).
 //   - Kubeconfig drop + tart-kubelet binary upload + launchd plist.
 //
 // Steps, in order, idempotent on retry:
@@ -26,7 +26,7 @@
 //     ensureGUISession).
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
-//     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
+//     to /usr/local/lib/tart/<version> + wrapper at /usr/local/bin/tart.
 //  6. Install Tailscale's open-source tailscaled (extracted from the
 //     operator-baked binaries tarball), register it as a system
 //     daemon via `tailscaled install-system-daemon`, and `tailscale
@@ -111,10 +111,15 @@ type Config struct {
 	// read at startup. We ship the whole `.app` rather than the bare
 	// executable inside it because Tart's signature + Virtualization.
 	// framework entitlements live on the bundle, not the binary alone.
-	// Pinning the version in the operator image makes the Tart version
-	// reproducible across reboots and re-provisions; bumping it is a
-	// deliberate Dockerfile change.
+	// The operator image carries every Tart version the fleet may run;
+	// which one a host gets is TartVersion.
 	TartTarball []byte
+
+	// TartVersion is the version TartTarball holds, as `tart --version`
+	// prints it. Both the first bootstrap and the drift update install it
+	// when the host's `tart --version` differs, so changing it upgrades or
+	// rolls back Tart in place (see installTart).
+	TartVersion string
 
 	// TailscaleBinaries is the gzipped tar of the `tailscale` and
 	// `tailscaled` darwin/arm64 binaries cross-compiled from the
@@ -515,7 +520,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
-	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
@@ -598,10 +603,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // bumps via the same operator-image-bump → drift-reconcile path),
 // and reloads the launchd job.
 //
-// Skips one-shot host prep (sudo, auto-login, hostname, Tart) —
-// those don't change between updates and re-running them would
-// either be wasted SSH work or risk disrupting the running VMs
-// (Tart). The pf VM-egress firewall IS re-run: its ruleset is now
+// Skips one-shot host prep (sudo, auto-login, hostname): those
+// don't change between updates and re-running them would be wasted
+// SSH work. Tart IS re-run: installTart installs the desired version
+// beside the one running VMs were started from and leaves those VMs
+// alone, so a version change reaches an existing host here instead of
+// waiting for Machine replacement. The pf VM-egress firewall IS re-run: its ruleset is now
 // config-shaped (the Kura/DNS carve-out CIDRs), the install is
 // idempotent, and `pfctl -f` swaps rulesets atomically without
 // dropping established states — so a values change reaches existing
@@ -648,6 +655,11 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
+	}
+	// Before the kubelet reload, so the restarted kubelet reports the Tart it
+	// will drive. A no-op when the host already runs cfg.TartVersion.
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
+		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
@@ -854,6 +866,8 @@ func hostConfigMaterial(cfg Config) string {
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"tart-install", renderTartInstallScript(hostTartLayout, cfg.TartVersion)},
+		{"tart-prune", renderTartPruneScript(hostTartLayout)},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
 	} {
@@ -866,17 +880,12 @@ func hostConfigMaterial(cfg Config) string {
 	// (b) SHA of each embedded binary the drift loop actually re-pushes.
 	// The bytes themselves ride SSH stdin (not the scripts), so their
 	// drift is only visible to the hash through their content SHA.
-	//
-	// TartTarball is intentionally omitted: Tart is bootstrap-only (the
-	// hypervisor can't be swapped under running VMs, so UpdateTartKubelet
-	// never re-installs it). Hashing it would force a pointless re-push on
-	// a Tart bump that couldn't actually update Tart anyway — that bump
-	// rolls via Machine replacement, not config drift.
 	for _, bin := range []struct {
 		name  string
 		bytes []byte
 	}{
 		{"tart-kubelet", cfg.TartKubeletBinary},
+		{"tart-tarball", cfg.TartTarball},
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
 		{"log-shipper-binary", cfg.LogShipperBinary},
@@ -1686,36 +1695,6 @@ func encodeKCPassword(password string) string {
 	}
 	// base64 for transport via SSH stdin.
 	return b64(src)
-}
-
-// installTart unpacks the operator-baked `tart.app` tarball into
-// /usr/local/lib/tart.app and writes a /usr/local/bin/tart wrapper
-// that execs the binary inside the bundle. Idempotent — overwrites on
-// every call, which is fine because the operator image pins the
-// version and a re-run on an already-bootstrapped host is rare.
-//
-// Why a wrapper script instead of a symlink: Tart's
-// Virtualization.framework entitlements are scoped to the .app
-// bundle's signature, so the executable has to be invoked through its
-// bundle path. The wrapper hides that path detail from callers
-// (tart-kubelet, operators SSHing in to debug) which all want a
-// stable `tart` on PATH.
-func installTart(ctx context.Context, client *ssh.Client, tarball []byte) error {
-	if len(tarball) == 0 {
-		return fmt.Errorf("tart tarball is empty")
-	}
-	script := `set -euo pipefail
-sudo mkdir -p /usr/local/lib /usr/local/bin
-sudo rm -rf /usr/local/lib/tart.app
-sudo tar -xzf - -C /usr/local/lib
-sudo tee /usr/local/bin/tart >/dev/null <<'EOF'
-#!/bin/sh
-exec /usr/local/lib/tart.app/Contents/MacOS/tart "$@"
-EOF
-sudo chmod 0755 /usr/local/bin/tart
-/usr/local/bin/tart --version
-`
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
