@@ -858,6 +858,16 @@ defmodule TuistWeb.Router do
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          scope "/coverage" do
+            get "/", CoverageController, :show
+            get "/settings", CoverageController, :settings
+            get "/commits/:git_commit_sha", CoverageController, :show_commit
+            get "/commits/:git_commit_sha/files", CoverageController, :list_files
+            get "/commits/:git_commit_sha/file", CoverageController, :show_file
+            post "/uploads", CoverageController, :create_upload
+            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
@@ -866,12 +876,6 @@ defmodule TuistWeb.Router do
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
-
-          scope "/coverage" do
-            get "/settings", CoverageController, :settings
-            post "/uploads", CoverageController, :create_upload
-            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
-          end
 
           scope "/git-history" do
             get "/settings", GitHistoryController, :settings
@@ -900,6 +904,9 @@ defmodule TuistWeb.Router do
         end
 
         get "/notification-alerts", ProjectNotificationAlertsController, :index
+
+        put "/vcs-connection", ProjectVCSConnectionController, :update
+        delete "/vcs-connection", ProjectVCSConnectionController, :delete
 
         scope "/builds" do
           get "/", BuildsController, :index
@@ -953,9 +960,13 @@ defmodule TuistWeb.Router do
 
         scope "/cargo" do
           post "/builds", CargoController, :create_build
+          get "/builds", CargoController, :list_builds
+          get "/builds/:build_id", CargoController, :get_build
         end
 
         scope "/mix" do
+          get "/builds", MixController, :list_builds
+          get "/builds/:build_id", MixController, :get_build
           get "/files", MixFilesController, :index
           get "/files/:file_id", MixFilesController, :show
           get "/files/:file_id/compilations", MixFilesController, :history
@@ -965,6 +976,8 @@ defmodule TuistWeb.Router do
         end
 
         scope "/once" do
+          get "/runs", OnceRunsController, :index
+          get "/runs/:once_run_id", OnceRunsController, :show
           get "/actions", OnceActionsController, :index
           get "/actions/:action_id", OnceActionsController, :show
           get "/actions/:action_id/executions", OnceActionsController, :history
