@@ -1054,9 +1054,13 @@ vultrFleets:
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
+  #
+  # Drained onto us-central-8c below and scaled to zero. Scaling down releases
+  # each box with a wipe, not a cancellation: destroy the two vbm-6c-32gb-amd
+  # boxes at Vultr once their Machines are gone, then remove this entry.
   us-central:
     enabled: true
-    replicas: 2
+    replicas: 0
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
