@@ -85,7 +85,25 @@ floor and remain prohibited after activation.
 `plannedHandover` names one destination pod UID and runtime incarnation. The
 controller waits for the source to report the current valid Serving grant before
 starting preparation, including after a live-writer resumption.
-The source rejects new mutations, drains admitted work, and freezes metadata
+
+When the destination advertises `preparation_supported`, the controller first
+publishes the named intent while leaving the source in `Serving`. The source
+continues accepting reads and writes with normal 15-second lease renewal. The
+destination performs bounded retained-index catch-up with normal background
+bandwidth admission and no corpus hold. It repeats passes if eviction occurred.
+This phase has its own fixed 20-minute deadline, preserved across reconciliation
+and controller restart. Failure, cancellation, changed destination identity or
+timeout clears the request without pausing the primary; a new request ID is
+required to retry. Source expiry still requires positive fencing.
+
+Only a fresh completion report matching the exact intent, source epoch and both
+identities starts `Quiescing` with its original 300-second deadline. Preparation
+is not a retained-data receipt: live writes and eviction can change either corpus,
+so every existing barrier and revocation check still runs. Older destinations
+retain the direct-quiescence path. Upgrade all controller replicas and the clean
+standby before requesting this flow; the source may remain on the earlier runtime.
+
+The source then rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
 before freezing its retained corpus. This bounded replication pass fetches missing
@@ -123,8 +141,8 @@ revocation while holding the same publication mutex used by public writes.
 Only that acknowledgment allows the next epoch. A restarted destination cannot
 reuse an old receipt: receipt ownership and the retained-corpus hold are specific
 to the live runtime incarnation. An authoritative abort or completed transfer
-releases the holds. Preparation has a 300-second deadline; a healthy source is
-restored on preparation timeout. A source lost during preparation requires
+releases the holds. Quiescing has a 300-second deadline; a healthy source is
+restored on verification timeout. A source lost during Quiescing requires
 external fencing. Large corpora may exceed the deadline because this initial
 implementation verifies every retained byte; do not increase it casually.
 
