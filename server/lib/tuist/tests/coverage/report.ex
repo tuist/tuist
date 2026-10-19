@@ -83,6 +83,6 @@ defmodule Tuist.Tests.Coverage.Report do
   defp iso8601(%NaiveDateTime{} = value),
     do: value |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 
-  defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp iso8601(%DateTime{} = value), do: value |> DateTime.truncate(:second) |> DateTime.to_iso8601()
   defp iso8601(nil), do: nil
 end

@@ -55,7 +55,7 @@ defmodule TuistWeb.API.CargoControllerTest do
       assert latest["git_commit_sha"] == "abc123"
       assert latest["git_ref"] == nil
       assert latest["ci_provider"] == "github"
-      assert latest["started_at"] == "2026-10-02T10:00:00.000000Z"
+      assert latest["started_at"] == "2026-10-02T10:00:00Z"
       assert latest["actor"]["name"] == user.account.name
       refute Map.has_key?(latest, "cache")
 

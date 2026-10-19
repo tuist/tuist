@@ -52,7 +52,7 @@ defmodule TuistWeb.API.OnceRunsControllerTest do
                "git_branch" => "main",
                "git_rev" => "abc123",
                "host_class" => "macos-arm64",
-               "started_at" => "2026-10-01T10:00:00.000000Z",
+               "started_at" => "2026-10-01T10:00:00Z",
                "cache" => %{"hit_rate" => 75.0, "download_bytes" => 2048, "upload_bytes" => 512}
              } = finished
 

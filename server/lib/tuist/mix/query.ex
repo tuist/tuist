@@ -69,5 +69,7 @@ defmodule Tuist.Mix.Query do
   defp presence(value), do: value
 
   defp timestamp(nil), do: nil
-  defp timestamp(%NaiveDateTime{} = value), do: value |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
+  defp timestamp(%NaiveDateTime{} = value),
+    do: value |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 end

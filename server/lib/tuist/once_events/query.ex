@@ -100,5 +100,5 @@ defmodule Tuist.OnceEvents.Query do
   defp tests(_run), do: nil
 
   defp timestamp(nil), do: nil
-  defp timestamp(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp timestamp(%DateTime{} = value), do: value |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 end
