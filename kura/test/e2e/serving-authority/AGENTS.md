@@ -69,7 +69,9 @@ remains five minutes. Record any shortened deadline with the measurements.
 Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
 of old destination-only data. Assert it stays absent on the source, then require
 an eviction-triggered repair revisit and matching full-corpus receipts before
-promotion. Both peers retain the same 3 GiB ring budgets. This complements the
+promotion. With live preparation, require actual destination-only reclamation
+and separate preparation/final repair walks; preparation no longer loops on
+eviction. The Rust regression retains the final-barrier repeat-walk assertion. Both peers retain the same 3 GiB ring budgets. This complements the
 Rust regression that removes an already-checked blob and its action-cache entry
 through the real eviction path while a later missing body is being fetched.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across

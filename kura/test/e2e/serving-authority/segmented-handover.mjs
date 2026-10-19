@@ -327,10 +327,26 @@ try {
         "kura.handover.preparation_revisit",
       ].includes(event["event.name"]),
     ).length;
-    assert(
-      result.repairRevisits > 0,
-      "fixture must exercise repair eviction and a second walk",
-    );
+    result.repairWalks = events.filter(
+      (event) => event["event.name"] === "kura.handover.reconciled",
+    ).length;
+    result.reclaimedDestinationSegments = events.filter(
+      (event) =>
+        event.message ===
+        "Reclaimed destination-only segment before retained repair",
+    ).length;
+    if (prepare) {
+      assert(result.reclaimedDestinationSegments > 0, "must exercise eviction");
+      assert(
+        result.repairWalks >= 2,
+        "preparation must be followed by final repair",
+      );
+    } else {
+      assert(
+        result.repairRevisits > 0,
+        "fixture must exercise repair eviction and a second walk",
+      );
+    }
   }
   if (repairOld) {
     const response = await fetch(
