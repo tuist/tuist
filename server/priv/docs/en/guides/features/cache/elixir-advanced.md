@@ -150,6 +150,30 @@ These steps compile and load Tuist before other dependencies, including on cold
 parallel builds. The wrapper restores normal dependency checks afterward. The
 same alias works with Hex, Git and path installations; no script path is needed.
 
+For jobs that prepare an uploaded build and then run with `--no-compile`, guard
+all bootstrap work too. Mix forwards arguments only to the final task of a list
+alias, so its earlier `deps.compile` otherwise runs unconditionally. Use a local
+function in your Mix project module instead:
+
+```elixir
+# In aliases/0:
+compile: &compile/1
+
+# In the same Mix project module:
+defp compile(args) do
+  if "--no-compile" not in args do
+    Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+  end
+
+  Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+  Mix.Task.run("tuist.compile", args)
+end
+```
+
+This is a project-local function, not a capture of an SDK function that is not
+loaded yet. Treat it as a custom integration: `tuist.setup` refuses customized
+compile aliases rather than replacing them.
+
 ## How it works
 
 Elixir caching uses the shared REAPI ActionCache/CAS pipeline, authentication and

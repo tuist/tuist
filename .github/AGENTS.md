@@ -209,20 +209,32 @@ run on the default `tuist-linux` shape. Run `mix compile --warnings-as-errors`
 through the server's bootstrap-aware compile alias before discovering
 `tuist.test.build`: discovering an unloaded SDK task on a cold checkout lets
 Mix compile all dependencies before Tuist can restore or observe the cache.
-Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then download with `mix tuist.test --prepare-only`; include children for coverage completion as well so cold jobs have gRPC/Protobuf available.
+Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then explicitly run `deps.loadpaths --no-compile --no-deps-check` in the same `mix do` chain before `tuist.test --prepare-only` or `tuist.coverage.complete`. OS compilation workers do not load the SDK in the parent; discovering its task without loading those paths compiles every remaining dependency.
 `tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
-login step. Run `db:reset`
-in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
-so migration regression tests do not redefine modules already loaded by setup.
-Date the shard's checkout to the commit time before `db:reset`: a checkout newer
-than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
-recompile the app.
-The build job and shards attach only the `deps` volume (`restore-mix-cache: deps`):
-the build job compiles from an empty `_build` and the shards download theirs. They
-also pass `mise-cache: "false"`: installing Erlang and Elixir from scratch is
-faster than restoring mise-action's archive. Postgres service health checks poll
+login step. Run `db:reset -- --no-compile --no-deps-check`
+in a separate process before
+`mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --warnings-as-errors`,
+so setup cannot rebuild the downloaded artifact and migration regression tests
+do not redefine modules already loaded by setup. Load paths again before final
+task discovery; forwarded flags arrive too late to prevent discovery-time
+compilation. Different scheduler-dependent pool sizes can invalidate the build;
+do not hide runtime configuration differences by dating source files. Explicit `--no-download` test execution bypasses the
+project's preparation alias too, or ecto.create starts compilation again. The
+server's project-local compile function must guard the bootstrap on
+`--no-compile`; list aliases pass flags only to their final action.
+The build, format and seed jobs retain both `deps` and `_build` through the normal
+setup action. Shards attach only `deps` and download the exact build. Always
+resolve dependencies and compile the builder on cache hits. On push, instrument
+a disposable copy beside `_build/test` so the persisted build remains plain
+for PRs. Keep the copy at that depth: dependency priv links are relative and
+must resolve when archiving generated NIFs. Remove it before volume publication.
+The _build volume owns CLDR downloads; do not restore an archive inside it.
+Keep mise archive caching enabled by default for jobs with additional tools;
+only the measured builder/shard/coverage-completion jobs opt out. Postgres service health checks poll
 every second as the `postgres` role; probing as `root` logs a FATAL on every check.
 In CI, `db:reset` creates, migrates and lists migrations in one Mix process.
+`bash server/mise/tasks/db/migrate-test.sh` checks argument forwarding and keeps
+missing status output, pending migrations and failed Mix commands fatal.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
