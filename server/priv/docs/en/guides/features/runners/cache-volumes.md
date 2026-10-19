@@ -196,7 +196,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: tuist/cache-volume@v1
         with:
-          key: npm-v1
+          key: npm
           path: ~/.npm
       - run: npm ci
       - run: npm test
@@ -210,7 +210,7 @@ steps:
     plugins:
       - tuist/cache-volume#v1:
           volumes:
-            - key: npm-v1
+            - key: npm
               path: ~/.npm
     command: |
       npm ci
@@ -221,7 +221,7 @@ steps:
 test:
   tags: [tuist-linux]
   before_script:
-    - tuist-cache-volume --key npm-v1 --path ~/.npm
+    - tuist-cache-volume --key npm --path ~/.npm
   script:
     - npm ci
     - npm test
