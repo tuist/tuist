@@ -930,31 +930,31 @@ running its Pods and takes new ones within a minute; no reboot is needed.
 ### Replacing a runner box without killing CI jobs
 
 Replacing a box means deleting its Machine: the fleet MachineDeployment
-is `strategy: OnDelete`, so nothing else rolls one. Cluster API drains
-the node first, then the provider releases the box, which reinstalls it
-and returns it to the pool for the replacement Machine to adopt. The
-fleet runs one box short for the drain, the ~20-40 min reinstall and the
-self-join. `nodeDrainTimeout` is unset on the fleet MachineDeployments,
-so the drain has no deadline.
+is `strategy: OnDelete`, so nothing else rolls one, and lowering
+`ovhFleets.runners-linux.replicas` deletes a Machine the same way.
+Cluster API core never drains a Machine in the workload clusters. Their
+CAPI `Cluster` has no control plane Machines, so Machine deletion skips
+the drain, and with it every `MachineDrainRule`, and goes straight to
+the `OVHDedicatedMachine` (the CAPI controller logs `Skipping deletion
+of Kubernetes Node ... cause="no control plane members"`). The
+provider's release deletes the Node and reinstalls the box, which kills
+whatever still runs there, so it waits for the box's CI jobs first. Two
+pieces make that wait, and neither works without the other:
 
-Cluster API's default drain *evicts* Pods. On a runner node that kills
-customer CI jobs mid-flight, which surfaces as "lost communication".
-There is no PodDisruptionBudget in `tuist-runners`. Two pieces turn the
-drain into a wait, and neither works without the other:
-
-1. **`MachineDrainRule`** (`infra/k8s/clusters/machinedrainrules.yaml`)
-   sets `behavior: WaitCompleted` for Pods labeled
-   `tuist.dev/runner=true`. Cluster API stops evicting them and waits
-   for a terminal phase instead. Runner Pods are single-shot
+1. **The release wait** (`holdReleaseForRunnerJobs` in
+   `infra/cluster-api-provider-tuist/controllers/linux/runner_jobs.go`)
+   cordons the Node and holds the release while any Pod labeled
+   `tuist.dev/runner=true` in `tuist-runners` on it has not reached a
+   terminal phase. It never evicts them. Runner Pods are single-shot
    (`RestartPolicy: Never`, one `workflow_job`, then exit), so a Pod
-   running a job completes on its own and releases the drain.
+   running a job completes on its own.
 2. **The idle reap** (`controllers/node_drain.go`) retires idle Pods on
-   a cordoned node. Without it the drain never converges: an idle Pod
-   is a dispatch poller with nothing to finish, so `WaitCompleted`
-   would wait on it forever, and the cordon stops new Pods landing
-   without removing the ones already bound. Idle Pods are pure warm
-   capacity, so retiring them costs only a cold start and the
-   autoscaler replaces them on a node that can still accept Pods.
+   a cordoned node. Without it the wait never converges: an idle Pod
+   is a dispatch poller with nothing to finish, so it would hold the
+   release forever, and the cordon stops new Pods landing without
+   removing the ones already bound. Idle Pods are pure warm capacity,
+   so retiring them costs only a cold start and the autoscaler
+   replaces them on a node that can still accept Pods.
 
 The reap reads `isIdle`, **not** the `tuist.dev/runner-pool-owner`
 label. This is also why a PodDisruptionBudget cannot do this job: a PDB
@@ -964,22 +964,21 @@ apiserver patch fails. `isIdle` additionally treats a terminated
 `poller` init container as proof of a claim, so a Pod running a job
 survives even when the label never landed.
 
-**The drain rule does not reach the OVH runner Machines.** A
-`MachineDrainRule` applies to Machines in its own namespace.
-`mgmt-cluster-apply.yml` applies `machinedrainrules.yaml` to `org-tuist`
-on the mgmt cluster, while the tuist chart renders the OVH fleet Machines
-into the workload cluster's release namespace, and nothing renders a
-`MachineDrainRule` there. Until one does, cordon the node and wait for
-its in-flight jobs to finish (the idle reap clears the warm Pods once the
-node is cordoned) before deleting the Machine:
+To replace a box, delete its Machine and follow the release:
 
 ```bash
-kubectl cordon <node>
 kubectl -n <namespace> delete machine <machine-name>
+kubectl -n <namespace> describe ovhdedicatedmachine <machine-name>
 ```
 
-A drain takes as long as the node's longest in-flight job, up to six
-hours for a Linux job.
+While the release waits, the `OVHDedicatedMachine` stays `Deleting` and
+its `WaitingForRunnerJobs` event names the jobs still running. The wait
+lasts as long as the node's longest in-flight job, up to six hours for a
+Linux job, and has no deadline; deleting the Pods it names releases the
+box sooner and kills those jobs. A terminating Pod on an unreachable Node
+does not hold the release, so a dead box is released once its Pods are
+evicted, about 5 minutes after the Node goes unreachable. The fleet then
+runs one box short for the ~20-40 min reinstall and the self-join.
 
 ### Emergency SSH access
 
