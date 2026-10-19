@@ -35,6 +35,17 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
+  Optional deployment metadata for native clients. Fields may be added without
+  changing this endpoint; clients must tolerate missing fields and older servers
+  returning 404. The release version is informational, not a capability signal.
+  """
+  def server_info(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "public, max-age=300")
+    |> json(%{version: Environment.version()})
+  end
+
+  @doc """
   Advertises the package registry for this deployment so the command-line
   interface can configure clients without hardcoding a registry path. Keyed
   by ecosystem so future additions do not require a breaking response change.

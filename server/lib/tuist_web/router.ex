@@ -665,6 +665,7 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
+    get "/tuist", WellKnownController, :server_info, metadata: %{robots_txt: false}
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association

@@ -117,6 +117,46 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/tuist" do
+    test "returns deployment metadata without authentication", %{conn: conn} do
+      stub(Environment, :version, fn -> "2026.10.16-canary.4" end)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/tuist")
+
+      assert json_response(conn, 200) == %{"version" => "2026.10.16-canary.4"}
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=300"]
+      assert get_resp_header(conn, "set-cookie") == []
+    end
+
+    test "does not require a client version or an explicit Accept header", %{conn: conn} do
+      stub(Environment, :version, fn -> "1.37.0" end)
+
+      conn = get(conn, "/.well-known/tuist")
+
+      assert json_response(conn, 200) == %{"version" => "1.37.0"}
+    end
+
+    test "allows unavailable version metadata", %{conn: conn} do
+      stub(Environment, :version, fn -> nil end)
+
+      conn = get(conn, "/.well-known/tuist")
+
+      assert json_response(conn, 200) == %{"version" => nil}
+    end
+
+    test "supports HEAD requests", %{conn: conn} do
+      stub(Environment, :version, fn -> "1.37.0" end)
+
+      conn = head(conn, "/.well-known/tuist")
+
+      assert response(conn, 200) == ""
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=300"]
+    end
+  end
+
   describe "GET /.well-known/registry.json" do
     test "advertises the swift ecosystem and derives its login path", %{conn: conn} do
       stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/api/registry/swift" end)
