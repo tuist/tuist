@@ -276,7 +276,12 @@ export async function fixture(
 
 export async function handover(
   f,
-  { id = `resource-${process.pid}`, deadlineMs = 300000, beforePromotion } = {},
+  {
+    id = `resource-${process.pid}`,
+    deadlineMs = 300000,
+    beforePromotion,
+    prepare,
+  } = {},
 ) {
   const { identities, names, grant, report } = f;
   const intent = {
@@ -286,6 +291,56 @@ export async function handover(
     source_url: `http://${names[0]}:7443`,
     deadline_ms: Date.now() + deadlineMs,
   };
+  if (prepare) {
+    assert.equal(
+      (await report(1)).serving_authority.preparation_supported,
+      true,
+    );
+    intent.deadline_ms = Date.now() + 1200000;
+    grant({
+      epoch: 1,
+      holder: identities[0],
+      phase: "Serving",
+      handover: intent,
+      renew: true,
+    });
+    let complete = false;
+    while (Date.now() < intent.deadline_ms) {
+      const [source, target] = await Promise.all(
+        [0, 1].map(async (i) => (await report(i)).serving_authority),
+      );
+      assert.equal(
+        source.valid,
+        true,
+        "preparation must keep the source serving",
+      );
+      assert.equal(
+        target.valid,
+        false,
+        "preparation must not authorize the standby",
+      );
+      assert.equal(source.barrier, null);
+      assert.equal(target.barrier, null);
+      await prepare();
+      const status = target.preparation;
+      if (status?.intent.id === id) {
+        assert.deepEqual(status.intent, intent);
+        assert.deepEqual(status.source, identities[0]);
+        assert.equal(status.epoch, 1);
+        assert.equal(status.error, null);
+        if (status.complete) {
+          complete = true;
+          break;
+        }
+      }
+      await sleep(1000);
+    }
+    assert(
+      complete,
+      "standby preparation did not complete before its fixed deadline",
+    );
+    intent.deadline_ms = Date.now() + deadlineMs;
+  }
   grant({
     epoch: 1,
     holder: identities[0],

@@ -454,6 +454,8 @@ async fn prepare_live_destination(
             // take both holds, verify every retained record and revoke the source.
             return Ok(());
         }
+        tracing::info!(event.name="kura.handover.preparation_revisit", id=%preparation.intent.id,
+            "Revisiting live standby preparation after retained-record eviction");
     }
 }
 

@@ -13,6 +13,7 @@ assert([512, 2048].includes(count), "record count must be 512 or 2048");
 const fullRing = count === 2048;
 const repairOld = process.env.KURA_E2E_RETAINED_RECENCY === "1";
 const repairChurn = process.env.KURA_E2E_REPAIR_CHURN === "1";
+const prepare = process.env.KURA_E2E_LIVE_PREPARATION === "1";
 assert(
   !repairOld || fullRing,
   "recency repair requires the full-ring workload",
@@ -173,6 +174,22 @@ try {
   const startHandover = Date.now();
   result.barrier = await handover(f, {
     deadlineMs: 300000,
+    prepare: prepare
+      ? async () => {
+          body.writeUInt32BE(count - 1);
+          for (const replica of [0, 1]) {
+            const response = await fetch(url(replica, count - 1), {
+              method: "POST",
+              body,
+              signal: AbortSignal.timeout(30000),
+            });
+            await response.arrayBuffer();
+            assert.equal(response.status, replica === 0 ? 204 : 503);
+          }
+          result.preparationWriteChecks =
+            (result.preparationWriteChecks ?? 0) + 1;
+        }
+      : undefined,
     beforePromotion: fullRing
       ? async (barrier) => {
           for (let i = 0; i < count; i++) {
@@ -213,8 +230,11 @@ try {
           return [];
         }
       });
-    result.repairRevisits = events.filter(
-      (event) => event["event.name"] === "kura.handover.repair_revisit",
+    result.repairRevisits = events.filter((event) =>
+      [
+        "kura.handover.repair_revisit",
+        "kura.handover.preparation_revisit",
+      ].includes(event["event.name"]),
     ).length;
     assert(
       result.repairRevisits > 0,
