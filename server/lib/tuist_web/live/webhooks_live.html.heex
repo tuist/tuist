@@ -1,14 +1,13 @@
-<div id="account-webhooks">
-  <div data-part="page-header">
-    <h1 data-part="title">{dgettext("dashboard_account", "Webhooks")}</h1>
-    <span data-part="subtitle">
-      {dgettext(
-        "dashboard_account",
-        "Configure HTTPS endpoints that receive events from projects in this account."
-      )}
-    </span>
-  </div>
-
+<.page_frame
+  id="account-webhooks"
+  title={dgettext("dashboard_account", "Webhooks")}
+  subtitle={
+    dgettext(
+      "dashboard_account",
+      "Configure HTTPS endpoints that receive events from projects in this account."
+    )
+  }
+>
   <.card_section data-part="endpoints-card">
     <div data-part="header">
       <div data-part="title-group">
@@ -211,4 +210,4 @@
       </:empty_state>
     </.table>
   </.card_section>
-</div>
+</.page_frame>

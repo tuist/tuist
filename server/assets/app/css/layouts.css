@@ -40,7 +40,9 @@
 .layout__content {
   /* Page layout tiers: fixed width caps that pages pick from. Pages default
      to the standard tier; settings-style pages opt into the compact tier by
-     tagging their root with data-layout="compact" (see layouts/account.css).
+     rendering through the shared page frame with layout="compact" (see
+     components/page_frame.css; unmigrated account pages tag their root with
+     data-layout="compact", see layouts/account.css).
      The caps are ceilings, not rendered widths — below the cap a page is
      fluid with only the base padding as gutter; past it the page centers. No
      noora token exists for container widths; the two tier values are the raw

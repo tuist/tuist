@@ -1,5 +1,5 @@
-<div id="test-runs">
-  <div data-part="filters">
+<.page_frame id="test-runs">
+  <:filters>
     <.dropdown
       id="test-runs-analytics-environment-dropdown"
       label={@analytics_environment_label}
@@ -77,7 +77,7 @@
         />
       </:actions>
     </.date_picker>
-  </div>
+  </:filters>
   <.async_card
     :let={ready?}
     results={[
@@ -570,4 +570,4 @@
       </div>
     </.card_section>
   </.card>
-</div>
+</.page_frame>

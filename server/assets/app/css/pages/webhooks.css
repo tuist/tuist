@@ -1,24 +1,5 @@
 #account-webhooks {
-  display: flex;
-  flex-direction: column;
   gap: var(--noora-spacing-7);
-
-  & > [data-part="page-header"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-
-    & > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-    }
-
-    & > [data-part="subtitle"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    }
-  }
 
   & > [data-part="endpoints-card"] {
     display: flex;

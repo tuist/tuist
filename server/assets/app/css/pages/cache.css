@@ -3,26 +3,7 @@
      dark mode uses the translucent alpha purple instead (same pairing noora
      uses for primary badge fills). */
   --cache-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
-  display: flex;
-  flex-direction: column;
   gap: var(--noora-spacing-10);
-
-  & > [data-part="page-header"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
-
-    & > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-    }
-
-    & > [data-part="subtitle"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    }
-  }
 
   & > [data-part="cache-disabled-card"] {
     padding: var(--noora-spacing-8);

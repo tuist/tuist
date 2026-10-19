@@ -128,6 +128,7 @@ defmodule TuistWeb do
       import TuistWeb.Components.AsyncCard
       # Core UI components and translation
       import TuistWeb.Components.IconComponents
+      import TuistWeb.Components.PageFrame
       import TuistWeb.Components.Skeleton
       import TuistWeb.Widget
 

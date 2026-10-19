@@ -1,20 +1,26 @@
 .layout__content.layout__content--account {
   box-sizing: border-box;
-  padding-block: var(--layout-page-padding-block);
+
+  /* Pages on the shared page frame (.tuist-page, see
+     components/page_frame.css) own their gutters, width and tier. The rules
+     below cover account pages that haven't migrated yet. */
+  &:not(:has(> .tuist-page)) {
+    padding-block: var(--layout-page-padding-block);
+  }
 
   /* Pages own their gutters: each page root spans min(100%, tier width plus
      its own inline padding) and centers with real auto margins once the pane
      out-runs the cap — the space around a page is margin outside its box,
      not pane padding. */
-  & > * {
+  & > *:not(.tuist-page) {
     box-sizing: border-box;
     margin-inline: auto;
     padding-inline: var(--layout-page-padding-inline);
     width: var(--layout-page-max-width-with-margin-current);
   }
 
-  /* Compact pages (settings-style, e.g. cache) narrow the cap. */
-  &:has(> [data-layout="compact"]) {
+  /* Compact pages (settings-style) narrow the cap. */
+  &:has(> [data-layout="compact"]:not(.tuist-page)) {
     --layout-page-width-current: var(--layout-page-width-compact);
   }
 }

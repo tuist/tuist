@@ -1,0 +1,60 @@
+/* Shared page frame (TuistWeb.Components.PageFrame). The frame owns its
+   gutters and width cap from the --layout-page-* tiers on .layout__content.
+   The width is computed here rather than read from
+   --layout-page-max-width-with-margin-current, because that variable is
+   resolved on .layout__content and would ignore a tier picked on the frame. */
+.tuist-page {
+  --layout-page-width-current: var(--layout-page-width-standard);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  margin-inline: auto;
+  padding: var(--layout-page-padding-block) var(--layout-page-padding-inline);
+  width: min(100%, calc(var(--layout-page-width-current) + 2 * var(--layout-page-padding-inline)));
+
+  &[data-layout="compact"] {
+    --layout-page-width-current: var(--layout-page-width-compact);
+  }
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="page-actions"] {
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="page-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+}
