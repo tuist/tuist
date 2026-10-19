@@ -115,13 +115,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -152,13 +149,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Resolve registry replacements
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
@@ -194,13 +188,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Cache
         run: tuist cache
       # The coverage variant of the binary cache, read by the runs that collect
@@ -243,13 +234,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
@@ -293,13 +281,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -342,13 +327,10 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -421,13 +403,10 @@ jobs:
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Read the Xcode version
-        id: xcode
-        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-acceptance-tests-build-xcode-${{ steps.xcode.outputs.version }}-v2
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
