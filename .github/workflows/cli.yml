@@ -166,7 +166,10 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: tuist-macos-27-0
-    timeout-minutes: 60
+    # Two warms: the plain one and the coverage one below, which builds every
+    # changed repository target a second time, with coverage and without the
+    # compilation cache's replay.
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -203,7 +206,12 @@ jobs:
       # The coverage variant of the binary cache, read by the runs that collect
       # coverage: coverage.yml on main, and the unit tests above, which run with
       # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
-      # with coverage counters; external packages are the plain warm's.
+      # with coverage counters; external packages are the plain warm's. Those
+      # builds get no compilation-cache replay: coverage builds leave Xcode's
+      # prefix mapping off by default, and `tuist cache` has no xcodebuild
+      # passthrough for the override the test runs use. The manifest option
+      # (`enableCoveragePrefixMapping`) would turn it on for both, once the
+      # backward-compatibility gate's CLI knows it.
       - name: Cache with coverage
         run: tuist cache --coverage
       - name: Save cache

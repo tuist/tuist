@@ -155,10 +155,11 @@ jobs:
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       # Every test runs: selective testing would skip tests. Repository targets
-      # come from the coverage variant of the binary cache when cli.yml has
-      # warmed it for this commit (`tuist cache --coverage`), built with coverage
-      # counters, and are built from source otherwise; a run with coverage on
-      # never reads the plain variant. The derived data path is where the export
+      # come from the coverage variant of the binary cache (`tuist cache
+      # --coverage` in cli.yml), built with coverage counters, when their hash
+      # matches what an earlier commit's warm stored; this commit's own warm runs
+      # at the same time, so the targets it changed are built from source. A run
+      # with coverage on never reads the plain variant. The derived data path is where the export
       # finds the test products and the run's profile: without it the CLI falls
       # back to the result bundle's own report, which never covers cached code.
       # The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
