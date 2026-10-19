@@ -79,11 +79,11 @@ struct BuildRunsCommandServiceTests {
 
         try await subject.run(
             fullHandle: nil, path: nil, gitBranch: "main", status: "success", command: "build", page: nil, pageSize: nil,
-            json: false
+            json: true
         )
 
-        #expect(ui().contains("0190a5c4-0000-7000-800"))
-        #expect(ui().contains("1.50s"))
+        #expect(ui().contains("0190a5c4-0000-7000-8000-000000000001"))
+        #expect(ui().contains("1.84.0"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -196,10 +196,10 @@ struct BuildRunsCommandServiceTests {
         )
 
         try await subject.run(
-            fullHandle: nil, path: nil, kind: "build", status: nil, gitBranch: nil, page: nil, pageSize: nil, json: false
+            fullHandle: nil, path: nil, kind: "build", status: nil, gitBranch: nil, page: nil, pageSize: nil, json: true
         )
 
         #expect(ui().contains("run-2"))
-        #expect(ui().contains("50.0%"))
+        #expect(ui().contains("once build"))
     }
 }

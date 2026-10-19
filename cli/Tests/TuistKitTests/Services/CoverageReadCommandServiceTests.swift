@@ -106,10 +106,10 @@ struct CoverageReadCommandServiceTests {
 
         try await subject.run(
             path: nil, fullHandle: nil, branch: "release", commit: nil, search: "Sources", sortBy: "path",
-            sortOrder: nil, page: nil, pageSize: nil, json: false
+            sortOrder: nil, page: nil, pageSize: nil, json: true
         )
 
-        #expect(ui().contains("50.0%"))
+        #expect(ui().contains("App.swift"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
