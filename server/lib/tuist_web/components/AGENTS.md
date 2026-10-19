@@ -3,6 +3,9 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- The project sidebar accepts `previews_available` from the authorized layout.
+  Keep Xcode/Gradle's default Previews entry; other build systems gain it after
+  their first preview upload without database queries during component rendering.
 - Preview cards show app/build metadata and a single truncated first nonblank release-notes line. Share the plain-text summary helper with the previews table; never render notes as HTML or Markdown. Full notes remain on the preview detail page.
 - `Runs.RanByBadge.run_ran_by_badge_cell/1` is shared by command/run tables and persistent build-entity activity. Render CI with the shared settings badge, known local reporting accounts with the user badge, and missing environment/attribution as Unknown. Nullable environment must not become local or expose an inferred actor.
 - `LayoutComponents.head_canonical_link` shares canonical URLs across marketing, docs, and app layouts. Project descriptions fall back to page and project identity; preserve explicit descriptions and keep social URL metadata aligned with the canonical URL.
