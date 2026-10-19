@@ -76,39 +76,11 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
-#### Dependency installation on continuous-integration runners
-
-For generated projects using Tuist's package integration, `tuist install` uses [SwifterPM](https://github.com/tuist/swifterpm). SwifterPM maintains a local source cache and restores package checkouts from it when possible. On an ephemeral continuous-integration runner without retained cache storage, every job starts without that cache, so installation follows the native [Swift Package Manager](https://www.swift.org/package-manager/) path. No additional configuration is needed.
-
-Package manifests can read process environment variables while declaring dependencies. The package-manifest cache therefore accounts for those variables. Job-specific values can change on every run without changing the declared dependencies, which would otherwise prevent a cache hit.
-
-`packageManifestEnvironment` defaults to `.automatic`; no `Tuist.swift` override or explicit exclusion list is needed for a typical CI workflow. On GitHub Actions, it excludes `GITHUB_*`, `ACTIONS_*`, `RUNNER_*`, and `SSH_AUTH_SOCK` from cached manifest evaluation, while preserving `GITHUB_ACTIONS`, `RUNNER_OS`, and `RUNNER_ARCH`. This also excludes branch, reference, commit, and workflow metadata. Toolchain settings and application-defined inputs remain visible and participate in cache keys.
-
-Tuist also filters selected volatile execution identifiers on GitLab, Bitrise, and Codemagic, and excludes Tuist cache-signing grants and runner pod identities on every provider. These defaults apply on both ephemeral and persistent runners. The expanded GitHub defaults and manifest-cache reuse across fresh checkout timestamps are available in `4.214.0-canary.33`; use that release or a later release containing these changes.
-
-If a package manifest intentionally uses one of the automatic exclusions to declare dependencies, restore that variable explicitly in `Tuist.swift`:
-
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    project: .tuist(
-        installOptions: .options(
-            packageManifestEnvironment: .automatic(
-                including: ["CI_JOB_ID"]
-            )
-        )
-    )
-)
-```
-
-Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. The automatic policy keeps known GitHub/SSH authentication inputs available to native dependency resolution, while excluding them from cached manifest evaluation. Native resolution can also evaluate manifests; if a manifest intentionally reads those inputs, include them explicitly so both paths see the same values. Custom exclusions also apply to native resolution, so do not explicitly exclude credentials needed to fetch dependencies. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
-
 #### Cached dependency installation on GitHub Actions {#dependency-cache-volumes}
 
-For generated projects, use [tuist/install](https://github.com/tuist/install) to install pinned dependencies and retain their caches with one step. On Tuist Runners, the action attaches a <.localized_link href="/guides/features/runners/cache-volumes">cache volume</.localized_link> and reuses package sources through symlinks. On other runners, it automatically uses GitHub's archive cache and copies sources so the archive remains usable across checkouts. No cache-provider input is needed.
+For generated projects, use [tuist/install](https://github.com/tuist/install) to install the dependencies pinned in `Package.resolved` and cache them between runs. It automatically uses <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> on Tuist Runners and GitHub's cache on other runners.
 
-Commit `Package.resolved` beside your package manifest. The action uses the already-installed CLI; install your tools and configure private-package authentication before it runs. Keep `packageManifestEnvironment` at its `.automatic` default.
+Commit `Package.resolved`, install Tuist, and configure any private-package authentication before running the action. Leave `packageManifestEnvironment` at its `.automatic` default; typical CI workflows need no custom exclusions.
 
 ```yaml
 name: Generate project
@@ -130,9 +102,7 @@ jobs:
       - run: tuist generate --no-open
 ```
 
-Use `macos-latest` for a GitHub-hosted runner; the install step stays the same. Cache volumes do not require a larger Tuist runner profile.
-
-The action discovers `Tuist/Package.swift` or a root `Package.swift` and retains `.build` beside it. Workspace state, downloaded sources, cached manifest JSON, and native compiled manifests share that directory, with the dependency cache under `.build/dependency-cache`. It sets the scratch/cache paths and materialization mode, and always runs `tuist install --force-resolved-versions`, including on cache hits, to validate the current lockfile. There is no need to repeat those flags or attach a separate volume. Cleaning `.build` also clears its dependency caches.
+Use `macos-latest` for a GitHub-hosted runner; the install step stays the same. Use the action in place of your existing `tuist install` and dependency-cache steps, before generating or building the project.
 
 For a project in a subdirectory, pass its path relative to the checkout:
 
@@ -142,11 +112,7 @@ For a project in a subdirectory, pass its path relative to the checkout:
     path: apps/ios
 ```
 
-By default, the cache namespace separates jobs, Swift/Xcode toolchains, package locations, and manifest contents. Volume keys exclude the lockfile so unchanged sources remain reusable after pin updates. GitHub archive keys additionally include the platform, architecture, and lockfile hash, and can restore a compatible older archive when pins change. Only override `cache-key` when intentionally sharing compatible state or rotating the cache; see the [action reference](https://github.com/tuist/install#usage) for inputs and outputs.
-
-Run the action before any command or tool-installation hook populates `.build`, and remove other archive-cache or volume steps for that directory. The action controls its scratch path; leave `SWIFTPM_BUILD_DIR` unset. Ignore the workspace symlink without a trailing slash in `.gitignore`, for example `Tuist/.build`.
-
-The first eligible successful default-branch run seeds a volume; later jobs reuse it under the <.localized_link href="/guides/features/runners/cache-volumes#saving-changes">normal saving policy</.localized_link>. If volume storage is unavailable, attachment supplies an empty job-local directory and installation repopulates it. A volume error does not switch the job to archive caching. On runners using GitHub caches, an exact miss saves a new archive after a successful job. Cache transfer and source-copy overhead vary by dependency graph, so retained caches do not guarantee faster installation for every project.
+See the [action reference](https://github.com/tuist/install#usage) for additional options.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
