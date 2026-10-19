@@ -52,6 +52,26 @@ var (
 		Name: "capt_rackats_input_voltage_volts",
 		Help: "The source's voltage, when the card reports it.",
 	}, append(rackATSLabels, "source"))
+	rackATSInputCurrent = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackats_input_current_amps",
+		Help: "The current the card reports on the source, when it reports one.",
+	}, append(rackATSLabels, "source"))
+	rackATSOutputCurrent = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackats_output_current_amps",
+		Help: "The current on the switch's output, when the card reports it under powerDistributions/1/outputs.",
+	}, append(rackATSLabels, "output"))
+	rackATSOutputVoltage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackats_output_voltage_volts",
+		Help: "The voltage on the switch's output, when the card reports it.",
+	}, append(rackATSLabels, "output"))
+	rackATSOutputActivePower = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackats_output_active_power_watts",
+		Help: "Active power on the switch's output, when the card reports it.",
+	}, append(rackATSLabels, "output"))
+	rackATSOutputApparentPower = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackats_output_apparent_power_va",
+		Help: "Apparent power on the switch's output, when the card reports it.",
+	}, append(rackATSLabels, "output"))
 	rackATSTransfers = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "capt_rackats_observed_transfers_total",
 		Help: "Changes of the source powering the load that the controller observed between two reads, a minute apart, with 0 for neither source: from and to 1 or 2 is a transfer, to=0 the load losing power, from=0 it coming back. A change and its return within one interval is not seen.",
@@ -78,7 +98,8 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(rackATSObserved, rackATSLastObserved, rackATSActiveSource, rackATSPreferredSource,
-		rackATSRedundant, rackATSInputGood, rackATSInputState, rackATSInputVoltage, rackATSTransfers,
+		rackATSRedundant, rackATSInputGood, rackATSInputState, rackATSInputVoltage, rackATSInputCurrent,
+		rackATSOutputCurrent, rackATSOutputVoltage, rackATSOutputActivePower, rackATSOutputApparentPower, rackATSTransfers,
 		rackATSReady, rackATSAdopted, rackATSDrifted, rackATSCertificateChanged)
 }
 
@@ -117,10 +138,24 @@ func recordRackATSMetrics(ats *infrav1.RackATS) {
 		source := fmt.Sprint(in.Source)
 		rackATSInputGood.WithLabelValues(ats.Name, ats.Spec.Site, source).Set(flag(in.State == infrav1.RackATSInputGood))
 		rackATSInputState.WithLabelValues(ats.Name, ats.Spec.Site, source, string(in.State)).Set(1)
-		var volts float64
-		if _, err := fmt.Sscan(in.Voltage, &volts); err == nil {
-			rackATSInputVoltage.WithLabelValues(ats.Name, ats.Spec.Site, source).Set(volts)
-		}
+		setRackATSMeasure(rackATSInputVoltage, in.Voltage, ats.Name, ats.Spec.Site, source)
+		setRackATSMeasure(rackATSInputCurrent, in.Current, ats.Name, ats.Spec.Site, source)
+	}
+	for _, out := range ats.Status.Outputs {
+		output := fmt.Sprint(out.Output)
+		setRackATSMeasure(rackATSOutputCurrent, out.Current, ats.Name, ats.Spec.Site, output)
+		setRackATSMeasure(rackATSOutputVoltage, out.Voltage, ats.Name, ats.Spec.Site, output)
+		setRackATSMeasure(rackATSOutputActivePower, out.ActivePower, ats.Name, ats.Spec.Site, output)
+		setRackATSMeasure(rackATSOutputApparentPower, out.ApparentPower, ats.Name, ats.Spec.Site, output)
+	}
+}
+
+// setRackATSMeasure sets g to a measure status carries, and leaves it unset
+// when status has none.
+func setRackATSMeasure(g *prometheus.GaugeVec, measure string, labels ...string) {
+	var value float64
+	if _, err := fmt.Sscan(measure, &value); err == nil {
+		g.WithLabelValues(labels...).Set(value)
 	}
 }
 
@@ -129,7 +164,8 @@ func recordRackATSMetrics(ats *infrav1.RackATS) {
 func forgetRackATSObservation(name string) {
 	match := prometheus.Labels{"ats": name}
 	for _, g := range []*prometheus.GaugeVec{rackATSLastObserved, rackATSActiveSource, rackATSPreferredSource,
-		rackATSRedundant, rackATSInputGood, rackATSInputState, rackATSInputVoltage} {
+		rackATSRedundant, rackATSInputGood, rackATSInputState, rackATSInputVoltage, rackATSInputCurrent,
+		rackATSOutputCurrent, rackATSOutputVoltage, rackATSOutputActivePower, rackATSOutputApparentPower} {
 		g.DeletePartialMatch(match)
 	}
 }

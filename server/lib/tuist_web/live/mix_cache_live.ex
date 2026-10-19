@@ -212,7 +212,7 @@ defmodule TuistWeb.MixCacheLive do
 
   defp transport_value(_widget, nil), do: value(nil)
   defp transport_value("transfer", bytes), do: ByteFormatter.format_bytes(bytes)
-  defp transport_value("latency", duration), do: DateFormatter.format_duration_from_milliseconds(duration)
+  defp transport_value("latency", duration), do: duration |> round() |> DateFormatter.format_duration_from_milliseconds()
   defp transport_value("throughput", bytes), do: ThroughputFormatter.format_throughput(bytes)
 
   defp transport_metric(analytics, widget, type), do: analytics.transport[String.to_existing_atom(widget)].metrics[type]
@@ -312,6 +312,23 @@ defmodule TuistWeb.MixCacheLive do
 
   defp chart_symbol(series, value_fn) do
     if length(series) == 1 or Enum.any?(series, &(value_fn.(&1) == nil)), do: "circle", else: "none"
+  end
+
+  defp recent_hit_rate_label(%{hit_rate: nil, bypasses: bypasses}) when bypasses > 0,
+    do: dgettext("dashboard", "Not cached")
+
+  defp recent_hit_rate_label(%{hit_rate: nil}), do: dgettext("dashboard_builds", "No recorded lookups")
+  defp recent_hit_rate_label(%{hit_rate: rate}), do: value(rate)
+
+  defp recent_builds_coverage(rows) do
+    dngettext(
+      "dashboard_cache",
+      "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate.",
+      "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate.",
+      length(rows),
+      measured: format_number(Enum.count(rows, &(not is_nil(&1.cache.hit_rate)))),
+      total: format_number(length(rows))
+    )
   end
 
   defp recent_chart_data(rows, account, project) do

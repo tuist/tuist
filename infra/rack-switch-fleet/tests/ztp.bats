@@ -447,4 +447,3 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"dnsmasq"* ]]
 }
-

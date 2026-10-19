@@ -24,6 +24,21 @@ they cannot guarantee convergence for every fragmented or undersized ring.
 Full verification still rejects any remaining retained holes. Ordinary backward
 catch-up and forward pages retain their recency policies. Concurrent begin
 requests cannot duplicate repair, and a retry after the hold never reopens it.
+Preparation runs in an owned task so a source's shorter request timeout does not
+discard the walk or interrupt its body transfers. A retry observes preparation
+in progress until the same task finishes. Authoritative intent replacement or
+abort, the original intent deadline, and runtime drain still cancel the repair;
+request retries cannot extend its lifetime. Record verification remains scoped
+to its request and completion of repair alone grants no serving authority.
+Before downloading missing retained bodies, preparation walks the complete source
+index and excludes every locally referenced segment from a bounded candidate set.
+Only sealed, unpinned segments containing exclusively destination-only records may
+be reclaimed. This prevents unrelated newer segments from forcing FIFO repair to
+evict and download the shared corpus repeatedly. Active segments and locally newer
+versions of source-listed records are preserved. Listing failure reclaims nothing;
+the existing supervised cleanup finishes any durable retirement after cancellation.
+Mixed segments still follow normal rotation and the original deadline: this does
+not guarantee convergence for every physical layout or increase the ring budget.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
@@ -126,6 +141,8 @@ Kura splits durable state into two planes so that the hot path is simple and the
 2. **Segment files** hold large immutable artifact bodies on disk. The hot path opens segment file descriptors directly, bypassing RocksDB for blob payloads.
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits. Newly written metadata SSTs use full-key Bloom filters to avoid searching overlapping tables for definitely absent keys. False positives still perform the authoritative lookup, existing unfiltered SSTs remain readable, and older nodes can read filtered SSTs without using the filter. Filters share the existing block-cache budget; cache and write-buffer limits are unchanged.
+
+Tuist's Swift Cargo compilation cache uses this same store through the existing Bazel Remote Execution API. The client publishes SHA-256 content blobs and domain-separated Command/Action indexes, and publishes ActionResults only after their complete output closure is available. No separate Cargo HTTP protocol, prediction service, or storage plane is required.
 
 Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
 

@@ -558,7 +558,10 @@ SCRIPT
 # What the internet may reach through the WAN: replies to what the rack
 # started, ping and neighbour discovery, and tailscaled's port for direct
 # tailnet paths. The edge's SSH, kubelet and boot server are reached over the
-# tailnet, never on the public address, and nothing new is forwarded inwards.
+# tailnet, never on the public address. The only connections forwarded inwards
+# are the ones the edge translated itself: the cluster ports of the site's
+# cluster-network hosts, from the cluster's nodes only, which the CAPI
+# operator renders into the edge's node configuration (tuist_cluster_forwards).
 fleet_edge_wan_filter() {
   cat <<'SCRIPT'
 table inet tuist_rack_wan
@@ -574,6 +577,7 @@ table inet tuist_rack_wan {
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }

@@ -396,6 +396,7 @@ components:
             - xcode
             - gradle
             - mix
+            - cargo
           type: string
           x-struct:
           x-validate:
@@ -1884,7 +1885,7 @@ components:
     BuildsIndexPageSize:
       default: 20
       description: The maximum number of builds to return in a single page.
-      maximum: 100
+      maximum: 1000
       minimum: 1
       title: BuildsIndexPageSize
       type: integer
@@ -5479,7 +5480,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5500,7 +5501,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5861,7 +5862,7 @@ components:
           x-struct:
           x-validate:
         end_cursor:
-          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -5882,7 +5883,7 @@ components:
           x-struct:
           x-validate:
         start_cursor:
-          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
           nullable: true
           type: string
           x-struct:
@@ -7798,8 +7799,7 @@ components:
       x-struct:
       x-validate:
     BuildsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
       minimum: 1
       title: BuildsIndexPage
       type: integer
@@ -14490,6 +14490,7 @@ paths:
                     - xcode
                     - gradle
                     - mix
+                    - cargo
                   type: string
                   x-struct:
                   x-validate:
@@ -15457,6 +15458,13 @@ paths:
                     x-validate:
                   scheme:
                     description: The scheme that was built.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    description: When the build started. Null when unavailable, including historical builds.
+                    format: date-time
                     nullable: true
                     type: string
                     x-struct:
@@ -21387,6 +21395,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  started_at:
+                    description: When the build started. Null when unavailable, including historical builds.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   status:
                     description: Build status.
                     enum:
@@ -24430,7 +24445,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -24451,7 +24466,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -24530,6 +24545,524 @@ paths:
       summary: List recorded history for an Xcode generated-project module across builds.
       tags:
         - XcodeCachedModule
+  /api/projects/{account_handle}/{project_handle}/cargo/builds:
+    post:
+      callbacks: {}
+      operationId: createCargoBuild
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache:
+                  additionalProperties: false
+                  properties:
+                    background_upload_failures:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    details:
+                      additionalProperties: false
+                      properties:
+                        cas_outputs:
+                          items:
+                            additionalProperties: false
+                            properties:
+                              duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              key:
+                                maxLength: 100
+                                pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                type: string
+                                x-struct:
+                                x-validate:
+                              operation:
+                                enum:
+                                  - download
+                                  - upload
+                                type: string
+                                x-struct:
+                                x-validate:
+                              size_bytes:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              status:
+                                enum:
+                                  - downloaded
+                                  - uploaded
+                                  - present
+                                  - failed
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - key
+                              - operation
+                              - status
+                              - size_bytes
+                              - duration_ns
+                            type: object
+                            x-struct:
+                            x-validate:
+                          maxItems: 5000
+                          type: array
+                          x-struct:
+                          x-validate:
+                        tasks:
+                          items:
+                            additionalProperties: false
+                            properties:
+                              cas_keys:
+                                items:
+                                  maxLength: 100
+                                  pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                maxItems: 128
+                                type: array
+                                x-struct:
+                                x-validate:
+                              key:
+                                maxLength: 100
+                                pattern: ^(blake3|sha256):[0-9a-f]{64}:[0-9]{1,20}$
+                                type: string
+                                x-struct:
+                                x-validate:
+                              kind:
+                                enum:
+                                  - rust
+                                  - compiler
+                                  - build_script
+                                type: string
+                                x-struct:
+                                x-validate:
+                              name:
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                                x-struct:
+                                x-validate:
+                              read_duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              status:
+                                enum:
+                                  - hit
+                                  - miss
+                                  - unconsulted
+                                  - verification
+                                type: string
+                                x-struct:
+                                x-validate:
+                              write_duration_ns:
+                                maximum: 9000000000000000
+                                minimum: 0
+                                type: integer
+                                x-struct:
+                                x-validate:
+                            required:
+                              - key
+                              - name
+                              - kind
+                              - status
+                            type: object
+                            x-struct:
+                            x-validate:
+                          maxItems: 2000
+                          type: array
+                          x-struct:
+                          x-validate:
+                        truncated:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        version:
+                          enum:
+                            - 1
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - version
+                        - tasks
+                        - cas_outputs
+                        - truncated
+                      type: object
+                      x-struct:
+                      x-validate:
+                    divergences:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    downloaded_bytes:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    estimated_compiler_duration_avoided_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    hits:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    materialization_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    misses:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    prefetch_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    prefetched_actions:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_action_lookup_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_blob_transfer_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    remote_failures:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    unconsulted:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    upload_drain_duration_ns:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    uploaded_bytes:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    verifications:
+                      maximum: 9000000000000000
+                      minimum: 0
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    version:
+                      enum:
+                        - 1
+                      type: integer
+                      x-struct:
+                      x-validate:
+                  required:
+                    - version
+                  type: object
+                  x-struct:
+                  x-validate:
+                ci_host:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_project_handle:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_provider:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_run_id:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                command:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                compilations:
+                  items:
+                    properties:
+                      dependencies:
+                        items:
+                          maxLength: 1024
+                          type: string
+                          x-struct:
+                          x-validate:
+                        maxItems: 5000
+                        type: array
+                        x-struct:
+                        x-validate:
+                      diagnostics:
+                        items:
+                          properties:
+                            file:
+                              maxLength: 4096
+                              type: string
+                              x-struct:
+                              x-validate:
+                            line:
+                              maximum: 4294967295
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            message:
+                              maxLength: 10000
+                              type: string
+                              x-struct:
+                              x-validate:
+                            severity:
+                              enum:
+                                - warning
+                                - error
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - severity
+                            - message
+                          type: object
+                          x-struct:
+                          x-validate:
+                        maxItems: 100
+                        type: array
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      kind:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      source:
+                        maxLength: 4096
+                        type: string
+                        x-struct:
+                        x-validate:
+                      start_offset_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      status:
+                        enum:
+                          - success
+                          - failure
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                      - source
+                      - kind
+                      - dependencies
+                      - start_offset_ms
+                      - duration_ms
+                      - status
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 20000
+                  type: array
+                  x-struct:
+                  x-validate:
+                contract_version:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                duration_ms:
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_remote_url_origin:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                id:
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                is_ci:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                rust_version:
+                  maxLength: 4096
+                  type: string
+                  x-struct:
+                  x-validate:
+                started_at:
+                  format: date-time
+                  type: string
+                  x-struct:
+                  x-validate:
+                status:
+                  enum:
+                    - success
+                    - failure
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - id
+                - duration_ms
+                - status
+              type: object
+              x-struct:
+              x-validate:
+        description: Cargo build
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                type: object
+                x-struct:
+                x-validate:
+          description: Build created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid report
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Record a Cargo invocation and its observed rustc compilations.
+      tags:
+        - Cargo
   /api/projects/{account_handle}/{project_handle}/xcode/builds:
     get:
       callbacks: {}
@@ -24627,6 +25160,48 @@ paths:
             x-struct:
             x-validate:
           style: form
+        - description: Filter to builds executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+          in: query
+          name: from
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+          in: query
+          name: to
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -24634,7 +25209,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of builds to return in a single page.
-            maximum: 100
+            maximum: 1000
             minimum: 1
             title: BuildsIndexPageSize
             type: integer
@@ -24645,8 +25220,7 @@ paths:
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -24783,6 +25357,13 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        started_at:
+                          description: When the build started. Null when unavailable, including historical builds.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         status:
                           description: Build status.
                           enum:
@@ -24829,6 +25410,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of builds
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -27266,7 +27853,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -27287,7 +27874,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -29704,7 +30291,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -29725,7 +30312,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -31536,6 +32123,48 @@ paths:
             x-struct:
             x-validate:
           style: form
+        - description: Filter to builds executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+          in: query
+          name: from
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+          in: query
+          name: to
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -31543,7 +32172,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of builds to return in a single page.
-            maximum: 100
+            maximum: 1000
             minimum: 1
             title: BuildsIndexPageSize
             type: integer
@@ -31554,8 +32183,7 @@ paths:
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
             minimum: 1
             title: BuildsIndexPage
             type: integer
@@ -31692,6 +32320,13 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        started_at:
+                          description: When the build started. Null when unavailable, including historical builds.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         status:
                           description: Build status.
                           enum:
@@ -31738,6 +32373,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of builds
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -33621,7 +34262,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -33642,7 +34283,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -39778,7 +40419,7 @@ paths:
                         x-struct:
                         x-validate:
                       end_cursor:
-                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -39799,7 +40440,7 @@ paths:
                         x-struct:
                         x-validate:
                       start_cursor:
-                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
                         nullable: true
                         type: string
                         x-struct:
@@ -40752,6 +41393,7 @@ paths:
                     - bazel
                     - once
                     - mix
+                    - cargo
                   type: string
                   x-struct:
                   x-validate:

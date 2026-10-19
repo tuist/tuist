@@ -92,9 +92,17 @@ closure from the same cache rather than recompiling it independently.
 | `endpoint` | Discovered automatically | Override the account's HTTPS REAPI endpoint. |
 
 `upload: false` controls client behavior, not authorization. Project cache
-permissions are enforced by the server. HTTP is only allowed on loopback
-(`localhost`, `127.0.0.1`, `::1`) for development and sends credentials/artifacts
-unencrypted. Local snapshots and remote bundles are limited to 64 MiB; larger
+permissions are enforced by the server. Project `endpoint:` options and discovered
+endpoints require HTTPS, except for loopback (`localhost`, `127.0.0.1`, `::1`)
+development endpoints.
+
+A nonempty `TUIST_CACHE_ENDPOINT` overrides both `endpoint:` and discovery. Hosted
+runners use it to reach their private in-cluster cache. This operator-controlled
+environment override also permits HTTP on non-loopback hosts. HTTP sends the
+project-scoped cache token and artifacts unencrypted, so only use it on a trusted
+network. An invalid override falls back to local snapshots without trying discovery.
+
+Local snapshots and remote bundles are limited to 64 MiB; larger
 artifacts compile without being cached. The local store has no automatic eviction;
 remove its contents when needed. Remote artifacts use Kura's existing retention,
 eviction and project-cleanup rules.

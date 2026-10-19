@@ -239,14 +239,15 @@ what made the two incidents above look alike from the outside.
 
 **Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
 ExternalSecrets cannot see this class of failure at all, so it is caught
-in the metrics pipeline too. Four rules in
+in the metrics pipeline too. Five rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere in production, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 

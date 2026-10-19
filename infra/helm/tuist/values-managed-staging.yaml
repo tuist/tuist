@@ -411,6 +411,11 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-staging
       tags: tag:tuist-k8s-staging
+      # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
+      # the xcresult VMs reach it directly instead of through a DERP relay.
+      # Switching needs the standalone proxy's device deleted by hand; see
+      # the runbook in #14235.
+      proxyGroup: tailnet-ingress
     # On here so the backup path itself is exercised before production depends
     # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
     backup:
@@ -916,11 +921,6 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "27.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

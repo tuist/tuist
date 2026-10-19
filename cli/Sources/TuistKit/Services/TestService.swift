@@ -4,6 +4,7 @@ import Path
 import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
+import TuistCache
 import TuistCI
 import TuistConfig
 import TuistConfigLoader
@@ -388,7 +389,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination,
-            schemeName: schemeName
+            schemeName: schemeName,
+            coverage: Self.binaryCacheCoverage(
+                schemeName: schemeName,
+                xcodebuildArguments: passthroughXcodeBuildArguments,
+                config: config
+            )
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -2588,13 +2594,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// coverage itself and isn't read, so a scheme with test plans is unknown (`nil`).
     static func coverageEnabled(testAction: TestAction?, xcodebuildArguments: [String], config: Tuist) -> Bool? {
         guard UploadResultBundleService.uploadsCoverage(config: config) else { return false }
-        if let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage"),
-           xcodebuildArguments.indices.contains(index + 1)
-        {
-            return xcodebuildArguments[index + 1].uppercased() == "YES"
-        }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage }
         guard let testAction, testAction.testPlans?.isEmpty ?? true else { return nil }
         return testAction.coverage
+    }
+
+    /// The variant of the binary cache the run reads, by the same rule: the instrumented binaries when
+    /// the run collects the coverage Tuist uploads, the plain ones otherwise. The scheme's test action
+    /// is read off the generated graph, once there is one.
+    static func binaryCacheCoverage(schemeName: String?, xcodebuildArguments: [String], config: Tuist) -> BinaryCacheCoverage {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return .off }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage ? .on : .off }
+        return .scheme(schemeName)
+    }
+
+    private static func passthroughCoverage(_ arguments: [String]) -> Bool? {
+        guard let index = arguments.lastIndex(of: "-enableCodeCoverage"), arguments.indices.contains(index + 1)
+        else { return nil }
+        return arguments[index + 1].uppercased() == "YES"
     }
 
     private static func merging(_ identifiers: [String], _ passthrough: [String]) -> [String] {

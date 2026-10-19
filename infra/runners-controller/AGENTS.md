@@ -204,9 +204,9 @@ independent workqueues:
 
     On darwin the unit is guest slots: a 12 vCPU Pod needs both of an
     M4-XL's. On linux it is memory: a 64 GiB shape costs 66.5 GiB (the
-    shape plus the kata RuntimeClass's 2.5 GiB podFixed), a third of an
-    AX162-R and over half of the OVH RISE-L the fleet is moving to, so
-    it needs a contiguous block that 8 and 16 GiB Pods keep carving up.
+    shape plus the kata RuntimeClass's 2.5 GiB podFixed), over half of
+    a production RISE-L, so it needs a contiguous block that 8 and
+    16 GiB Pods keep carving up.
     The linux drain is progressive rather than all-or-nothing — the
     taint stops new Pods landing, running jobs finish and free their
     memory, and the starved Pod is placed the moment its shape fits
@@ -678,13 +678,11 @@ independent workqueues:
   fires on either state, so it says something is wrong without saying
   which lever to pull.
 
-  Pod-level autoscaling only — bare-metal Host count is operator-
-  managed via the CAPI cluster topology, since Hetzner Robot hosts
-  are monthly-billed and can't be auto-ordered. To grow capacity,
-  the operator orders another `tuist-bm-<env>-*` host in the Robot
-  panel and bumps the cluster topology's `runners-linux` MD
-  replicas; the `hetzner-robot-controller` reflects the new server
-  into a `HetznerBareMetalHost` CR automatically.
+  Pod-level autoscaling only. The bare-metal box count is operator-
+  managed, since the boxes are pre-ordered monthly contracts that
+  nothing here orders. To grow capacity, the operator orders and
+  preps another box and raises `ovhFleets.runners-linux.replicas`
+  (see "Bringing up a new box" below).
 
 ## Machine-metrics sampling (in-VM, not in the controller)
 
@@ -703,281 +701,197 @@ with the runner's own per-pod SA token (audience
 customer container, so the sampler runs as a dedicated native sidecar
 that mounts the token and shares the pod's cgroup/network namespace.
 
-## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
+## Linux runner substrate: OVH bare-metal boxes (kata-qemu)
 
-Linux runner Pods run as Firecracker microVMs (via Kata Containers)
-on Hetzner Robot dedicated servers (AX42-U class for staging,
-AX162-R for production). Two cooperating mgmt-cluster components
-drive adoption end-to-end:
+Linux runner Pods run as QEMU microVMs through Kata Containers on
+pre-ordered OVH bare-metal boxes in Gravelines (`gra`): RISE-L (Ryzen 9
+9950X, 16c/32t, 128 GB) in production, RISE-S (Ryzen 7 9700X, 8c/16t,
+64 GB) in staging and canary. Each env declares the fleet as
+`ovhFleets.runners-linux` in `infra/helm/tuist/values-managed-<env>.yaml`,
+whose `replicas` is the box count. The chart
+(`infra/helm/tuist/templates/ovh-fleets.yaml`) renders it as an
+`OVHDedicatedMachineTemplate` plus a `strategy: OnDelete` MachineDeployment
+named `tuist-tuist-ovh-fleet-runners-linux`, and
+[cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)
+adopts and self-joins the boxes.
 
-* **caph** (upstream CAPI provider) claims `HetznerBareMetalHost`
-  CRs, drives Robot rescue, runs `installimage`, and waits for
-  kubeadm-join.
-* **`hetzner-robot-controller`** (Tuist-built, see
-  [infra/hetzner-robot-controller/](../hetzner-robot-controller/AGENTS.md))
-  fills the gap caph leaves: reflects Robot's server inventory
-  into `HetznerBareMetalHost` CRs (so caph has something to claim)
-  and auto-fills disk WWNs once caph populates `hardwareDetails`.
-
-Operator workflow becomes Scaleway-shaped:
+The RuntimeClass is `kata-qemu`
+(`infra/helm/tuist/templates/kata-qemu.yaml`, rendered when
+`kataContainers.enabled`). Kata runs QEMU rather than Firecracker because
+Firecracker has no virtio-fs or 9pfs: `kata-fc` would need a block-device
+snapshotter (nydus) to hand the container rootfs to the guest, while
+`kata-qemu` shares containerd's default overlayfs snapshot over virtio-fs.
 
 ```
-operator orders AX42-U via Robot panel, sets name `tuist-bm-<env>-<n>`
+operator pre-orders a RISE box in gra (OVH console, OVHcloud US entity)
         │
         ▼
-hetzner-robot-controller polls Robot, sees the new server, creates
-a HetznerBareMetalHost CR labeled
-`app.kubernetes.io/managed-by=hetzner-robot-controller`
+`mise run baremetal:prep-ovh` installs Ubuntu 24.04 (mirrored root +
+XFS /data) with the fleet SSH key, then sets the box's displayName to
+`tuist-runners-ovh-<env>…` as its last step
         │
         ▼
-HetznerBareMetalMachineTemplate's `hostSelector` matches that
-label; caph claims the new CR
-        │
-        │ (caph reads Robot credentials from `org-tuist/hetzner`
-        │  Secret, contacts Robot API to reboot into rescue mode)
-        ▼
-Box boots Hetzner rescue; caph SSHes in via `hetzner-bare-metal-ssh-key`,
-reads hardware details, writes them to `spec.status.hardwareDetails`
+operator raises `ovhFleets.runners-linux.replicas` and deploys; the
+MachineDeployment creates an OVHDedicatedMachine
         │
         ▼
-hetzner-robot-controller watches the CR, sees populated
-hardwareDetails + empty rootDeviceHints, patches RAID 1 WWNs from
-the first two disks into `spec.rootDeviceHints.raid.wwn`
+cluster-api-provider-tuist claims the named box and runs the Linux
+self-join over SSH as `ubuntu`: containerd, kubelet, `kubeadm join`.
+`machine.kataRuntime: true` adds kata-static 3.30.0 under /opt/kata
+(bundles qemu-system-x86_64), the kata-qemu handler in
+/etc/containerd/config.toml (`SystemdCgroup = true`), and a /dev/shm
+ceiling of MemTotal for virtio-fs guest memory
         │
         ▼
-caph runs `installimage` (Ubuntu 24.04 LTS on RAID 1 across both NVMes)
+Node registers with `node.cluster.x-k8s.io/pool=runners-linux`,
+`katacontainers.io/kata-runtime=true`, `tuist.dev/kata-runtime=true`,
+and taint `tuist.dev/runner-tier=bare-metal:NoSchedule`
         │
         ▼
-Box reboots into the installed OS; cloud-init runs the bare-metal
-worker `KubeadmConfigTemplate` (containerd + kubeadm + `kubeadm join`)
-        │
-        ▼
-Node registers in workload cluster, labeled
-`node.cluster.x-k8s.io/pool=runners-linux` and
-`tuist.dev/kata-runtime=true`
-        │
-        │ (kata-deploy DaemonSet sees the kata-runtime label, installs
-        │  Kata Containers + Firecracker binaries, configures
-        │  containerd, restarts containerd)
-        ▼
-Node ready to schedule runner Pods (which carry
-`runtimeClassName: kata-fc`, so each Pod becomes a microVM)
+runner Pods schedule: the pool's `spec.runtimeClass: kata-qemu` becomes
+`runtimeClassName: kata-qemu`, the RuntimeClass selects on
+`katacontainers.io/kata-runtime=true` and charges its `podFixed`
+overhead (250m CPU, 2560 MiB) per Pod, and each Pod boots its own
+guest kernel
 ```
 
-No hand-authored `HetznerBareMetalHost` CR, no manual WWN copy.
+The runtime is in place before kubelet first registers the Node, so there
+is no runtime DaemonSet and no containerd restart after the join. A node
+without `katacontainers.io/kata-runtime=true` never matches the
+RuntimeClass, so runner Pods stay Pending rather than fall back to runc.
+
+Kata is a bootstrap-time capability: the self-join renders it once, and
+`OnDelete` means a values or provider change never rolls a live box. The
+provider's Ready-path repair (`reconcileLinuxKataRuntimeDrift`) installs
+kata in place on a box that joined without the label and re-verifies the
+shared-memory setup after each boot, reporting both through the
+`KataRuntimeReady` condition. It does not rewrite an existing kata-qemu
+handler block (the append is skipped when one is present), so a change to
+the handler config reaches only boxes bootstrapped after it. See
+"Bootstrap-time capabilities, and the once-at-bootstrap trap" and "A
+Linux runner box is Ready but takes no jobs" in the provider's AGENTS.md.
+The kata release is `kataVersion` in
+`infra/cluster-api-provider-tuist/controllers/linux/linux_cloudinit.go`.
+
+Hetzner Robot bare metal (caph plus
+[hetzner-robot-controller](../hetzner-robot-controller/AGENTS.md)) backs
+no runner pool. The `bare-metal-worker` class in
+`infra/k8s/clusters/clusterclass-tuist.yaml` and its templates in
+`infra/k8s/clusters/bare-metal.yaml` still exist, but no workload cluster
+topology uses that class; Robot hosts back only the `stateful-worker`
+ClickHouse pool (`md-clickhouse`). Their mgmt-cluster Secrets and
+emergency SSH access are in the hetzner-robot-controller AGENTS.md.
 
 ### Fleet credentials
 
-Robot user/pass and the shared SSH key are fleet-level — one
-Hetzner Robot account spans every AX-class host across staging /
-canary / production — so both 1P items live in the mgmt
-cluster's own vault (`tuist-k8s-mgmt`).
+Per env, in the `tuist-k8s-<env>` 1Password vault
+(`tuist.1password.com`), one item per title:
 
-The mgmt cluster doesn't yet have external-secrets-operator
-installed (that's part of the workload-side platform chart), so
-the operator creates the two Secrets manually once per mgmt
-cluster bring-up:
+- `OVH_API` (`application-key`, `application-secret`, `consumer-key`): the
+  OVH API token, minted on OVHcloud US (`endpoint: ovh-us`), which every
+  OVH fleet in an env shares.
+- `OVH_FLEET_SSH` (`private-key`, `public-key`, `sudo-password`): the
+  fleet key. ESO syncs it to the fleet's `<fleet>-ssh` Secret
+  (`sshExternalSecret.enabled: true`); the prep task reads it from
+  1Password directly.
 
-```bash
-# Robot webservice credentials — caph drives the Robot API with these
-op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/username" > /tmp/robot-user
-op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-robot-credentials \
-  --from-file=hetznerRobotUser=/tmp/robot-user \
-  --from-file=hetznerRobotPassword=/tmp/robot-pass
-# caph reads Robot keys from the SAME Secret as the hcloud token
-# (the one named in HetznerClusterTemplate.hetznerSecretRef, today
-# `hetzner`). Merge the keys in:
-ROBOT_USER_B64=$(base64 -w0 < /tmp/robot-user)
-ROBOT_PASS_B64=$(base64 -w0 < /tmp/robot-pass)
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist patch secret hetzner \
-  --type=merge -p "{\"data\":{\"hetznerRobotUser\":\"${ROBOT_USER_B64}\",\"hetznerRobotPassword\":\"${ROBOT_PASS_B64}\"}}"
-shred -u /tmp/robot-user /tmp/robot-pass
+The token's required scopes and a pre-filled minting link are in "Bring
+a pre-ordered bare-metal box into the pool (OVH)" in the provider's
+AGENTS.md.
 
-# SSH key — caph SSHes into rescue mode with this
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-bare-metal-ssh-key \
-  --from-file=sshkey-name=/tmp/sshname \
-  --from-file=ssh-publickey=/tmp/sshpub \
-  --from-file=ssh-privatekey=/tmp/sshpriv
-shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
-```
+### Bringing up a new box (operator workflow)
 
-Once ESO lands on the mgmt cluster, both Secrets can move to
-`ExternalSecret` resources in `bare-metal-staging.yaml` and this
-manual step goes away.
+1. **Pre-order the box** in the OVH console: RISE-L for production,
+   RISE-S for staging and canary, in a `gra*` datacenter. The EU plan
+   codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable on OVHcloud
+   US. Stock per plan and datacenter needs no token:
+   `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.
 
-### Bringing up a new bare-metal host (operator workflow)
+2. **Prep it.** Installs Ubuntu with the fleet key and sudo password
+   (async, ~20-40 min), then names the box into the pool:
 
-1. **Order an AX-class server from [robot.hetzner.com](https://robot.hetzner.com)**.
-   FSN1 for staging (matches the Cloud cluster region). Paste the
-   shared SSH public key from `tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY`
-   into the order form. **Important**: set the server **Name** in
-   the Robot panel to `tuist-bm-<env>-<n>` (e.g.
-   `tuist-bm-staging-3`) — that's what `hetzner-robot-controller`
-   matches on. Wait for the fulfillment email.
+   ```bash
+   PREP_NAMESPACE=tuist-<env> mise run baremetal:prep-ovh <service-name> tuist-tuist-ovh-fleet-runners-linux
+   ```
 
-2. **Bump `runnersFleetLinux.pools[].autoscaling.maxReplicas`** (and
-   `minWarmPoolFloor` if you want it always-hot) in
-   `values-managed-staging.yaml` to match the new total host count
-   × per-host microVM density. The runners-controller autoscaler on
-   the workload cluster patches the `runners-linux` MD's replicas
-   on the mgmt cluster to match. Push.
+   `PREP_SKIP_MARK=1` stages the box without naming it;
+   `baremetal:mark-ovh` names it later.
 
-That's it. From the operator's point of view the only manual gate
-is the Robot order itself; everything from "controller spots the
-new server" through "Node is Ready with kata-deploy installed"
-runs unattended.
+3. **Raise `ovhFleets.runners-linux.replicas`** in
+   `values-managed-<env>.yaml` to the new box count and deploy. It must
+   equal the number of prepped and named boxes: too high parks the
+   MachineDeployment short of its replicas and wedges `helm --wait` into
+   an `--atomic` rollback; too low leaves a named box billing with nothing
+   adopting it. The provider claims the box and self-joins it in ~2-5 min.
 
-To **watch** progress on the mgmt cluster while it happens:
+Pod capacity follows on its own: the autoscaler derives what each shape
+can seat from live node allocatable (`shapePlacementCaps`).
+`runnersFleetLinux.shapeAutoscaling.maxReplicas` is a per-pool safety
+ceiling, not a capacity bound; raise it only if the ceiling itself binds.
+
+To **watch** progress (`<namespace>` is `tuist` in production,
+`tuist-<env>` elsewhere):
 
 ```bash
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist \
-  get hetznerbaremetalhost -w
+kubectl -n <namespace> get ovhdedicatedmachine -w
+kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux \
+  -L katacontainers.io/kata-runtime
 ```
 
-Status goes through `(empty)` → `preparing` → `registering` →
-`image-installing` → `ensure-provisioned` → `provisioned` →
-`kubeadm-joined`. ~8-15 min total for an AX42-U.
+A Node is ready for runner Pods once it carries
+`katacontainers.io/kata-runtime=true` and its OVHDedicatedMachine reports
+`KataRuntimeReady=True`.
 
-To **verify the Node** registered in the workload cluster:
+### cgroup leak on kata nodes
 
-```bash
-kubectl --kubeconfig "$STAGING_KUBECONFIG" get nodes \
-  -l node.cluster.x-k8s.io/pool=runners-linux
-```
-
-The kata-deploy DaemonSet auto-installs (it watches for
-`tuist.dev/kata-runtime=true`). Wait for it to mark the node
-`katacontainers.io/kata-runtime=true` before runner Pods will
-schedule:
-
-```bash
-kubectl --kubeconfig "$STAGING_KUBECONFIG" -n tuist-staging \
-  get pods -l app.kubernetes.io/name=kata-deploy
-```
-
-### cgroup leak on kata nodes (fixed for new hosts; existing hosts need action)
-
-Until 2026-08-13 the `kata-qemu` containerd handler ran with
-`SystemdCgroup = false` while kubelet ran `cgroupDriver: systemd`. The
-`sed` in `bare-metal.yaml` that flips the runc handler to `true` only
-rewrites what `containerd config default` emitted, and the kata block is
-appended after it, so kata silently kept the default.
-
-Under that mismatch the kata shim writes the systemd slice name kubelet
-hands it as a literal directory at the cgroup root
+kubelet runs `cgroupDriver: systemd`, so the kata-qemu handler must set
+`SystemdCgroup = true` in its own options block. Without it the kata shim
+writes the systemd slice name kubelet hands it as a literal directory at
+the cgroup root
 (`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
 instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
-never knew about them, the shim does not remove them, and they accumulate
-one per container start forever. Exhaustion makes every later cgroup
-`mkdir` return ENOSPC — the node keeps reporting `Ready` while failing
-every new Pod sandbox. Measured at ~65k leaked root cgroups (~130k total
-descendants) on both 85-day nodes versus 70 on a freshly rebooted one,
-growing ~2/min under load.
+never knew about them and the shim does not remove them, so they
+accumulate one per container start. At exhaustion every cgroup `mkdir`
+returns ENOSPC, and the node keeps reporting `Ready` while failing every
+new Pod sandbox. A busy node reached ~65k of them, against ~70 on a
+freshly booted one. The self-join (`kataSetup`) sets it on the handler
+block it appends.
 
-`bare-metal.yaml` now sets `SystemdCgroup = true` on the kata handler,
-so **newly provisioned hosts are clean**. Existing hosts are a different
-story, and the reason is worth stating precisely, because "the manifest
-is applied automatically" is true and still does not help.
+**There is a second population of the same size:**
+`/sys/fs/cgroup/kata_overhead/*`, one per sandbox, named by container ID.
+Same shape (flat empty leaves), same one-per-container-start growth,
+never reclaimed. Whether `SystemdCgroup = true` also stops it is **not
+established**: the overhead cgroups are created by the shim either way.
+Sweeping only the root population leaves the node at half its leak and
+reads as a stuck reclaim.
 
-`mgmt-cluster-apply.yml` applies `bare-metal*.yaml` on every push that
-touches `infra/k8s/clusters/**`, falling back to delete + apply because
-`HetznerBareMetalMachineTemplate.spec` is immutable, and then asserts no
-drift. So the template in the cluster does match Git. But the template
-is a blueprint consumed at Machine creation: `postInstallScript` runs
-once, inside Hetzner `installimage`, and is not a reconciliation loop
-over a live host's filesystem. CAPI propagates a template change by
-*replacing* Machines, not by mutating them.
-
-That replacement is currently wedged, and has been since 2026-06-17.
-`tuist-runners-linux-pvv5b` reports `UP-TO-DATE: 1` of 2 ready Machines
-and sits in `ScalingDown` with a third Machine stuck `Provisioning`,
-whose condition reads `no available host (all hosts are in use - found
-4 hosts)`. The MachineDeployment has no explicit `spec.strategy`, so it
-takes the CAPI default of `maxSurge: 1, maxUnavailable: 0` — create the
-replacement first, then delete the old Machine. On a bare-metal pool
-where every `HetznerBareMetalHost` is already claimed there is no host
-to surge onto, so the roll can never start.
-
-The consequence: a `bare-metal.yaml` change does not reach existing
-hosts, not because drift goes unnoticed but because the rollout that
-would deliver it cannot make progress. Options are to give the pool a
-spare host, or to set `maxSurge: 0` + `maxUnavailable: 1` so a Machine
-is deleted first and its freed host reprovisioned. The second costs one
-node of capacity per roll, which on a two-node fleet is the same
-exposure as the manual path below.
-
-Check a host without SSH — the count should be in the hundreds, not
+Check a host without SSH. The count should be in the hundreds, not
 thousands:
 
 ```bash
 kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep node_cgroups_cgroups
 ```
 
-Remediation splits into two independent halves: **stop the leak**
-(config) and **reclaim what already leaked** (sweep). Only the first
-needs a containerd restart.
+`node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
+"Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`. The
+alert counts cgroups, not directory names, so it covers both populations.
 
-**Stop the leak.** Edit `/etc/containerd/config.toml` to add
-`SystemdCgroup = true` under
-`[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]`,
-then restart containerd. Cordon and drain first: restarting containerd
-bounces every sandbox on the box, including Cilium. Do one host at a
-time — the Linux fleet is two nodes and a single node saturates at ~99%
-memory, so taking both out at once is a full outage rather than degraded
-capacity.
-
-**Reclaim the leaked cgroups — in place, no reboot.** The leaked
+**Reclaim the leaked cgroups in place, no reboot, no drain.** The leaked
 directories are flat leaves: no child cgroups, no processes, owned by
 nothing. `rmdir` removes them and the kernel reclaims the underlying
-cgroup objects roughly 1:1, asynchronously (`/proc/cgroups` trails the
-directory count by a few seconds, so re-read it after a pause rather
-than concluding the removal did nothing).
-
-**There are two leaked populations, not one, and they are the same
-size.** Sweeping only the first leaves the node at half its leak and
-looks like the reclaim failed:
-
-- `/sys/fs/cgroup/*:cri-containerd:*` — the literal slice names at the
-  cgroup root, described above.
-- `/sys/fs/cgroup/kata_overhead/*` — one per sandbox, named by
-  container ID. Same shape (flat empty leaves), same one-per-container
-  -start growth, never reclaimed.
-
-On the wedged production host these were 65478 and 65486 respectively.
-Sweeping only the root population dropped `/proc/cgroups` memory from
-131134 to 65710 and no further, which reads as a stuck reclaim; it was
-`kata_overhead` still holding the other half. Sweeping both took it to
-250.
-
-Whether `SystemdCgroup = true` also stops the `kata_overhead` leak is
-**not established**. The root-level leak is explained by the cgroup
-driver mismatch; the overhead cgroups are created by the shim either
-way, and only a host running the fixed config can settle it. Check
-`kata_overhead` growth specifically on the first newly provisioned
-host. The alert covers this either way — it counts cgroups, not
-directory names, which is why it was set against normal (hundreds)
-rather than against a known pattern.
-
-The sweep is safe by construction and needs no drain. For the root
-population the path is itself the guard: a correctly-nested cgroup
-lives under `kubepods.slice`, so anything matching
-`*:cri-containerd:*` at the cgroup *root* is by definition leaked.
-Under `kata_overhead` every child is a candidate. In both cases
-skipping a non-empty `cgroup.procs` leaves live sandboxes untouched —
-measured as `kept_busy` equal to the number of running containers — and
-an in-use cgroup would fail `EBUSY` anyway.
+cgroup objects roughly 1:1, asynchronously. The sweep is safe by
+construction. For the root population the path is the guard: a
+correctly nested cgroup lives under `kubepods.slice`, so anything
+matching `*:cri-containerd:*` at the cgroup *root* is leaked. Under
+`kata_overhead` every child is a candidate. In both cases skipping a
+non-empty `cgroup.procs` leaves live sandboxes untouched, and an in-use
+cgroup would fail `EBUSY` anyway.
 
 **Verify with the directory count, not `/proc/cgroups`.** Directory
-counts drop immediately and deterministically. `/proc/cgroups` lags by
-tens of seconds and keeps counting cgroups whose directory is gone but
-whose charges are not yet reclaimed, so a clean host can read 1500
-there while holding 65 directories.
+counts drop immediately. `/proc/cgroups` lags by tens of seconds and
+keeps counting cgroups whose directory is gone but whose charges are not
+yet reclaimed, so a clean host can read 1500 there while holding 65
+directories.
 
 For a node that can still start Pods, no SSH is needed:
 
@@ -994,10 +908,9 @@ kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- \
          done'
 ```
 
-**A fully wedged node cannot be swept this way**, and this is the
-important limitation. Creating the debug Pod is itself a Pod creation,
-so it fails with the same error the node is failing everything else
-with:
+**A fully wedged node cannot be swept this way.** Creating the debug Pod
+is itself a Pod creation, so it fails with the same error the node is
+failing everything else with:
 
 ```
 FailedCreatePodContainer: unable to ensure pod container exists: failed to
@@ -1010,42 +923,24 @@ The Pod sits `Pending` indefinitely. On such a host go in over SSH
 ("Emergency SSH access" below) and run the sweep directly. Prefer
 `python3` over a shell loop there: at 65k entries a `kubepods-*` glob
 exceeds `ARG_MAX`, so `ls -d <glob> | wc -l` reports **0** rather than
-failing loudly, and a shell loop forks `rmdir` once per directory.
-Count with `ls | grep -c ':cri-containerd:'` instead.
+failing loudly, and a shell loop forks `rmdir` once per directory. Count
+with `ls | grep -c ':cri-containerd:'` instead. A swept node keeps
+running its Pods and takes new ones within a minute; no reboot is needed.
 
-Measured on both production hosts and staging/canary (2026-08-13):
+### Replacing a runner box without killing CI jobs
 
-| host | state | root leaked | `kata_overhead` | memcg before → after |
-| --- | --- | --- | --- | --- |
-| prod `vl8jt` | wedged, ENOSPC | 65478 | 65489 | 131134 → 250 |
-| prod `bkzxh` | rebooted 08-13, re-leaking | 14 | 322 | 621 → 287 |
-| staging | 85-day | 3359 | 3359 | 8338 → 1552 |
-| canary | 85-day | 2855 | 2855 | 7208 → 1509 |
+Replacing a box means deleting its Machine: the fleet MachineDeployment
+is `strategy: OnDelete`, so nothing else rolls one. Cluster API drains
+the node first, then the provider releases the box, which reinstalls it
+and returns it to the pool for the replacement Machine to adopt. The
+fleet runs one box short for the drain, the ~20-40 min reinstall and the
+self-join. `nodeDrainTimeout` is unset on the fleet MachineDeployments,
+so the drain has no deadline.
 
-Zero failures anywhere. Every node stayed `Ready` with no pressure
-condition and its running Pods were unaffected. The wedged host went
-from every Pod `Pending` to 16 `Running` within a minute of the sweep,
-without a reboot.
-
-So the Hetzner Robot hardware reset is avoidable even on a wedged
-host — but only over SSH. The reboot only ever mattered as a blunt way
-to clear the cgroup tree, and the sweep does that while the node keeps
-serving.
-
-`node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
-"Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.
-
-### Replacing a node without killing CI jobs
-
-Every Machine replacement — a template roll, a MachineHealthCheck
-remediation, a scale-down — drains the node first, and Cluster API's
-default drain *evicts* Pods. On a runner node that means killing
+Cluster API's default drain *evicts* Pods. On a runner node that kills
 customer CI jobs mid-flight, which surfaces as "lost communication".
-There is no PodDisruptionBudget in `tuist-runners`, so nothing held
-that back.
-
-Two pieces make a replacement safe, and neither works without the
-other:
+There is no PodDisruptionBudget in `tuist-runners`. Two pieces turn the
+drain into a wait, and neither works without the other:
 
 1. **`MachineDrainRule`** (`infra/k8s/clusters/machinedrainrules.yaml`)
    sets `behavior: WaitCompleted` for Pods labeled
@@ -1063,53 +958,44 @@ other:
 
 The reap reads `isIdle`, **not** the `tuist.dev/runner-pool-owner`
 label. This is also why a PodDisruptionBudget cannot do this job: a PDB
-selects on labels, and that label is best-effort — the server degrades
+selects on labels, and that label is best-effort. The server degrades
 to running a job without it rather than dropping the job when the
 apiserver patch fails. `isIdle` additionally treats a terminated
 `poller` init container as proof of a claim, so a Pod running a job
 survives even when the label never landed.
 
-Consequences worth knowing before triggering a roll:
+**The drain rule does not reach the OVH runner Machines.** A
+`MachineDrainRule` applies to Machines in its own namespace.
+`mgmt-cluster-apply.yml` applies `machinedrainrules.yaml` to `org-tuist`
+on the mgmt cluster, while the tuist chart renders the OVH fleet Machines
+into the workload cluster's release namespace, and nothing renders a
+`MachineDrainRule` there. Until one does, cordon the node and wait for
+its in-flight jobs to finish (the idle reap clears the warm Pods once the
+node is cordoned) before deleting the Machine:
 
-- A drain takes as long as the node's longest in-flight job — up to six
-  hours for a Linux job. `nodeDrainTimeoutSeconds: 0` on the
-  `bare-metal-worker` class leaves that unbounded on purpose: any finite
-  value is a promise to kill a job once exceeded.
-- **Budget a day for a full roll, not a quarter hour.** With
-  `maxSurge: 0` / `maxUnavailable: 1` the pool runs one node short for
-  the whole replacement, and that is dominated by the drain rather than
-  by the ~8-15 min `installimage` cycle. Two hosts replaced
-  sequentially is roughly 13 hours of halved capacity. On the
-  single-host staging and canary pools it is a full outage of Linux
-  runners for the same window.
-- That trade is deliberate: the Linux pools carry internal workflows
-  only. A spare host is the alternative — it restores `maxSurge: 1` and
-  removes the dip entirely, because the replacement builds while the
-  old node drains — and is what to revisit if customer workloads ever
-  land on Linux.
-- The stall risk is covered by alerting, not by a cap: "Worker node
-  pool stuck mid-rollout" in `infra/helm/k8s-monitoring/alerts.md`
-  fires on `upToDateReplicas < spec.replicas` after 24 hours, which is
-  set to clear that worst-case healthy roll rather than to catch a
-  wedge quickly.
+```bash
+kubectl cordon <node>
+kubectl -n <namespace> delete machine <machine-name>
+```
+
+A drain takes as long as the node's longest in-flight job, up to six
+hours for a Linux job.
 
 ### Emergency SSH access
 
-If a bare-metal host misbehaves and caph isn't responding, the
-operator can SSH in directly using the shared key from
-`tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY`:
+Every box carries the fleet key from `OVH_FLEET_SSH`, and the `ubuntu`
+login has passwordless sudo after the self-join:
 
 ```bash
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key" \
-  --account=tuist.1password.com > /tmp/hbm
-chmod 600 /tmp/hbm
-ssh -i /tmp/hbm root@<host-ip>
-# remember to: shred -u /tmp/hbm afterwards
+op read "op://tuist-k8s-<env>/OVH_FLEET_SSH/private-key" \
+  --account=tuist.1password.com > /tmp/ovh-fleet
+chmod 600 /tmp/ovh-fleet
+ssh -i /tmp/ovh-fleet ubuntu@<box-ip>
+# remember to: shred -u /tmp/ovh-fleet afterwards
 ```
 
-The key remains valid through reinstalls because caph configures it
-into `/root/.ssh/authorized_keys` as part of the cloud-init
-bootstrap.
+Release reinstalls the box with the same key, so it stays valid across
+re-adoption; the host key rotates.
 
 ## Token isolation (credential split, Linux pools)
 

@@ -144,119 +144,15 @@
     flex-direction: row;
     justify-content: center;
     align-items: stretch;
-    /* 2px seams matching the hero canvas; same inset on mobile. */
-    gap: var(--noora-spacing-1);
+    /* 2px inset matching the hero; same inset on mobile. */
     margin: 0 var(--noora-spacing-1);
     height: 88px;
 
     @media (min-width: 1024px) {
       margin: 0;
       width: 100%;
-      /* Match the hero stage: its 1497px composition is centered and
-         framed by empty margins on wider viewports (pages.css would
-         otherwise cap sections at 1296px). The canvas panels are drawn
-         with a 2px inset from the stage edges, so the strip's visible
-         bounds match 1497px minus that inset on each side. */
-      max-width: calc(1497px - 2 * var(--noora-spacing-1));
-      /* Like the hero stage, the fixed-width logos box is cropped
-         symmetrically on viewports narrower than it. */
-      overflow-x: clip;
-    }
-
-    /* Blueprint-style empty boxes filling the leftover space beside the
-       logos so the strip reads as part of the hero canvas. Mirrored on the
-       right; three more boxes cascade below the strip with fading opacity,
-       hanging out of it without affecting layout. */
-    & > [data-part="side-panel"] {
-      display: none;
-
-      @media (min-width: 1024px) {
-        display: flex;
-        position: relative;
-        flex: 1 1 0;
-        gap: var(--noora-spacing-1);
-        min-width: 0;
-
-        & > [data-part="box"] {
-          border: 1px solid var(--marketing-stroke-default);
-
-          &:first-child {
-            flex: 1 1 0;
-          }
-
-          &:nth-child(2) {
-            flex: 2 1 0;
-            opacity: 0.8;
-          }
-        }
-
-        & > [data-part="grid-block"] {
-          position: absolute;
-          left: 0;
-          /* border-box, or the 1px borders widen each box and swallow the
-             2px seam between the row's two boxes. */
-          box-sizing: border-box;
-          border: 1px solid var(--marketing-stroke-default);
-          height: 88px;
-
-          &:nth-child(3) {
-            top: calc(100% + var(--noora-spacing-1));
-            opacity: 0.6;
-            width: 75%;
-          }
-
-          &:nth-child(4) {
-            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            opacity: 0.4;
-            width: 55%;
-          }
-
-          &:nth-child(5) {
-            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            opacity: 0.2;
-            width: 35%;
-          }
-
-          /* Inner partners completing each cascade row up to the logos-side
-             edge, across the 2px seam. */
-          &[data-fill] {
-            right: 0;
-            left: auto;
-          }
-
-          &[data-fill]:nth-child(6) {
-            top: calc(100% + var(--noora-spacing-1));
-            opacity: 0.6;
-            width: calc(25% - var(--noora-spacing-1));
-          }
-
-          &[data-fill]:nth-child(7) {
-            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            opacity: 0.4;
-            width: calc(45% - var(--noora-spacing-1));
-          }
-
-          &[data-fill]:nth-child(8) {
-            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            opacity: 0.2;
-            width: calc(65% - var(--noora-spacing-1));
-          }
-        }
-      }
-
-      &:last-of-type {
-        flex-direction: row-reverse;
-
-        & > [data-part="grid-block"] {
-          right: 0;
-          left: auto;
-
-          &[data-fill] {
-            right: auto;
-            left: 0;
-          }
-        }
-      }
+      /* Same frame as the hero above it. */
+      max-width: var(--marketing-page-width);
     }
 
     & > [data-part="logos"] {
@@ -274,8 +170,6 @@
 
       @media (min-width: 1024px) {
         position: relative;
-        flex: none;
-        width: 1200px;
         overflow: visible;
       }
 
@@ -1235,77 +1129,6 @@
             color: var(--noora-surface-label-secondary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-large);
             font-family: var(--noora-font-body);
-          }
-        }
-      }
-    }
-
-    & > [data-part="quote-feature"] {
-      display: flex;
-      position: relative;
-      flex-direction: column;
-      box-sizing: border-box;
-      border-top: 1px solid var(--marketing-stroke-default);
-      border-bottom: 1px solid var(--marketing-stroke-default);
-
-      & > [data-part="text"] {
-        display: flex;
-        position: relative;
-        flex-direction: column;
-        align-items: flex-start;
-        /* 24px between the quote and the author. */
-        gap: var(--noora-spacing-8);
-        box-sizing: border-box;
-        /* 32px top/bottom, 8px sides. */
-        padding: var(--noora-spacing-9) var(--noora-spacing-4);
-        width: 100%;
-
-        & > [data-part="quote"] {
-          /* align-items: flex-start sizes children to content width, so the
-             quote wouldn't wrap to the column and would overflow on the
-             right. Stretch it to fill the column so it wraps. */
-          align-self: stretch;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
-
-          & > strong {
-            font-weight: var(--noora-font-weight-medium);
-          }
-        }
-
-        & > [data-part="author"] {
-          display: flex;
-          align-items: center;
-          align-self: flex-start;
-          gap: var(--noora-spacing-4);
-
-          @media (min-width: 1024px) {
-            align-self: flex-end;
-          }
-
-          & > [data-part="logo"] {
-            flex-shrink: 0;
-            width: 90px;
-            height: 24px;
-            /* Paths use fill="currentColor" so they pick up this token. */
-            color: var(--noora-surface-label-primary);
-          }
-
-          & > [data-part="identity"] {
-            display: flex;
-            flex-direction: column;
-            border-left: 1px solid var(--marketing-stroke-default);
-            padding-left: var(--noora-spacing-4);
-
-            & > [data-part="name"] {
-              color: var(--noora-surface-label-primary);
-              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-            }
-
-            & > [data-part="role"] {
-              color: var(--noora-surface-label-secondary);
-              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-            }
           }
         }
       }
@@ -2739,17 +2562,28 @@
     }
   }
 
-  & > [data-part="testimonials"] > [data-part="customers"] {
+  /* Customer stories, directly below the company logos strip. */
+  & > [data-part="customers"] {
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    /* Same shell as the testimonials and transparency boxes. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
 
     /* Same padded header cell and text ramp as the testimonials header —
-       48px bottom inset to the flush stories row below. */
+       32px bottom inset to the carousel buttons below. */
     & > [data-part="text"] {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-11);
+      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-9);
 
       & > [data-part="eyebrow"] {
         color: var(--noora-surface-label-secondary);
@@ -2774,131 +2608,216 @@
       }
     }
 
-    /* Two customer-story cells: stacked on mobile, side by side on desktop
-       with a shared hairline divider. The bottom border closes the cards
-       row off from the testimonials header that follows in the same box. */
-    & > [data-part="stories"] {
-      display: flex;
-      flex-direction: column;
-      border-top: 1px solid var(--marketing-stroke-default);
-      border-bottom: 1px solid var(--marketing-stroke-default);
+    /* Customer stories carousel (CustomersCarousel hook): a row of customer
+       logo tabs above one full-width card. Slides share one grid cell, so
+       the card keeps the tallest slide's height and never jumps; only the
+       active slide is visible. */
+    & > [data-part="carousel"] {
+      /* One cell per story, in a hairline grid like the company logos
+         strip: the 1px gaps show the stroke-coloured background between
+         cells. Logos keep their colours at full strength; the selected cell
+         is underlined like Noora's horizontal tab menu (a 2px line in the
+         primary label colour). The hook draws that line as one indicator
+         that slides between cells; until it has placed it (or without
+         JavaScript) the selected cell carries a static underline instead.
+         Three columns on phones. */
+      & > [data-part="tabs"] {
+        /* Defaults; the template sets --tab-count inline and the hook sets
+           the edge fades from the scroll position. */
+        --tab-count: 6;
+        --fade-start: 0px;
+        --fade-end: 0px;
+        display: grid;
+        position: relative;
+        grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
+        gap: 1px;
+        border-top: 1px solid var(--marketing-stroke-default);
+        background: var(--marketing-stroke-default);
 
-      @media (min-width: 1024px) {
-        flex-direction: row;
+        /* Phones: one row that scrolls sideways, each logo in a cell sized
+           to it. The edges fade out only while there's more in that
+           direction (--fade-start/--fade-end, set by the hook from the
+           scroll position), so the row shows it continues. */
+        @media (max-width: 767px) {
+          grid-template-columns: none;
+          grid-auto-columns: max-content;
+          grid-auto-flow: column;
+          -webkit-mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            black var(--fade-start),
+            black calc(100% - var(--fade-end)),
+            transparent 100%
+          );
+          mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            black var(--fade-start),
+            black calc(100% - var(--fade-end)),
+            transparent 100%
+          );
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          scroll-snap-type: x proximity;
+          scrollbar-width: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
+        }
+
+        & > [data-part="tab"] {
+          display: grid;
+          place-items: center;
+          appearance: none;
+          cursor: pointer;
+          margin: 0;
+          border: 0;
+          background: var(--noora-surface-background-primary);
+          padding: 0 var(--noora-spacing-6);
+          height: 88px;
+          color: var(--noora-surface-label-primary);
+
+          @media (max-width: 767px) {
+            padding: 0 var(--noora-spacing-9);
+            height: 72px;
+            scroll-snap-align: center;
+          }
+
+          & > svg {
+            width: auto;
+            max-width: 100%;
+            height: 24px;
+          }
+
+          &:focus-visible {
+            outline: 2px solid var(--noora-purple-500);
+            outline-offset: -2px;
+          }
+        }
+
+        &:not([data-indicator]) > [data-part="tab"][aria-selected="true"] {
+          box-shadow: inset 0 -2px 0 0 var(--noora-surface-label-primary);
+        }
+
+        /* The sliding underline: placed by the hook from the selected
+           cell's box (--indicator-x/-y/-w, in px within the tab row), so it
+           also follows the two-row phone layout. */
+        & > [data-part="indicator"] {
+          /* Defaults; the hook sets the selected tab's box inline. */
+          --indicator-x: 0px;
+          --indicator-y: 0px;
+          --indicator-w: 0px;
+          display: none;
+          position: absolute;
+          top: 0;
+          left: 0;
+          transform: translate(var(--indicator-x), var(--indicator-y));
+          transition:
+            transform 350ms var(--ease-out-cubic),
+            width 350ms var(--ease-out-cubic);
+          background: var(--noora-surface-label-primary);
+          width: var(--indicator-w);
+          height: 2px;
+          pointer-events: none;
+
+          &[data-instant] {
+            transition: none;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            transition: none;
+          }
+        }
+
+        &[data-indicator] > [data-part="indicator"] {
+          display: block;
+        }
       }
 
-      & > [data-part="story"] {
-        display: flex;
+      & > [data-part="card"] {
+        display: grid;
         position: relative;
-        flex: 1;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        box-sizing: border-box;
-        /* Figma: 300-tall cell with the logo + caption stack anchored
-           23px from the top (centered horizontally), above the dot field
-           along the bottom. */
-        padding-top: 23px;
-        min-height: 300px;
+        border-top: 1px solid var(--marketing-stroke-default);
+        background: var(--noora-surface-background-primary);
+        /* Room for the dot field along the bottom edge (216px, matching
+           HEIGHT in customers-dots-morph.js). */
+        padding: var(--noora-spacing-9) var(--noora-spacing-4) 216px;
         overflow: hidden;
-        /* Neutral ramp for the dither-dot field behind the logo, shared by
-           both cards: the 500/700 neutrals, with the tiers flipped in dark
-           mode so shallow stays the dimmer one. */
-        --marketing-customers-dither-shallow: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700));
-        --marketing-customers-dither-mid: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-500));
-        /* Hover ramp for the graph, per company brand: three solid shades
-           (strong / mid / soft) that the hooks hash across per dot.
-           Translucent brand dots washed out to pink on the light
-           background, so the depth comes from solid darker-to-lighter
-           brand mixes instead of alpha; dark mode ramps the brand toward
-           the black background. */
-        &[data-company="monzo"] {
-          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff4f40 70%, black), #ff4f40);
-          --marketing-customers-dither-hover-mid: light-dark(#ff4f40, color-mix(in oklch, #ff4f40 65%, black));
-          --marketing-customers-dither-hover-soft: light-dark(
-            color-mix(in oklch, #ff4f40 55%, white),
-            color-mix(in oklch, #ff4f40 40%, black)
-          );
-        }
+        color: var(--noora-surface-label-primary);
+        /* The brand shows in the dot field only: the hook reads this ink
+           (the active slide's --slide-color, set inline by the carousel) on
+           every slide change and blends from the previous brand to the next
+           over the morph. Each dot's tone scales it further. */
+        --slide-color: var(--noora-surface-label-primary);
+        --home-customers-dots-ink: var(--slide-color);
 
-        &[data-company="trendyol"] {
-          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff6720 70%, black), #ff6720);
-          --marketing-customers-dither-hover-mid: light-dark(#ff6720, color-mix(in oklch, #ff6720 65%, black));
-          --marketing-customers-dither-hover-soft: light-dark(
-            color-mix(in oklch, #ff6720 55%, white),
-            color-mix(in oklch, #ff6720 40%, black)
-          );
-        }
-
-        /* Whole cell links to the case study, like the feature cards. */
-        & > [data-part="overlay-link"] {
-          display: block;
-          position: absolute;
+        & > [data-part="slide"] {
+          display: flex;
+          position: relative;
+          grid-area: 1 / 1;
+          flex-direction: column;
+          align-items: flex-start;
+          transform: translateY(6px);
+          visibility: hidden;
+          opacity: 0;
           z-index: var(--noora-z-index-2);
-          inset: 0;
-          text-decoration: none;
-        }
+          transition:
+            opacity 300ms var(--ease-out-cubic),
+            transform 300ms var(--ease-out-cubic);
 
-        & > [data-part="overlay-link"]:focus-visible {
-          outline: 3px solid var(--noora-purple-500);
-          /* Inward: the cell's overflow: hidden would clip an outset ring. */
-          outline-offset: -3px;
+          &[data-active="true"] {
+            transform: none;
+            visibility: visible;
+            opacity: 1;
+            transition-delay: 120ms;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            transform: none;
+            transition: none;
+          }
+
+          /* Runs the full card width, inside its 8px side padding. */
+          & > p {
+            margin-top: 0;
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
+          }
+
+          & > .noora-button {
+            margin-top: var(--noora-spacing-9);
+          }
+
+          /* A quote slide (OpenAI) names its author instead of linking. */
+          & > [data-part="author"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-1);
+            margin-top: var(--noora-spacing-9);
+
+            & > [data-part="name"] {
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="role"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            }
+          }
         }
 
         /* Dither-dot field (the Figma export's dots, canvas-animated)
-           anchored to the card's bottom edge and spanning its full width:
-           the hook keeps the 600×180 artwork centered at its natural size
-           (the 2px grain never scales) and fills wider cards by tiling
-           mirrored copies outward, so stacked tablet cards have no empty
-           flanks. */
+           anchored to the card's bottom edge across its full width; the
+           hook keeps the artwork at its natural size and tiles mirrored
+           copies outward. */
         & > [data-part="dots"] {
           position: absolute;
+          right: 0;
           bottom: 0;
           left: 0;
-          /* Explicit width: a canvas is a replaced element, so absolute
-             left/right insets alone won't stretch it — width: auto would
-             resolve to the backing store's intrinsic size instead. */
           width: 100%;
-          height: 180px;
+          height: 216px;
           pointer-events: none;
-        }
-
-        & > [data-part="logo"],
-        & > p {
-          position: relative;
-          z-index: var(--noora-z-index-1);
-        }
-
-        &:first-child {
-          border-bottom: 1px solid var(--marketing-stroke-default);
-
-          @media (min-width: 1024px) {
-            border-right: 1px solid var(--marketing-stroke-default);
-            border-bottom: none;
-          }
-        }
-
-        & > [data-part="logo"] {
-          display: flex;
-
-          & svg {
-            display: block;
-            width: auto;
-            height: 95px;
-          }
-        }
-
-        /* The Trendyol mark is a currentColor SVG: painting it with the
-           primary label color keeps it legible in both themes. */
-        &[data-company="trendyol"] > [data-part="logo"] {
-          color: var(--noora-surface-label-primary);
-        }
-
-        & > p {
-          margin: 0;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
-          text-align: center;
         }
       }
     }
@@ -2919,8 +2838,7 @@
     }
 
     /* Same padded header cell as the transparency box (48px bottom inset
-       to the flush marquee row below); 96px top inset from the customer
-       stories row above. */
+       to the flush marquee row below); 96px top inset. */
     & > [data-part="text"] {
       display: flex;
       flex-direction: column;

@@ -38,6 +38,7 @@ alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
+alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
@@ -91,6 +92,8 @@ config :atlas, Oban,
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
+       {"@reboot", SyncPublicHolidays},
+       {"0 2 * * *", SyncPublicHolidays},
        {"0 3 * * *", ScheduleOverviewSummaries},
        {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
        {"45 3 * * *", RefreshNudgeFeatureFirstSeen},

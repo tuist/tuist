@@ -11,10 +11,11 @@ existing server login page rather than implementing Google sign-in themselves.
   one connection-pooled HTTPS client, rejects redirects, and bounds request time
   and response size. Endpoint origins must match the selected server. Do not
   disable certificate validation or cache token responses as build artifacts.
-- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `ai_accounts`). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
+- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `ai_accounts`, `time_off`). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
   registrations, and sessions are opaque JSON to native storage adapters. Tokens,
   state, and verifiers must not appear in logs, Debug implementations, errors, or
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
+- `time_off.rs` implements only the fixed owner-scoped `/api/me/time-off` list/create/update/cancel routes. It validates calendar dates and request IDs before networking, filters responses through personal request/public-holiday types, and never accepts owner/status/approval parameters or an arbitrary path. The API transport has feature-specific fixed error mappings so holiday errors do not become account-login expiry errors. Keep Rust sources in both production Once targets and test sources in the host test target.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential

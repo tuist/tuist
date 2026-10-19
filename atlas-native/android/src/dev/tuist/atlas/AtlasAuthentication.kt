@@ -89,6 +89,9 @@ class AtlasAuthentication(
 ) {
     private val storage = AtlasSecureStorage(context.applicationContext)
     private val worker = Executors.newSingleThreadExecutor()
+    private val holidayWorker = Executors.newFixedThreadPool(2)
+
+    @Volatile private var sessionIdentity = 0
     private val main = Handler(Looper.getMainLooper())
     private val preferences = context.getSharedPreferences("atlas.settings", Context.MODE_PRIVATE)
     var listener: (() -> Unit)? = null
@@ -99,7 +102,10 @@ class AtlasAuthentication(
 
     fun close() {
         closing = true
-        if (apiRequests == 0) worker.shutdown()
+        if (apiRequests == 0) {
+            worker.shutdown()
+            holidayWorker.shutdown()
+        }
         listener = null
     }
 
@@ -158,6 +164,7 @@ class AtlasAuthentication(
 
     private fun discardSession(removeRegistration: Boolean = false) {
         storage.delete("session")
+        sessionIdentity += 1
         main.post { server = null }
         storage.delete("pending")
         if (removeRegistration) storage.delete("registration")
@@ -194,7 +201,73 @@ class AtlasAuthentication(
                 apiRequests -= 1
                 completion(result)
                 if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
-                if (closing && apiRequests == 0) worker.shutdown()
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                }
+            }
+        }
+    }
+
+    fun timeOff(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        val identity = sessionIdentity
+        if (closing) {
+            completion(Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")))
+            return
+        }
+        apiRequests += 1
+
+        fun finish(result: Result<JSONObject>) {
+            main.post {
+                apiRequests -= 1
+                completion(
+                    if (identity ==
+                        sessionIdentity
+                    ) {
+                        result
+                    } else {
+                        Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again."))
+                    },
+                )
+                if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                }
+            }
+        }
+        worker.execute {
+            try {
+                if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                storage.save("session", restored)
+                // Only refresh/persistence is serialized. Holiday networking must not hold up sign-out.
+                holidayWorker.execute {
+                    val result =
+                        runCatching {
+                            if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                            command(JSONObject(action.toString()).put("operation", "time_off").put("session", restored))
+                        }
+                    finish(
+                        result.fold({ Result.success(it) }, {
+                            Result.failure(if (it is AuthFailure) it else IllegalStateException("Could not update holidays. Try again."))
+                        }),
+                    )
+                }
+            } catch (failure: AuthFailure) {
+                if (failure.kind == "rejected") {
+                    try {
+                        discardSession(removeRegistration = true)
+                    } catch (_: Exception) {
+                    }
+                }
+                finish(Result.failure(failure))
+            } catch (_: Exception) {
+                finish(Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again.")))
             }
         }
     }

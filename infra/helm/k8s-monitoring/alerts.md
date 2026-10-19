@@ -3264,13 +3264,9 @@ release is up. This alert is the readiness probe the platform can't
 give us, expressed in the metrics pipeline instead.
 
 ```promql
-(
-  sum by (cluster, env) (up{job="tuist-macos-pod-metrics"}) == 0
-)
-and
-(
-  count by (cluster, env) (up{job="tuist-macos-pod-metrics"}) > 0
-)
+count by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 1)
 ```
 
 - Pending period: 10 minutes
@@ -3278,9 +3274,11 @@ and
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down fleet-wide`
 
-The second clause keeps this distinct from `xcresult processor guest
-telemetry missing` below: it fires only when targets exist and every one
-of them is down, never when the job vanished from discovery.
+The expression counts down targets and drops any cluster with at least
+one target up, so it is positive when firing. That also keeps it
+distinct from `xcresult processor guest telemetry missing` below: with
+no targets at all there is nothing to count, so it never fires when the
+job vanished from discovery.
 
 Fleet-wide rather than per-target because that is what a rollout cannot
 produce. `xcresultProcessor.strategy` sets `maxSurge: 0` and the PDB
@@ -3289,6 +3287,42 @@ at least one target stays up throughout. Every target down at once is
 never a normal state, which is what lets the pending period stay at 10
 minutes despite a single VM cycle legitimately taking up to
 `progressDeadlineSeconds: 1800`.
+
+Production only, because that argument needs two replicas. Canary and
+staging run one, so every deploy takes their only guest down for a full
+VM replacement. Each server release ships a new `xcresult-processor-image`
+digest, so that replacement includes a cold image pull, and
+`tart_kubelet_image_pull_seconds` varies from about 4 to over 11 minutes
+between releases that change nothing in the image but the server
+release. A 683s pull on 2026-10-16 kept canary's guest down for 14
+minutes and fired this rule when it still covered every cluster. Those
+two clusters have their own rule below.
+
+### xcresult processor guest metrics unavailable in canary or staging
+
+```promql
+count by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 1)
+```
+
+- Pending period: 30 minutes
+- Severity: critical
+- Summary: `No xcresult processor is serving metrics in
+  {{ $labels.cluster }}. The queue consumer is down`
+
+The single-replica counterpart of the rule above. 30 minutes matches
+`progressDeadlineSeconds: 1800`: a guest that stays down longer than one
+full VM replacement is not a rollout. Replayed over 2026-10-02 to
+10-16, canary never stayed down longer than 14 minutes. Staging
+fired for its broken host-to-guest path (2026-10-07 to 10-13) and for a
+run of back-to-back staging deploys on 2026-10-16, which kept the guest
+down for 39 minutes.
+
+When it fires, check `tart_kubelet_image_pull_seconds` and
+`tart_kubelet_vm_provision_work_seconds` for the host before treating it
+as a BEAM failure: a pull still in progress means the replacement is
+slow, not broken.
 
 ### xcresult processor guest metrics unavailable on one host
 
@@ -4149,9 +4183,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   state on an instance, raise the floor or move the kind to a rate-based tier;
   do not raise the bar for the HTTP kinds, which are loss.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
-    Write decoding borrows the ceiling headroom above the floor-derived budget
-    while pressure is normal, so a shed means the pod exhausted its floor *and*
-    that headroom, or it was above normal pressure and the borrow was closed.
+    Write decoding, including a compressed `BatchUpdateBlobs` item, borrows
+    the ceiling headroom above the floor-derived budget while pressure is
+    normal, so a shed means the pod exhausted its floor *and* that headroom,
+    or it was above normal pressure and the borrow was closed. The one
+    exception is a write's reply, which never borrows: it is refused when the
+    floor cannot cover it, which happens only after that write's own decode
+    borrowed, so `transient_ceiling_headroom_borrowed` in
+    `kura_memory_actions_total_total` rises in the same window. A shed burst
+    with no borrows at normal pressure is a pod predating compressed items
+    borrowing, which refused them on a full floor with the headroom idle.
     Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` before reaching for the
     profile: a pod resting at its elastic capacity has a floor genuinely too
@@ -5938,10 +5979,13 @@ The query returns the ready count for every proxy, so a healthy proxy is
 a `Normal` instance rather than an empty result. The healthy baseline on
 2026-09-23 was 21 series across the three clusters.
 
-**The rule keys on the proxy, not the StatefulSet.** The Connector,
-ProxyClass and ProxyGroup are Helm `post-upgrade` hooks with
+**The rule keys on the proxy, not the StatefulSet.** Until
+[#14236](https://github.com/tuist/tuist/pull/14236), the Connector,
+ProxyClass and ProxyGroup were Helm `post-upgrade` hooks with
 `before-hook-creation`, so every `helm upgrade` of the tailscale-operator
-release deletes and recreates them, and the operator gives the new
+release deleted and recreated them. They are ordinary release resources
+now, but the StatefulSet still gets a new name whenever the Connector is
+recreated for any other reason. On each recreation the operator gives the new
 Connector StatefulSet a new generated suffix
 (`ts-tuist-cluster-subnet-router-qzwq6`). Staging's router was recreated
 up to 25 times a day in September. A rule keyed on the StatefulSet or the
@@ -6462,9 +6506,23 @@ in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 
 ### Rack power draw near its contracted limit
 
+The rule's draw, written `<rack draw>` below and expanded in Grafana:
+
 ```promql
-sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
-/ on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+sum by (site) (
+  capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"}
+  or (
+    (
+      capt_rackats_output_current_amps{cluster="tuist-production"}
+      * on (site, ats, output) capt_rackats_output_voltage_volts{cluster="tuist-production"}
+    )
+    unless on (site, ats) capt_rackpdu_chain{cluster="tuist-production"}
+  )
+)
+```
+
+```promql
+<rack draw> / on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0.8`
@@ -6474,7 +6532,7 @@ sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"
 - Summary: `{{ $labels.site }} rack draw is {{ humanize $values.B.Value }}W,
   {{ humanizePercentage $values.A.Value }} of its contracted power`
 
-The rule has a second query, `B`, which is the numerator alone, so the summary
+The rule has a second query, `B`, which is `<rack draw>` alone, so the summary
 can show the draw in watts. The divisor is the site's contracted power in
 effect. It comes from `contracted_power` in the site definition
 (`infra/rack-switch-fleet/sites/<site>.json`), as dated steps, and the RackSite
@@ -6497,17 +6555,25 @@ site definition changes. If the draw goes over the contracted power by up to
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
 
-The sum covers only what the PDUs meter. Loads plugged straight into
-`ber1-ats-1` (`ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the
-KVMs) are left out, because the RackATS controller exports input voltage,
-active source and transfer state but no output draw. So the real draw is
-higher than the rule shows. The facility's meter (NTT Berlin 2) is the
-authoritative reading. A PDU the operator cannot read drops all its outlet
-series, which makes the sum smaller. That case is covered by
-[Rack power equipment not observed](#rack-power-equipment-not-observed).
+The draw is every PDU outlet's active power, plus the output of each transfer
+switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
+directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
+reports draw, so a chain is never counted twice. A PDU that stops reporting
+hands its load back to its switch's meter. The transfer switches report only
+output current and voltage, so their part is current times voltage in VA,
+which is at least the real wattage. Their current comes in 0.1 A steps and
+reads coarsely at low load, off by a step or two. That is tens of VA against a
+threshold in kW. The facility's meter (NTT Berlin 2) is the authoritative
+reading.
 
-Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` shows
-which outlets grew.
+A switch the operator cannot read drops its output series, and so does a PDU
+its outlet series. Either makes the draw smaller, and
+[Rack power equipment not observed](#rack-power-equipment-not-observed) covers
+both.
+
+Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` and
+`capt_rackats_output_current_amps{site="ber1"}` show what grew.
 
 ### Rack has no contracted power
 

@@ -52,6 +52,8 @@ msgid "Unknown"
 msgstr ""
 
 #: lib/atlas_web/components/core_components.ex:369
+#: lib/atlas_web/components/time_off_components.ex:175
+#: lib/atlas_web/components/time_off_components.ex:214
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
@@ -115,6 +117,8 @@ msgstr ""
 #: lib/atlas_web/live/settings_integrations_live.ex:84
 #: lib/atlas_web/live/settings_integrations_live.ex:164
 #: lib/atlas_web/live/settings_slack_bot_live.ex:102
+#: lib/atlas_web/components/time_off_components.ex:81
+#: lib/atlas_web/components/time_off_components.ex:114
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -172,6 +176,7 @@ msgstr ""
 
 #: lib/atlas_web/live/settings_github_app_live.ex:167
 #: lib/atlas_web/live/settings_slack_bot_live.ex:142
+#: lib/atlas_web/live/time_off_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr ""
@@ -694,6 +699,8 @@ msgid "Customers, leads, and prospects stored in Atlas so the product can operat
 msgstr ""
 
 #: lib/atlas_web/live/account_live.ex:1348
+#: lib/atlas_web/components/time_off_components.ex:245
+#: lib/atlas_web/live/time_off_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr ""
@@ -1145,6 +1152,8 @@ msgid "Start date"
 msgstr ""
 
 #: lib/atlas_web/live/account_live.ex:1359
+#: lib/atlas_web/components/time_off_components.ex:169
+#: lib/atlas_web/components/time_off_components.ex:208
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -1475,6 +1484,7 @@ msgstr ""
 #: lib/atlas_web/live/hardware_show_live.ex:252
 #: lib/atlas_web/live/mcp_live.ex:266
 #: lib/atlas_web/live/tasks_live.ex:255
+#: lib/atlas_web/components/time_off_components.ex:123
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -1793,4 +1803,397 @@ msgstr ""
 #: lib/atlas_web/live/account_settings_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Your profile is managed by your sign-in provider."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:278
+#, elixir-autogen, elixir-format
+msgid "Add a local public holiday"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:299
+#, elixir-autogen, elixir-format
+msgid "Add public holiday"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "Ask an administrator to assign your location calendar first."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:330
+#, elixir-autogen, elixir-format
+msgid "Calendar navigation"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:329
+#, elixir-autogen, elixir-format
+msgid "Cancel holiday"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:332
+#, elixir-autogen, elixir-format
+msgid "Cancel this holiday?"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "Could not add holiday."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "Could not cancel this holiday."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "Could not save calendar settings. Check your permissions, location, year, and public holiday provider coverage."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:101
+#, elixir-autogen, elixir-format
+msgid "First day away"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:366
+#, elixir-autogen, elixir-format
+msgid "Fri"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:369
+#: lib/atlas_web/live/time_off_live.ex:562
+#, elixir-autogen, elixir-format
+msgid "Pending holiday"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:340
+#, elixir-autogen, elixir-format
+msgid "Approved holiday = confirmed leave · Pending holiday = awaiting approval · Public holiday = location calendar"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:135
+#, elixir-autogen, elixir-format
+msgid "Holiday cancelled."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:242
+#: lib/atlas_web/live/time_off_live.ex:289
+#, elixir-autogen, elixir-format
+msgid "Holiday name"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:393
+#, elixir-autogen, elixir-format
+msgid "Holiday requests overlapping this month"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "Import a year from Nager.Date. Reimporting replaces that year's imported dates and preserves manually added holidays. Regional and municipal coverage varies; review the dates before relying on them."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:248
+#: lib/atlas_web/live/time_off_live.ex:273
+#, elixir-autogen, elixir-format
+msgid "Import public holidays"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:272
+#, elixir-autogen, elixir-format
+msgid "Importing…"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:104
+#, elixir-autogen, elixir-format
+msgid "Last day away"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:167
+#, elixir-autogen, elixir-format
+msgid "Local holiday added."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Mon"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Month"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:350
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:396
+#, elixir-autogen, elixir-format
+msgid "No holiday requests for this month."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:163
+#, elixir-autogen, elixir-format
+msgid "Person"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:337
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:360
+#: lib/atlas_web/live/time_off_live.ex:414
+#, elixir-autogen, elixir-format
+msgid "Public holiday calendar incomplete"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:178
+#, elixir-autogen, elixir-format
+msgid "Public holiday removed."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "Public holidays imported. Review regional coverage and add any municipal holidays."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:304
+#, elixir-autogen, elixir-format
+msgid "Public holidays in the selected year"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Remove this public holiday? Leave-day counts will be recalculated."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:28
+#: lib/atlas_web/components/time_off_components.ex:123
+#, elixir-autogen, elixir-format
+msgid "Request holiday"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:367
+#, elixir-autogen, elixir-format
+msgid "Sat"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:354
+#, elixir-autogen, elixir-format
+msgid "Some location calendars have not imported public holidays for this year. Day counts only exclude configured dates and may be incomplete."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "Sun"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "Thu"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:18
+#: lib/atlas_web/live/time_off_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Time off"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Tue"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:364
+#, elixir-autogen, elixir-format
+msgid "Wed"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:267
+#, elixir-autogen, elixir-format
+msgid "Year"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "working days"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:143
+#, elixir-autogen, elixir-format
+msgid "Holiday request reviewed."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Another approver must review your own holiday request."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "Could not review this request. It may already have been reviewed or cancelled, or your permission may have changed."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:293
+#, elixir-autogen, elixir-format
+msgid "Approve"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:303
+#, elixir-autogen, elixir-format
+msgid "Reject"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:307
+#, elixir-autogen, elixir-format
+msgid "Reject this holiday request?"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:370
+#: lib/atlas_web/live/time_off_live.ex:563
+#, elixir-autogen, elixir-format
+msgid "Approved holiday"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:371
+#: lib/atlas_web/live/time_off_live.ex:564
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:372
+#: lib/atlas_web/live/time_off_live.ex:565
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "Back to time off"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:18
+#, elixir-autogen, elixir-format
+msgid "Choose the first and last day you will be away."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:166
+#: lib/atlas_web/components/time_off_components.ex:205
+#, elixir-autogen, elixir-format
+msgid "Dates"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:40
+#, elixir-autogen, elixir-format
+msgid "Dates are inclusive. Working-day counts exclude weekends and configured public holidays."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:320
+#: lib/atlas_web/components/time_off_components.ex:340
+#, elixir-autogen, elixir-format
+msgid "Edit request"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:17
+#, elixir-autogen, elixir-format
+msgid "Holiday request"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:120
+#, elixir-autogen, elixir-format
+msgid "Holiday request saved."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:199
+#, elixir-autogen, elixir-format
+msgid "My requests"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:221
+#, elixir-autogen, elixir-format
+msgid "No holiday requests yet"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:252
+#, elixir-autogen, elixir-format
+msgid "No upcoming public holidays configured"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:185
+#, elixir-autogen, elixir-format
+msgid "No upcoming time off"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:222
+#, elixir-autogen, elixir-format
+msgid "Request a holiday to start planning your time off."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:86
+#: lib/atlas_web/live/time_off_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "This holiday request cannot be changed."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:186
+#, elixir-autogen, elixir-format
+msgid "Upcoming holiday requests will appear here."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:235
+#, elixir-autogen, elixir-format
+msgid "Upcoming public holidays"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:157
+#, elixir-autogen, elixir-format
+msgid "Upcoming time off"
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "View upcoming holidays"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:172
+#: lib/atlas_web/components/time_off_components.ex:211
+#, elixir-autogen, elixir-format
+msgid "Working days"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:237
+#, elixir-autogen, elixir-format
+msgid "Berlin public holidays are automatically synced from Nager.Date."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:45
+#, elixir-autogen, elixir-format
+msgid "Changing the dates sends this request back for approval."
+msgstr ""
+
+#: lib/atlas_web/live/time_off_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "Plan holidays and see who is away. Public holidays follow the Berlin calendar."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:37
+#, elixir-autogen, elixir-format
+msgid "Public holidays follow the Berlin calendar."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:254
+#, elixir-autogen, elixir-format
+msgid "Public holidays will appear after the automatic calendar sync completes."
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:91
+#, elixir-autogen, elixir-format
+msgid "Apply dates"
+msgstr ""
+
+#: lib/atlas_web/components/time_off_components.ex:69
+#, elixir-autogen, elixir-format
+msgid "Choose holiday dates"
 msgstr ""

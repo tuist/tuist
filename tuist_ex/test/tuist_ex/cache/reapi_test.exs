@@ -6,11 +6,37 @@ defmodule TuistEx.Cache.ReapiTest.ActionServer do
   def get_action_result(request, stream) do
     pid = request.instance_name |> to_charlist() |> :erlang.list_to_pid()
     capture(pid, stream)
+    hints = Map.get(request, :inline_output_files, [])
+    Agent.update(pid, &Map.update!(&1, :inline_requests, fn requests -> [hints | requests] end))
     if Agent.get(pid, &Map.get(&1, :stall, false)), do: Process.sleep(:infinity)
 
     case Agent.get(pid, &Map.get(&1.actions, request.action_digest.hash)) do
-      nil -> raise GRPC.RPCError, status: GRPC.Status.not_found(), message: "missing"
-      result -> result
+      nil ->
+        raise GRPC.RPCError, status: GRPC.Status.not_found(), message: "missing"
+
+      result ->
+        limit =
+          Enum.find_value(hints, fn hint ->
+            case String.split(hint, "tuist-inline-max-bytes:") do
+              ["", value] -> String.to_integer(value)
+              _ -> nil
+            end
+          end)
+
+        if Agent.get(pid, &Map.get(&1, :inline, false)) and "*" in hints and is_integer(limit) do
+          files =
+            Enum.map(result.output_files, fn file ->
+              if file.digest.size_bytes <= limit do
+                %{file | contents: Agent.get(pid, &Map.fetch!(&1.blobs, file.digest.hash))}
+              else
+                file
+              end
+            end)
+
+          %{result | output_files: files}
+        else
+          result
+        end
     end
   end
 
@@ -176,6 +202,7 @@ defmodule TuistEx.Cache.ReapiTest do
           blobs: %{},
           metadata: [],
           transfers: [],
+          inline_requests: [],
           compressors: if(context[:zstd], do: [1], else: []),
           capabilities_unimplemented: context[:capabilities_unimplemented] || false
         }
@@ -198,6 +225,88 @@ defmodule TuistEx.Cache.ReapiTest do
     assert Process.info(self(), :links) == links
     on_exit(fn -> Reapi.close(session) end)
     %{session: session, store: store}
+  end
+
+  test "requests bounded inlining and verifies small bundles without a ByteStream read", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:inline)
+    binary = String.duplicate("inline bundle", 2_000)
+    assert {:ok, write} = Reapi.put(session, key, :decimal, binary)
+    Agent.update(store, &Map.put(&1, :inline, true))
+
+    assert {:ok, ^binary, metrics} = Reapi.get(session, key, :decimal)
+    assert metrics.output_digest == write.output_digest
+    assert metrics.read_bytes == byte_size(binary)
+    assert metrics.read_duration_us > 0
+    assert metrics.read_source == "remote"
+    assert [["*", "tuist-inline-max-bytes:131072"]] = Agent.get(store, & &1.inline_requests)
+    assert [_write] = Agent.get(store, & &1.transfers)
+  end
+
+  test "a server ignoring inline hints retains verified ByteStream restoration", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:legacy_inline)
+    binary = "legacy bundle"
+    assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+    assert {:ok, ^binary, _} = Reapi.get(session, key, :decimal)
+    assert [["*", "tuist-inline-max-bytes:131072"]] = Agent.get(store, & &1.inline_requests)
+    assert [_read, _write] = Agent.get(store, & &1.transfers)
+  end
+
+  @tag zstd: true, skip: not Code.ensure_loaded?(:zstd)
+  test "bundles above the inline limit retain compressed ByteStream reads", %{
+    session: session,
+    store: store
+  } do
+    key = Key.build(:large_inline)
+    binary = String.duplicate("x", 131_073)
+    assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+    Agent.update(store, &Map.put(&1, :inline, true))
+
+    assert {:ok, ^binary, metrics} = Reapi.get(session, key, :decimal)
+    assert metrics.read_bytes == byte_size(binary)
+    assert [{resource, size}, _write] = Agent.get(store, & &1.transfers)
+    assert resource =~ "/compressed-blobs/zstd/"
+    assert size < byte_size(binary)
+  end
+
+  for corruption <- [:truncated, :oversized, :digest_mismatch] do
+    test "rejects #{corruption} inlined bundles instead of hiding them with a second fetch", %{
+      session: session,
+      store: store
+    } do
+      key = Key.build({:inline, unquote(corruption)})
+      binary = "verified bundle"
+      assert {:ok, _} = Reapi.put(session, key, :decimal, binary)
+
+      corrupt =
+        case unquote(corruption) do
+          :truncated -> binary_part(binary, 0, byte_size(binary) - 1)
+          :oversized -> binary <> "x"
+          :digest_mismatch -> String.duplicate("x", byte_size(binary))
+        end
+
+      Agent.update(store, fn state ->
+        update_in(state, [:actions, key], fn result ->
+          %{result | output_files: Enum.map(result.output_files, &%{&1 | contents: corrupt})}
+        end)
+      end)
+
+      assert :miss = Reapi.get(session, key, :decimal)
+      assert [_write] = Agent.get(store, & &1.transfers)
+      refute Process.alive?(session.channel.adapter_payload.conn_pid)
+    end
+  end
+
+  test "disables Nagle buffering for separately sent HTTP/2 request frames", %{session: session} do
+    conn = :sys.get_state(session.channel.adapter_payload.conn_pid).conn
+    socket = Mint.HTTP.get_socket(conn)
+
+    assert {:ok, [nodelay: true]} = :inet.getopts(socket, [:nodelay])
   end
 
   test "hostname endpoints preserve the HTTP authority and close their channels cleanly", %{
@@ -569,6 +678,100 @@ defmodule TuistEx.Cache.ReapiTest do
     assert String.downcase(request) =~ "authorization: bearer api-token"
   end
 
+  test "the runner endpoint override skips discovery and supports remote writes and hits", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    project = "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string())
+
+    options = [
+      url: server_url,
+      project: project,
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> "http://127.1:#{port}"
+        _ -> nil
+      end
+    ]
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "https://unreachable.invalid"], "runner-build", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [request] = Task.await(requests)
+    assert request =~ "POST /api/cache/token?"
+    assert session.invocation_id == "runner-build"
+    assert :sys.get_state(session.channel.adapter_payload.conn_pid).conn.hostname == "127.1"
+
+    key = Key.build(:runner_override)
+    assert :miss = Reapi.get(session, key, :jason)
+    assert {:ok, uploaded} = Reapi.put(session, key, :jason, "runner-artifact")
+    assert uploaded.write_source == "remote"
+    assert {:ok, "runner-artifact", downloaded} = Reapi.get(session, key, :jason)
+    assert downloaded.read_source == "remote"
+    assert Agent.get(store, & &1.actions) != %{}
+
+    for {headers, metadata} <- Agent.get(store, & &1.metadata) do
+      assert headers["authorization"] == "Bearer scoped-cache-token"
+      assert metadata.tool_details.tool_name == "mix"
+      assert metadata.tool_invocation_id == "runner-build"
+      assert metadata.target_id == "jason"
+      assert metadata.action_id == key
+    end
+  end
+
+  test "discovery cannot opt a non-localhost endpoint into plaintext", %{store: store} do
+    {server_url, requests} =
+      serve_responses([
+        %{endpoints: ["http://cache.example.com"]},
+        %{token: "scoped-cache-token"}
+      ])
+
+    options = cache_options(server_url, store)
+    assert Reapi.open([], "insecure-discovery", options) == nil
+    assert [discovery, token] = Task.await(requests)
+    assert discovery =~ "/api/cache/endpoints?"
+    assert token =~ "/api/cache/token?"
+  end
+
+  test "a project endpoint option still rejects non-localhost plaintext", %{store: store} do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+    assert Reapi.open([endpoint: "http://cache.example.com"], "project-endpoint", options) == nil
+    assert [_token] = Task.await(requests)
+  end
+
+  test "an empty environment override falls back to the project endpoint", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "http://127.0.0.1:#{port}"], "empty-override", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [_token] = Task.await(requests)
+  end
+
+  test "invalid overrides fail locally without falling back to discovery", %{store: store} do
+    for endpoint <- [
+          "not-a-url",
+          "http://user:password@cache.example.com",
+          "http://cache.example.com/artifacts",
+          "http://cache.example.com?token=secret",
+          "http://cache.example.com#fragment"
+        ] do
+      {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+      options = cache_options(server_url, store, endpoint)
+      assert Reapi.open([], "invalid-override", options) == nil
+      assert [request] = Task.await(requests)
+      assert request =~ "POST /api/cache/token?"
+    end
+  end
+
   test "endpoint discovery requests Kura using the shared client feature flag header", %{
     port: port,
     store: store
@@ -615,6 +818,45 @@ defmodule TuistEx.Cache.ReapiTest do
     refute String.downcase(discovery) =~ "x-tuist-client-feature-flags"
     assert token =~ "/api/cache/token?"
     assert session.project == store |> :erlang.pid_to_list() |> List.to_string()
+  end
+
+  defp cache_options(server_url, store, endpoint \\ nil) do
+    [
+      url: server_url,
+      project: "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string()),
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> endpoint
+        _ -> nil
+      end
+    ]
+  end
+
+  defp serve_responses(responses) do
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    {:ok, port} = :inet.port(listener)
+    on_exit(fn -> :gen_tcp.close(listener) end)
+
+    requests =
+      Task.async(fn ->
+        for response <- responses do
+          {:ok, socket} = :gen_tcp.accept(listener, 5_000)
+          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
+          body = JSON.encode!(response)
+
+          :ok =
+            :gen_tcp.send(
+              socket,
+              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{byte_size(body)}\r\nConnection: close\r\n\r\n" <>
+                body
+            )
+
+          :gen_tcp.close(socket)
+          request
+        end
+      end)
+
+    {"http://127.0.0.1:#{port}", requests}
   end
 
   test "evicted CAS content is a recoverable miss and does not disable later uploads", %{

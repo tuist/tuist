@@ -15,7 +15,7 @@ public struct BinaryCacheFingerprintHasher {
     public func fingerprints(
         graph: Graph,
         targets: Set<GraphTarget>,
-        additionalStrings: [String],
+        additionalStrings: @escaping (GraphTarget) -> [String],
         targetHashes: [GraphTarget: TargetContentHash] = [:]
     ) async throws -> [GraphTarget: [String: String]] {
         let worker = Worker(
@@ -49,7 +49,7 @@ private final class Worker {
 
     let traverser: GraphTraverser
     let targets: [GraphHashedTarget: GraphTarget]
-    let additionalStrings: [String]
+    let additionalStrings: (GraphTarget) -> [String]
     let targetContentHasher: TargetContentHasher
     var sharedSubhashes: [GraphHashedTarget: TargetContentHashSubhashes] = [:]
     var hashes: [Key: String] = [:]
@@ -58,7 +58,7 @@ private final class Worker {
     init(
         graph: Graph,
         targets: Set<GraphTarget>,
-        additionalStrings: [String],
+        additionalStrings: @escaping (GraphTarget) -> [String],
         contentHasher: ContentHashing,
         targetHashes: [GraphTarget: TargetContentHash]
     ) {
@@ -106,7 +106,7 @@ private final class Worker {
         }
         let deployment = model.deploymentTargets[variant.platform] ?? ""
         let graphTarget = GraphTarget(path: target.path, target: model, project: target.project)
-        let strings = additionalStrings + ["xcframework-fingerprint-v1", variant.rawValue, deployment]
+        let strings = additionalStrings(target) + ["xcframework-fingerprint-v1", variant.rawValue, deployment]
         let value: (hash: String, hashedPaths: [AbsolutePath: String])
         if let subhashes = sharedSubhashes[key.target] {
             value = try await targetContentHasher.fingerprint(
