@@ -92,7 +92,7 @@ func renderTartVersionProbeScript(l tartLayout) string {
 // directory that already holds a bundle is reused rather than replaced, since
 // VMs may still be running from it.
 func renderTartInstallScript(l tartLayout, version string) string {
-	return fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -eu
 dest=%[1]s/%[2]s
 stage=%[1]s/.%[2]s.partial
 sudo mkdir -p %[1]s "$(dirname %[3]s)"
@@ -127,7 +127,7 @@ test "$(%[3]s --version)" = %[2]s
 // host still on the legacy path. A pgrep that fails for any reason other than
 // finding nothing keeps the bundle.
 func renderTartPruneScript(l tartLayout) string {
-	return fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -eu
 current="$(sed -n 's|^exec \(.*\)/Contents/MacOS/tart .*|\1|p' %[3]s 2>/dev/null || true)"
 if [ -z "$current" ]; then
   echo "cannot read the bundle %[3]s runs; pruning nothing" >&2

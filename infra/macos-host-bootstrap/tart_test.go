@@ -76,7 +76,11 @@ func legacyTartHost(t *testing.T, l tartLayout, version string) {
 // tart, the way a `tart run` started through the wrapper looks to pgrep.
 func runFrom(t *testing.T, bundle string) *exec.Cmd {
 	t.Helper()
-	cmd := &exec.Cmd{Path: "/bin/sleep", Args: []string{filepath.Join(bundle, "Contents", "MacOS", "tart"), "60"}}
+	cmd := &exec.Cmd{
+		Path: os.Args[0],
+		Args: []string{filepath.Join(bundle, "Contents", "MacOS", "tart"), "-test.run=^TestHelperTartRun$"},
+		Env:  append(os.Environ(), "TART_TEST_HELPER_RUN=1"),
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +89,15 @@ func runFrom(t *testing.T, bundle string) *exec.Cmd {
 		_, _ = cmd.Process.Wait()
 	})
 	return cmd
+}
+
+// TestHelperTartRun is the process runFrom starts: it stands in for a `tart run`
+// that outlives the install, under whatever argv[0] runFrom gives it.
+func TestHelperTartRun(t *testing.T) {
+	if os.Getenv("TART_TEST_HELPER_RUN") != "1" {
+		t.Skip("helper process for runFrom")
+	}
+	time.Sleep(60 * time.Second)
 }
 
 func stopRun(t *testing.T, cmd *exec.Cmd) {
