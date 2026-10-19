@@ -2591,6 +2591,20 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+**Release waits for runner jobs.** Cluster API core never drains a Machine in
+these clusters. The `Cluster` has no control plane Machines, so Machine deletion
+skips the drain, and with it every `MachineDrainRule`, and goes straight to the
+infrastructure Machine (the CAPI controller logs `Skipping deletion of Kubernetes
+Node ... cause="no control plane members"`). The OVH, Vultr and Elastic Metal
+releases therefore start by cordoning the box's Node and requeue every 30s, with
+a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
+`tuist-runners` on it has not finished (`holdReleaseForRunnerJobs` in
+`controllers/linux/runner_jobs.go`). The runners-controller retires idle runner
+Pods on a cordoned Node, so only Pods running a job hold the release, and a
+terminating Pod on an unreachable Node does not. No other Pod is waited on. See
+"Replacing a runner box without killing CI jobs" in
+[runners-controller](../runners-controller/AGENTS.md).
+
 **A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
 machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
 every pass patches status (a bootstrap attempt counted, a phase set) and that
@@ -2715,19 +2729,11 @@ what is left to convert.
 
 ### Converting a live cache box
 
-**Do not delete the Machine out from under running cache pods.** It deadlocks,
-and this is pre-existing rather than anything the quota work introduced:
-
-1. CAPI drains the Node before the infrastructure controller runs. Draining
-   evicts a cache pod.
-2. That pod's PVC is still bound to a local-path PV with a
-   `kubernetes.io/hostname` affinity to the box being drained, so the replacement
-   pod has nowhere to schedule and stays Pending.
-3. Each `KuraInstance` has a `PodDisruptionBudget` of `minAvailable: 1`, so with
-   the first replica down the eviction API refuses the second.
-4. `deleteNodeLocalPVCs` (below) is what would free the volume, and it runs
-   AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
-   fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
+**Do not delete the Machine out from under running cache pods.** Nothing drains
+it (see "Release waits for runner jobs" above): the release deletes the Node and
+reaps the box's node-local PVCs at once, so both replicas of every instance on
+the box lose their volume together, with no peer left to backfill from. The
+StatefulSets reprovision cold on whatever box is left in the pool.
 
 **The controller does this for you.** Annotate the outgoing node
 `tuist.dev/kura-evacuate` and the kura-controller runs the sequence below
@@ -2761,25 +2767,12 @@ nothing user-visible happening:
    so the cache content follows even though the volume does not; gate on that
    pod's backfill metrics rather than a timer.
 5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
-6. Delete the old Machine once it holds no cache pods. Drain is trivial now, and
-   release reinstalls it onto the split layout and returns it to the pool.
+6. Delete the old Machine once it holds no cache pods. Release reinstalls it
+   onto the split layout and returns it to the pool.
 
 Releasing an OVH box is not a contract termination, so a region left at two boxes
 keeps paying for both. Decide whether the second box is capacity you want or a
 contract to cancel out of band.
-
-The deadlock itself is now defused declaratively: the `kura-cache-skip`
-`MachineDrainRule` in `infra/k8s/clusters/machinedrainrules.yaml` tells Cluster
-API not to evict cache Pods, so drain completes, the PVC reap runs, and the
-StatefulSets reprovision on whatever box is left in the pool. That is a safety
-net rather than the procedure: it makes the naive path terminate instead of
-hang, but it gives up the cache, since both replicas are co-located and deleting
-their box leaves no peer to backfill from. Use the staged move above to keep a
-region warm.
-
-Setting `nodeDrainTimeout` on these fleets would additionally bound the failure
-if a future Pod shape reintroduces the same shape of stall. Worth doing
-independently of any conversion.
 
 ### Scale up
 ```bash

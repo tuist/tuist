@@ -20,6 +20,8 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:current_path, :string, required: true)
   attr(:current_user, :map, required: true)
 
+  attr(:previews_available, :boolean, default: false)
+
   def project_sidebar(assigns) do
     ~H"""
     <.sidebar>
@@ -412,7 +414,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={Project.supports_previews?(@selected_project)}
+        :if={Project.supports_previews?(@selected_project) or @previews_available}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -503,7 +505,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+          :if={Authorization.authorize(:runners_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"
           navigate={runner_profiles_path}

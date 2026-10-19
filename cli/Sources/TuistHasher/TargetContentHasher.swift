@@ -134,11 +134,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         let embeddedProductReferencesHash: String? = embeddedProductReferences.isEmpty
             ? nil
             : try contentHasher.hash(embeddedProductReferences.sorted())
-        let projectHash: String? =
-            switch graphTarget.project.type {
-            case let .external(hash: hash): hash
-            case .local: nil
-            }
+        let projectHash = graphTarget.project.externalHash
         let settingsHash: String?
         if let settings = graphTarget.target.settings {
             settingsHash = try await settingsContentHasher.hash(settings: settings)

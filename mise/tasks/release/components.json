@@ -142,6 +142,19 @@
       ]
     },
     {
+      "name": "install-action",
+      "tag_prefix": "install-action@",
+      "tag_regex": "^install-action@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": ".github/actions/install/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/install/**/*",
+        ".github/workflows/install-action.yml",
+        "ci/cache-volume/publish.sh",
+        "mise/tasks/release/check.sh"
+      ]
+    },
+    {
       "name": "noora",
       "tag_prefix": "noora@",
       "tag_regex": "^noora@[0-9]+\\.[0-9]+\\.[0-9]+$",

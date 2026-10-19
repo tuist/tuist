@@ -6,7 +6,17 @@ Managed instances can opt into `PositiveFenceV1` serving authority. A dedicated
 thread observes Kubernetes CAS grants bound to immutable identities; public
 middleware and store commits carry epoch permits. Peer replication stays enabled
 on standbys. Expired primaries retain an unclean-volume marker, preventing a
-restarted stale store from rejoining peers. Named planned handover freezes the
+restarted stale store from rejoining peers. A preparation-capable named standby
+first reconciles retained data under a Serving grant, while the primary continues
+accepting writes. The controller persists that exact intent for at most 20 minutes;
+the destination serializes it with frozen-corpus repair and uses normal background
+bandwidth admission. It repeats on eviction but never takes a hold or issues a
+receipt. Its completion report is bound to the source epoch and identity and the
+complete intent. Cancellation, expiry, drain or an identity change stops this work.
+Completion only allows the controller to start the original five-minute Quiescing
+phase; ongoing writes or later eviction can make more repair necessary. Older
+destinations retain the existing direct-quiescence flow, and an older source can
+keep serving during preparation. Named planned handover then freezes the
 source, reconciles its complete retained index on the destination through the
 bounded backfill pipeline, then freezes the destination. The reconciliation
 ignores the normal bootstrap age horizon and recency selection cutoff, but
@@ -30,6 +40,15 @@ in progress until the same task finishes. Authoritative intent replacement or
 abort, the original intent deadline, and runtime drain still cancel the repair;
 request retries cannot extend its lifetime. Record verification remains scoped
 to its request and completion of repair alone grants no serving authority.
+Before downloading missing retained bodies, preparation walks the complete source
+index and excludes every locally referenced segment from a bounded candidate set.
+Only sealed, unpinned segments containing exclusively destination-only records may
+be reclaimed. This prevents unrelated newer segments from forcing FIFO repair to
+evict and download the shared corpus repeatedly. Active segments and locally newer
+versions of source-listed records are preserved. Listing failure reclaims nothing;
+the existing supervised cleanup finishes any durable retirement after cancellation.
+Mixed segments still follow normal rotation and the original deadline: this does
+not guarantee convergence for every physical layout or increase the ring budget.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
@@ -214,7 +233,7 @@ The configured CAS ring is a ceiling, not proof that another segment fits. Rocks
 
 The worker retires at most one oldest sealed segment per pass, preserves the active writer and five-segment minimum, and cleans it through the existing metadata/dependency-cascade/unlink path. It acquires the promotion and writer locks only to select and persist retirement. Append destinations are pinned until their metadata commits, including deferred backfill batches; promotion pins its source as well. A pin record is shared by all appends to its segment and removed from the registry when that segment leaves the ring. Blocking metadata writes own clones of these pins so request cancellation cannot expose their segments to cleanup while the commit still runs. A pinned oldest segment delays reclamation instead of sacrificing younger data. Pressure cleanup also holds at most 32 artifact-write lock stripes per outer metadata chunk. It releases that set before waiting for a contended stripe, avoiding deadlock with deferred backfill group commits. Detached eviction commits retain the same locks so a cancelled worker cannot let a newer overwrite commit ahead of its stale deletion; unrelated stripes remain writable.
 
-A pending retirement is stored on the Store before cleanup begins. Worker errors, cancellation, or supervision restart resume that file before retiring another; a process crash is recovered by the startup orphan sweep. Unlinking may release no blocks while readers retain open files: after a no-progress pass the worker sheds no more segments until observed availability increases. Retries are paced at one second. This can still require operational headroom when even the minimum ring or metadata cleanup cannot fit.
+A pending retirement is stored on the Store before cleanup begins. Worker errors, cancellation, or supervision restart resume that file before retiring another; a process crash is recovered by the startup orphan sweep. Ordinary rotation removes evicted segments from the durable ring before the caller commits its own manifest and before their metadata cleanup. A guard takes ownership of those segments as soon as the ring persist returns. If the caller's manifest commit, the eviction commit or the request itself fails or is cancelled (on a held source, a planned handover refuses both commits), the remaining segments are queued for the worker as `capacity` retirements. The worker adopts one only while no handover hold is active, and frees these before choosing a retained segment under pressure, so a hold no longer strands segment files until restart. Unlinking may release no blocks while readers retain open files: after a no-progress pass the worker sheds no more segments until observed availability increases. Retries are paced at one second. This can still require operational headroom when even the minimum ring or metadata cleanup cannot fit.
 
 Successful retirement reduces the effective ring ceiling while including room for the next rotation. Retained references are repartitioned without further eviction, avoiding a second loss from generation trimming. Backfill uses the effective count. Plenty of free space permits one segment of regrowth per rotation, up to the configured ceiling.
 

@@ -9,10 +9,12 @@ defmodule TuistWeb.LayoutLive do
   import TuistWeb.AppLayoutComponents
 
   alias Tuist.Accounts
+  alias Tuist.AppBuilds
   alias Tuist.Authorization
   alias Tuist.CommandEvents
   alias Tuist.GitHub.Releases
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
 
@@ -138,6 +140,10 @@ defmodule TuistWeb.LayoutLive do
      |> assign_latest_app_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
+     |> assign(
+       :previews_available,
+       Project.supports_previews?(selected_project) or AppBuilds.has_previews?(selected_project)
+     )
      |> assign(:current_user, current_user)
      |> assign(
        OpenGraph.project_image_assigns(selected_project,

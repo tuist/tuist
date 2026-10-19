@@ -78,11 +78,20 @@ The filesystem-specific implementation lives in `../runner-cache/local.go`:
   it through a presigned URL, checks its SHA-256, restores it sparsely, and clones
   it. A failed restoration falls back to ordinary job-local directories through
   the existing client. It never advertises a hit from corrupt data.
-- Raw ext4 images are gzip-compressed for object storage so unwritten space does
-  not require transferring 20 GB. The SHA-1 artifact identifier and SHA-256 checksum
-  describe the compressed object; unlike macOS's inventory digest, the Linux
-  identifier is not a cache-file inventory. Downloads are bounded in compressed
-  and expanded size and verified before installation.
+- Archives hold only the image's data: the agent walks the extents the host
+  filesystem reports with `SEEK_DATA`/`SEEK_HOLE`, drops zero chunks, and stores
+  each remaining run with its offset in a zstd stream. Saving and restoring
+  therefore scale with the data written, not the 20 GB logical size, and the
+  restored image stays sparse. Restoration still accepts the full-image gzip
+  archives published before this format. The SHA-1 artifact identifier and
+  SHA-256 checksum describe the compressed object; unlike macOS's inventory
+  digest, the Linux identifier is not a cache-file inventory. Downloads are
+  bounded in compressed and logical size, extents must stay inside the image,
+  and the checksum is verified before installation.
+- Agents older than this format cannot read its archives and restore such a
+  HEAD cold without publishing, so nothing replaces it. Rolling the Linux agent
+  or tart-kubelet back past this format requires clearing the volumes whose HEAD
+  a newer agent published.
 - The host agent owns loop devices and mounts. Only `pods/<pod UID>` is exposed
   to that job's runner and DinD containers. Masters, images, journals, tokens and
   signed URLs stay outside workflow mounts. Mount operations reject symlinks.
@@ -167,11 +176,13 @@ formatted in a private temporary file and atomically renamed before exposure;
 a restart never reformats an image a job could have written. Attachment checks
 a per-use marker. Teardown errors retain the image for retry. Private branches
 are released after durable sealing and publication acknowledgement. Local master
-replicas are validated against the central HEAD and evicted when superseded,
-cleared, or idle for seven days. Physical free-space watermarks drive admission
-and LRU eviction because reflinks share blocks; summed logical sizes cannot
-measure host disk consumption. Defaults are eight allocations per pod, 100 active
-branches per host, 20 GB logical volume capacity, and a 40 GB free-space reserve.
+replicas are validated against the central HEAD every 30 seconds and evicted when
+superseded, cleared, or idle for seven days. A superseded replica used in the
+last 24 hours is first refreshed to the new HEAD in the background (see below).
+Physical free-space watermarks drive admission and LRU eviction because reflinks
+share blocks; summed logical sizes cannot measure host disk consumption.
+Defaults are eight allocations per pod, 100 active branches per host, 20 GB
+logical volume capacity, and a 40 GB free-space reserve.
 
 A cold machine can restore accepted images from the existing object storage.
 Losing a host loses unpublished changes, not the last accepted remote master.
@@ -378,3 +389,19 @@ This favors warming hosts after an observed miss over predicting cache keys in t
 scheduler. It preserves ordinary placement and does not replicate every volume to
 every host. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
+
+Publishing a generation supersedes every other host's replica of that volume.
+When maintenance finds a superseded replica last used (cloned, restored or
+published) within the last 24 hours, it restores the new HEAD in the background
+before removing the old replica, so the next job on that host attaches locally
+instead of downloading.
+The HEAD check returns the new image and content digests, and the host downloads
+that generation through the use that installed its replica. The server accepts
+this only for the current HEAD of the same, uncleared lineage on the same node.
+One refresh runs at a time per host, through the same admission as a prefetch,
+with a five-minute deadline and a bounded queue. While it downloads, maintenance
+and admission skip that volume instead of waiting for it. A failed, rejected or
+queued-out refresh, or a HEAD that is already local, falls back to removing the
+replica. A refreshed replica keeps its previous last-use time so unused volumes
+stop being refreshed after a day. Watch `operation="refresh"` results against
+`attach{source="local"}`.

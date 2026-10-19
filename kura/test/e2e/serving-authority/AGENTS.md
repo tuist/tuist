@@ -51,6 +51,14 @@ replication leaves it absent on the full standby before requesting handover,
 then require matching full-corpus receipts and byte-exact reads of the repaired
 record after promotion. This isolates recency selection from storage admission;
 it must not change either replica's configured capacity to make repair pass.
+Add `KURA_E2E_LIVE_PREPARATION=1` to exercise the preceding Serving-phase
+preparation with a capable destination. Require primary writes to succeed and
+standby writes to fail while no receipts exist, then use the unchanged bounded
+Quiescing barrier. The 20-minute preparation deadline is separate from its
+five-minute cutover deadline. Preparation completion never replaces frozen-corpus
+verification. Long preparation runs must establish and successfully exercise their
+stale-channel test sessions while still Serving immediately before Quiescing;
+keep those exact sessions through the transition and preserve aging failures.
 Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
 of old destination-only data. Assert it stays absent on the source, then require
 an eviction-triggered repair revisit and matching full-corpus receipts before

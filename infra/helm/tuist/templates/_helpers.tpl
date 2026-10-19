@@ -1,19 +1,34 @@
+{{/*
+The chart name and the tuist release a resource belongs to. Names and
+selector labels derive from both, so infra/helm/xcresult-processor, which
+renders this chart's xcresult processor templates in a Helm release of its
+own, gives them the names and labels of the tuist release it names in
+`tuistRelease`.
+*/}}
 {{- define "tuist.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- default "tuist" .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "tuist.releaseName" -}}
+{{- if eq .Chart.Name "xcresult-processor" -}}
+{{- required "tuistRelease is required: the name of the tuist release whose xcresult processor this release installs" .Values.tuistRelease -}}
+{{- else -}}
+{{- .Release.Name -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- printf "%s-%s" .Release.Name (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" (include "tuist.releaseName" .) (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "tuist.labels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- range $key, $value := .Values.global.commonLabels }}
 {{ $key }}: {{ $value | quote }}
@@ -22,7 +37,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "tuist.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
+{{- end -}}
+
+{{/*
+Whether this render owns the xcresult processor's Deployment and PDB. With
+`xcresultProcessor.ownRelease`, infra/helm/xcresult-processor renders them
+and the tuist release leaves them out; otherwise the tuist release renders
+them and the processor chart renders nothing.
+*/}}
+{{- define "tuist.rendersXcresultProcessor" -}}
+{{- if and .Values.xcresultProcessor.enabled (eq (.Values.xcresultProcessor.ownRelease | default false) (eq .Chart.Name "xcresult-processor")) -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.componentLabels" -}}
@@ -910,8 +937,19 @@ never contains a Tailscale Service and keeps an old address after the name
 moves to another device.
 */}}
 {{- define "tuist.clickhouseTailnetHost" -}}
-{{- $host := required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname }}
-{{- with .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname)) }}
+{{- end }}
+
+{{/*
+The same for the CNPG pooler the xcresult processor reaches over the tailnet.
+*/}}
+{{- define "tuist.poolerTailnetHost" -}}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.hostname)) }}
+{{- end }}
+
+{{- define "tuist.tailnetFQDN" -}}
+{{- $host := .host }}
+{{- with .root.Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
 {{- $host = printf "%s.%s" $host . }}
 {{- end }}
 {{- $host }}

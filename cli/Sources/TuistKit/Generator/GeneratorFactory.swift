@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistCache
 import TuistConfig
 import TuistCore
 import TuistGenerator
@@ -37,7 +38,8 @@ public protocol GeneratorFactorying {
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?,
-        schemeName: String?
+        schemeName: String?,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -98,7 +100,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?,
-        schemeName: String? = nil
+        schemeName: String? = nil,
+        coverage _: BinaryCacheCoverage = .off
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -195,13 +198,16 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Parameter cacheStorage: The cache storage instance.
         /// - Parameter targetHashes: Content hashes the caller already computed for the same graph. Binary
         /// replacement reuses them instead of hashing the graph again; pass an empty map to have it hash.
+        /// - Parameter coverage: The variant of the binary cache the warm fills: `.on` builds the
+        /// repository-owned targets with coverage counters under the coverage key.
         /// - Returns: A Generator instance.
         func binaryCacheWarming(
             config: Tuist,
             targetsToBinaryCache: [Platform: Set<TargetQuery>],
             configuration: String,
             cacheStorage: CacheStoring,
-            targetHashes: [TargetReference: TargetContentHash]
+            targetHashes: [TargetReference: TargetContentHash],
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns a generator to load the graph before generating the project to warm the cache
@@ -233,7 +239,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String?
+            schemeName: String?,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -341,7 +348,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            coverage: BinaryCacheCoverage = .off
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -365,7 +373,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 destination: destination,
-                schemeName: schemeName
+                schemeName: schemeName,
+                coverage: coverage
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
             return Generator(
@@ -442,7 +451,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             targetsToBinaryCache: [XcodeGraph.Platform: Set<TargetQuery>],
             configuration: String,
             cacheStorage: CacheStoring,
-            targetHashes: [TargetReference: TargetContentHash]
+            targetHashes: [TargetReference: TargetContentHash],
+            coverage: BinaryCacheCoverage
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -459,7 +469,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 cacheSources: Set(targetsToBinaryCache.flatMap(\.value)),
                 configuration: configuration,
                 cacheStorage: cacheStorage,
-                targetHashes: targetHashes
+                targetHashes: targetHashes,
+                coverage: coverage
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 

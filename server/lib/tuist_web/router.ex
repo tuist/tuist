@@ -640,11 +640,20 @@ defmodule TuistWeb.Router do
   end
 
   scope "/integrations", TuistWeb do
-    pipe_through [:open_api, :browser_app]
+    pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/github/authorize", GitHubAppSetupController, :authorize
+    get "/installation", IntegrationInstallationController, :show
+    post "/installation", IntegrationInstallationController, :create
+    delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
+  end
+
+  scope "/integrations", TuistWeb do
+    pipe_through [:open_api, :browser_app]
+
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback
@@ -726,8 +735,11 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
+        get "/catalog", RunnersController, :catalog
         get "/profiles", RunnersController, :index_profiles
+        post "/profiles", RunnersController, :create_profile
         patch "/profiles/:profile_name", RunnersController, :update_profile
+        delete "/profiles/:profile_name", RunnersController, :delete_profile
         get "/volumes", RunnerVolumesController, :list
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show

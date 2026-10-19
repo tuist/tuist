@@ -586,10 +586,8 @@ xcresultProcessor:
   # Deployment controller create the new Pod in Pending before the
   # old Pod releases hostPort 9091, generating a FailedScheduling
   # warning every rollout. Recreate waits for full termination first
-  # so no Pending pod is created against an occupied port, and
-  # `helm upgrade --wait` blocks until the new Pod is actually Ready
-  # before declaring the rollout done. Same effective downtime -
-  # Tart VM cold-boot dominates either way.
+  # so no Pending pod is created against an occupied port. Same
+  # effective downtime - Tart VM cold-boot dominates either way.
   strategy:
     type: Recreate
     rollingUpdate: null

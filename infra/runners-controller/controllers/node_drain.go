@@ -16,25 +16,27 @@ import (
 
 // reapIdlePodsOnCordonedNodes retires warm-pool Pods sitting on a node
 // that is on its way out, and is one half of making a node replacement
-// safe for customer jobs. The other half is the `MachineDrainRule` in
-// `infra/k8s/clusters/machinedrainrules.yaml`, which sets
-// `behavior: WaitCompleted` for runner Pods so Cluster API waits for
-// them to finish instead of evicting them.
+// safe for customer jobs. The other half waits for runner Pods to finish
+// instead of evicting them: the release wait in cluster-api-provider-tuist
+// (`holdReleaseForRunnerJobs`) for the in-cluster bare-metal fleets, and
+// the `WaitCompleted` `MachineDrainRule` in
+// `infra/k8s/clusters/machinedrainrules.yaml` for Machines Cluster API
+// drains on the management cluster.
 //
-// That drain rule alone would never converge. A runner Pod is
-// single-shot, so a Pod running a job reaches a terminal phase on its
-// own and satisfies `WaitCompleted` — but an *idle* Pod is a dispatch
-// poller with nothing to finish. It polls for as long as it exists, so
-// `WaitCompleted` would wait on it forever and the drain would never
-// complete. Nothing else clears it either: the cordon stops new Pods
-// landing but does not remove the ones already bound.
+// That wait alone would never converge. A runner Pod is single-shot,
+// so a Pod running a job reaches a terminal phase on its own and
+// satisfies the wait, but an *idle* Pod is a dispatch poller with
+// nothing to finish. It polls for as long as it exists, so the wait
+// would hold on it forever and the node would never be released.
+// Nothing else clears it either: the cordon stops new Pods landing but
+// does not remove the ones already bound.
 //
 // So the controller retires them here. An idle Pod is pure warm
 // capacity — no customer work is attached to it — so deleting it costs
 // nothing beyond a cold start, and the autoscaler replaces it on a node
 // that can still accept Pods. What remains on the draining node is only
 // Pods running jobs, each of which completes on its own, at which point
-// the drain finishes and Cluster API deletes the Machine.
+// the wait ends and the Machine is deleted.
 //
 // Idleness is read through `isIdle`, deliberately not through the
 // `tuist.dev/runner-pool-owner` label. A `PodDisruptionBudget` could
