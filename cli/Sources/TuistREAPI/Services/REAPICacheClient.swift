@@ -329,12 +329,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func validateCapabilities() async throws {
-        var options = options
-        options.timeout = .seconds(10)
-        let response = try await withClient { client in
-            try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
-                .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
-            )
+        let response = try await REAPICapabilityNegotiation.run { options in
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
+                    .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
+                )
+            }
         }
         guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
             throw REAPICacheError.unsupportedEndpoint
