@@ -369,6 +369,9 @@ defmodule Tuist.OnceEvents.Analytics do
   defp apply_flop_filter(%{field: :status, op: :==, value: "failure"}, query),
     do: where(query, [r], r.finalization == "finalized" and r.exit_status != 0)
 
+  defp apply_flop_filter(%{field: :git_branch, op: :==, value: branch}, query) when is_binary(branch),
+    do: where(query, [r], r.git_branch == ^branch)
+
   defp apply_flop_filter(%{field: :failure_category, op: op, value: category}, query),
     do: filter_failure_category(query, op, category)
 
@@ -412,7 +415,7 @@ defmodule Tuist.OnceEvents.Analytics do
   # invocation_id, command (kind), status, duration_ms, finished_at,
   # cache (nested with hit_rate/download/upload), plus a couple of
   # display helpers.
-  defp to_invocation(%Run{} = run) do
+  def to_invocation(%Run{} = run) do
     hits = run.cached_actions || 0
     total = run.total_actions || 0
 
@@ -423,12 +426,15 @@ defmodule Tuist.OnceEvents.Analytics do
 
     %{
       invocation_id: run.run_id,
+      kind: run.kind,
       command: display_command(run),
       target_patterns: [],
       status: run_status(run),
       failure_category: run.failure_category,
       duration_ms: run.wall_ms || 0,
       finished_at: run.finalized_at || run.started_at,
+      started_at: run.started_at,
+      finalized_at: run.finalized_at,
       is_ci: run.is_ci || false,
       git_rev: run.git_rev,
       git_branch: run.git_branch,

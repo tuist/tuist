@@ -956,9 +956,13 @@ defmodule TuistWeb.Router do
 
         scope "/cargo" do
           post "/builds", CargoController, :create_build
+          get "/builds", CargoController, :list_builds
+          get "/builds/:build_id", CargoController, :get_build
         end
 
         scope "/mix" do
+          get "/builds", MixController, :list_builds
+          get "/builds/:build_id", MixController, :get_build
           get "/files", MixFilesController, :index
           get "/files/:file_id", MixFilesController, :show
           get "/files/:file_id/compilations", MixFilesController, :history
@@ -968,6 +972,8 @@ defmodule TuistWeb.Router do
         end
 
         scope "/once" do
+          get "/runs", OnceRunsController, :index
+          get "/runs/:once_run_id", OnceRunsController, :show
           get "/actions", OnceActionsController, :index
           get "/actions/:action_id", OnceActionsController, :show
           get "/actions/:action_id/executions", OnceActionsController, :history

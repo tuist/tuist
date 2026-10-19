@@ -9,6 +9,7 @@ defmodule Tuist.Cargo do
   alias Tuist.Gradle.Analytics, as: BuildAnalytics
 
   @strings ~w(command rust_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
+  @list_fields Build.__schema__(:fields) -- [:cache_metrics]
 
   def create_build(attrs) do
     with {:ok, id} <- Ecto.UUID.cast(attrs[:id]),
@@ -67,7 +68,8 @@ defmodule Tuist.Cargo do
   end
 
   def list_builds(project_id, params \\ %{}) do
-    Tuist.ClickHouseFlop.validate_and_run!(build_query(project_id), params, for: Build)
+    query = from(b in build_query(project_id), select: struct(b, ^@list_fields))
+    Tuist.ClickHouseFlop.validate_and_run!(query, params, for: Build)
   end
 
   def duration_analytics(project_id, opts \\ []) do

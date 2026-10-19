@@ -71,6 +71,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_invocation_log" in tool_names
       assert "list_bazel_cache_events" in tool_names
       assert "get_bazel_cache_event" in tool_names
+      assert "list_cargo_builds" in tool_names
+      assert "get_cargo_build" in tool_names
+      assert "list_mix_builds" in tool_names
+      assert "get_mix_build" in tool_names
+      assert "list_once_runs" in tool_names
+      assert "get_once_run" in tool_names
       assert "list_test_runs" in tool_names
       assert "list_test_module_runs" in tool_names
       assert "list_test_suite_runs" in tool_names

@@ -48,6 +48,12 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.
 
+- Cargo build, Mix build and Once run tools share `Cargo.Query`, `Mix.Query` and
+  `OnceEvents.Query` with their REST endpoints, so both return the same shapes.
+  Their IDs are client-chosen and project-scoped: the get tools take
+  `account_handle`, `project_handle` and the ID and authorize project build-read.
+  Never add an ID-only lookup for them.
+
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when

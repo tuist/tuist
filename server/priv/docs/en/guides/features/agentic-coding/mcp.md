@@ -347,6 +347,29 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Cargo builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Test runs reported as `nextest` are not listed. | `account_handle`, `project_handle` |
+| `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
+
+#### Mix builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_mix_builds` | List Mix (Elixir) compile builds for a project, newest first, including custom metadata. Filter by `git_branch`, `status`, `is_ci`, or `mix_env`. | `account_handle`, `project_handle` |
+| `get_mix_build` | Get build metadata, diagnostics counts, and the dependency cache summary. | `account_handle`, `project_handle`, `build_id` |
+
+#### Once runs
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_once_runs` | List Once runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
+| `get_once_run` | Get a run with its action totals, cache summary, and, for test runs, test totals. | `account_handle`, `project_handle`, `run_id` |
+
+Cargo build, Mix build, and Once run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
+
 #### Tasks, actions, modules and files
 
 These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
