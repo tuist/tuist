@@ -2040,11 +2040,18 @@ while true; do
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
       rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      # The hook also mounts the job's cached checkout at its workspace before
+      # the first step, so a stock actions/checkout reuses it instead of
+      # cloning. The host decides whether there is one; any miss leaves the
+      # workspace empty and the job checks out exactly as before.
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
+fi
 exit 0
 HOOK
       chmod +x "${JOB_STARTED_HOOK}"

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -17,11 +18,14 @@ import (
 const macShare = "/Volumes/My Shared Files/custom-cache"
 const macMountRoot = "/Users/runner/.tuist-custom-cache"
 
+var reasonPattern = regexp.MustCompile(`^[a-z_]{1,32}$`)
+
 type macResponse struct {
 	Directory string `json:"directory"`
 	ID        string `json:"id"`
 	Warm      bool   `json:"warm"`
 	Error     string `json:"error"`
+	Reason    string `json:"reason"`
 }
 
 func acquireMac(key string) (string, string, bool, error) {
@@ -43,40 +47,8 @@ func macCommandContext(ctx context.Context, args ...string) error {
 	return nil
 }
 func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
-	if _, err := os.Stat(share); err != nil {
-		return "", "", false, err
-	}
-	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid()})
-	temp, err := os.CreateTemp(share, ".request-")
+	response, err := exchangeMac(ctx, share, map[string]any{"key": key, "uid": os.Getuid()})
 	if err != nil {
-		return "", "", false, err
-	}
-	name := filepath.Base(temp.Name()) + ".request"
-	defer os.Remove(temp.Name())
-	defer os.Remove(filepath.Join(share, name+".response"))
-	defer os.Remove(filepath.Join(share, name))
-	_, err = temp.Write(data)
-	temp.Close()
-	if err != nil {
-		os.Remove(temp.Name())
-		return "", "", false, err
-	}
-	if err = os.Rename(temp.Name(), filepath.Join(share, name)); err != nil {
-		return "", "", false, err
-	}
-	var response macResponse
-	for {
-		data, err = os.ReadFile(filepath.Join(share, name+".response"))
-		if err == nil && json.Unmarshal(data, &response) == nil {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			return "", "", false, ctx.Err()
-		case <-time.After(250 * time.Millisecond):
-		}
-	}
-	if err := ctx.Err(); err != nil {
 		return "", "", false, err
 	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
@@ -197,4 +169,84 @@ func linkMacDirectory(root, source, target string) error {
 		return err
 	}
 	return os.Symlink(filepath.Join(root, source), target)
+}
+
+// exchangeMac writes one request into the host mailbox and waits for its answer.
+func exchangeMac(ctx context.Context, share string, request map[string]any) (macResponse, error) {
+	var response macResponse
+	if _, err := os.Stat(share); err != nil {
+		return response, err
+	}
+	data, _ := json.Marshal(request)
+	temp, err := os.CreateTemp(share, ".request-")
+	if err != nil {
+		return response, err
+	}
+	name := filepath.Base(temp.Name()) + ".request"
+	defer os.Remove(temp.Name())
+	defer os.Remove(filepath.Join(share, name+".response"))
+	defer os.Remove(filepath.Join(share, name))
+	_, err = temp.Write(data)
+	temp.Close()
+	if err != nil {
+		os.Remove(temp.Name())
+		return response, err
+	}
+	if err = os.Rename(temp.Name(), filepath.Join(share, name)); err != nil {
+		return response, err
+	}
+	for {
+		data, err = os.ReadFile(filepath.Join(share, name+".response"))
+		if err == nil && json.Unmarshal(data, &response) == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return response, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+	return response, ctx.Err()
+}
+
+// checkoutMac mounts the job's cached checkout at its workspace before the first
+// step. Every failure leaves the workspace untouched, so actions/checkout clones
+// exactly as it does without a cached checkout.
+func checkoutMac(workspace string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return checkoutMacAt(ctx, workspace, macShare, func(args ...string) error { return macCommandContext(ctx, args...) })
+}
+
+func checkoutMacAt(ctx context.Context, workspace, share string, command func(...string) error) string {
+	if !filepath.IsAbs(workspace) || filepath.Clean(workspace) != workspace {
+		return "skipped (workspace is not an absolute path)"
+	}
+	if err := emptyTarget(workspace); err != nil {
+		return "skipped (workspace is not empty)"
+	}
+	response, err := exchangeMac(ctx, share, map[string]any{"checkout": true, "uid": os.Getuid()})
+	if err != nil {
+		return "unavailable (timeout)"
+	}
+	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
+		reason := response.Reason
+		if !reasonPattern.MatchString(reason) {
+			reason = "error"
+		}
+		return "unavailable (" + reason + ")"
+	}
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		return "unavailable (workspace)"
+	}
+	shared := filepath.Join(share, response.Directory)
+	if err := command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", workspace); err != nil {
+		return "unavailable (attach)"
+	}
+	// Mounted proves to the host that the guest holds the branch; nothing is
+	// written into the workspace itself.
+	if err := os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
+		return "reused (unreported)"
+	}
+	return "reused"
 }

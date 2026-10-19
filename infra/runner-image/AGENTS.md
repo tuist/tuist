@@ -865,6 +865,11 @@ semantics; this doc is just about the VM image.
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
+- The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  before the first step. It mounts the job's cached checkout at the workspace
+  only when the host serves one and the workspace is empty, and otherwise leaves
+  it untouched, so actions/checkout clones as before. It never fails the job.
+
 - `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
   size, mount time/duration and host-staged warm/cold source. Stage once at attach
   and again before detach; never estimate sparse-image filesystem usage from the

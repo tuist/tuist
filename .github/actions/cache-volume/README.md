@@ -41,7 +41,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
+| `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. `checkout` is reserved for Tuist's cached checkouts. |
 | `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 

@@ -48,10 +48,18 @@ func main() {
 		return
 	}
 	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
+	checkout := flag.String("checkout", "", "Mount the job's cached checkout at this workspace (macOS, before the first step)")
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
 	flag.Parse()
+	if *checkout != "" {
+		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
+		if runtime.GOOS == "darwin" {
+			fmt.Println("Tuist cached checkout: " + checkoutMac(*checkout))
+		}
+		return
+	}
 	if *detach {
 		if runtime.GOOS != "darwin" {
 			os.Exit(2)
