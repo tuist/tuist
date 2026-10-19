@@ -4,6 +4,10 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
+  Serving-authority reconciliation runs on every controller replica, independently
+  of the workload controller's leader lease. Optimistic resource-version checks
+  serialize grants; stale renewals must never overwrite fencing or promotion.
+  Keep authority renewal available while another controller drains during rollout.
   Durable CAS epochs and positive fencing own activated instances. Missing-node
   detection never resets an activated StatefulSet. Legacy instances keep their
   existing automatic stale-storage recreation, including colocated host loss.

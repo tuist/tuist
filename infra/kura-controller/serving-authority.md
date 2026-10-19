@@ -21,7 +21,10 @@ Measure clock agreement before granting authority. A host outside the bounded
 clock allowance must remain fenced; do not extend the grant lifetime to hide an
 NTP failure. Inspect `kura.serving_authority.unavailable` for lifetime rejection.
 
-A separate reconciliation queue renews 15-second grants. The runtime polls with
+A separate reconciliation queue on every controller replica renews 15-second
+grants, independently of leader election. Resource-version compare-and-swap
+serializes renewals and transitions, so an old replica cannot overwrite a newer
+fencing or promotion decision. The runtime polls with
 a one-second request timeout on a dedicated OS thread. It checks wall-clock and
 monotonic deadlines with a two-second safety allowance. Admission and metadata
 publication are checked separately, including detached blocking commits and
@@ -207,9 +210,12 @@ Controller metrics expose phase gauges and the latest valid-holder observation.
 `serving-authority-alerts.yaml` supplies example rules for fencing, an
 unacknowledged holder and a stalled rebuild; install them in the environment's
 alerting system before activation. They are not installed by the staging fixture.
-The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
-timings and releases leadership on graceful cancellation. A longer interruption
-still expires authority and requires positive fencing. Upgrade runtime and
+The workload controller uses 5/3/1-second leader lease/renew/retry timings and
+releases leadership after graceful shutdown. Authority reconciliation runs on
+all replicas because unrelated workers can keep that lease while draining after
+grant renewal has stopped. A surviving replica can continue renewing during
+that interval. Loss of all authority reconcilers still expires grants and
+requires positive fencing. Upgrade runtime and
 controller in either order: old runtimes cannot acknowledge live-writer fencing,
 and old controllers ignore that additive report. Recovery becomes automatic only
 when both support it; rollback to either old component leaves an expired writer

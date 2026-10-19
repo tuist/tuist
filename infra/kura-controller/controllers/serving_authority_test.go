@@ -8,6 +8,7 @@ import (
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -380,4 +381,84 @@ func TestHandoverWaitsForTheResumedServingGrant(t *testing.T) {
 	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
 		t.Fatal(next)
 	}
+}
+
+// A terminating replica may finish an old renewal after another replica has
+// positively observed expiration. Its stale write must not reopen that grant.
+func TestAuthorityConcurrentRenewalCannotOverwriteFencing(t *testing.T) {
+	for _, phase := range []string{"Serving", "Quiescing"} {
+		t.Run(phase, func(t *testing.T) {
+			r, _, statuses := authorityFixture(t)
+			grant := authorityStep(t, r)
+			grant.Phase = phase
+			grant.ExpiresMS = time.Now().UnixMilli() + 5000
+			if phase == "Quiescing" {
+				grant.Handover = &handoverIntent{ID: "handover", Destination: statuses["test-1"].ServingAuthority.Identity, DeadlineMS: time.Now().UnixMilli() + 300000}
+			}
+			writeAuthorityGrant(t, r, grant)
+			holder := statuses[grant.PodName]
+			holder.ServingAuthority.Epoch = grant.Epoch
+			holder.ServingAuthority.Valid = true
+			holder.ServingAuthority.Observed = &grant
+			statuses[grant.PodName] = holder
+			oldStatuses := map[string]runtimeStatus{}
+			for name, status := range statuses {
+				oldStatuses[name] = status
+			}
+			reached, release := make(chan struct{}), make(chan struct{}, 1)
+			defer close(release)
+			old := *r
+			old.Client = &pausedAuthorityPatch{Client: r.Client, reached: reached, release: release}
+			old.RuntimeStatusClient = fakeRuntimeStatusClient{statuses: oldStatuses}
+			done := make(chan error, 1)
+			go func() {
+				_, err := old.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "test", Namespace: "test"}})
+				done <- err
+			}()
+			select {
+			case <-reached:
+			case err := <-done:
+				t.Fatalf("renewal did not reach grant patch: %v", err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("renewal did not reach grant patch")
+			}
+			holder.ServingAuthority.Valid = false
+			statuses[grant.PodName] = holder
+			fenced := authorityStep(t, r)
+			if fenced.Phase != "Fencing" || fenced.Epoch != grant.Epoch {
+				t.Fatalf("expected fencing: %+v", fenced)
+			}
+			release <- struct{}{}
+			select {
+			case err := <-done:
+				if !apierrors.IsConflict(err) {
+					t.Fatalf("stale renewal should conflict, got %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("stale renewal did not finish")
+			}
+			final := authorityStep(t, r)
+			if final.Phase != "Fencing" || final.Epoch != fenced.Epoch || final.ExpiresMS != fenced.ExpiresMS || final.Holder != fenced.Holder {
+				t.Fatalf("stale renewal changed fenced authority: %+v", final)
+			}
+		})
+	}
+}
+
+type pausedAuthorityPatch struct {
+	client.Client
+	reached chan struct{}
+	release chan struct{}
+}
+
+func (c *pausedAuthorityPatch) Patch(ctx context.Context, object client.Object, patch client.Patch, options ...client.PatchOption) error {
+	if _, ok := object.(*corev1.ConfigMap); ok && object.GetName() == "test-serving" {
+		close(c.reached)
+		select {
+		case <-c.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return c.Client.Patch(ctx, object, patch, options...)
 }
