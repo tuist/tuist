@@ -2264,7 +2264,8 @@ defmodule Tuist.Builds.Analytics do
   module was a cache miss ("invalidated"), how often it appeared, and — by comparing
   each missed build to the module's previous build on the same branch — whether the
   invalidation was caused by the module's own content changing (`self_changes`) or
-  only by one of its dependencies changing (`dependency_induced`).
+  only by one of its dependencies changing or missing in the same run
+  (`dependency_induced`).
 
   The classification window partitions by branch so a `main` build is never compared
   against a feature-branch build, regardless of the `:git_branch` filter. Remote
@@ -2282,7 +2283,8 @@ defmodule Tuist.Builds.Analytics do
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
     `:dependency_induced`, `:evicted` (a previously remote-served exact key now
-    misses at the same endpoint), and `:unclassified` (misses without an earlier
+    misses at the same endpoint while none of its direct dependencies missed in
+    the same run), and `:unclassified` (misses without an earlier
     observation in the comparison window, or not explained by the compared inputs).
     These are command observations; restored cache results can be reported by
     multiple test shards belonging to the same build.
@@ -2299,8 +2301,9 @@ defmodule Tuist.Builds.Analytics do
   @doc """
   Returns, per module and day, how often it was built and why it missed:
   `appearances`, `misses`, `changed` (its own content differed from its previous
-  build), `upstream` (only a dependency differed), and `evicted`
-  (an exact key previously served remotely now misses at the same endpoint). Both the module list and
+  build), `upstream` (only a dependency differed, or a direct dependency missed in
+  the same run), and `evicted` (an exact key previously served remotely now
+  misses at the same endpoint while its direct dependencies did not). Both the module list and
   miss-reason timeseries derive from this breakdown. Reads are batched by module
   name so each query sorts a bounded set of independent module histories, with
   dictionary-encoded names and branches to avoid repeating strings in memory.
@@ -2337,7 +2340,7 @@ defmodule Tuist.Builds.Analytics do
       SELECT *, #{module_cache_reason()} AS reason
       FROM (
       SELECT
-        day, name, product, hit, own, direct_inputs, deps, ext, previously_available,
+        day, name, product, hit, own, direct_inputs, deps, ext, previously_available, dependency_missed,
         row_number() OVER w AS rn,
         lagInFrame(own, 1) OVER w AS prev_own,
         lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
@@ -2352,6 +2355,7 @@ defmodule Tuist.Builds.Analytics do
           xt.product AS product,
           xt.binary_cache_hit AS hit,
           #{previously_available()} AS previously_available,
+          #{dependency_missed()} AS dependency_missed,
           xt.own_hash AS own,
           xt.direct_inputs_hashes AS direct_inputs,
           cityHash64(xt.dependencies_hash) AS deps,
@@ -2359,6 +2363,7 @@ defmodule Tuist.Builds.Analytics do
         FROM xcode_targets_by_project AS xt
         INNER JOIN command_events AS e ON xt.command_event_id = e.id
         #{module_cache_availability_join()}
+        #{missed_dependencies_join()}
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
@@ -2452,11 +2457,37 @@ defmodule Tuist.Builds.Analytics do
     """
   end
 
+  # A binary is only used when every direct dependency is also a binary, so a
+  # dependency's miss makes its dependents miss with unchanged keys. Collect the
+  # missed dependencies of the batched modules per command event; the name range
+  # keeps the scan bounded like the rest of the batch.
+  defp missed_dependencies_join do
+    """
+    LEFT JOIN (
+      SELECT md_xt.command_event_id AS command_event_id, groupArray(md_xt.name) AS names
+      FROM xcode_targets_by_project AS md_xt
+      WHERE md_xt.name IN (
+          SELECT arrayJoin(dep_xt.dependencies)
+          FROM xcode_targets_by_project AS dep_xt
+          WHERE dep_xt.name IN {names:Array(String)}
+            AND dep_xt.binary_cache_hit = 'miss'#{xcode_target_pruning("dep_xt")}
+        )
+        AND md_xt.binary_cache_hit = 'miss'
+        AND md_xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning("md_xt")}
+      GROUP BY command_event_id
+    ) AS missed_dependencies ON missed_dependencies.command_event_id = xt.command_event_id
+    """
+  end
+
+  defp dependency_missed do
+    "hasAny(xt.dependencies, missed_dependencies.names)"
+  end
+
   defp module_cache_reason do
     """
     multiIf(
       hit != 'miss', 'hit',
-      previously_available, 'evicted',
+      previously_available, if(dependency_missed, 'upstream', 'evicted'),
       rn = 1, 'cold',
       own != prev_own OR arrayExists(
         input -> mapContains(prev_direct_inputs, input)
@@ -2864,7 +2895,7 @@ defmodule Tuist.Builds.Analytics do
       FROM (
         SELECT
           id, scheme, ran_at, branch, commit_sha, hit, own, direct_inputs, deps, ext,
-          previously_available,
+          previously_available, dependency_missed,
           row_number() OVER w AS rn,
           lagInFrame(own, 1) OVER w AS prev_own,
           lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
@@ -2879,6 +2910,7 @@ defmodule Tuist.Builds.Analytics do
             coalesce(e.git_commit_sha, '') AS commit_sha,
             xt.binary_cache_hit AS hit,
             #{previously_available()} AS previously_available,
+            #{dependency_missed()} AS dependency_missed,
             xt.product AS product,
             xt.own_hash AS own,
             xt.direct_inputs_hashes AS direct_inputs,
@@ -2887,6 +2919,7 @@ defmodule Tuist.Builds.Analytics do
           FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
           #{module_cache_availability_join()}
+          #{missed_dependencies_join()}
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
           -- project and window so the join builds a small hash table.
@@ -3269,7 +3302,8 @@ defmodule Tuist.Builds.Analytics do
   @doc """
   Returns a daily breakdown of reported misses: `changed` (the module's compared
   direct inputs differed), `upstream` (only its dependency or external package hash
-  differed), `evicted` (a previously served exact key now misses at the same endpoint),
+  differed, or a direct dependency missed in the same run), `evicted` (a previously
+  served exact key now misses at the same endpoint while its direct dependencies did not),
   and `cold` (missing comparison history or an unexplained miss without earlier
   remote availability evidence). Cold does not establish that an artifact was
   never cached or was evicted.

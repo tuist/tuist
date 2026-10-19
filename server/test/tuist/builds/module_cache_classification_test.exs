@@ -173,8 +173,8 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
 
       assert_reasons(@view, Keyword.put(opts, :end_datetime, ~U[2024-04-04 23:59:59Z]), current, %{
         "A" => "evicted",
-        "B" => "evicted",
-        "C" => "evicted"
+        "B" => "upstream",
+        "C" => "upstream"
       })
     end
 
@@ -196,6 +196,29 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
     end
 
+    test "#{view}: a previously served key misses upstream when a direct dependency misses in the same run", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1)
+      insert_target(warmed, "A", :local, "A-v1")
+      insert_target(warmed, "B", :remote, "B-v1", ["A"])
+      current = observation(project, 2)
+      insert_target(current, "A", :miss, "A-v1")
+      insert_target(current, "B", :miss, "B-v1", ["A"])
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "upstream"})
+    end
+
+    test "#{view}: a previously served key misses evicted when its dependencies hit", %{project: project, opts: opts} do
+      warmed = observation(project, 1)
+      insert_target(warmed, "A", :remote, "A-v1")
+      insert_target(warmed, "B", :remote, "B-v1", ["A"])
+      current = observation(project, 2)
+      insert_target(current, "A", :remote, "A-v1")
+      insert_target(current, "B", :miss, "B-v1", ["A"])
+      assert_reasons(@view, opts, current, %{"B" => "evicted"})
+    end
+
     test "#{view}: an earlier remote hit for the exact key and endpoint makes a miss evicted", %{
       project: project,
       opts: opts
@@ -204,11 +227,12 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       insert_chain(warmed, :remote, "v1")
       current = observation(project, 2)
       insert_chain(current, :miss, "v1")
-      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
+      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "upstream", "C" => "upstream"})
       filtered = Analytics.module_build_history(opts ++ [name: "A", reason: "evicted"])
       assert Enum.map(filtered.rows, & &1.id) == [current.id]
       series = Analytics.module_miss_reasons_timeseries(opts)
-      assert series.evicted == [0, 3]
+      assert series.evicted == [0, 1]
+      assert series.upstream == [0, 2]
       assert series.cold == [0, 0]
     end
 
@@ -266,7 +290,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       current = observation(project, 2, git_branch: "feature", is_ci: true)
       insert_chain(current, :miss, "v1")
       scoped = Keyword.merge(opts, start_datetime: ~U[2024-04-02 00:00:00Z], git_branch: "feature", is_ci: true)
-      assert_reasons(@view, scoped, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
+      assert_reasons(@view, scoped, current, %{"A" => "evicted", "B" => "upstream", "C" => "upstream"})
     end
 
     for reported_at <- [~N[2024-04-02 10:00:00], ~N[2024-04-02 10:05:00]] do
@@ -314,7 +338,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       current = observation(project, 3)
       insert_chain(current, :miss, "v1")
       opts = Keyword.put(opts, :end_datetime, ~U[2024-04-03 23:59:59Z])
-      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
+      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "upstream", "C" => "upstream"})
     end
   end
 
@@ -349,6 +373,35 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     rows = Analytics.module_invalidations(Keyword.put(opts, :limit, 300))
     assert length(rows) == 257
     assert Enum.all?(rows, &(&1.evicted == 1 and &1.unclassified == 0))
+  end
+
+  test "a dependency miss is found when the dependency is in another name batch", %{project: project, opts: opts} do
+    warmed = observation(project, 1)
+    insert_target(warmed, "A", :local, "A-v1")
+    insert_target(warmed, "Z", :remote, "Z-v1", ["A"])
+    current = observation(project, 2)
+    insert_target(current, "A", :miss, "A-v1")
+    insert_target(current, "Z", :miss, "Z-v1", ["A"])
+
+    # Fill the first batch so A and Z are classified by different queries.
+    fillers =
+      for index <- 1..256 do
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          command_event_id: current.id,
+          inserted_at: NaiveDateTime.truncate(current.created_at, :second),
+          name: "M#{String.pad_leading(Integer.to_string(index), 3, "0")}",
+          binary_cache_hash: "filler#{index}",
+          binary_cache_hit: 2
+        }
+      end
+
+    IngestRepo.insert_all(XcodeTarget, fillers)
+    rows = Analytics.module_invalidations(Keyword.put(opts, :limit, 300))
+    z = Enum.find(rows, &(&1.name == "Z"))
+    assert z.dependency_induced == 1
+    assert z.evicted == 0
   end
 
   defp observation(project, day, attrs \\ []) do
@@ -405,6 +458,19 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     end
   end
 
+  defp insert_target(event, name, hit, hash, dependencies \\ []) do
+    XcodeFixtures.xcode_target_fixture(
+      command_event_id: event.id,
+      name: name,
+      product: "framework",
+      binary_cache_hash: hash,
+      binary_cache_hit: hit,
+      sources_hash: "#{name}-sources",
+      dependencies: dependencies,
+      dependencies_hash: "dependencies-of-#{name}"
+    )
+  end
+
   defp assert_reasons(:history, opts, event, expected) do
     actual =
       Map.new(expected, fn {name, _reason} ->
@@ -422,6 +488,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     actual =
       opts
       |> Analytics.module_invalidations()
+      |> Enum.filter(&(&1.invalidations > 0))
       |> Map.new(fn row ->
         assert row.invalidations == 1
         {row.name, {row.self_changes, row.dependency_induced, row.unclassified, row.evicted}}

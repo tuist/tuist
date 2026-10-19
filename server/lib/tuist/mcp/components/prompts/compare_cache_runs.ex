@@ -91,6 +91,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareCacheRuns do
     - Targets where **only** the `dependencies` subhash changed were invalidated because they depend (directly or transitively) on the root cause target.
     - Use target names to infer the dependency topology. For example, a target named `FeatureLogin` likely depends on `Core` or `Networking`. Leaf/feature targets depend on shared/core targets. Work from the bottom of the graph upward.
     - If multiple non-dependency subhashes changed across different targets, there may be multiple independent root causes.
+    - A target can also miss with an unchanged `cache_hash` and identical subhashes. A binary is only used when all of the target's direct dependencies are binaries too, so when a dependency misses (because it changed, was evicted, or was never cached), the targets above it are built from source even if their binaries exist. Attribute those misses to the dependency's miss, not to an eviction of the target, and keep walking down the graph to the missed target whose key changed or was never cached.
 
     ### Summary format
 
