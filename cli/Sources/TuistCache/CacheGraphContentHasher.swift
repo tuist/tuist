@@ -177,8 +177,11 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             .first { $0.name.caseInsensitiveCompare(configuration) == .orderedSame }?
             .variant == .debug
         let instrumented = isDebug && coverage.isOn(in: graph)
+        // A target without an external hash is keyed as the repository's code, the rule the server judges a
+        // run's coverage by (`external_hash` empty). It also admits a package referenced by path from outside
+        // the checkout and a local git clone, whose coverage the export drops; that only costs instrumentation.
         return { target in
-            guard instrumented, case .local = target.project.type else { return additionalStrings }
+            guard instrumented, target.project.externalHash == nil else { return additionalStrings }
             return additionalStrings + [Self.coverageDimension]
         }
     }

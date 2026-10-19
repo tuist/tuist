@@ -84,12 +84,21 @@ struct CacheGraphContentHasherTests {
         let externalProject = Project.test(
             path: "/external", settings: settings, targets: [external], type: .external(hash: "revision")
         )
+        // A package the manifest references by path resolves without a hash: its code is the repository's.
+        let localPackage = Target.test(name: "LocalPackage", product: .framework)
+        let localPackageProject = Project.test(
+            path: "/local-package", settings: settings, targets: [localPackage], type: .external(hash: nil)
+        )
         let graph = Graph.test(
             workspace: .test(schemes: [
                 .test(name: "Covered", testAction: .test(coverage: true)),
                 .test(name: "Plain", testAction: .test(coverage: false)),
             ]),
-            projects: [localProject.path: localProject, externalProject.path: externalProject]
+            projects: [
+                localProject.path: localProject,
+                externalProject.path: externalProject,
+                localPackageProject.path: localPackageProject,
+            ]
         )
         given(graphContentHasher)
             .contentHashes(for: .any, include: .any, destination: .any, additionalStrings: .any)
@@ -125,7 +134,11 @@ struct CacheGraphContentHasherTests {
                     let externalStrings = additionalStrings(
                         GraphTarget(path: externalProject.path, target: external, project: externalProject)
                     )
+                    let localPackageStrings = additionalStrings(
+                        GraphTarget(path: localPackageProject.path, target: localPackage, project: localPackageProject)
+                    )
                     return localStrings.contains(CacheGraphContentHasher.coverageDimension) == instrumented
+                        && localPackageStrings.contains(CacheGraphContentHasher.coverageDimension) == instrumented
                         && !externalStrings.contains(CacheGraphContentHasher.coverageDimension)
                         && localStrings.contains(configuration) && externalStrings.contains(configuration)
                 }

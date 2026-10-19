@@ -11,6 +11,7 @@ struct InstrumentedBinaryCacheWarmGraphMapperTests {
     @Test func map_marksTheRepositoryBinariesOnly() async throws {
         let localPath = try AbsolutePath(validating: "/local")
         let externalPath = try AbsolutePath(validating: "/external")
+        let localPackagePath = try AbsolutePath(validating: "/local-package")
         let framework = Target.test(
             name: "Core",
             product: .framework,
@@ -35,9 +36,15 @@ struct InstrumentedBinaryCacheWarmGraphMapperTests {
         let external = Project.test(
             path: externalPath,
             targets: [Target.test(name: "Dependency", product: .framework)],
+            type: .external(hash: "revision")
+        )
+        // A package referenced by path resolves without a hash; its code is the repository's.
+        let localPackage = Project.test(
+            path: localPackagePath,
+            targets: [Target.test(name: "PathPackage", product: .staticFramework)],
             type: .external(hash: nil)
         )
-        let graph = Graph.test(projects: [localPath: local, externalPath: external])
+        let graph = Graph.test(projects: [localPath: local, externalPath: external, localPackagePath: localPackage])
 
         let (got, sideEffects, _) = try await InstrumentedBinaryCacheWarmGraphMapper().map(
             graph: graph,
@@ -60,6 +67,7 @@ struct InstrumentedBinaryCacheWarmGraphMapperTests {
         #expect(targets["Macros"]?.settings?.base[marker] == nil)
         #expect(targets["CoreTests"]?.settings?.base[marker] == nil)
         #expect(got.projects[externalPath]?.targets["Dependency"]?.settings?.base[marker] == nil)
+        #expect(got.projects[localPackagePath]?.targets["PathPackage"]?.settings?.base[marker] == "YES")
         #expect(got.projects[localPath]?.settings.base[marker] == nil)
     }
 }
