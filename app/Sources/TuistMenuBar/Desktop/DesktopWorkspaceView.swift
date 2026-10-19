@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TuistHome
 import TuistProjects
 import TuistServer
 
@@ -7,6 +8,8 @@ struct DesktopWorkspaceView: View {
     let accountHandle: String
     @Bindable var model: DesktopPreviewsModel
     @Binding var navigation: DesktopNavigation
+    let activityModel: HomeActivityModel
+    let handleAuthenticationError: (Error) -> Void
     let refresh: () -> Void
     let loadMore: () async -> Void
 
@@ -114,6 +117,8 @@ struct DesktopWorkspaceView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                HomeActivityView(model: activityModel, handleAuthenticationError: handleAuthenticationError)
 
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {

@@ -1,6 +1,7 @@
 #if os(iOS)
     import SwiftUI
     import TuistErrorHandling
+    import TuistHome
     import TuistNoora
     import TuistPreviews
     import TuistProjects
@@ -9,17 +10,20 @@
         @EnvironmentObject private var errorHandling: ErrorHandling
         private let viewModel: PreviewsViewModel
         @State private var navigationPath = NavigationPath()
+        @State private var activityModel: HomeActivityModel
         private let onSeeAllPreviews: () -> Void
 
         init(viewModel: PreviewsViewModel, onSeeAllPreviews: @escaping () -> Void) {
             self.viewModel = viewModel
             self.onSeeAllPreviews = onSeeAllPreviews
+            _activityModel = State(initialValue: HomeActivityModel(projectContext: viewModel.projectContext))
         }
 
         var body: some View {
             NavigationStack(path: $navigationPath) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
+                        HomeActivityView(model: activityModel) { errorHandling.handle(error: $0) }
                         recentPreviewsCard
                     }
                     .padding(20)
@@ -33,11 +37,13 @@
                     }
                 }
                 .refreshable {
+                    async let activity: Void = activityModel.load(force: true)
                     do {
                         try await viewModel.refreshProjects()
                     } catch {
                         if !Task.isCancelled { errorHandling.handle(error: error) }
                     }
+                    await activity
                 }
                 .navigationDestination(for: PreviewDestination.self) { destination in
                     PreviewView(preview: destination.preview, fullHandle: destination.fullHandle)

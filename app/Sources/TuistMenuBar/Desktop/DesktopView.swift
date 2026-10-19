@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import TuistAuthentication
+import TuistHome
 import TuistProjects
 import TuistServer
 
@@ -60,6 +61,7 @@ private struct SignedInDesktopView: View {
     let applicationModel: MacApplicationModel
     @State private var projectContext: ProjectContext
     @State private var model: DesktopPreviewsModel
+    @State private var activityModel: HomeActivityModel
     @State private var navigation = DesktopNavigation()
 
     init(account: Account, applicationModel: MacApplicationModel) {
@@ -70,6 +72,9 @@ private struct SignedInDesktopView: View {
         }
         _projectContext = State(initialValue: context)
         _model = State(initialValue: DesktopPreviewsModel(projectContext: context))
+        _activityModel = State(initialValue: MacApplicationEnvironment.withValue {
+            HomeActivityModel(projectContext: context)
+        })
     }
 
     var body: some View {
@@ -77,6 +82,8 @@ private struct SignedInDesktopView: View {
             accountHandle: account.handle,
             model: model,
             navigation: $navigation,
+            activityModel: activityModel,
+            handleAuthenticationError: applicationModel.errorHandling.handle,
             refresh: refresh,
             loadMore: loadMore
         )
@@ -100,8 +107,19 @@ private struct SignedInDesktopView: View {
 
     private func refresh() {
         applicationModel.errorHandling.fireAndHandleError {
-            try await model.refresh()
+            async let activity: Void = refreshHomeActivity()
+            do {
+                try await model.refresh()
+            } catch {
+                applicationModel.errorHandling.handle(error: error)
+            }
+            await activity
         }
+    }
+
+    private func refreshHomeActivity() async {
+        guard navigation.section == .home else { return }
+        await activityModel.load(force: true)
     }
 
     private func loadMore() async {

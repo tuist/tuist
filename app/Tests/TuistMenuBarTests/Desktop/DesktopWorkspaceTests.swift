@@ -4,6 +4,7 @@ import Mockable
 import SwiftUI
 import Testing
 import TuistAppStorage
+import TuistHome
 import TuistServer
 import TuistSimulator
 
@@ -239,6 +240,11 @@ struct DesktopWorkspaceTests {
         window.contentView = NSHostingView(rootView: DesktopWorkspaceView(
             accountHandle: "sample-user", model: fixture.model,
             navigation: Binding(get: { fixture.state.navigation }, set: { fixture.state.navigation = $0 }),
+            activityModel: HomeActivityModel(
+                projectContext: fixture.model.projectContext, service: EmptyWorkspaceActivity(),
+                serverURL: URL(string: "https://example.invalid")!
+            ),
+            handleAuthenticationError: { _ in },
             refresh: {}, loadMore: { await fixture.model.loadMore() }
         )
         .environmentObject(DeviceService(taskStatusReporter: TaskStatusReporter(), appStorage: MockAppStoring()))
@@ -282,6 +288,10 @@ struct DesktopWorkspaceTests {
         let state: WorkspaceState
         let previews: MockListPreviewsServicing
     }
+}
+
+private struct EmptyWorkspaceActivity: HomeActivityFetching {
+    func fetch(_: HomeActivityKind, fullHandle _: String, serverURL _: URL) async throws -> [HomeActivityItem] { [] }
 }
 
 @MainActor
