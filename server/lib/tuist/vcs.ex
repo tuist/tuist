@@ -1259,23 +1259,53 @@ defmodule Tuist.VCS do
 
     failure_detail = format_failure_detail(failed_test.failure, project, failed_test.git_commit_sha)
 
-    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}\\\n#{failure_detail}\n"
+    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}#{failure_detail}\n"
   end
 
   @max_failure_message_length 160
+  @max_failure_message_lines 10
 
   defp format_failure_detail(nil, _project, _commit_sha), do: ""
 
   defp format_failure_detail(failure, project, commit_sha) do
     location = format_failure_location(failure, project, commit_sha)
-    message = sanitize_for_markdown(failure.message)
 
-    case {location, message} do
-      {nil, nil} -> ""
-      {loc, nil} -> loc
-      {nil, msg} -> truncate_message(msg)
-      {loc, msg} -> "#{loc}: #{truncate_message(msg)}"
+    case {location, failure_message_lines(failure.message)} do
+      {nil, []} -> ""
+      {loc, []} -> "\\\n#{loc}"
+      {nil, [line]} -> "\\\n#{truncate_message(line)}"
+      {loc, [line]} -> "\\\n#{loc}: #{truncate_message(line)}"
+      {nil, lines} -> "\n\n#{format_failure_code_block(lines)}"
+      {loc, lines} -> "\\\n#{loc}\n\n#{format_failure_code_block(lines)}"
     end
+  end
+
+  defp failure_message_lines(nil), do: []
+
+  defp failure_message_lines(message) do
+    case String.trim(message) do
+      "" -> []
+      trimmed -> trimmed |> String.split(~r/\r\n|\r|\n/) |> Enum.map(&String.trim_trailing/1)
+    end
+  end
+
+  defp format_failure_code_block(lines) do
+    {shown_lines, hidden_lines} = Enum.split(lines, @max_failure_message_lines)
+    shown_lines = Enum.map(shown_lines, &truncate_message/1)
+    shown_lines = if hidden_lines == [], do: shown_lines, else: shown_lines ++ ["…"]
+    fence = code_fence(shown_lines)
+
+    Enum.map_join([fence | shown_lines] ++ [fence], "\n", &"  #{&1}")
+  end
+
+  defp code_fence(lines) do
+    longest_backtick_run =
+      lines
+      |> Enum.flat_map(&Regex.scan(~r/`+/, &1))
+      |> Enum.map(fn [run] -> String.length(run) end)
+      |> Enum.max(fn -> 0 end)
+
+    String.duplicate("`", max(3, longest_backtick_run + 1))
   end
 
   defp format_failure_location(%{path: path} = failure, project, commit_sha) when path not in [nil, ""] do
@@ -1290,12 +1320,6 @@ defmodule Tuist.VCS do
   end
 
   defp format_failure_location(_, _, _), do: nil
-
-  defp sanitize_for_markdown(nil), do: nil
-
-  defp sanitize_for_markdown(message) do
-    message |> String.replace(~r/[\n\r]+/, " ") |> String.trim()
-  end
 
   defp truncate_message(message) do
     if String.length(message) > @max_failure_message_length do
