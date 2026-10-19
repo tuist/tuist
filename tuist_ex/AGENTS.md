@@ -171,8 +171,16 @@ dashboard presentation belong in `server/`.
   `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
   VM's code path) are the places where it is expected.
 - `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
-  an OpenID Connect exchange on GitHub Actions, CircleCI or Bitrise, so CI needs
-  no login step. The exchanged token is kept in memory for the VM and never
+  an OpenID Connect exchange on GitHub Actions, CircleCI, Bitrise, or a supplied
+  `TUIST_OIDC_TOKEN`, so CI needs no login step. The explicit workload token
+  takes precedence over provider detection, is trimmed, and empty values fail
+  without browser fallback. `mix tuist.login` also accepts it outside CI. Fly.io
+  callers mint it through the Machine's local socket with audience `tuist`; the
+  server enforces the project trust policy. Forward optional `TUIST_OIDC_ACCOUNT`
+  as `account_handle` and partition automatic-exchange caches by server and account.
+  A Fly identity lasts about ten minutes; exchanged sessions last one hour with
+  no refresh token, so long-running Machines must mint and log in again.
+  The exchanged token is kept in memory for the VM and never
   written to the shared credentials file: a runner that outlives the job would
   otherwise hand it to the next repository's job. Every failure on that path is
   an `{:error, message}`, never a raise, because reporting must stay silent.
