@@ -2063,6 +2063,15 @@ defmodule Tuist.Environment do
     |> parse_runners_site_pools()
   end
 
+  @doc """
+  Whether the env rents a macOS fleet to back its sites' pools with. Helm sets
+  `TUIST_RUNNERS_RENTED_MACOS_FLEET=false` when the env racks its macOS pools
+  at a site and rents no hosts, so dispatch keeps those pools' jobs at the site.
+  """
+  def runners_rented_macos_fleet?(environment \\ System.get_env()) do
+    Map.get(environment, "TUIST_RUNNERS_RENTED_MACOS_FLEET") != "false"
+  end
+
   @doc false
   def parse_runners_site_pools(value) do
     value

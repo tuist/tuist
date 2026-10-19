@@ -118,7 +118,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -152,7 +152,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Resolve registry replacements
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
@@ -191,7 +191,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Cache
         run: tuist cache
       # The coverage variant of the binary cache, read by the runs that collect
@@ -237,7 +237,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
@@ -284,7 +284,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -330,7 +330,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -406,7 +406,7 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-acceptance-tests-build-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation

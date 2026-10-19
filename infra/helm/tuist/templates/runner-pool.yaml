@@ -209,7 +209,14 @@ The rendered set is the default shape plus every non-default shape.
     {{- $extraShapes = append $extraShapes . }}
   {{- end }}
 {{- end }}
-{{- $placements := list (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- /*
+The rented placement is left out when the env rents no hosts for it and racks
+the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
+*/}}
+{{- $placements := list }}
+{{- if eq (include "tuist.runnersFleetRentsMacOS" .) "true" }}
+{{- $placements = append $placements (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
 {{- $rackRunners := .Values.rackFleet.runners }}

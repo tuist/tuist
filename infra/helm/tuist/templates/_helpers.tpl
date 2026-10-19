@@ -1337,6 +1337,26 @@ The identity a lending env's operator writes this env's RackHostLeases with.
 {{- end -}}
 
 {{/*
+"true" unless the env racks its macOS catalog at a site
+(`tuist.rackCatalogPools`) and rents no Scaleway hosts for it
+(`runnersFleet.hostCount` and every `machineGroups[].hostCount` at 0). Without
+rented hosts the chart renders no rented macOS catalog pools, and the server
+(TUIST_RUNNERS_RENTED_MACOS_FLEET) keeps every site job at the site instead of
+falling back or spilling over to a fleet that is not there.
+*/}}
+{{- define "tuist.runnersFleetRentsMacOS" -}}
+{{- $hosts := int (.Values.runnersFleet.hostCount | default 0) -}}
+{{- range (.Values.runnersFleet.machineGroups | default list) -}}
+{{- $hosts = add $hosts (int (.hostCount | default 0)) -}}
+{{- end -}}
+{{- if and (eq (int $hosts) 0) (include "tuist.rackCatalogPools" . | fromJsonArray) -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
 The Secret a lent rack host's kubeconfig is synced into: the 1Password item's
 name as a Kubernetes name, so a rotated kubeconfig (a new item) is a new
 Secret, and the new name drifts the host onto it.
