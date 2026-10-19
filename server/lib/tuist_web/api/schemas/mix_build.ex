@@ -1,9 +1,9 @@
 defmodule TuistWeb.API.Schemas.MixBuild do
   @moduledoc false
 
+  alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.PaginationMetadata
-  alias TuistWeb.API.Schemas.ReportActor
 
   def list do
     %Schema{
@@ -31,7 +31,7 @@ defmodule TuistWeb.API.Schemas.MixBuild do
       type: :object,
       properties: %{
         id: %Schema{type: :string, format: :uuid},
-        actor: ReportActor,
+        actor: %Reference{"$ref": "#/components/schemas/ReportActor"},
         status: %Schema{type: :string, enum: ["success", "failure"]},
         duration_ms: %Schema{type: :integer},
         is_ci: %Schema{type: :boolean},

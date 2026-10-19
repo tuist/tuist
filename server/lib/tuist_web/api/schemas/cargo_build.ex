@@ -1,10 +1,10 @@
 defmodule TuistWeb.API.Schemas.CargoBuild do
   @moduledoc false
 
+  alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
   alias Tuist.Cargo.CacheMetrics
   alias TuistWeb.API.Schemas.PaginationMetadata
-  alias TuistWeb.API.Schemas.ReportActor
 
   def list do
     %Schema{
@@ -32,7 +32,7 @@ defmodule TuistWeb.API.Schemas.CargoBuild do
       type: :object,
       properties: %{
         id: %Schema{type: :string, format: :uuid},
-        actor: ReportActor,
+        actor: %Reference{"$ref": "#/components/schemas/ReportActor"},
         command: nullable_string("The Cargo subcommand, for example build or check."),
         rust_version: nullable_string("The rustc version."),
         status: %Schema{type: :string, enum: ["success", "failure"]},
