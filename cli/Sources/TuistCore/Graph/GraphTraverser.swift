@@ -1421,9 +1421,8 @@ public class GraphTraverser: GraphTraversing {
             else { return nil }
             return SwiftIncludePath(path: swiftModuleMapPath.removingLastComponent())
         }
-        // Every slice of an xcframework ships a `.swiftmodule` with the same module name, so each slice's
-        // directory is only exposed to the SDK it was built for. Otherwise the compiler picks whichever slice
-        // comes first, e.g. the device interface for a simulator build.
+        let targetPlatformFilters = target(path: path, name: name).map { Set($0.target.destinations.map(\.platformFilter)) }
+        // Every slice ships a `.swiftmodule` with the same name, so each one is only exposed to its own SDK.
         let xcframeworkLibrarySwiftModulePaths = dependencies.flatMap {
             dependency -> [SwiftIncludePath] in
             guard case let GraphDependency.xcframework(xcframework) = dependency,
@@ -1432,15 +1431,20 @@ public class GraphTraverser: GraphTraversing {
                   })
             else { return [] }
 
-            return xcframework.swiftModules.map { swiftModulePath in
+            return xcframework.swiftModules.compactMap { swiftModulePath in
                 let includePath = if swiftModulePath.parentDirectory.extension == "swiftmodule" {
                     swiftModulePath.parentDirectory.parentDirectory
                 } else {
                     swiftModulePath.parentDirectory
                 }
                 let libraryIdentifier = includePath.relative(to: xcframework.path).components.first
-                let library = xcframework.infoPlist.libraries.first { $0.identifier == libraryIdentifier }
-                return SwiftIncludePath(path: includePath, sdkCondition: library?.sdkCondition)
+                guard let library = xcframework.infoPlist.libraries.first(where: { $0.identifier == libraryIdentifier })
+                else { return SwiftIncludePath(path: includePath) }
+                // Mac Catalyst and macOS slices share `sdk=macosx*`, so only the one the target builds for is kept.
+                if let targetPlatformFilters, !targetPlatformFilters.contains(library.platformFilter) {
+                    return nil
+                }
+                return SwiftIncludePath(path: includePath, sdkCondition: library.sdkCondition)
             }
         }
         return Set(librarySwiftModuleMapPaths + xcframeworkLibrarySwiftModulePaths)

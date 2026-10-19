@@ -4461,7 +4461,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
 
         // Then
         XCTAssertEqual(got, [SwiftIncludePath(path: try AbsolutePath(validating: "/test/modules"))])
@@ -4469,7 +4469,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_librariesSwiftIncludePaths_includesLibraryXCFrameworkSwiftModules() throws {
         // Given
-        let target = Target.test(name: "Main")
+        let target = Target.test(name: "Main", destinations: [.mac])
         let project = Project.test(targets: [target])
         let dynamicLibraryPath = try AbsolutePath(validating: "/cache/DynamicLibrary.xcframework")
         let staticLibraryPath = try AbsolutePath(validating: "/cache/StaticLibrary.xcframework")
@@ -4546,7 +4546,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
 
         // Then
         XCTAssertEqual(got, [
@@ -4619,7 +4619,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
 
         // Then
         XCTAssertEqual(got, [
@@ -4632,6 +4632,109 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 sdkCondition: "sdk=iphonesimulator*"
             ),
         ])
+    }
+
+    func test_librariesSwiftIncludePaths_keepsOnlyTheMacSliceTheTargetBuildsFor() throws {
+        // Given
+        let macApp = Target.test(name: "MacApp", destinations: [.mac])
+        let catalystApp = Target.test(name: "CatalystApp", destinations: [.iPad, .macCatalyst])
+        let project = Project.test(targets: [macApp, catalystApp])
+        let staticLibraryPath = try AbsolutePath(validating: "/Deps/BinaryLib.xcframework")
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+                .test(
+                    identifier: "ios-arm64_x86_64-maccatalyst",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    platformVariant: .maccatalyst,
+                    architectures: [.arm64, .x8664]
+                ),
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: ["ios-arm64", "ios-arm64_x86_64-maccatalyst", "macos-arm64_x86_64"].map {
+                staticLibraryPath.appending(components: $0, "BinaryLib.swiftmodule", "arm64.swiftinterface")
+            }
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: macApp.name, path: project.path): Set([staticLibrary]),
+                .target(name: catalystApp.name, path: project.path): Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let macAppPaths = subject.librariesSwiftIncludePaths(path: project.path, name: macApp.name)
+        let catalystAppPaths = subject.librariesSwiftIncludePaths(path: project.path, name: catalystApp.name)
+
+        // Then
+        XCTAssertEqual(macAppPaths, [
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "macos-arm64_x86_64"),
+                sdkCondition: "sdk=macosx*"
+            ),
+        ])
+        XCTAssertEqual(catalystAppPaths, [
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64"),
+                sdkCondition: "sdk=iphoneos*"
+            ),
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64_x86_64-maccatalyst"),
+                sdkCondition: "sdk=macosx*"
+            ),
+        ])
+    }
+
+    func test_librariesSwiftIncludePaths_leavesSwiftModulesOutsideASliceUnconditioned() throws {
+        // Given
+        let target = Target.test(name: "App", destinations: [.iPhone])
+        let project = Project.test(targets: [target])
+        let staticLibraryPath = try AbsolutePath(validating: "/Deps/BinaryLib.xcframework")
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: [
+                staticLibraryPath.appending(components: "Modules", "BinaryLib.swiftmodule", "arm64.swiftinterface"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [SwiftIncludePath(path: staticLibraryPath.appending(component: "Modules"))])
     }
 
     func test_runPathSearchPaths() throws {
