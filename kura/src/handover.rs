@@ -915,6 +915,25 @@ mod tests {
         .unwrap()
         .unwrap();
         verify_record(&target.state, &expected).await.unwrap();
+        let retained = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(retained.len(), 2);
+        for entry in retained {
+            let retained = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            verify_record(&target.state, &retained).await.unwrap();
+        }
         assert!(source.state.store.handover_hold.lock().unwrap().is_none());
         assert!(target.state.store.handover_hold.lock().unwrap().is_none());
         assert!(

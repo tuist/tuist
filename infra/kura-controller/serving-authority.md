@@ -93,7 +93,7 @@ destination performs bounded retained-index catch-up with normal background
 bandwidth admission and no corpus hold. It repeats passes if eviction occurred.
 This phase has its own fixed 20-minute deadline, preserved across reconciliation
 and controller restart. Failure, cancellation, changed destination identity or
-timeout clears the request without pausing the primary; a new request ID is
+timeout clears the pending intent without pausing the primary; a new request ID is
 required to retry. Source expiry still requires positive fencing.
 
 Only a fresh completion report matching the exact intent, source epoch and both
@@ -117,7 +117,7 @@ admission. If rotation evicts records during a repair pass, the destination walk
 the retained index again before taking its hold; this also repairs action-cache
 entries cascaded away by blob eviction after an earlier presence check. A pass
 without eviction acquires the hold atomically with its eviction-generation check.
-All passes share the original preparation deadline. Equal-sized fragmented
+All Quiescing repair passes share its original 300-second deadline. Equal-sized fragmented
 replicas are not guaranteed to converge; the final full-corpus check still
 refuses promotion when required data remains missing.
 Only one repair runs per destination, and an abort, changed intent or deadline
@@ -126,7 +126,7 @@ that hold. Older destinations keep their verify-only behavior. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
-Missing, capacity-skipped, changed or unreadable data fails preparation.
+Missing, capacity-skipped, changed or unreadable data fails retained-corpus verification.
 Compatible destinations advertise bounded batch verification on the initial
 response. The source sends at most 32 record descriptors, 64 KiB of descriptor
 JSON and 8 MiB of referenced bodies per batch (a single larger record travels
@@ -134,7 +134,7 @@ alone). Both peers still hash every byte sequentially with the same buffer and
 ordered receipt digest. This removes per-record network round trips without
 adding parallel readers. Older destinations use the individual-record path;
 older sources remain supported. Rejections name the failing record within a
-batch, and a partial batch acknowledgment cannot complete preparation.
+batch, and a partial batch acknowledgment cannot complete verification.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.
