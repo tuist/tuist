@@ -1,13 +1,8 @@
 import Foundation
 import SwiftUI
-import TuistAppStorage
 import TuistAuthentication
+import TuistProjects
 import TuistServer
-
-struct SelectedProjectFullHandleKey: AppStorageKey {
-    static let key = "selectedProjectFullHandle"
-    static let defaultValue: String? = nil
-}
 
 enum PreviewsViewModelError: LocalizedError, Equatable {
     case trackFilteringUnsupported
@@ -23,22 +18,42 @@ enum PreviewsViewModelError: LocalizedError, Equatable {
     }
 }
 
+@MainActor
 @Observable
-final class PreviewsViewModel: Sendable {
-    private let listProjectsService: ListProjectsServicing
+public final class PreviewsViewModel {
+    public let projectContext: ProjectContext
     private let listPreviewsService: ListPreviewsServicing
     private let listPreviewTracksService: ListPreviewTracksServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
-    private let appStorage: AppStoring
+    private var items: [ServerPreview] = []
+    private var recentItems: [ServerPreview] = []
+    private var recentFullHandle: String?
+    private var loadedFullHandle: String?
+    private var requestedFullHandle: String?
+    private var requestID = UUID()
+    private var currentPage = 1
+    private var hasLoaded = false
+    private var unfilteredTotalCount: Int?
 
-    private(set) var projects: [ServerProject] = []
-    private(set) var previews: [ServerPreview] = []
-    private(set) var selectedProject: ServerProject?
+    public var projects: [ServerProject] { projectContext.projects }
+    public var selectedProject: ServerProject? { projectContext.selectedProject }
+    var previews: [ServerPreview] { loadedFullHandle == projectContext.selectedFullHandle ? items : [] }
+    public var recentPreviews: [ServerPreview] {
+        recentFullHandle == projectContext.selectedFullHandle ? Array(recentItems.prefix(3)) : []
+    }
+
     private(set) var selectedTrack: String?
     private(set) var trackSummary: ServerPreviewTrackSummary?
     private(set) var searchQuery = ""
     private(set) var isTrackSelectionSupported = true
-    private var unfilteredTotalCount: Int?
+    private(set) var isLoadingMore = false
+    private(set) var hasMorePreviews = false
+    public private(set) var isRefreshingPreviews = false
+    var isLoadingPreviews: Bool { isRefreshingPreviews }
+    public var isRefreshingProjects: Bool { projectContext.isLoading }
+    public var isInitialLoading: Bool {
+        (projectContext.isLoading && projects.isEmpty) || !hasLoaded
+    }
 
     var availableTracks: [String] { trackSummary?.tracks.map(\.name) ?? [] }
     var totalPreviewCount: Int? { trackSummary?.totalCount ?? unfilteredTotalCount }
@@ -59,173 +74,155 @@ final class PreviewsViewModel: Sendable {
         return options
     }
 
-    private var loadID = UUID()
-
-    private var currentPage = 1
-    private(set) var isLoadingMore = false
-    private(set) var isLoadingPreviews = false
-    private(set) var hasMorePreviews = true
-    private(set) var isInitialLoading = true
-
-    init(
-        listProjectsService: ListProjectsServicing = ListProjectsService(),
+    public init(
+        projectContext: ProjectContext,
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
         listPreviewTracksService: ListPreviewTracksServicing = ListPreviewTracksService(),
-        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
-        appStorage: AppStoring = AppStorage()
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService()
     ) {
-        self.listProjectsService = listProjectsService
+        self.projectContext = projectContext
         self.listPreviewsService = listPreviewsService
         self.listPreviewTracksService = listPreviewTracksService
         self.serverEnvironmentService = serverEnvironmentService
-        self.appStorage = appStorage
     }
 
-    func onAppear() async throws {
-        do {
-            try await loadProjects()
-            isInitialLoading = false
-        } catch {
-            isInitialLoading = false
-            throw error
-        }
+    public func onAppear() async throws {
+        try await projectContext.load()
+        try await loadSelectedProject()
     }
 
-    func selectProject(_ project: ServerProject) async throws {
-        selectedProject = project
-        selectedTrack = nil
-        searchQuery = ""
-        trackSummary = nil
-        unfilteredTotalCount = nil
-        isTrackSelectionSupported = true
-        previews = []
-        try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
-        try await loadPreviews(for: project, reloadTracks: true)
+    public func selectProject(_ project: ServerProject) async throws {
+        projectContext.selectProject(project.fullName)
+        try await loadSelectedProject()
     }
 
-    func selectTrack(_ track: String?) async throws {
-        selectedTrack = track.flatMap { $0.isEmpty ? nil : $0 }
-        previews = []
-        guard let selectedProject else { return }
-        try await loadPreviews(for: selectedProject)
-    }
-
-    func searchPreviews(_ query: String) async throws {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard query != searchQuery, let selectedProject else { return }
-        guard query.isEmpty || isTrackSelectionSupported else { throw PreviewsViewModelError.searchUnsupported }
-        searchQuery = query
-        previews = []
-        try await loadPreviews(for: selectedProject)
-    }
-
-    private func loadPreviews(for project: ServerProject, reloadTracks: Bool = false) async throws {
-        loadID = UUID()
-        currentPage = 1
-        hasMorePreviews = true
-        isLoadingMore = false
-        isLoadingPreviews = true
-        let requestID = loadID
-        defer {
-            if requestID == loadID { isLoadingPreviews = false }
-        }
-        try await loadPreviewsPage(for: project, page: currentPage)
-        guard reloadTracks, requestID == loadID else { return }
-        do {
-            let tracks = try await listPreviewTracksService.listPreviewTracks(
-                fullHandle: project.fullName, serverURL: serverEnvironmentService.url()
-            )
-            guard requestID == loadID else { return }
-            trackSummary = tracks
-            isTrackSelectionSupported = tracks != nil
-        } catch {
-            guard requestID == loadID else { return }
-            throw error
-        }
-    }
-
-    func loadMorePreviews() async throws {
-        guard let selectedProject,
-              !isLoadingMore,
-              !isLoadingPreviews,
-              hasMorePreviews
-        else {
-            return
-        }
-
-        isLoadingMore = true
-        let requestID = loadID
-        defer {
-            if requestID == loadID { isLoadingMore = false }
-        }
-        let nextPage = currentPage + 1
-        try await loadPreviewsPage(for: selectedProject, page: nextPage)
-    }
-
-    func refreshPreviews() async throws {
-        guard let selectedProject else { return }
-        try await loadPreviews(for: selectedProject, reloadTracks: true)
-    }
-
-    func refreshProjects() async throws {
-        try await loadProjects()
-    }
-
-    private func loadProjects() async throws {
-        projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
-
-        let storedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self)
-        guard let project = projects.first(where: { $0.fullName == storedProjectFullHandle }) ?? projects.first else { return }
-        if selectedProject?.fullName != project.fullName {
+    public func loadSelectedProject(force: Bool = false) async throws {
+        let fullHandle = projectContext.selectedFullHandle
+        let projectChanged = requestedFullHandle != fullHandle
+        guard projectChanged || !isRefreshingPreviews else { return }
+        guard force || !hasLoaded || projectChanged else { return }
+        if projectChanged {
+            hasLoaded = false
             selectedTrack = nil
             searchQuery = ""
             trackSummary = nil
             unfilteredTotalCount = nil
             isTrackSelectionSupported = true
-            previews = []
         }
-        selectedProject = project
-        try await loadPreviews(for: project, reloadTracks: true)
+        requestedFullHandle = fullHandle
+        try await loadPreviews(reloadTracks: true, refreshRecent: true)
     }
 
-    private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {
-        let requestID = loadID
-        let previewsPage: ServerPreviewsPage
-        do {
-            if searchQuery.isEmpty {
-                previewsPage = try await listPreviewsService.listPreviews(
-                    displayName: nil,
-                    specifier: nil,
-                    track: selectedTrack,
-                    supportedPlatforms: [],
-                    page: page,
-                    pageSize: 20,
-                    distinctField: nil,
-                    fullHandle: project.fullName,
-                    serverURL: serverEnvironmentService.url()
-                )
-            } else {
-                previewsPage = try await listPreviewsService.searchPreviews(
-                    search: searchQuery,
-                    track: selectedTrack,
-                    page: page,
-                    pageSize: 20,
-                    fullHandle: project.fullName,
-                    serverURL: serverEnvironmentService.url()
-                )
+    func selectTrack(_ track: String?) async throws {
+        selectedTrack = track.flatMap { $0.isEmpty ? nil : $0 }
+        items = []
+        try await loadPreviews()
+    }
+
+    func searchPreviews(_ query: String) async throws {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query != searchQuery, selectedProject != nil else { return }
+        guard query.isEmpty || isTrackSelectionSupported else { throw PreviewsViewModelError.searchUnsupported }
+        searchQuery = query
+        items = []
+        try await loadPreviews()
+    }
+
+    private func loadPreviews(reloadTracks: Bool = false, refreshRecent: Bool = false) async throws {
+        let request = UUID()
+        requestID = request
+        isLoadingMore = false
+        hasMorePreviews = false
+        isRefreshingPreviews = true
+        defer {
+            if requestID == request {
+                isRefreshingPreviews = false
+                hasLoaded = true
             }
+        }
+        guard let fullHandle = projectContext.selectedFullHandle else {
+            items = []
+            recentItems = []
+            loadedFullHandle = nil
+            recentFullHandle = nil
+            return
+        }
+        do {
+            try await loadPage(1, fullHandle: fullHandle, request: request)
+            guard isCurrent(request, fullHandle: fullHandle) else { return }
+            if refreshRecent, selectedTrack != nil || !searchQuery.isEmpty {
+                let page = try await listPreviewsService.listPreviews(
+                    displayName: nil, specifier: nil, track: nil, supportedPlatforms: [],
+                    page: 1, pageSize: 20, distinctField: nil, fullHandle: fullHandle,
+                    serverURL: serverEnvironmentService.url()
+                )
+                guard isCurrent(request, fullHandle: fullHandle) else { return }
+                recentItems = Array(page.previews.prefix(3))
+                recentFullHandle = fullHandle
+                unfilteredTotalCount = page.paginationMetadata.totalCount
+            }
+            guard reloadTracks else { return }
+            let tracks = try await listPreviewTracksService.listPreviewTracks(
+                fullHandle: fullHandle, serverURL: serverEnvironmentService.url()
+            )
+            guard isCurrent(request, fullHandle: fullHandle) else { return }
+            trackSummary = tracks
+            isTrackSelectionSupported = tracks != nil
         } catch {
-            guard requestID == loadID else { return }
+            guard isCurrent(request, fullHandle: fullHandle) else { return }
             throw error
         }
+    }
 
-        guard requestID == loadID else { return }
+    func loadMorePreviews() async throws {
+        guard let fullHandle = projectContext.selectedFullHandle,
+              loadedFullHandle == fullHandle,
+              !isRefreshingPreviews, !isLoadingMore, hasMorePreviews
+        else { return }
+        let request = requestID
+        isLoadingMore = true
+        defer { if requestID == request { isLoadingMore = false } }
+        do {
+            try await loadPage(currentPage + 1, fullHandle: fullHandle, request: request)
+        } catch {
+            guard isCurrent(request, fullHandle: fullHandle) else { return }
+            throw error
+        }
+    }
+
+    public func refreshPreviews() async throws {
+        try await loadSelectedProject(force: true)
+    }
+
+    public func refreshProjects() async throws {
+        try await projectContext.refresh()
+        try await refreshPreviews()
+    }
+
+    private func isCurrent(_ request: UUID, fullHandle: String) -> Bool {
+        requestID == request && projectContext.selectedFullHandle == fullHandle && !Task.isCancelled
+    }
+
+    private func loadPage(_ page: Int, fullHandle: String, request: UUID) async throws {
+        let previewsPage: ServerPreviewsPage
+        if searchQuery.isEmpty {
+            previewsPage = try await listPreviewsService.listPreviews(
+                displayName: nil, specifier: nil, track: selectedTrack, supportedPlatforms: [],
+                page: page, pageSize: 20, distinctField: nil, fullHandle: fullHandle,
+                serverURL: serverEnvironmentService.url()
+            )
+        } else {
+            previewsPage = try await listPreviewsService.searchPreviews(
+                search: searchQuery, track: selectedTrack, page: page, pageSize: 20,
+                fullHandle: fullHandle, serverURL: serverEnvironmentService.url()
+            )
+        }
+        guard isCurrent(request, fullHandle: fullHandle) else { return }
         if let selectedTrack,
            previewsPage.previews.contains(where: { $0.track?.caseInsensitiveCompare(selectedTrack) != .orderedSame })
         {
             throw PreviewsViewModelError.trackFilteringUnsupported
         }
-
         if !searchQuery.isEmpty,
            previewsPage.previews.contains(where: {
                $0.displayName?.localizedCaseInsensitiveContains(searchQuery) != true
@@ -236,15 +233,18 @@ final class PreviewsViewModel: Sendable {
         }
         if selectedTrack == nil, searchQuery.isEmpty {
             unfilteredTotalCount = previewsPage.paginationMetadata.totalCount
+            if page == 1 {
+                recentItems = Array(previewsPage.previews.prefix(3))
+                recentFullHandle = fullHandle
+            }
         }
-
-        if previewsPage.paginationMetadata.currentPage == 1 {
-            previews = previewsPage.previews
+        if page == 1 {
+            items = previewsPage.previews
         } else {
-            previews.append(contentsOf: previewsPage.previews)
+            items.append(contentsOf: previewsPage.previews)
         }
-
-        currentPage = previewsPage.paginationMetadata.currentPage ?? 1
+        loadedFullHandle = fullHandle
+        currentPage = previewsPage.paginationMetadata.currentPage ?? page
         hasMorePreviews = previewsPage.paginationMetadata.hasNextPage
     }
 }

@@ -27,7 +27,10 @@ sealed interface PreviewsUiState {
         val selectedProject: Project,
         val previews: List<Preview>,
         val hasMorePreviews: Boolean,
-    ) : PreviewsUiState
+    ) : PreviewsUiState {
+        val recentPreviews: List<Preview>
+            get() = previews.take(3)
+    }
     data class Empty(val message: String) : PreviewsUiState
     data class Error(val message: String) : PreviewsUiState
 }

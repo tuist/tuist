@@ -7,7 +7,7 @@ import TuistHTTP
 import TuistLogging
 import TuistServer
 
-public enum AuthenticationError: LocalizedError {
+public enum AuthenticationError: LocalizedError, Equatable {
     case invalidCallbackURL
     case missingAuthorizationCode
     case invalidTokenResponse
@@ -15,6 +15,8 @@ public enum AuthenticationError: LocalizedError {
     case missingTokens
     case appleSignInFailed
     case missingAppleCredentials
+    case unableToStartAuthentication
+    case authenticationInProgress
 
     public var errorDescription: String? {
         switch self {
@@ -32,6 +34,10 @@ public enum AuthenticationError: LocalizedError {
             return "Apple Sign In failed"
         case .missingAppleCredentials:
             return "Missing Apple credentials from authorization"
+        case .unableToStartAuthentication:
+            return "Couldn't open secure sign-in. Please try again."
+        case .authenticationInProgress:
+            return "Sign-in is already in progress."
         }
     }
 }
@@ -39,12 +45,13 @@ public enum AuthenticationError: LocalizedError {
 public final class AuthenticationService: ObservableObject {
     @Published public var authenticationState: AuthenticationState
     @Published public private(set) var isSigningIn = false
+    @Published public private(set) var isAuthenticatingInBrowser = false
     @Published public private(set) var selfHostedServerURL: String?
 
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let appStorage: AppStoring
     private var credentialsListenerTask: Task<Void, Never>?
-    private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
+    @MainActor private lazy var webAuthenticationSession = WebAuthenticationSession()
     private let redirectURI = "tuist://oauth-callback"
     private let deleteAccountService: DeleteAccountServicing
 
@@ -64,6 +71,12 @@ public final class AuthenticationService: ObservableObject {
         )
 
         startCredentialsListener()
+    }
+
+    @MainActor
+    convenience init(appStorage: AppStoring, webAuthenticationSession: WebAuthenticationSession) {
+        self.init(appStorage: appStorage)
+        self.webAuthenticationSession = webAuthenticationSession
     }
 
     deinit {
@@ -301,55 +314,35 @@ public final class AuthenticationService: ObservableObject {
         return Data(hash).base64URLEncodedString()
     }
 
+    @MainActor
+    public func cancelBrowserSignIn() {
+        guard isAuthenticatingInBrowser else { return }
+        webAuthenticationSession.cancel()
+    }
+
+    @MainActor
     private func authenticate(
         with authURL: URL,
         codeVerifier: String,
         state: String
     ) async throws {
-        let code: String? = try await withCheckedThrowingContinuation { continuation in
-            let authSession = ASWebAuthenticationSession(
-                url: authURL,
-                callbackURLScheme: "tuist"
-            ) { callbackURL, error in
-                if error != nil {
-                    // The error often happens here when the user just cancels the authentication. Additionally, the errors coming
-                    // from the callback are cryptic.
-                    // The best thing here to do UX-wise is not to show any errors.
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                guard let callbackURL,
-                      callbackURL.scheme == "tuist",
-                      callbackURL.host == "oauth-callback",
-                      URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                      .queryItems?.first(where: { $0.name == "state" })?.value == state
-                else {
-                    continuation.resume(throwing: AuthenticationError.invalidCallbackURL)
-                    return
-                }
-
-                guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                    .queryItems?
-                    .first(where: { $0.name == "code" })?.value
-                else {
-                    continuation.resume(throwing: AuthenticationError.missingAuthorizationCode)
-                    return
-                }
-
-                continuation.resume(returning: code)
-            }
-            authSession.presentationContextProvider = presentationContextProvider
-            authSession.prefersEphemeralWebBrowserSession = true
-            Task {
-                await MainActor.run {
-                    authSession.start()
-                }
-            }
+        isAuthenticatingInBrowser = true
+        defer { isAuthenticatingInBrowser = false }
+        guard let callbackURL = try await webAuthenticationSession.authenticate(url: authURL, callbackURLScheme: "tuist")
+        else { return }
+        guard callbackURL.scheme == "tuist",
+              callbackURL.host == "oauth-callback",
+              URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+              .queryItems?.first(where: { $0.name == "state" })?.value == state
+        else {
+            throw AuthenticationError.invalidCallbackURL
         }
-        if let code {
-            try await exchangeCodeForToken(code, codeVerifier: codeVerifier)
+        guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "code" })?.value
+        else {
+            throw AuthenticationError.missingAuthorizationCode
         }
+        try await exchangeCodeForToken(code, codeVerifier: codeVerifier)
     }
 
     private func exchangeCodeForToken(
@@ -454,14 +447,6 @@ extension AuthenticationState {
         case .loggedOut:
             return "loggedOut"
         }
-    }
-}
-
-private final class ASWebAuthenticationPresentationContextProvider: NSObject,
-    ASWebAuthenticationPresentationContextProviding
-{
-    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        return ASPresentationAnchor()
     }
 }
 

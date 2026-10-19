@@ -17,7 +17,9 @@ final class ErrorHandling: ObservableObject, Sendable {
             } else if error is ClientAuthenticationError {
                 // When we fail to authenticate, we sign out the user and force them to sign in again.
                 Task {
-                    try await ServerCredentialsStore.current.delete(serverURL: AppServerEnvironmentService().url())
+                    try await MacApplicationEnvironment.withValue {
+                        try await ServerCredentialsStore.current.delete(serverURL: AppServerEnvironmentService().url())
+                    }
                 }
                 return
             } else if let error = error as? ClientError {
@@ -36,7 +38,9 @@ extension ErrorHandling {
     func fireAndHandleError(_ action: @escaping () async throws -> Void) {
         Task {
             do {
-                try await action()
+                try await MacApplicationEnvironment.withValue {
+                    try await action()
+                }
             } catch {
                 handle(error: error)
             }
