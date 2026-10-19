@@ -18477,8 +18477,6 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case ci = "ci"
-                case mcp = "mcp"
-                case account_colon_scim_colon_write = "account:scim:write"
                 case account_colon_cache_colon_read = "account:cache:read"
                 case account_colon_cache_colon_write = "account:cache:write"
                 case account_colon_members_colon_read = "account:members:read"
@@ -58155,8 +58153,6 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case ci = "ci"
-                        case mcp = "mcp"
-                        case account_colon_scim_colon_write = "account:scim:write"
                         case account_colon_cache_colon_read = "account:cache:read"
                         case account_colon_cache_colon_write = "account:cache:write"
                         case account_colon_members_colon_read = "account:members:read"
