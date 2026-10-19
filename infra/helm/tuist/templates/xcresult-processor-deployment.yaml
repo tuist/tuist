@@ -1,4 +1,4 @@
-{{- if .Values.xcresultProcessor.enabled }}
+{{- if include "tuist.rendersXcresultProcessor" . }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 ---
@@ -14,11 +14,8 @@ spec:
   # maxSurge: 0 (below) replaces one Tart VM at a time: terminate the
   # old VM to free hostPort 9091, then boot a fresh one. A full macOS
   # VM teardown + boot routinely overruns the 600s k8s default, which
-  # flips the Deployment to Progress-deadline-exceeded mid-roll. The
-  # deploy's `helm upgrade --atomic` then rolls back the whole release,
-  # so a slow processor image bump (e.g. 0.23.1 -> 0.24.0) blocks every
-  # prod deploy until it lands. Give a single VM cycle ample headroom,
-  # still well under helm's 60m --timeout.
+  # would flip the Deployment to Progress-deadline-exceeded mid-roll.
+  # Give a single VM cycle ample headroom.
   progressDeadlineSeconds: 1800
   strategy:
     {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
@@ -133,8 +130,8 @@ spec:
           # NotReady until Postgres (via the pooler), ClickHouse (including
           # the in-cluster server over the tailnet, when configured) and the
           # :process_xcresult Oban queue all answer. That is what lets the
-          # rolling update and `helm upgrade --wait` stop on a processor that
-          # boots but cannot reach its dependencies.
+          # rolling update stop on a processor that boots but cannot reach
+          # its dependencies.
           readinessProbe:
             httpGet:
               path: /ready

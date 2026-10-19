@@ -12,20 +12,37 @@ defmodule Tuist.MCP.Authorization do
   end
 
   @doc """
-  Authorize a request from its assigns, letting a Tuist operator calling
-  through Atlas read when the authenticated subject alone is not enough.
+  Authorize a request from its assigns.
 
-  An OAuth-token session authorizes as the `AuthenticatedAccount` the token's
-  scopes hang off, which is why that subject decides first — and why it must keep
-  deciding for anything that writes. The operator elevation belongs to the human
-  behind the token rather than to the token, so it is consulted only after the
-  subject was refused, and only for reads: it widens *which* accounts are
-  visible, never what the credential is allowed to do.
+  An OAuth-token session authenticates as the `AuthenticatedAccount` the token's
+  scopes hang off, and that subject decides first. When the authentication plug
+  associated the credential with the user who granted or claimed it, the request
+  is then authorized as that user, so tools apply the same checks as the
+  dashboard. A Tuist operator calling through Atlas is consulted last, and only
+  for reads: that elevation belongs to the human behind the token rather than to
+  the token, so it widens *which* accounts are visible, never what the credential
+  is allowed to do.
   """
   def authorize_request(assigns, action, resource, category) when is_map(assigns) do
     authorize(authenticated_subject(assigns), action, resource, category) or
+      associated_user_authorizes?(assigns, action, resource, category) or
       atlas_operator_authorizes_read?(assigns, action, resource, category)
   end
+
+  # `current_user` sits next to an `AuthenticatedAccount` only on the MCP
+  # endpoint, for an `mcp`-scoped credential that a user granted or claimed
+  # (`TuistWeb.AuthenticationPlug`). The user carries no operator grant here, so
+  # this reaches exactly the user's own memberships.
+  defp associated_user_authorizes?(
+         %{current_subject: %AuthenticatedAccount{}, current_user: %User{} = user},
+         action,
+         resource,
+         category
+       ) do
+    authorize(user, action, resource, category)
+  end
+
+  defp associated_user_authorizes?(_assigns, _action, _resource, _category), do: false
 
   # `:atlas_operator` is set by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`
   # for a verified operator calling through Atlas. The operator is given a read

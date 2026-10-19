@@ -121,10 +121,12 @@ The command accepts the following options:
 | `account:members:write` | Manage account members |
 | `account:registry:read` | Read from the Swift package registry |
 | `account:registry:write` | Publish to the Swift package registry |
+| `account:runners:read` | Read runner jobs, workflows, profiles, and volumes |
+| `account:runners:write` | Manage runner profiles and clear runner volumes |
 | `project:previews:read` | Download previews |
 | `project:previews:write` | Upload previews |
-| `project:admin:read` | Read project settings |
-| `project:admin:write` | Manage project settings |
+| `project:admin:read` | Read projects and their settings |
+| `project:admin:write` | Create, update, and delete projects. Creating a project requires a token with access to all projects |
 | `project:cache:read` | Download cached binaries |
 | `project:cache:write` | Upload cached binaries |
 | `project:bundles:read` | View bundles |

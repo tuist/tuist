@@ -29,6 +29,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Publish synchronously after verification: compress, preflight, upload,
   fast-forward, then install the accepted master. Bound compressed and expanded
   downloads and verify checksums. Require reflinks without byte-copy fallback.
+- Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
+  save and restore cost scales with data, not the logical image size. Restore
+  must keep accepting legacy full-image gzip masters until they age out.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
@@ -41,6 +44,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. Never create
   a private branch, publish, or extend the foreground budget from prefetch.
+- Linux refreshes a superseded master used in the last day to the new HEAD in
+  the background (one at a time, prefetch admission) before removing it.
+  Maintenance and admission skip the scope a refresh download holds. Only a
+  master the refresh installed under the scope lock inherits the stale master's
+  last use. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
+  not APFS reservations.
+  Maintenance validates every master even when one lineage cannot be reached.
 
 - APFS admission records a reservation under the built-in lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;

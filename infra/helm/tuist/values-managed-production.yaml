@@ -1040,38 +1040,23 @@ vultrFleet:
 
 vultrFleets:
   # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
-  # in the US interior; the plan and shape match sa-west exactly, so the machine
-  # kind, the disk conversion and the fleet wiring are the ones already proven
-  # there.
+  # in the US interior. vbm-8c-64gb-amd (2x1945 GB NVMe, 64 GB, EPYC 4345P) has
+  # about twice the disk of the vbm-6c-32gb-amd shape the region started on for
+  # $70 more a month, and disk reservations are what bind here. The key keeps its
+  # -8c suffix from when both shapes shared the pool: renaming it recreates the
+  # MachineDeployment and releases the live boxes.
   #
   # Every box counted by replicas must already carry the adoptTag and the fleet
-  # SSH key. The controller adopts a matching preordered box, converts its RAID1
-  # installation to separate root and quota-enabled XFS /data, then joins it.
-  # If replicas exceed adoptable capacity, the MachineDeployment cannot become
-  # ready and can block `helm --wait` for the production deployment.
+  # SSH key. The controller adopts a matching preordered box (region and plan
+  # must match), converts its RAID1 installation to separate root and
+  # quota-enabled XFS /data, then joins it. If replicas exceed adoptable
+  # capacity, the MachineDeployment cannot become ready and can block
+  # `helm --wait` for the production deployment.
   #
   # Running a box here is not the same as serving the region: that is decided by
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
-  us-central:
-    enabled: true
-    replicas: 2
-    nodePool: kura-us-central
-    machine:
-      adoptTag: tuist-kura-vultr-production
-      region: ord
-      plan: vbm-6c-32gb-amd
-      osID: 2284
-      egressBudgetMbps: 1000
-    sshExternalSecret:
-      enabled: true
-      item: VULTR_FLEET_SSH
-  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
-  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
-  # kura-us-central pool, so the region schedules across both fleets; adoption
-  # matches the plan, so neither fleet claims the other's boxes. The
-  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
   us-central-8c:
     enabled: true
     replicas: 2

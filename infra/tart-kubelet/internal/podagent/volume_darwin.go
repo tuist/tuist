@@ -81,13 +81,9 @@ func (darwinVolumeBackend) growImage(path string, sizeGiB int) error {
 	if err != nil {
 		return err
 	}
-	fields := strings.Fields(out)
-	if len(fields) != 3 {
-		return fmt.Errorf("hdiutil resize -limits %s: want minimum, current and maximum, got %q", path, strings.TrimSpace(out))
-	}
-	currentSectors, err := strconv.ParseUint(fields[1], 10, 64)
+	currentSectors, err := parseImageCurrentSectors(out)
 	if err != nil {
-		return fmt.Errorf("hdiutil resize -limits %s: current size %q: %w", path, fields[1], err)
+		return fmt.Errorf("hdiutil resize -limits %s: %w", path, err)
 	}
 	const mib = uint64(1 << 20)
 	if currentSectors*512+mib >= uint64(sizeGiB)<<30 {

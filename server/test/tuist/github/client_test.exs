@@ -2,6 +2,8 @@ defmodule Tuist.GitHub.ClientTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
   alias Tuist.OAuth2.SSRFGuard
@@ -501,6 +503,78 @@ defmodule Tuist.GitHub.ClientTest do
 
       # Then
       assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
+    end
+  end
+
+  describe "get_repository_user_by_username/1" do
+    test "returns the user's id and canonical username from the repository's collaborator permission" do
+      # Given
+      expect(Req, :get, fn opts ->
+        assert opts[:headers] == @default_headers
+
+        assert opts[:url] ==
+                 "https://api.github.com/repos/tuist/tuist/collaborators/jane-doe_acme/permission"
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"permission" => "write", "user" => %{"id" => 197_617_637, "login" => "Jane-Doe_acme"}}
+         }}
+      end)
+
+      # When
+      user =
+        Client.get_repository_user_by_username(%{
+          repository_full_handle: "tuist/tuist",
+          username: "jane-doe_acme",
+          installation: %{installation_id: "installation-id"}
+        })
+
+      # Then
+      assert user == {:ok, %VCS.User{id: "197617637", username: "Jane-Doe_acme"}}
+    end
+
+    test "returns not found when GitHub does not know the username" do
+      # Given
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 404, body: %{"message" => "ghost is not a user"}}}
+      end)
+
+      # When
+      user =
+        Client.get_repository_user_by_username(%{
+          repository_full_handle: "tuist/tuist",
+          username: "ghost",
+          installation: %{installation_id: "installation-id"}
+        })
+
+      # Then
+      assert user == {:error, :not_found}
+    end
+
+    test "returns unavailable and logs GitHub's reason when the lookup is refused" do
+      # Given
+      expect(Req, :get, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{"message" => "the `acme` enterprise has an IP allow list enabled"}
+         }}
+      end)
+
+      # When
+      {user, log} =
+        with_log(fn ->
+          Client.get_repository_user_by_username(%{
+            repository_full_handle: "tuist/tuist",
+            username: "jane-doe_acme",
+            installation: %{installation_id: "installation-id"}
+          })
+        end)
+
+      # Then
+      assert user == {:error, :unavailable}
+      assert log =~ "IP allow list enabled"
     end
   end
 

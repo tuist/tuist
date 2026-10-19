@@ -238,7 +238,7 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 			return err
 		}
 	}
-	for _, suffix := range []string{"", ".sparseimage", ".gz", ".checking", ".verified", ".metrics"} {
+	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

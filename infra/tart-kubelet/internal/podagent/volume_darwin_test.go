@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -267,13 +266,9 @@ func imageCapacityBytes(t *testing.T, image string) uint64 {
 	if err != nil {
 		t.Fatalf("hdiutil resize -limits: %v", err)
 	}
-	fields := strings.Fields(out)
-	if len(fields) != 3 {
-		t.Fatalf("hdiutil resize -limits printed %q; want minimum, current and maximum", out)
-	}
-	sectors, err := strconv.ParseUint(fields[1], 10, 64)
+	sectors, err := parseImageCurrentSectors(out)
 	if err != nil {
-		t.Fatalf("current size %q: %v", fields[1], err)
+		t.Fatalf("hdiutil resize -limits: %v", err)
 	}
 	return sectors * 512
 }

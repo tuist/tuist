@@ -24,7 +24,7 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 - Output snapshots publish one `Tree` blob and the file-content blobs it references. Child `Directory` messages are embedded in the tree, not published as separate CAS blobs; their digests still identify directory edges.
 - Provide `RemoteCacheProbeService` (`RemoteCacheProbing`), which issues the REAPI `GetCapabilities` handshake Bazel performs on start-up to verify a remote cache endpoint is reachable, terminates TLS, and authorizes the request before it is handed to Bazel.
 
-- Capability probes allow 30 seconds per attempt and up to four attempts for UNAVAILABLE/RESOURCE_EXHAUSTED, so the first authenticated probe can wake a cold cache. Authorization failures and deadlines are not retried.
+- Module-cache capability validation and standalone capability probes share `REAPICapabilityNegotiation`: 30 seconds per attempt and up to four attempts for UNAVAILABLE/RESOURCE_EXHAUSTED, so the first authenticated request can wake a cold cache. Authorization failures and deadlines are not retried; cancellation interrupts requests and retry waits. Keep this handshake budget independent of ordinary metadata and blob-transfer timeouts.
 - Capability probe regressions live in `cli/Tests/TuistREAPITests` and use a local HTTP/2 gRPC server.
 
 ## Filesystem access

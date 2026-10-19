@@ -1,19 +1,34 @@
+{{/*
+The chart name and the tuist release a resource belongs to. Names and
+selector labels derive from both, so infra/helm/xcresult-processor, which
+renders this chart's xcresult processor templates in a Helm release of its
+own, gives them the names and labels of the tuist release it names in
+`tuistRelease`.
+*/}}
 {{- define "tuist.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- default "tuist" .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "tuist.releaseName" -}}
+{{- if eq .Chart.Name "xcresult-processor" -}}
+{{- required "tuistRelease is required: the name of the tuist release whose xcresult processor this release installs" .Values.tuistRelease -}}
+{{- else -}}
+{{- .Release.Name -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- printf "%s-%s" .Release.Name (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" (include "tuist.releaseName" .) (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "tuist.labels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- range $key, $value := .Values.global.commonLabels }}
 {{ $key }}: {{ $value | quote }}
@@ -22,7 +37,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "tuist.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
+{{- end -}}
+
+{{/*
+Whether this render owns the xcresult processor's Deployment and PDB. With
+`xcresultProcessor.ownRelease`, infra/helm/xcresult-processor renders them
+and the tuist release leaves them out; otherwise the tuist release renders
+them and the processor chart renders nothing.
+*/}}
+{{- define "tuist.rendersXcresultProcessor" -}}
+{{- if and .Values.xcresultProcessor.enabled (eq (.Values.xcresultProcessor.ownRelease | default false) (eq .Chart.Name "xcresult-processor")) -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.componentLabels" -}}
@@ -1226,12 +1253,17 @@ grpc
 {{- end -}}
 
 {{/*
-The runner image for a catalog Xcode version:
-`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-or the `imageTag` its `runnersFleet.xcodeOverrides` entry pins. The image is a
-property of the Xcode, not of the fleet it runs on, so every pool that runs an
-Xcode (the rented fleet's, a rack's, an explicit pool naming `xcodeVersion`)
-takes it from here and follows a release together.
+The runner image for a catalog Xcode version: the `imageTag` its
+`runnersFleet.xcodeOverrides` entry pins, else
+`<runnersFleet.runnerImageRepository>@<digest>` with the digest
+`runnersFleet.runnerImageDigests` resolves for it, else
+`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+Deploys resolve the digests, so a release that re-tags an unchanged profile
+leaves its pools' image as it was: the controller does not roll their Pods
+and hosts keep the golden the ref names. The image is a property of the Xcode,
+not of the fleet it runs on, so every pool that runs an Xcode (the rented
+fleet's, a rack's, an explicit pool naming `xcodeVersion`) takes it from here
+and follows a release together.
 */}}
 {{- define "tuist.macosRunnerImage" -}}
 {{- $root := .root -}}
@@ -1239,13 +1271,22 @@ takes it from here and follows a release together.
 {{- $repo := $root.Values.runnersFleet.runnerImageRepository | default "" -}}
 {{- $semver := $root.Values.runnersFleet.runnerImageSemver | default "" -}}
 {{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
+{{- $digest := get ($root.Values.runnersFleet.runnerImageDigests | default dict) $xcodeVersion | default "" | toString -}}
 {{- if not $repo -}}
   {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" -}}
 {{- end -}}
-{{- if and (not (dig "imageTag" "" $override)) (not $semver) -}}
-  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and override %s has no imageTag" $xcodeVersion) -}}
+{{- if dig "imageTag" "" $override -}}
+  {{- printf "%s:%s" $repo $override.imageTag -}}
+{{- else if $digest -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+    {{- fail (printf "runnersFleet.runnerImageDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $xcodeVersion $digest) -}}
+  {{- end -}}
+  {{- printf "%s@%s" $repo $digest -}}
+{{- else if $semver -}}
+  {{- printf "%s:macos-%s-%s" $repo ($xcodeVersion | replace "." "-") $semver -}}
+{{- else -}}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and Xcode %s has no runnerImageDigests entry or imageTag override" $xcodeVersion) -}}
 {{- end -}}
-{{- printf "%s:%s" $repo (dig "imageTag" (printf "macos-%s-%s" ($xcodeVersion | replace "." "-") $semver) $override) -}}
 {{- end -}}
 
 {{/*
