@@ -1,10 +1,12 @@
 import fs from "node:fs";
+import http2 from "node:http2";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fixture, handover } from "./fixture.mjs";
+import { request } from "./protocol.mjs";
 
 const [image, output] = process.argv.slice(2);
 assert(image && output, "usage: segmented-handover.mjs IMAGE OUTPUT_DIR");
@@ -24,6 +26,19 @@ assert(
 );
 const f = await fixture(image, "active", output);
 const retained = [];
+const preparationSessions = [];
+const preparationKey = "live-preparation";
+const preparationQuery = "?tenant_id=default&namespace_id=segmented-handover";
+const preparationWrite = (i) =>
+  request(
+    preparationSessions[i],
+    `/api/cache/keyvalue${preparationQuery}`,
+    "PUT",
+    JSON.stringify({
+      cas_id: preparationKey,
+      entries: [{ value: preparationKey }],
+    }),
+  );
 const body = Buffer.alloc(2 * 1024 * 1024, 73);
 const url = (replica, index) =>
   `${f.urls[replica]}/api/cache/cas/retained-${index}?tenant_id=default&namespace_id=segmented-handover`;
@@ -171,20 +186,26 @@ try {
     );
     result.oldRecordMissingBeforeRepair = true;
   }
+  if (prepare) {
+    // Seeding may outlive normal connection aging. Establish the channels for
+    // this transition now, prove writes while Serving, and never replace them.
+    for (const address of f.urls) {
+      const session = http2.connect(address);
+      session.on("error", () => {});
+      preparationSessions.push(session);
+    }
+    assert.equal((await preparationWrite(0)).status, 204);
+  }
   const startHandover = Date.now();
   result.barrier = await handover(f, {
     deadlineMs: 300000,
     prepare: prepare
       ? async () => {
-          body.writeUInt32BE(count - 1);
           for (const replica of [0, 1]) {
-            const response = await fetch(url(replica, count - 1), {
-              method: "POST",
-              body,
-              signal: AbortSignal.timeout(30000),
-            });
-            await response.arrayBuffer();
-            assert.equal(response.status, replica === 0 ? 204 : 503);
+            assert.equal(
+              (await preparationWrite(replica)).status,
+              replica === 0 ? 204 : 503,
+            );
           }
           result.preparationWriteChecks =
             (result.preparationWriteChecks ?? 0) + 1;
@@ -207,7 +228,21 @@ try {
             retained.length > 0 && retained.length < count,
             "full ring must retain a nonempty partial corpus",
           );
-          assert.equal(barrier.records, retained.length + (repairOld ? 1 : 0));
+          assert.equal(
+            barrier.records,
+            retained.length + (repairOld ? 1 : 0) + (prepare ? 1 : 0),
+          );
+          if (prepare) {
+            const read = await request(
+              preparationSessions[0],
+              `/api/cache/keyvalue/${preparationKey}${preparationQuery}`,
+            );
+            assert.equal(read.status, 200);
+            assert.equal(
+              JSON.parse(read.body).entries[0].value,
+              preparationKey,
+            );
+          }
           result.heldRetainedReads = retained.length;
           fs.writeFileSync(
             `${output}/frozen-corpus.json`,
@@ -266,6 +301,17 @@ try {
     assert(Buffer.from(await response.arrayBuffer()).equals(body));
   }
   result.retainedReads = expected.length;
+  if (prepare) {
+    const read = await request(
+      preparationSessions[1],
+      `/api/cache/keyvalue/${preparationKey}${preparationQuery}`,
+    );
+    assert.equal(read.status, 200);
+    assert.equal(JSON.parse(read.body).entries[0].value, preparationKey);
+    assert.equal((await preparationWrite(0)).status, 503);
+    assert.equal((await preparationWrite(1)).status, 204);
+    result.originalPreparationChannelsVerified = true;
+  }
   await sleep(20000);
   assert.equal(collectorError, undefined, "resource collection failed");
   console.log(
@@ -275,6 +321,7 @@ try {
   result.error = error.message;
   throw error;
 } finally {
+  preparationSessions.forEach((session) => session.destroy());
   collecting = false;
   await collector;
   try {
