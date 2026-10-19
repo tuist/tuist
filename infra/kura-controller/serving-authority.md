@@ -91,6 +91,9 @@ publishes the named intent while leaving the source in `Serving`. The source
 continues accepting reads and writes with normal 15-second lease renewal. The
 destination performs bounded retained-index catch-up with normal background
 bandwidth admission and no corpus hold. It repeats passes if eviction occurred.
+The source remains mutable: writes and existing peer-read promotions can cause
+normal cache eviction during preparation. The retained-data guarantee covers the
+corpus frozen in Quiescing, not every entry present when preparation began.
 This phase has its own fixed 20-minute deadline, preserved across reconciliation
 and controller restart. Failure, cancellation, changed destination identity or
 timeout clears the pending intent without pausing the primary; a new request ID is
