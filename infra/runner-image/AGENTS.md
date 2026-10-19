@@ -256,14 +256,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
   **Opt-in caches.** When the dispatch response carries `"automatic_caches":
-  false` (the server's `:runner_opt_in_caches` flag for the account, GitHub
-  jobs on macOS fleets only), everything above still runs, but `stage_runner_caches` moves
+  false` (the server's `:runner_opt_in_caches` flag for the account, macOS
+  fleets only), everything above still runs, but `stage_runner_caches` moves
   the module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
   Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
   `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
   `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
   attach-time `cache-usage.json`. The `tuist/module-cache` and
-  `tuist/xcode-cache` actions run `/usr/local/bin/tuist-runner-cache activate
+  `tuist/xcode-cache` actions, Buildkite plugins and GitLab snippets
+  (`ci/runner-caches/`) run `/usr/local/bin/tuist-runner-cache activate
   <cache>`, which prints that file for the action to export, chains a
   workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
   with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).

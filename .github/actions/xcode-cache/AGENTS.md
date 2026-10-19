@@ -3,6 +3,7 @@
 Source package for the standalone `tuist/xcode-cache` action. `module-cache/` is
 its sibling and shares `activate.sh`, `action_test.sh` and `scripts/package.sh`
 byte for byte; change both together.
+The Buildkite and GitLab entry points for the same caches are in `ci/runner-caches/`.
 
 - Keep the action a thin wrapper. The runner image's `tuist-runner-cache`
   (`infra/runner-image/`) owns activation, the xcconfig chaining and the env

@@ -458,9 +458,10 @@ CAS_LIMIT_BYTES=""
 # metrics. Nothing on the guest reads it back.
 CACHE_LIMITS_FILE="cache-limits"
 # An account on opt-in caches still gets the image mounted and bounded at
-# dispatch, but its job reaches each cache only through that cache's action
-# (tuist/module-cache, tuist/xcode-cache), which reads the environment
-# stage_runner_caches leaves here through tuist-runner-cache. A job that uses
+# dispatch, but its job reaches each cache only through that cache's CI entry
+# point (the module-cache and xcode-cache GitHub actions, Buildkite plugins and
+# GitLab snippets), which reads the environment stage_runner_caches leaves here
+# through tuist-runner-cache. A job that uses
 # neither is withdrawn from promotion and usage reporting.
 RUNNER_CACHES_DIR="/Users/runner/.tuist-runner-caches"
 AUTOMATIC_CACHES=1

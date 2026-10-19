@@ -331,7 +331,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
 
-    test "withholds automatic caches from GitHub macOS jobs of opted-in accounts", %{conn: conn} do
+    test "withholds automatic caches from macOS jobs of opted-in accounts", %{conn: conn} do
       account = account_fixture()
       other_account = account_fixture()
 
@@ -349,6 +349,14 @@ defmodule TuistWeb.RunnersControllerTest do
         job_uuid: "0189abcd-0000-4000-8000-000000000000",
         organization_slug: "acme",
         report_token: "report-token"
+      }
+
+      gitlab = %{
+        kind: :gitlab,
+        url: "https://gitlab.example.com",
+        payload: %{},
+        report_token: "report-token",
+        waiting_trace: nil
       }
 
       dispatch = fn account, platform, credential ->
@@ -372,7 +380,8 @@ defmodule TuistWeb.RunnersControllerTest do
 
       assert dispatch.(account, :macos, github)["automatic_caches"] == false
       refute Map.has_key?(dispatch.(account, :linux, github), "automatic_caches")
-      refute Map.has_key?(dispatch.(account, :macos, buildkite), "automatic_caches")
+      assert dispatch.(account, :macos, buildkite)["automatic_caches"] == false
+      assert dispatch.(account, :macos, gitlab)["automatic_caches"] == false
       refute Map.has_key?(dispatch.(other_account, :macos, github), "automatic_caches")
     end
   end
