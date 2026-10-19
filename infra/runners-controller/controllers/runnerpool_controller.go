@@ -602,7 +602,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := 0; i < overflow && i < len(idleAlive); i++ {
 		p := idleAlive[i]
 		preemptedFor, preempted := preemptionMark(p, now)
-		if preempted {
+		switch {
+		case preempted && preemptedFor == preemptedForSandboxes:
+			logger.Info("retire idle runner pod for a sandbox carve-out's growth",
+				"pod", p.Name, "node", p.Spec.NodeName)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSandboxes",
+					"A sandbox carve-out on node %s is waiting for memory; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					p.Spec.NodeName)
+			}
+		case preempted:
 			logger.Info("retire idle runner pod for starved sibling pools",
 				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
 			if r.Recorder != nil {

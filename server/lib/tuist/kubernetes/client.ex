@@ -128,6 +128,22 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @dispatch_audience, opts)
   end
 
+  # Audience the sandboxd DaemonSet's projected SA token carries when it
+  # dials the node WebSocket endpoint. Same single-purpose reasoning as
+  # the dispatch audience: the token validates here and nowhere else.
+  @sandbox_node_audience "tuist-sandboxes"
+
+  def sandbox_node_audience, do: @sandbox_node_audience
+
+  @doc """
+  TokenReview for the sandboxd node connection. Same contract as
+  `create_token_review/2` but validated against the `tuist-sandboxes`
+  audience.
+  """
+  def create_sandbox_node_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @sandbox_node_audience, opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -371,6 +387,27 @@ defmodule Tuist.Kubernetes.Client do
   def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
     request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
       body: JSON.encode!(patch_body),
+      headers: [{"content-type", "application/strategic-merge-patch+json"}]
+    )
+  end
+
+  @doc """
+  Resizes a sandboxd Pod's memory in place through the Pod's `resize`
+  subresource, request and limit together so the Pod keeps its QoS class.
+  The kubelet applies a resize that fits the node at once and defers one
+  that does not until room frees; the scheduler counts the requested size
+  either way, so no runner Pod is placed into memory a pending growth
+  claims. The server SA is granted `pods/resize: [get, patch]` in the
+  sandboxes namespace.
+  """
+  def resize_sandbox_daemon_memory(namespace, name, bytes, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
+    quantity = Integer.to_string(bytes)
+    resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
+
+    request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}/resize",
+      opts: opts,
+      body: JSON.encode!(%{spec: %{containers: [%{name: "sandboxd", resources: resources}]}}),
       headers: [{"content-type", "application/strategic-merge-patch+json"}]
     )
   end
@@ -686,10 +723,10 @@ defmodule Tuist.Kubernetes.Client do
   defp format_body(body) when is_binary(body), do: String.slice(body, 0, 500)
   defp format_body(body), do: inspect(body, limit: 20)
 
-  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
+  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid} = user) do
     case String.split(rest, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
-        {:ok, %{namespace: namespace, name: name, uid: uid}}
+        {:ok, %{namespace: namespace, name: name, uid: uid, node_name: bound_node_name(user)}}
 
       _ ->
         {:error, :not_service_account}
@@ -697,4 +734,11 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   defp parse_sa_principal(_), do: {:error, :not_service_account}
+
+  # A token projected into a pod carries the node the pod runs on; the
+  # TokenReview reports it under this extra key.
+  defp bound_node_name(%{"extra" => %{"authentication.kubernetes.io/node-name" => [node_name | _]}})
+       when is_binary(node_name), do: node_name
+
+  defp bound_node_name(_user), do: nil
 end

@@ -2392,6 +2392,94 @@ macosFleet:
 # the runners namespace (templates/runners-namespace.yaml); a
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
+# Firecracker microVM sandboxes for coding-agent sessions (Claude Managed
+# Agents self-hosted environments). A privileged `sandboxd` DaemonSet on the
+# selected bare-metal pools creates one persistent VM per agent session from a
+# golden template snapshot, pauses it to the node's NVMe when the session goes
+# idle and resumes it on the next turn. Runners stay on Kata; this is a
+# separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
+sandboxes:
+  enabled: false
+  namespace: tuist-sandboxes
+  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
+  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  image:
+    repository: ghcr.io/tuist/sandboxd
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateImage:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateName: default
+  # Pull secrets for the two images, e.g. while a freshly created ghcr package
+  # is still private. Names of docker-registry Secrets in the sandboxes
+  # namespace.
+  imagePullSecrets: []
+  # `node.cluster.x-k8s.io/pool` values the DaemonSet may land on. Required.
+  nodePools: []
+  tolerations: []
+  # Memory the DaemonSet Pod starts at (request == limit): the floor of the
+  # node's carve-out. kube-scheduler keeps runner Pods out of it, so it is
+  # memory runners can never use. 1 GiB holds the daemon and a template
+  # build but no sandbox, so a node gives sandboxes nothing until one needs
+  # memory. The server places sandboxes against the current limit: each
+  # creating, resuming or running sandbox is charged its guest memory plus a
+  # fixed VMM overhead, with 512 MiB kept for the daemon. Paused sandboxes
+  # cost disk, not memory.
+  memoryGiB: 1
+  # The most the server may grow a node's carve-out to, in place and in whole
+  # GiB, when sandboxes need it: into memory no Pod requests right away, or
+  # into room the runners controller frees on that node by retiring idle
+  # warm runners (never ones running a job). A growth a node cannot take
+  # moves on to the next node. Once sandboxes pause the carve-out shrinks
+  # back to memoryGiB, and the runner pools' budget, which counts the
+  # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
+  # carve-out fixed.
+  maxMemoryGiB: 16
+  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
+  # the request only sets their share when the node's CPU is contended, so
+  # it stays small and leaves runner Pods' scheduling capacity alone.
+  cpu: "250m"
+  # Share of the node's data filesystem sandboxes may reserve. Every file a
+  # sandbox writes is fixed-size (rootfs clone, sparse workspace of
+  # workspace_gb, memory image), so the server reserves each sandbox's
+  # ceiling (template rootfs + workspace + memory) at placement, running or
+  # paused, and stops placing on a node whose ceilings would exceed this.
+  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
+  # reserves about 22 GiB. The server also keeps one memory image plus
+  # headroom free for the next pause. 0 disables the budget and leaves only
+  # that free-space floor.
+  diskGiB: 200
+  # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
+  # startup instead of on the first create.
+  prebuildShapes: "2x4096"
+  # The only shapes a node accepts. Each shape costs a template build and a
+  # memory image on disk, so the list is short and matches the shapes the
+  # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
+  allowedShapes: "2x4096,4x8192,8x16384"
+  metricsPort: 9470
+  # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
+  # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
+  # namespace. Off outside staging.
+  admin:
+    enabled: false
+    port: 9471
+  # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
+  # turn off to debug a jailer problem on a staging box.
+  jailer: true
+  logLevel: info
+  networkPolicy:
+    enabled: true
+    # Cluster ranges the guests must not reach; the public 80/443 allow
+    # carves these out. Match runnersFleet.networkPolicy.exceptCIDRs.
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+    # Let guests reach in-cluster Kura cache pods on :4000.
+    kuraEgress: true
+
 runnersFleet:
   customCacheVolumes:
     enabled: false
