@@ -10,7 +10,7 @@
 The Tuist Hex package includes built-in support for sharding the tests of an Elixir project. It uses the Tuist server to create balanced shard plans based on historical timing data, and it compiles your project once so every runner can go straight to running tests.
 
 > [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/features/test-insights/elixir">Test insights</.localized_link> must be configured
+> - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link> before configuring your CI shard jobs
 
 ## How it works {#how-it-works}
 
@@ -26,8 +26,14 @@ Tests are distributed by file: every test in a file runs on the same shard. Test
 Prepare test shards using the `tuist.test.build` task:
 
 ```sh
-mix tuist.test.build --shard-max 5
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 5
 ```
+
+Compile through the alias installed by the shared setup before invoking the
+sharding task. On a cold checkout, Mix can compile dependencies while discovering
+`tuist.test.build`, before Tuist's dependency cache has a chance to restore them.
+The explicit compile runs in the same test environment as the sharding task.
 
 This task:
 1. Compiles the project in the test environment
@@ -52,7 +58,7 @@ The shard reference is automatically derived from CI environment variables (`GIT
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using `mix tuist.test`, or `mix test` if you <.localized_link href="/guides/install-hex-package#aliases">aliased it</.localized_link>. When `TUIST_SHARD_INDEX` is set, the package fetches the shard assignment from the server, downloads the build, and runs only the assigned test files without compiling.
+With the shared setup in place, each shard runner executes its assigned tests using `mix test`. When `TUIST_SHARD_INDEX` is set, the package fetches the shard assignment from the server, downloads the build, and runs only the assigned test files without compiling.
 
 ```sh
 TUIST_SHARD_INDEX=0 mix test
@@ -114,6 +120,7 @@ jobs:
           elixir-version: '1.18'
           otp-version: '27'
       - run: mix deps.get
+      - run: mix compile --warnings-as-errors
       - id: build
         run: mix tuist.test.build --shard-max 5
 

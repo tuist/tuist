@@ -136,6 +136,103 @@ defmodule Tuist.VCSTest do
     @git_remote_url_origin "https://github.com/tuist/tuist"
     @git_commit_sha "1234567890"
 
+    test "unsigned reports cannot replace authenticated schemes or latest commits in PR comments" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "TrustedApp",
+          duration: 1000,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "TrustedApp",
+          duration: 9_000_000,
+          status: "failure",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          submission_auth: "network_trusted"
+        )
+
+      gradle_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          root_project_name: "TrustedGradle",
+          status: "success",
+          duration_ms: 1000,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second) |> NaiveDateTime.add(-60)
+        )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        root_project_name: "TrustedGradle",
+        status: "failure",
+        duration_ms: 9_000_000,
+        git_ref: @git_ref,
+        git_commit_sha: "unsigned-commit",
+        submission_auth: "network_trusted"
+      )
+
+      for system <- ["xcode", "gradle", "bazel", "mix"] do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "Trusted-#{system}",
+          build_system: system,
+          status: "success",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha
+        )
+
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "Forged-#{system}",
+          build_system: system,
+          status: "failure",
+          git_ref: @git_ref,
+          git_commit_sha: "unsigned-commit",
+          submission_auth: "network_trusted"
+        )
+      end
+
+      Tuist.Tests.Test.Buffer.flush()
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json].body
+        assert body =~ "builds/#{build.id}"
+        assert body =~ "builds/#{gradle_id}"
+        assert body =~ "Trusted-xcode"
+        refute body =~ "Forged-"
+        refute body =~ "unsigned-commit"
+        refute body =~ "9000.0s"
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test} -> "tests/#{test.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "builds/#{build.id}" end
+      })
+    end
+
     setup do
       stub(Environment, :github_app_client_id, fn -> "client_id" end)
       stub(Environment, :github_app_configured?, fn -> true end)
@@ -3960,6 +4057,43 @@ defmodule Tuist.VCSTest do
       # Then
       refute changeset.valid?
       assert errors_on(changeset)[:client_url]
+    end
+  end
+
+  describe "get_user_by_username/1" do
+    setup do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      :ok
+    end
+
+    test "looks the user up through the project's connected repository" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "acme/app", provider: :github])
+
+      expect(Client, :get_repository_user_by_username, fn %{
+                                                            repository_full_handle: repository_full_handle,
+                                                            username: username
+                                                          } ->
+        assert repository_full_handle == "acme/app"
+        assert username == "jane-doe_acme"
+        {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+      end)
+
+      # When
+      user = VCS.get_user_by_username(%{username: "jane-doe_acme", project: project})
+
+      # Then
+      assert user == {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+    end
+
+    test "returns no_vcs_connection for a project without a connected repository" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&Client.get_repository_user_by_username/1)
+
+      # When / Then
+      assert VCS.get_user_by_username(%{username: "jane-doe_acme", project: project}) == {:error, :no_vcs_connection}
     end
   end
 

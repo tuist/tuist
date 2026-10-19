@@ -229,7 +229,7 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     refute Identity.gitlab_writer?(Map.put(remote, "source", "api"), branches)
   end
 
-  test "GitHub additional writers use provider-verified branch and PR repository identity" do
+  test "GitHub profile writers use provider-verified branch and repository identity" do
     job = %{repository: "org/repo", workflow_run_id: 42, run_attempt: 1}
 
     run = %{
@@ -242,9 +242,12 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     }
 
     for event <- ["push", "workflow_dispatch", "schedule"] do
-      # GitHub uses head_branch for both branch and tag names on these events.
-      assert {:ok, %{trusted: false, writer_branch: nil}} = Identity.github_identity(job, %{run | "event" => event})
+      assert {:ok, %{trusted: false, writer_branch: "feature", default_branch: "main"}} =
+               Identity.github_identity(job, %{run | "event" => event})
     end
+
+    assert {:ok, %{trusted: true, writer_branch: "main"}} =
+             Identity.github_identity(job, %{run | "head_branch" => "main"})
 
     for event <- ["pull_request_target", "merge_group", "unknown"] do
       assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{run | "event" => event})
@@ -258,10 +261,6 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
 
     assert {:ok, %{trusted: false, writer_branch: "feature"}} = Identity.github_identity(job, pr)
 
-    for event <- ["push", "workflow_dispatch"] do
-      assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "event" => event})
-    end
-
     for prs <- [
           [],
           [%{"head" => %{"repo" => %{"id" => 999}, "ref" => "feature"}}],
@@ -270,6 +269,9 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
       assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "pull_requests" => prs})
     end
 
-    assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "head_repository" => %{"id" => 999}})
+    for event <- ["pull_request", "push"] do
+      assert {:ok, %{writer_branch: nil}} =
+               Identity.github_identity(job, %{pr | "event" => event, "head_repository" => %{"id" => 999}})
+    end
   end
 end

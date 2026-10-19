@@ -6,6 +6,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event.Buffer
@@ -422,6 +424,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      FunWithFlags.enable(:build_entities, for_actor: project)
 
       conn =
         conn
@@ -507,6 +510,16 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == ["miss", "remote"]
+
+      entity_id = Identity.id(project.id, :xcode, "module", %{"project" => "ProjectA", "target" => "TargetA"})
+
+      assert {[%{id: ^entity_id, name: "TargetA", observations: 1}], _meta} =
+               BuildEntities.list(project.id, :xcode, "module")
+
+      assert {[%{parent_id: parent_id, cache_status: "hit_local", status: "unknown", duration_ms: nil}], _meta} =
+               BuildEntities.history(project.id, :xcode, "module", entity_id)
+
+      assert parent_id == command_event.id
     end
 
     test "returns newly created command event with xcode_graph including subhashes", %{

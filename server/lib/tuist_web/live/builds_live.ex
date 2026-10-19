@@ -23,6 +23,9 @@ defmodule TuistWeb.BuildsLive do
 
     socket =
       cond do
+        Project.cargo_project?(project) ->
+          TuistWeb.CargoBuildsLive.assign_mount(socket)
+
         Project.bazel_project?(project) ->
           params
           |> TuistWeb.BazelBuildsLive.mount(%{}, socket)
@@ -50,6 +53,9 @@ defmodule TuistWeb.BuildsLive do
 
     {:noreply, socket} =
       cond do
+        Project.cargo_project?(project) ->
+          {:noreply, TuistWeb.CargoBuildsLive.assign_handle_params(socket, params)}
+
         Project.bazel_project?(project) ->
           TuistWeb.BazelBuildsLive.handle_params(params, uri, socket)
 
@@ -76,6 +82,14 @@ defmodule TuistWeb.BuildsLive do
 
   def handle_info(_event, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_build_duration_type",
+        params,
+        %{assigns: %{selected_project: %{build_system: :cargo}}} = socket
+      ) do
+    TuistWeb.CargoBuildsLive.handle_event("select_build_duration_type", params, socket)
   end
 
   def handle_event("select_build_duration_type", %{"type" => type}, socket) do
@@ -114,6 +128,14 @@ defmodule TuistWeb.BuildsLive do
     end
   end
 
+  def handle_event(
+        "select_build_duration_chart_type",
+        params,
+        %{assigns: %{selected_project: %{build_system: :cargo}}} = socket
+      ) do
+    TuistWeb.CargoBuildsLive.handle_event("select_build_duration_chart_type", params, socket)
+  end
+
   def handle_event("select_build_duration_chart_type", %{"type" => type}, socket) do
     query = Query.put(socket.assigns.uri.query, "build-duration-chart-type", type)
     uri = URI.new!("?" <> query)
@@ -129,6 +151,9 @@ defmodule TuistWeb.BuildsLive do
 
   def handle_event("select_widget", %{"widget" => _widget} = params, %{assigns: %{selected_project: project}} = socket) do
     cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildsLive.handle_event("select_widget", params, socket)
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildsLive.handle_event("select_widget", params, socket)
 
@@ -164,6 +189,9 @@ defmodule TuistWeb.BuildsLive do
         else
           Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
         end
+
+      socket =
+        if Project.cargo_project?(selected_project), do: assign(socket, :cargo_build_period_inputs, nil), else: socket
 
       {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
     end

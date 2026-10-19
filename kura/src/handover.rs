@@ -2,7 +2,9 @@
 //! capacity-rejected data, so every retained body and metadata record is checked.
 use crate::{
     backfill::{
-        pass::{BackfillPassOutcome, BackfillPassTuning, run_backfill_pass_with_tuning},
+        pass::{
+            BackfillPassOutcome, BackfillPassTuning, PassSource, run_backfill_pass_with_tuning,
+        },
         window::BackfillWindow,
     },
     http::BackfillBodyManifestMeta,
@@ -14,8 +16,9 @@ use crate::{
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 const MAX_BATCH_RECORDS: usize = 32;
 const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
@@ -28,6 +31,16 @@ pub struct Intent {
     pub destination_url: String,
     pub source_url: String,
     pub deadline_ms: u64,
+}
+
+// A preparation report is a scheduling hint, never a retained-data receipt.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Preparation {
+    pub intent: Intent,
+    pub source: Holder,
+    pub epoch: u64,
+    pub complete: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -157,6 +170,28 @@ pub async fn verify(
     State(state): State<SharedState>,
     Json(request): Json<VerifyRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if request.begin {
+        // A source's per-request timeout can be shorter than retained repair.
+        // Keep the serialized preparation alive across caller cancellation;
+        // the named intent/deadline and runtime drain still bound its work.
+        tokio::spawn(verify_response(state, request).in_current_span())
+            .await
+            .map_err(|error| {
+                tracing::error!(%error, "Retained-corpus preparation task failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "retained corpus preparation task failed".into(),
+                )
+            })?
+    } else {
+        verify_response(state, request).await
+    }
+}
+
+async fn verify_response(
+    state: SharedState,
+    request: VerifyRequest,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let context = verification_context(&request);
     let id = bounded_detail(&request.intent.id);
     verify_inner(&state, request)
@@ -212,17 +247,38 @@ async fn verify_inner(
             hold.is_some()
         };
         if !already_held {
-            reconcile_retained_corpus(state, &request).await?;
+            loop {
+                require_current_destination(state, &request)?;
+                let before = state
+                    .store
+                    .handover_eviction_generation
+                    .load(Ordering::Acquire);
+                reconcile_retained_corpus(state, &request, None).await?;
+                let mut hold = state
+                    .store
+                    .handover_hold
+                    .lock()
+                    .map_err(|_| "handover hold poisoned")?;
+                // Share the eviction commit lock: a removal cannot slip between
+                // this comparison and freezing the destination. Never release a
+                // hold to repair a failed verification; finish repair first.
+                require_current_destination(state, &request)?;
+                let after = state
+                    .store
+                    .handover_eviction_generation
+                    .load(Ordering::Acquire);
+                if before != after {
+                    tracing::info!(event.name="kura.handover.repair_revisit", id=%request.intent.id,
+                        eviction_commits=after.wrapping_sub(before),
+                        "Revisiting retained corpus after repair eviction");
+                    continue;
+                }
+                *hold = Some(request.intent.id.clone());
+                break;
+            }
         }
-        let mut hold = state
-            .store
-            .handover_hold
-            .lock()
-            .map_err(|_| "handover hold poisoned")?;
-        // Reconciliation awaited peer I/O. An abort or a replaced intent must
-        // not acquire a hold or acknowledge preparation after that wait.
+        // An idempotent begin still has to belong to the current intent.
         require_current_destination(state, &request)?;
-        *hold = Some(request.intent.id.clone());
         return Ok(
             serde_json::json!({"destination": authority.identity(), "max_batch_records": MAX_BATCH_RECORDS}),
         );
@@ -275,6 +331,9 @@ async fn verify_inner(
 }
 
 fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> Result<(), String> {
+    if state.runtime.is_draining() {
+        return Err("handover destination draining".into());
+    }
     let authority = &state.runtime.authority;
     let grant = authority.intent().ok_or("no handover intent")?;
     if grant.phase != "Quiescing"
@@ -291,15 +350,18 @@ fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> 
 async fn reconcile_retained_corpus(
     state: &SharedState,
     request: &VerifyRequest,
+    preparation_epoch: Option<u64>,
 ) -> Result<(), String> {
     // A feed cursor covers arrivals, not everything the source still retains:
     // bootstrap is horizon bounded and local eviction can remove older rows.
     // Reuse the bounded replication pipeline before freezing the destination.
-    // Keep ordinary capacity/version/tombstone rules; the subsequent full
-    // verification, never pass completion, is what authorizes the transfer.
+    // Keep store capacity/version/tombstone rules, but not the ordinary
+    // age-based selection policy: even old records belong to this barrier.
+    // Full verification, never pass completion, authorizes the transfer.
     let mut tuning = BackfillPassTuning::from_config(&state.config);
+    tuning.source = PassSource::RetainedIndex;
     tuning.feed_rows = false;
-    tuning.bandwidth_shaped = false;
+    tuning.bandwidth_shaped = preparation_epoch.is_some();
     let cancel = CancellationToken::new();
     let pass = run_backfill_pass_with_tuning(
         state,
@@ -316,7 +378,10 @@ async fn reconcile_retained_corpus(
     loop {
         tokio::select! {
             biased;
-            _ = check.tick() => require_current_destination(state, request)?,
+            _ = check.tick() => match preparation_epoch {
+                Some(epoch) => require_current_preparation(state, request, epoch)?,
+                None => require_current_destination(state, request)?,
+            },
             outcome = &mut pass => {
                 return match outcome {
                     BackfillPassOutcome::Completed { stats, .. } => {
@@ -331,6 +396,66 @@ async fn reconcile_retained_corpus(
                 };
             }
         }
+    }
+}
+
+fn require_current_preparation(
+    state: &SharedState,
+    request: &VerifyRequest,
+    epoch: u64,
+) -> Result<(), String> {
+    let authority = &state.runtime.authority;
+    let grant = authority.intent().ok_or("no preparation intent")?;
+    let now = crate::utils::now_ms();
+    if state.runtime.is_draining()
+        || grant.phase != "Serving"
+        || grant.epoch != epoch
+        || epoch == 0
+        || grant.expires_ms <= now.saturating_add(2_000)
+        || grant.holder != request.source
+        || grant.holder == *authority.identity()
+        || grant.handover.as_ref() != Some(&request.intent)
+        || request.intent.destination != *authority.identity()
+        || now >= request.intent.deadline_ms
+    {
+        return Err("preparation identity, grant or deadline mismatch".into());
+    }
+    Ok(())
+}
+
+async fn prepare_live_destination(
+    state: &SharedState,
+    preparation: &Preparation,
+) -> Result<(), String> {
+    let request = VerifyRequest {
+        begin: false,
+        intent: preparation.intent.clone(),
+        source: preparation.source.clone(),
+        record: None,
+        records: Vec::new(),
+        receipt: None,
+    };
+    let _preparation = state.runtime.authority.handover_preparation.lock().await;
+    loop {
+        require_current_preparation(state, &request, preparation.epoch)?;
+        let before = state
+            .store
+            .handover_eviction_generation
+            .load(Ordering::Acquire);
+        reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
+        require_current_preparation(state, &request, preparation.epoch)?;
+        if before
+            == state
+                .store
+                .handover_eviction_generation
+                .load(Ordering::Acquire)
+        {
+            // Writes and eviction remain possible. Quiescing must still repair,
+            // take both holds, verify every retained record and revoke the source.
+            return Ok(());
+        }
+        tracing::info!(event.name="kura.handover.preparation_revisit", id=%preparation.intent.id,
+            "Revisiting live standby preparation after retained-record eviction");
     }
 }
 
@@ -575,9 +700,54 @@ pub fn spawn(state: SharedState) {
             let Some(grant) = authority.intent() else {
                 continue;
             };
-            let Some(intent) = grant.handover else {
+            let Some(intent) = grant.handover.clone() else {
                 continue;
             };
+            if grant.phase == "Serving" && intent.destination == *authority.identity() {
+                let mut preparation = Preparation {
+                    intent: intent.clone(),
+                    source: grant.holder,
+                    epoch: grant.epoch,
+                    complete: false,
+                    error: None,
+                };
+                {
+                    let mut current = authority
+                        .preparation
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    if current.as_ref().is_some_and(|previous| {
+                        previous.intent == intent
+                            && previous.source == preparation.source
+                            && previous.epoch == preparation.epoch
+                    }) {
+                        continue;
+                    }
+                    *current = Some(preparation.clone());
+                }
+                let remaining = intent
+                    .deadline_ms
+                    .saturating_sub(crate::utils::now_ms())
+                    .min(1_200_000);
+                match tokio::time::timeout(
+                    Duration::from_millis(remaining),
+                    prepare_live_destination(&state, &preparation),
+                )
+                .await
+                {
+                    Ok(Ok(())) => preparation.complete = true,
+                    Ok(Err(error)) => preparation.error = Some(bounded_detail(&error)),
+                    Err(_) => preparation.error = Some("live preparation deadline exceeded".into()),
+                }
+                tracing::info!(event.name="kura.handover.prepared", id=%intent.id,
+                    complete=preparation.complete, error=?preparation.error,
+                    "Finished standby preparation while the source serves");
+                *authority
+                    .preparation
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = Some(preparation);
+                continue;
+            }
             if grant.phase != "Quiescing"
                 || grant.holder != *authority.identity()
                 || authority.mutations() != 0
@@ -685,6 +855,216 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn live_preparation_copies_retained_data_without_holds_or_a_receipt() {
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        source
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "old-inline",
+                "text/plain",
+                b"retained",
+                1000,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let blob = source
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "segment",
+                "application/octet-stream",
+                &vec![42; 128 * 1024],
+            )
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(&target.state, url);
+        let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.phase = "Serving".into();
+        target
+            .state
+            .runtime
+            .authority
+            .install(grant.clone())
+            .unwrap();
+        let preparation = Preparation {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            epoch: grant.epoch,
+            complete: false,
+            error: None,
+        };
+        prepare_live_destination(&target.state, &preparation)
+            .await
+            .unwrap();
+        let expected = record(
+            &source.state,
+            BackfillRecordKind::SegmentArtifact,
+            &blob.artifact_id,
+            blob.version_ms,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        verify_record(&target.state, &expected).await.unwrap();
+        let retained = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(retained.len(), 2);
+        for entry in retained {
+            let retained = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            verify_record(&target.state, &retained).await.unwrap();
+        }
+        assert!(source.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            verify_inner(&target.state, request.clone())
+                .await
+                .unwrap_err()
+                .contains("phase")
+        );
+
+        // A preparation result cannot stand in for the later frozen-corpus check.
+        target.state.store.delete_namespace("ios").await.unwrap();
+        assert!(verify_record(&target.state, &expected).await.is_err());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn live_preparation_cancels_blocked_peer_io_on_authority_change() {
+        for stop in ["abort", "epoch", "grant-expiry", "deadline", "drain"] {
+            let target = test_context(|_| {}).await;
+            let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let app = axum::Router::new().fallback({
+                let entered = entered.clone();
+                move || {
+                    let entered = entered.clone();
+                    async move {
+                        entered.notify_one();
+                        std::future::pending::<()>().await;
+                        Json(serde_json::json!({"entries": [], "next_after": null}))
+                    }
+                }
+            });
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let mut request = begin_request(&target.state, url);
+            let mut grant = target.state.runtime.authority.intent().unwrap();
+            grant.phase = "Serving".into();
+            if stop == "deadline" {
+                request.intent.deadline_ms = crate::utils::now_ms() + 1000;
+            }
+            grant.handover = Some(request.intent.clone());
+            // An observed standby grant has no local writer lease; validate its
+            // wall deadline in the preparation loop even if API polling stops.
+            if stop == "grant-expiry" {
+                // Advance the epoch so replacing the test's initial deadline is
+                // not a same-epoch grant regression.
+                grant.epoch += 1;
+                grant.expires_ms = crate::utils::now_ms() + 3000;
+            }
+            target
+                .state
+                .runtime
+                .authority
+                .install(grant.clone())
+                .unwrap();
+            let preparation = Preparation {
+                intent: request.intent,
+                source: request.source,
+                epoch: grant.epoch,
+                complete: false,
+                error: None,
+            };
+            let state = target.state.clone();
+            let worker =
+                tokio::spawn(async move { prepare_live_destination(&state, &preparation).await });
+            tokio::time::timeout(Duration::from_secs(5), entered.notified())
+                .await
+                .unwrap();
+            match stop {
+                "abort" => {
+                    grant.handover = None;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "epoch" => {
+                    grant.epoch += 1;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "drain" => {
+                    target.state.runtime.request_drain();
+                }
+                "deadline" | "grant-expiry" => {}
+                _ => unreachable!(),
+            }
+            assert!(
+                tokio::time::timeout(Duration::from_secs(3), worker)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .is_err(),
+                "{stop}"
+            );
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .handover_preparation
+                    .try_lock()
+                    .is_ok(),
+                "{stop}"
+            );
+            assert!(
+                target.state.store.handover_hold.lock().unwrap().is_none(),
+                "{stop}"
+            );
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .barrier
+                    .lock()
+                    .unwrap()
+                    .is_none(),
+                "{stop}"
+            );
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
     async fn caught_up_cursor_repairs_missing_retained_records_before_freezing() {
         let source = test_context(|_| {}).await;
         let target = test_context(|_| {}).await;
@@ -778,6 +1158,508 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retained_repair_reclaims_destination_only_segments_before_fetching() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+        use std::sync::{Arc, atomic::AtomicUsize};
+
+        for listing_fails in [false, true] {
+            let source = test_context(|_| {}).await;
+            let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+            let mut resident_id = String::new();
+            let mut resident_segment = String::new();
+            for ctx in [&source, &target] {
+                ctx.state
+                    .store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        "shared",
+                        "application/octet-stream",
+                        b"shared",
+                        3000,
+                    )
+                    .await
+                    .unwrap();
+                resident_id = crate::utils::artifact_storage_id(
+                    ArtifactProducer::Gradle,
+                    "test-tenant",
+                    "ios",
+                    "shared",
+                );
+                resident_segment = ctx
+                    .state
+                    .store
+                    .manifest(&resident_id)
+                    .unwrap()
+                    .unwrap()
+                    .segment_id
+                    .unwrap();
+            }
+            target
+                .state
+                .store
+                .install_segment_state_for_testing(SegmentState {
+                    old: vec![SegmentReference::new(resident_segment.clone(), 1)],
+                    new: vec![SegmentReference::new("divergent".into(), 2)],
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            target
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "destination-only",
+                    "application/octet-stream",
+                    b"extra",
+                    1,
+                )
+                .await
+                .unwrap();
+            let extra_id = crate::utils::artifact_storage_id(
+                ArtifactProducer::Gradle,
+                "test-tenant",
+                "ios",
+                "destination-only",
+            );
+            target
+                .state
+                .store
+                .install_segment_state_for_testing(SegmentState {
+                    old: vec![SegmentReference::new(resident_segment, 1)],
+                    current: vec![SegmentReference::new("divergent".into(), 2)],
+                    new: vec![SegmentReference::new("active".into(), 3)],
+                })
+                .await
+                .unwrap();
+            target
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "active-only",
+                    "application/octet-stream",
+                    b"active",
+                    1,
+                )
+                .await
+                .unwrap();
+            source
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "missing",
+                    "application/octet-stream",
+                    b"missing",
+                    1000,
+                )
+                .await
+                .unwrap();
+            source.state.store.run_backfill_index_build().unwrap();
+            let bodies = Arc::new(AtomicUsize::new(0));
+            let count = bodies.clone();
+            let destination = target.state.clone();
+            let checked_extra = extra_id.clone();
+            let checked_resident = resident_id.clone();
+            let app = crate::http::router(source.state.clone()).layer(axum::middleware::from_fn(
+                move |request: axum::extract::Request, next: axum::middleware::Next| {
+                    let destination = destination.clone();
+                    let extra = checked_extra.clone();
+                    let resident = checked_resident.clone();
+                    let count = count.clone();
+                    async move {
+                        if listing_fails && request.uri().path() == "/_internal/backfill/entries" {
+                            return axum::response::IntoResponse::into_response(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                            );
+                        }
+                        if request.uri().path() == "/_internal/backfill/bodies" {
+                            count.fetch_add(1, Ordering::SeqCst);
+                            assert!(
+                                destination.store.manifest(&extra).unwrap().is_none(),
+                                "reclaim destination-only storage before downloading missing bodies"
+                            );
+                            assert!(
+                                destination.store.manifest(&resident).unwrap().is_some(),
+                                "never evict shared retained data to make room"
+                            );
+                        }
+                        next.run(request).await
+                    }
+                },
+            ));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let request = begin_request(
+                &target.state,
+                format!("http://{}", listener.local_addr().unwrap()),
+            );
+            *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let result = verify_inner(&target.state, request).await;
+            if listing_fails {
+                assert!(result.is_err());
+                assert!(target.state.store.manifest(&extra_id).unwrap().is_some());
+                assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+                assert_eq!(bodies.load(Ordering::SeqCst), 0);
+            } else {
+                result.unwrap();
+                assert_eq!(bodies.load(Ordering::SeqCst), 1);
+                for entry in source
+                    .state
+                    .store
+                    .backfill_index_page(None, 10)
+                    .unwrap()
+                    .entries
+                {
+                    let expected = record(
+                        &source.state,
+                        entry.kind,
+                        &entry.record_id,
+                        entry.version_ms,
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap();
+                    verify_record(&target.state, &expected).await.unwrap();
+                }
+            }
+            assert!(target.state.store.manifest(&resident_id).unwrap().is_some());
+            let active = crate::utils::artifact_storage_id(
+                ArtifactProducer::Gradle,
+                "test-tenant",
+                "ios",
+                "active-only",
+            );
+            assert!(target.state.store.manifest(&active).unwrap().is_some());
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn retained_repair_revisits_records_evicted_after_their_presence_check() {
+        use crate::{
+            segment::{reference::SegmentReference, state::SegmentState},
+            utils::artifact_storage_id,
+        };
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            ActionResult, Digest, OutputFile,
+        };
+        use prost::Message;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        let digest = Digest {
+            hash: "ab".repeat(32),
+            size_bytes: 8,
+        };
+        let key = crate::utils::blob_key(&format!("{}/8", digest.hash));
+        let action_key = format!("action_cache/{}/0", "cd".repeat(32));
+        let action = ActionResult {
+            output_files: vec![OutputFile {
+                path: "out".into(),
+                digest: Some(digest),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for ctx in [&source, &target] {
+            ctx.state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"retained",
+                    3000,
+                )
+                .await
+                .unwrap();
+            ctx.state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &action_key,
+                    "application/x-protobuf",
+                    &action,
+                    4000,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "missing-old",
+                "application/octet-stream",
+                b"old",
+                1000,
+            )
+            .await
+            .unwrap();
+        let blob_id = artifact_storage_id(ArtifactProducer::Reapi, "test-tenant", "ios", &key);
+        let action_id =
+            artifact_storage_id(ArtifactProducer::Reapi, "test-tenant", "ios", &action_key);
+        let segment = target
+            .state
+            .store
+            .manifest(&blob_id)
+            .unwrap()
+            .unwrap()
+            .segment_id
+            .unwrap();
+        // Seal the resident segment without a large allocation. The real eviction
+        // path will remove both its blob and the referencing action-cache entry.
+        let ring = SegmentState {
+            old: vec![SegmentReference::new(segment.clone(), 3000)],
+            new: vec![SegmentReference::new("empty-active".into(), 5000)],
+            ..Default::default()
+        };
+        target
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .unwrap();
+        source.state.store.run_backfill_index_build().unwrap();
+        let evicted = Arc::new(AtomicBool::new(false));
+        let did_evict = evicted.clone();
+        let destination = target.state.clone();
+        let app = crate::http::router(source.state.clone()).layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let destination = destination.clone();
+                let segment = segment.clone();
+                let action_id = action_id.clone();
+                let did_evict = did_evict.clone();
+                async move {
+                    // Newest-first listing has already skipped the resident blob
+                    // and action when the older missing body's request is sent.
+                    if request.uri().path() == "/_internal/backfill/bodies"
+                        && !did_evict.swap(true, Ordering::SeqCst)
+                    {
+                        destination.store.evict_segment_for_testing(&segment).await;
+                        assert!(
+                            destination
+                                .store
+                                .manifest_from_db(&action_id)
+                                .unwrap()
+                                .is_none()
+                        );
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let request = begin_request(
+            &target.state,
+            format!("http://{}", listener.local_addr().unwrap()),
+        );
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        verify_inner(&target.state, request).await.unwrap();
+        assert!(evicted.load(Ordering::SeqCst));
+        let entries = source
+            .state
+            .store
+            .backfill_index_page(None, 10)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 3);
+        for entry in entries {
+            let expected = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            verify_record(&target.state, &expected).await.unwrap();
+        }
+        assert_eq!(
+            target.state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn repeated_eviction_cannot_freeze_an_unconverged_destination() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+        use std::sync::{Arc, atomic::AtomicUsize};
+
+        let target = test_context(|_| {}).await;
+        let state = target.state.clone();
+        let walks = Arc::new(AtomicUsize::new(0));
+        let count = walks.clone();
+        let app = axum::Router::new().fallback(move || {
+            let state = state.clone();
+            let count = count.clone();
+            async move {
+                let pass = count.fetch_add(1, Ordering::SeqCst);
+                let artifact = state
+                    .store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        "destination-only",
+                        "application/octet-stream",
+                        b"extra",
+                    )
+                    .await
+                    .unwrap();
+                let segment = artifact.segment_id.unwrap();
+                state
+                    .store
+                    .install_segment_state_for_testing(SegmentState {
+                        old: vec![SegmentReference::new(segment.clone(), 1)],
+                        new: vec![SegmentReference::new(format!("empty-{pass}"), 2)],
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+                state.store.evict_segment_for_testing(&segment).await;
+                Json(serde_json::json!({"entries": [], "next_after": null}))
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut request = begin_request(
+            &target.state,
+            format!("http://{}", listener.local_addr().unwrap()),
+        );
+        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
+        let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.handover = Some(request.intent.clone());
+        target.state.runtime.authority.install(grant).unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let error =
+            tokio::time::timeout(Duration::from_secs(5), verify_inner(&target.state, request))
+                .await
+                .unwrap()
+                .unwrap_err();
+        assert!(
+            walks.load(Ordering::SeqCst) > 1,
+            "must exercise repeat walks"
+        );
+        assert!(error.contains("deadline mismatch"), "{error}");
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn retained_repair_copies_missing_records_older_than_the_evictee() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+
+        let source = test_context(|_| {}).await;
+        let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+        for (ctx, key, version) in [(&source, "newer", 1000), (&source, "older", 400)] {
+            ctx.state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"retained body",
+                    version,
+                )
+                .await
+                .unwrap();
+        }
+        let mut ring = SegmentState::default();
+        for (index, stat) in [500, 600, 650, 700, 750].into_iter().enumerate() {
+            let mut reference =
+                SegmentReference::new(format!("capacity-{index}"), index as u64 + 1);
+            reference.max_version_ms = Some(stat);
+            match index {
+                0 => ring.old.push(reference),
+                1 | 2 => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        target
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(&target.state, url);
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let entries = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 2);
+        let mut expected = Vec::new();
+        for entry in entries {
+            expected.push(
+                record(
+                    &source.state,
+                    entry.kind,
+                    &entry.record_id,
+                    entry.version_ms,
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            );
+        }
+        // Both records are missing. The recency heuristic would reject the
+        // older one even though it fits in the active segment without eviction.
+        assert!(expected.iter().any(|r| r.version == 1000));
+        verify_inner(&target.state, request).await.unwrap();
+        for record in expected {
+            verify_record(&target.state, &record).await.unwrap();
+        }
+        assert_eq!(
+            target.state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn repair_preserves_newer_destination_version_and_verification_refuses_it() {
         let source = test_context(|_| {}).await;
         let target = test_context(|_| {}).await;
@@ -843,6 +1725,126 @@ mod tests {
                 .is_none()
         );
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn disconnected_begin_keeps_one_repair_until_authority_cancels_it() {
+        for stop in ["complete", "abort", "deadline", "drain"] {
+            let target = test_context(|_| {}).await;
+            let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+            let release = std::sync::Arc::new(tokio::sync::Notify::new());
+            let requests = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let app = axum::Router::new().fallback({
+                let entered = entered.clone();
+                let release = release.clone();
+                let requests = requests.clone();
+                move || {
+                    let entered = entered.clone();
+                    let release = release.clone();
+                    let requests = requests.clone();
+                    async move {
+                        requests.fetch_add(1, Ordering::SeqCst);
+                        entered.notify_one();
+                        release.notified().await;
+                        Json(serde_json::json!({"entries": [], "next_after": null}))
+                    }
+                }
+            });
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let mut request = begin_request(&target.state, url);
+            if stop == "deadline" {
+                request.intent.deadline_ms = crate::utils::now_ms() + 1_000;
+                let mut grant = target.state.runtime.authority.intent().unwrap();
+                grant.handover = Some(request.intent.clone());
+                target.state.runtime.authority.install(grant).unwrap();
+            }
+            let state = target.state.clone();
+            let first = request.clone();
+            let caller = tokio::spawn(async move { verify(State(state), Json(first)).await });
+            tokio::time::timeout(Duration::from_secs(5), entered.notified())
+                .await
+                .unwrap();
+            caller.abort();
+            assert!(caller.await.unwrap_err().is_cancelled());
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .handover_preparation
+                    .try_lock()
+                    .is_err(),
+                "{stop}: caller cancellation must not abandon the repair"
+            );
+            let rejection = verify(State(target.state.clone()), Json(request.clone()))
+                .await
+                .unwrap_err();
+            assert!(
+                rejection.1.contains("reconciliation in progress"),
+                "{rejection:?}"
+            );
+            assert_eq!(requests.load(Ordering::SeqCst), 1);
+            match stop {
+                "complete" => release.notify_one(),
+                "abort" => {
+                    let mut grant = target.state.runtime.authority.intent().unwrap();
+                    grant.phase = "Serving".into();
+                    grant.handover = None;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "deadline" => {}
+                "drain" => {
+                    target.state.runtime.request_drain();
+                }
+                _ => unreachable!(),
+            }
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    if target
+                        .state
+                        .runtime
+                        .authority
+                        .handover_preparation
+                        .try_lock()
+                        .is_ok()
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+            if stop == "complete" {
+                assert_eq!(
+                    target.state.store.handover_hold.lock().unwrap().as_deref(),
+                    Some("repair")
+                );
+                let response = verify(State(target.state.clone()), Json(request))
+                    .await
+                    .unwrap();
+                assert_eq!(response.0["max_batch_records"], MAX_BATCH_RECORDS);
+                assert_eq!(requests.load(Ordering::SeqCst), 1);
+            } else {
+                assert!(
+                    target.state.store.handover_hold.lock().unwrap().is_none(),
+                    "{stop}"
+                );
+            }
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .barrier
+                    .lock()
+                    .unwrap()
+                    .is_none()
+            );
+            server.abort();
+        }
     }
 
     #[tokio::test]

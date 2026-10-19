@@ -8,16 +8,24 @@ defmodule TuistWeb.Plugs.ReportActorPlugTest do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias Tuist.ReportActor
+  alias TuistWeb.Authentication
   alias TuistWeb.Plugs.ReportActorPlug
 
   defp conn, do: Plug.Test.conn(:post, "/api/reports")
 
   test "claims cannot authenticate or create a user assignment" do
     conn = conn() |> put_req_header("x-tuist-actor-id", "admin") |> ReportActorPlug.call([])
-    assert conn.halted
-    assert conn.status == 401
-    refute Map.has_key?(conn.assigns, :report_actor)
+    refute Authentication.authenticated?(conn)
     refute Map.has_key?(conn.assigns, :current_user)
+
+    assert ReportActor.attributes(conn) == %{
+             actor_account_id: 0,
+             claimed_actor_id: "admin",
+             submission_auth: "network_trusted"
+           }
+
+    assert %{source: :reported, verified_account_handle: nil, submission_auth: "network_trusted"} =
+             ReportActorPlug.actor(conn)
   end
 
   test "personal and OAuth identity come only from the authenticated individual" do

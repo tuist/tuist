@@ -29,9 +29,9 @@ defmodule TuistWeb.API.RunsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   tags ["Runs"]
 

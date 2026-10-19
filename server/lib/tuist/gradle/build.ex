@@ -17,6 +17,8 @@ defmodule Tuist.Gradle.Build do
       :git_branch,
       :root_project_name,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :gradle_version,
       :java_version,
       :custom_tags,
@@ -26,7 +28,16 @@ defmodule Tuist.Gradle.Build do
     default_order: %{
       order_by: [:inserted_at],
       order_directions: [:desc]
-    }
+    },
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key false

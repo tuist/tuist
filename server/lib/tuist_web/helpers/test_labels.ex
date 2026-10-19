@@ -35,6 +35,7 @@ defmodule TuistWeb.Helpers.TestLabels do
 
   # Mix names runs after the command, with an optional execution-variant label.
   # It does not offer scheme-based filtering or grouping (see `schemes?/1`).
+  def scheme_label(%Project{build_system: :cargo}), do: dgettext("dashboard_tests", "Command")
   def scheme_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Command")
   def scheme_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Invocation")
   def scheme_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Project")
@@ -57,6 +58,11 @@ defmodule TuistWeb.Helpers.TestLabels do
   def test_run_label(%Project{build_system: :mix}, scheme) when scheme not in [nil, ""], do: "mix test · #{scheme}"
 
   def test_run_label(%Project{build_system: :mix}, _scheme), do: "mix test"
+
+  def test_run_label(%Project{build_system: :cargo}, scheme)
+      when scheme in [nil, "", "nextest", "nextest run", "cargo nextest run"], do: "cargo nextest run"
+
+  def test_run_label(%Project{build_system: :cargo}, scheme), do: "cargo nextest run · #{scheme}"
   def test_run_label(_project, scheme) when scheme not in [nil, ""], do: scheme
   def test_run_label(_project, _scheme), do: dgettext("dashboard_tests", "Unknown")
 
@@ -64,6 +70,6 @@ defmodule TuistWeb.Helpers.TestLabels do
   Whether the project's test runs are told apart by a scheme (or its
   equivalent), and so whether filtering and grouping by it means anything.
   """
-  def schemes?(%Project{build_system: :mix}), do: false
+  def schemes?(%Project{build_system: build_system}) when build_system in [:mix, :cargo], do: false
   def schemes?(_project), do: true
 end

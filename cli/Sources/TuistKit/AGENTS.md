@@ -12,12 +12,15 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- Credential-free Xcode publishing parses activity logs and XCResult locally, posts completed structured reports, and never uploads archives, attachments, coverage/history, shard/stress references, existing-build associations or cache-processing hints. Skip enrichment that requires authenticated reads. Branch only after the shared report-mode credential resolver proves genuine absence; present or rejected credentials retain authenticated/error behavior.
 - `tuist xcodebuild` may reorder a supported action for Tuist's subcommand parser, but must restore its original position before forwarding arguments to xcodebuild. Preserve the caller's action sequence, including `clean` and repeated actions, and exclude consumed Tuist-only options from the forwarded arguments.
 - Swift flag deduplication must preserve top-level `-Werror` and `-Wwarning` pairs in their original order, including repetitions, in both ordinary and platform-conditioned build settings. Do not mistake a forwarded option such as `-Xcc -Werror` for a top-level warning-group flag.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - Open-source generation honors `includeGenerateScheme` and configures compilation-cache debugging after automatic workspace schemes are created.
 - ProjectAutomation's package projection keeps its existing product-name and embedding shape. Explicit native package linkage hints remain in the generation graph; they do not add new package variants to this projection.
-- `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
+- `TuistCommand.main` initializes cache directories, parses the command, loads config, resolves server URL, and runs `TrackableCommand`. Commands conforming to `ProjectPathProviding` use their parsed path (including environment defaults) for both configuration and analytics; other commands and plugin dispatch retain raw-argument path resolution.
+- `graph`, `clean`, `dump`, and both `hash` subcommands conform to `ProjectPathProviding`, just like generation, cache warming, editing, installing, building, and testing. Keep their parsed project paths consistent with entry-point configuration and analytics.
+- Background analytics uploads receive the resolved project path through the hidden `analytics-upload --project-path` option so optional-authentication policy is loaded from the same config as the original command. Legacy invocations without it retain the raw-argument fallback.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
 - Cache warm selection is scoped from explicit non-test roots; focused test roots may remain in the graph but do not expand binary cache candidates.
 - Cache readiness probes keep their read side open until the daemon responds or closes the connection. Closing immediately after connecting can crash SwiftNIO on Darwin before it accepts the socket.
@@ -29,6 +32,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Core domain models: `cli/Sources/TuistCore/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
+- `tuist cache --coverage` warms the coverage variant of the binary cache: the hash pass and the warm-project generator take `BinaryCacheCoverage.on`, the repository's frameworks and libraries get the `TUIST_BINARY_CACHE_COVERAGE` marker, and the binary (not bundle or macro) builds get `InstrumentedBinaryCacheWarm.buildSettings` as passthrough xcodebuild arguments, raw strings rather than `.xcarg` because the settings hold `$(…)` references and xcodebuild runs without a shell. The checkout root comes from `CoverageBuildSourcesService.root(from:)`, the same rule `tuist test` ties coverage with.
 - Cache warming carries the preload graph's SDK fingerprints through archiving and publication; do not recompute them from the graph after binary replacement. Preserve these publication fingerprints even when profile exclusions prevent handing precomputed target hashes to the warm-project generator.
 - When the default generator runs focus without filters (for example, during build), it preserves eligible local package tests and their dependencies for their effective platforms. Ordinary unfocused generation relies on the narrowing and pruning mappers. Test automation saves the graph before focus for platform inference and passes includedProducts for unit/UI tests; a selected scheme keeps its own test roots and does not add package tests outside the scheme.
 

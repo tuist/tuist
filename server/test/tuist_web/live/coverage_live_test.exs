@@ -395,6 +395,34 @@ defmodule TuistWeb.CoverageLiveTest do
       assert URI.decode_query(more.query)["tab"] == "runs"
     end
 
+    test "names Mix runs after their command, with or without a scheme", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+
+      main_run(project, organization, "a", [file("lib/a.ex", [1, 0])], %{build_system: "mix", scheme: ""})
+
+      main_run(project, organization, "b", [file("lib/a.ex", [1, 1])], %{
+        build_system: "mix",
+        scheme: "clickhouse-current",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800, :second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      labels =
+        lv
+        |> element("#coverage-recent-runs-table")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.find("tbody tr td:first-child [data-part='label']")
+        |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+
+      assert labels == ["mix test · clickhouse-current", "mix test"]
+    end
+
     test "says when no run named the branch in the period", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-runs']", "No run gathered coverage on main in this period")

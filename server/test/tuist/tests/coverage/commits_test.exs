@@ -22,6 +22,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
 
+  test "unsigned clean runs cannot conceal a scheme measured only by dirty CI runs", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      scheme: "DirtyOnly",
+      git_dirty: true
+    })
+
+    before = Commits.recompute(project, "abc123")
+    assert :dirty_run_excluded in Commits.gap_reasons(before)
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      scheme: "DirtyOnly",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false
+    })
+
+    after_report = Commits.recompute(project, "abc123")
+    assert after_report.reported_kind == before.reported_kind
+    assert Commits.gap_reasons(after_report) == Commits.gap_reasons(before)
+    assert after_report.test_run_ids == before.test_run_ids
+    assert after_report.schemes == before.schemes
+    assert after_report.covered_lines == before.covered_lines
+  end
+
   test "publishes a commit as the union of its runs, a file counted once across schemes", %{
     project: project,
     account: account
@@ -82,6 +109,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
   end
 
+  test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
+    project: project,
+    account: account
+  } do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1])], %{scheme: nil})
+
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: run.id,
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        is_ci: true,
+        scheme: "AppTests",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: []
+      })
+
+    assert [%{scheme: "AppTests"}] = Commits.runs(project.id, "abc123")
+  end
+
   test "leaves runs from a dirty checkout out, and republishes one version above the latest", %{
     project: project,
     account: account
@@ -102,6 +152,17 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     assert Commits.recompute(project, "nothing-measured") == nil
     assert Commits.summary(project.id, "nothing-measured") == nil
+  end
+
+  test "lists a run whose product code all came from the binary cache without counters", %{
+    project: project,
+    account: account
+  } do
+    # The run measured no product line, so only its test file says it gathered coverage.
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Tests/ATests.swift", [1], is_test: true)])
+
+    assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.executable_lines}) ==
+             [{run.id, 0}]
   end
 
   test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",

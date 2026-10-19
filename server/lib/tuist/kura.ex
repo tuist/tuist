@@ -82,8 +82,8 @@ defmodule Tuist.Kura do
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
   @version_rollout_batch_size 100
 
-  @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
-  def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+  @doc "Enqueues unique reconciliation of desired Kura server rows with the observed Kubernetes state."
+  def enqueue_reconcile_orphaned_deployments, do: %{} |> Reconciler.new() |> Oban.insert!()
 
   # How long a server that has stopped receiving new traffic keeps serving
   # before its resources are torn down, so persistent gRPC channels and

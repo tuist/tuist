@@ -1,0 +1,84 @@
+#mix-cache,
+#cargo-cache {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & > [data-part="analytics-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+      }
+
+      @media (max-width: 768px) {
+        flex-direction: column;
+      }
+    }
+
+    & .noora-chart {
+      padding: var(--noora-spacing-3);
+      height: 200px;
+    }
+
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+
+    & [data-part="analytics-chart-empty"] {
+      justify-content: center;
+      box-shadow: none;
+      padding: 0;
+      min-height: 200px;
+
+      & > [data-part="image"] {
+        height: 112px;
+      }
+    }
+  }
+
+  & > [data-part="recent-builds"] {
+    & > [data-part="recent-builds-section"] {
+      gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-9);
+
+      & > [data-part="builds-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+
+        & > [data-part="builds-chart"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+
+          & > [data-part="recent-builds-coverage"] {
+            margin: 0;
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+
+          & .noora-chart {
+            height: 148px;
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,227 +2,209 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Accounts
+  alias Tuist.Environment
+  alias Tuist.GitHub.InstallationAuthorization
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Errors.BadRequestError
 
-  describe "GET /integrations/github/setup" do
-    test "redirects to integrations page when setup is successful and creates a github.com row that defers to env-var credentials",
-         %{conn: conn} do
-      user = AccountsFixtures.user_fixture(preload: [:account])
-      account = user.account
-      installation_id = "12345"
-      state_token = "valid_token"
+  setup :register_and_log_in_user
 
-      expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, %{account_id: account.id, client_url: "https://github.com"}}
-      end)
+  setup do
+    stub(Environment, :github_app_client_id, fn -> "app-client" end)
+    stub(InstallationAuthorization, :verify, fn _, _, _ -> :ok end)
+    :ok
+  end
 
-      expect(Accounts, :get_account_by_id, fn account_id ->
-        assert account_id == account.id
-        {:ok, account}
-      end)
+  test "Tuist-initiated setup connects the selected account with global credentials", %{conn: conn, user: user} do
+    state = VCS.generate_github_state_token(user.account.id)
+    conn = conn |> get(~p"/integrations/github/setup", installation_id: "12345", state: state) |> complete_authorization()
+    assert get_session(conn, :integration_installation) == nil
+    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
+    {:ok, installation} = VCS.get_github_app_installation_for_account(user.account.id)
+    assert installation.installation_id == "12345"
+    assert installation.client_url == "https://github.com"
+    assert is_nil(installation.app_id)
+    assert is_nil(installation.client_id)
+    assert is_nil(installation.client_secret)
+    assert is_nil(installation.private_key)
+    assert is_nil(installation.webhook_secret)
+    refute GitHubAppInstallation.enterprise?(installation)
+    refute GitHubAppInstallation.per_installation_credentials?(installation)
+  end
 
+  test "reinstalling for the same account is idempotent", %{conn: conn, user: user} do
+    existing = VCSFixtures.github_app_installation_fixture(account_id: user.account.id, installation_id: "12345")
+    state = VCS.generate_github_state_token(user.account.id)
+    conn |> get(~p"/integrations/github/setup", installation_id: "12345", state: state) |> complete_authorization()
+    {:ok, installation} = VCS.get_github_app_installation_for_account(user.account.id)
+    assert installation.id == existing.id
+  end
+
+  test "fills installation_id on a pending GHES row and preserves credentials", %{conn: conn, user: user} do
+    host = "https://github.example.com"
+
+    VCSFixtures.github_app_installation_fixture(
+      account_id: user.account.id,
+      installation_id: nil,
+      client_url: host,
+      app_id: "999",
+      app_slug: "tuist-on-ghes",
+      client_id: "Iv1.x",
+      client_secret: "csec",
+      private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+      webhook_secret: "wh"
+    )
+
+    state = VCS.generate_github_state_token(user.account.id, host)
+    conn = get(conn, ~p"/integrations/github/setup", installation_id: "67890", state: state)
+    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
+    {:ok, installation} = VCS.get_github_app_installation_for_account(user.account.id)
+    assert installation.installation_id == "67890"
+    assert installation.client_url == host
+    assert installation.app_id == "999"
+    assert installation.private_key =~ "BEGIN RSA"
+  end
+
+  test "rejects GHES setup without a pending registration for that host", %{conn: conn, user: user} do
+    state = VCS.generate_github_state_token(user.account.id, "https://github.example.com")
+
+    assert_raise BadRequestError, ~r/registration flow first/, fn ->
+      get(conn, ~p"/integrations/github/setup", installation_id: "67890", state: state)
+    end
+
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  test "rejects cross-host setup without changing the existing registration", %{conn: conn, user: user} do
+    VCSFixtures.github_app_installation_fixture(
+      account_id: user.account.id,
+      installation_id: nil,
+      client_url: "https://ghes-b.example.com",
+      app_id: "999",
+      app_slug: "tuist-on-ghes-b",
+      client_id: "Iv1.b",
+      client_secret: "csec-b",
+      private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+      webhook_secret: "wh-b"
+    )
+
+    for host <- ["https://ghes-a.example.com", "https://github.com"] do
+      state = VCS.generate_github_state_token(user.account.id, host)
+
+      assert_raise BadRequestError, ~r/different GitHub host/, fn ->
+        conn = get(conn, ~p"/integrations/github/setup", installation_id: "67890", state: state)
+        if host == "https://github.com", do: complete_authorization(conn)
+      end
+    end
+
+    {:ok, installation} = VCS.get_github_app_installation_for_account(user.account.id)
+    assert is_nil(installation.installation_id)
+    assert installation.client_url == "https://ghes-b.example.com"
+  end
+
+  test "cannot transfer an installation from another account", %{conn: conn, user: user} do
+    other = AccountsFixtures.account_fixture()
+    VCSFixtures.github_app_installation_fixture(account_id: other.id, installation_id: "12345")
+    state = VCS.generate_github_state_token(user.account.id)
+
+    assert_raise BadRequestError, "This GitHub app installation is already connected.", fn ->
+      conn |> get(~p"/integrations/github/setup", installation_id: "12345", state: state) |> complete_authorization()
+    end
+  end
+
+  test "a valid state does not grant administration of someone else's account", %{conn: conn} do
+    other = AccountsFixtures.account_fixture()
+    state = VCS.generate_github_state_token(other.id)
+
+    assert_raise BadRequestError, fn ->
+      get(conn, ~p"/integrations/github/setup", installation_id: "12345", state: state)
+    end
+
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(other.id)
+  end
+
+  test "rejects missing installation IDs and invalid state", %{conn: conn} do
+    assert_raise BadRequestError, fn -> get(conn, ~p"/integrations/github/setup", state: "bad") end
+
+    assert_raise BadRequestError, fn ->
+      get(conn, ~p"/integrations/github/setup", installation_id: "12345", state: "bad")
+    end
+  end
+
+  test "provider-initiated setup verifies GitHub access before organization selection", %{conn: conn, user: user} do
+    stub(Environment, :github_app_client_id, fn -> "app-client" end)
+    conn = get(conn, ~p"/integrations/github/setup", installation_id: "12345")
+    query = conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+    pending = get_session(conn, :github_installation_authorization)
+    assert query["client_id"] == "app-client"
+    assert query["state"] == pending.state
+    assert pending.user_id == user.id
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+
+    expect(InstallationAuthorization, :verify, fn "code", "12345", callback ->
+      assert String.ends_with?(callback, "/integrations/github/authorize")
+      :ok
+    end)
+
+    conn = get(recycle(conn), ~p"/integrations/github/authorize", code: "code", state: pending.state)
+    assert redirected_to(conn) == "/integrations/installation"
+    assert get_session(conn, :github_installation_authorization) == nil
+    assert %{provider: :github, proof: "12345", user_id: user_id} = get_session(conn, :integration_installation)
+    assert user_id == user.id
+  end
+
+  test "authorization rejects mismatched state, expired requests and different users before exchanging codes", %{
+    conn: conn,
+    user: user
+  } do
+    reject(&InstallationAuthorization.verify/3)
+
+    for {state, user_id, issued_at} <- [
+          {"other-state", user.id, System.system_time(:second)},
+          {"state", user.id, System.system_time(:second) - 601},
+          {"state", user.id + 1, System.system_time(:second)}
+        ] do
       conn =
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => installation_id,
-          "state" => state_token
+        put_session(conn, :github_installation_authorization, %{
+          state: state,
+          user_id: user_id,
+          issued_at: issued_at,
+          installation_id: "12345"
         })
 
-      assert redirected_to(conn) == "/#{account.name}/settings/integrations"
-
-      # Regression guard: github.com installations must land with no
-      # per-installation credentials so the runtime keeps falling back
-      # to TUIST_GITHUB_APP_* env vars for JWT signing and webhook
-      # HMAC verification. If any of these columns start getting set
-      # for github.com we'd silently break the existing integration.
-      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
-      assert installation.installation_id == installation_id
-      assert installation.client_url == "https://github.com"
-      assert is_nil(installation.app_id)
-      assert is_nil(installation.client_id)
-      assert is_nil(installation.client_secret)
-      assert is_nil(installation.private_key)
-      assert is_nil(installation.webhook_secret)
-      refute GitHubAppInstallation.enterprise?(installation)
-      refute GitHubAppInstallation.per_installation_credentials?(installation)
-    end
-
-    test "fills installation_id on the pending GHES manifest row", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(preload: [:account])
-      account = user.account
-      installation_id = "67890"
-      state_token = "ghes_token"
-      ghes_url = "https://github.example.com"
-
-      # Pending manifest row from the App registration step. This is
-      # required for the GHES setup callback to succeed — without it,
-      # the resulting row would have no per-installation credentials
-      # and silently fall back to the github.com env vars at API call
-      # time.
-      VCSFixtures.github_app_installation_fixture(
-        account_id: account.id,
-        installation_id: nil,
-        client_url: ghes_url,
-        app_id: "999",
-        app_slug: "tuist-on-ghes",
-        client_id: "Iv1.x",
-        client_secret: "csec",
-        private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-        webhook_secret: "wh"
-      )
-
-      expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, %{account_id: account.id, client_url: ghes_url}}
-      end)
-
-      expect(Accounts, :get_account_by_id, fn account_id ->
-        assert account_id == account.id
-        {:ok, account}
-      end)
-
-      conn =
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => installation_id,
-          "state" => state_token
-        })
-
-      assert redirected_to(conn) == "/#{account.name}/settings/integrations"
-
-      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
-      assert installation.installation_id == installation_id
-      assert installation.client_url == ghes_url
-      # Per-installation credentials from the manifest row are
-      # preserved across the setup-callback update.
-      assert installation.app_id == "999"
-      assert installation.private_key =~ "BEGIN RSA"
-    end
-
-    test "rejects GHES setup callback when no pending manifest row exists for the host", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(preload: [:account])
-      account = user.account
-      state_token = "ghes_token"
-      ghes_url = "https://github.example.com"
-
-      expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, %{account_id: account.id, client_url: ghes_url}}
-      end)
-
-      expect(Accounts, :get_account_by_id, fn _account_id -> {:ok, account} end)
-
-      assert_raise BadRequestError, ~r/registration flow first/, fn ->
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => "67890",
-          "state" => state_token
-        })
-      end
-
-      assert {:error, :not_found} = VCS.get_github_app_installation_for_account(account.id)
-    end
-
-    test "rejects GHES setup callback when the only pending row is for a different host", %{conn: conn} do
-      # Defense-in-depth: if a setup callback for ghes-a.example.com
-      # arrives but the only pending row is for ghes-b.example.com,
-      # silently retargeting the row would leave it with credentials
-      # that work against the wrong host. Refuse instead.
-      user = AccountsFixtures.user_fixture(preload: [:account])
-      account = user.account
-      state_token = "ghes_token"
-      target_ghes = "https://ghes-a.example.com"
-
-      VCSFixtures.github_app_installation_fixture(
-        account_id: account.id,
-        installation_id: nil,
-        client_url: "https://ghes-b.example.com",
-        app_id: "999",
-        app_slug: "tuist-on-ghes-b",
-        client_id: "Iv1.b",
-        client_secret: "csec-b",
-        private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake-b\n-----END RSA PRIVATE KEY-----",
-        webhook_secret: "wh-b"
-      )
-
-      expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, %{account_id: account.id, client_url: target_ghes}}
-      end)
-
-      expect(Accounts, :get_account_by_id, fn _account_id -> {:ok, account} end)
-
-      assert_raise BadRequestError, ~r/registration flow first/, fn ->
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => "67890",
-          "state" => state_token
-        })
-      end
-
-      # The original ghes-b row stays untouched — installation_id NOT
-      # overwritten.
-      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
-      assert is_nil(installation.installation_id)
-      assert installation.client_url == "https://ghes-b.example.com"
-    end
-
-    test "returns BadRequestError when installation is already connected to a different account", %{conn: conn} do
-      connected_account = AccountsFixtures.account_fixture()
-      selected_account = AccountsFixtures.account_fixture()
-      installation_id = "12345"
-      state_token = "valid_token"
-
-      VCSFixtures.github_app_installation_fixture(
-        account_id: connected_account.id,
-        installation_id: installation_id
-      )
-
-      expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, %{account_id: selected_account.id, client_url: "https://github.com"}}
-      end)
-
-      expect(Accounts, :get_account_by_id, fn account_id ->
-        assert account_id == selected_account.id
-        {:ok, selected_account}
-      end)
-
-      assert_raise BadRequestError, "This GitHub app installation is already connected.", fn ->
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => installation_id,
-          "state" => state_token
-        })
+      assert_raise BadRequestError, fn ->
+        get(conn, ~p"/integrations/github/authorize", code: "code", state: "state")
       end
     end
+  end
 
-    test "raises BadRequestError when installation_id is missing", %{conn: conn} do
-      state_token = "valid_token"
+  test "authorization rejects a user without access to the installation", %{conn: conn, user: user} do
+    conn =
+      put_session(conn, :github_installation_authorization, %{
+        state: "state",
+        user_id: user.id,
+        issued_at: System.system_time(:second),
+        installation_id: "12345"
+      })
 
-      assert_raise BadRequestError, "Invalid GitHub app installation. Please try again.", fn ->
-        get(conn, ~p"/integrations/github/setup", %{"state" => state_token})
-      end
+    expect(InstallationAuthorization, :verify, fn _, _, _ -> {:error, :invalid_github_installation} end)
+
+    assert_raise BadRequestError, fn ->
+      get(conn, ~p"/integrations/github/authorize", code: "code", state: "state")
     end
+  end
 
-    test "raises BadRequestError when state token is missing", %{conn: conn} do
-      installation_id = "12345"
+  test "signed-out installers return to setup after login" do
+    conn = get(build_conn(), ~p"/integrations/github/setup", installation_id: "12345")
+    assert redirected_to(conn) == "/users/log_in"
+    assert get_session(conn, :user_return_to) == "/integrations/github/setup?installation_id=12345"
+  end
 
-      assert_raise BadRequestError, "Invalid GitHub app installation. Please try again.", fn ->
-        get(conn, ~p"/integrations/github/setup", %{"installation_id" => installation_id})
-      end
-    end
-
-    test "raises BadRequestError when state token is invalid", %{conn: conn} do
-      installation_id = "12345"
-      invalid_token = "invalid_token"
-
-      expect(VCS, :verify_github_state_token, fn ^invalid_token ->
-        {:error, :invalid}
-      end)
-
-      assert_raise BadRequestError, "Invalid installation request. Please try again.", fn ->
-        get(conn, ~p"/integrations/github/setup", %{
-          "installation_id" => installation_id,
-          "state" => invalid_token
-        })
-      end
-    end
+  defp complete_authorization(conn) do
+    pending = get_session(conn, :github_installation_authorization)
+    get(recycle(conn), ~p"/integrations/github/authorize", code: "code", state: pending.state)
   end
 end

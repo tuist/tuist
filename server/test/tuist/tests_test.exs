@@ -8,6 +8,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.FanoutWorker
@@ -2796,14 +2797,15 @@ defmodule Tuist.TestsTest do
       assert merged_test.status == "in_progress"
     end
 
-    test "the last shard completes the run even when its own shard row is not read back" do
+    test "the last shard completes the run even with uppercase client UUIDs and without reading its own row" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      client_id = String.upcase(UUIDv7.generate())
 
       {:ok, first_test} =
         Tests.create_test(%{
-          id: UUIDv7.generate(),
+          id: client_id,
           project_id: project.id,
           account_id: account.id,
           duration: 300,
@@ -2815,6 +2817,8 @@ defmodule Tuist.TestsTest do
         })
 
       assert first_test.status == "in_progress"
+
+      assert first_test.id == String.downcase(client_id)
 
       # The row a shard writes for itself is not reliably observable by the
       # read that immediately follows it, so the last shard to report has to
@@ -2835,6 +2839,39 @@ defmodule Tuist.TestsTest do
         })
 
       assert merged_test.status == "success"
+    end
+
+    test "completes runs whose historical shard rows contain uppercase UUID strings" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      stub(IngestRepo, :insert_all, fn schema, rows ->
+        rows =
+          if schema == ShardRun do
+            Enum.map(rows, &Map.update!(&1, :test_run_id, fn id -> String.upcase(id) end))
+          else
+            rows
+          end
+
+        Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+      end)
+
+      attrs = %{
+        project_id: project.id,
+        account_id: account.id,
+        duration: 100,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        shard_plan_id: plan.id
+      }
+
+      {:ok, first} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 0}))
+      assert first.status == "in_progress"
+      {:ok, last} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 1}))
+      assert last.id == first.id
+      assert last.status == "success"
     end
 
     test "a failing shard fails the run before the remaining shards report" do
@@ -9479,6 +9516,57 @@ defmodule Tuist.TestsTest do
       assert test_case_run.is_new == false
     end
 
+    test "marks test_case_run as not new once the default branch reaches the commit a merge queue ran it on" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      repository = GitHistory.repository_id(project.account_id, "git@github.com:acme/app.git")
+
+      GitHistory.record_commits(repository, "sha1", [
+        %{sha: "main1", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
+        %{sha: "queued", parents: ["main1"], committed_at: ~U[2026-09-01 00:01:00Z]},
+        %{sha: "dropped", parents: ["main1"], committed_at: ~U[2026-09-01 00:02:00Z]}
+      ])
+
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+
+      run = fn git_branch, git_commit_sha, name ->
+        {:ok, test} =
+          Tests.create_test(%{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1000,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: git_branch,
+            git_commit_sha: git_commit_sha,
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: [
+              %{
+                name: "QueueModule",
+                status: "success",
+                duration: 1000,
+                test_cases: [%{name: name, status: "success", duration: 500}]
+              }
+            ]
+          })
+
+        {[test_case_run], _meta} =
+          Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+        test_case_run
+      end
+
+      run.("gh-readonly-queue/main/pr-1-queued", "queued", "testMerged")
+      run.("gh-readonly-queue/main/pr-2-dropped", "dropped", "testDropped")
+
+      assert run.("feature", "feature1", "testMerged").is_new == false
+      assert run.("feature", "feature1", "testDropped").is_new == true
+    end
+
     test "non-CI runs on default branch do not affect is_new detection" do
       # Given - a project with a non-CI test run on main
       project = ProjectsFixtures.project_fixture()
@@ -11873,7 +11961,7 @@ defmodule Tuist.TestsTest do
 
       {:ok, stored} = Tests.get_test(run.id)
       assert {stored.execution_mode, stored.git_dirty} == {"parallel", true}
-      assert stored.git_repository_id == Tuist.GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
+      assert stored.git_repository_id == GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
 
       modes =
         ClickHouseRepo.all(

@@ -12,7 +12,7 @@ It makes applications such as [Claude](https://claude.ai/), [Claude Code](https:
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
 Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
-The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
+The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
 
 Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
 
@@ -36,9 +36,11 @@ An unauthenticated agent should read the `WWW-Authenticate` header returned by t
 
 Before an agent starts an email claim, it must ask the user to confirm the email address for their Tuist account. It must not infer that address from a provider profile, Git configuration, environment variable, or session metadata.
 
-The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
+The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After browser authorization or claim, the credential is user-scoped and each tool applies the same authorization checks as the dashboard. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
+Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
+
+Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>
@@ -216,7 +218,7 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
-Compatible clients receive server instructions during initialization that describe when documentation and source-backed tools can provide useful evidence. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
+Compatible clients receive factual descriptions of the tools' source revision, links, and result limits during initialization, alongside inline OAuth authentication information. These descriptions do not prescribe answer style or a verification workflow. Users can ask a question directly without invoking the `ask_tuist` prompt first; the prompt remains available for an explicit source-backed workflow.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -258,10 +260,14 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
-| `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+| `list_runner_profiles` | List continuous-integration runner profiles for an account, with the `runs-on` label of each. | `account_handle` |
+| `get_runner_catalog` | List the machine shapes and Xcode versions a runner profile can use. | `account_handle` |
+| `create_runner_profile` | Create a runner profile with a platform, a machine shape and, on macOS, an Xcode version. Optionally set which branches save its cache volumes. Requires account administration or the `account:runners:write` scope. | `account_handle`, `name`, `platform`, `vcpus`, `memory_gb` |
+| `update_runner_profile` | Change a runner profile's machine shape, Xcode version, or which branches save its custom cache volume changes. Omitted fields keep their value. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
+| `delete_runner_profile` | Delete a runner profile after user confirmation. Default profiles can't be deleted. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
 
 Runner volume tools expose the same data as the Volumes dashboard. Read tools
-require runner access; clearing requires account administration and user confirmation.
+require runner access; clearing requires account administration or the `account:runners:write` scope, and user confirmation.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
@@ -339,11 +345,39 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Tasks, actions, modules and files
+
+These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
+
+| Tool | Description | Required parameters |
+| --- | --- | --- |
+| `list_build_entities` | List the tasks, modules, actions or files of one kind seen across a project's builds. | `account_handle`, `project_handle`, `kind` |
+| `get_build_entity` | Get one build entity with its native identity and analytics for the chosen period. | `account_handle`, `project_handle`, `kind`, `id` |
+| `list_build_entity_history` | List the recorded executions, compilations or cache events of one build entity, newest first. | `account_handle`, `project_handle`, `kind`, `id` |
+
+| `kind` | Toolchain | History lists |
+| --- | --- | --- |
+| `gradle_tasks` | Gradle tasks | Task executions |
+| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `once_actions` | Once actions | Executions |
+| `mix_files` | Mix compiled files | Compilations |
+| `mix_modules` | Mix compiled modules | Compilations |
+
+These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+`get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
+
+New observations are indexed after deployment; this feature does not backfill existing run telemetry. Identity metadata outlives individual observations under the <.localized_link href="/guides/server/data-retention">data-retention policy</.localized_link>.
+
 #### Tests
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
+| `list_test_runs` | List test runs for a project. The `query` fields are `git_branch`, `scheme`, and `status`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring, and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run, including temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |

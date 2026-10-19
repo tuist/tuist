@@ -4,6 +4,10 @@ defmodule Tuist.ReportActor do
   is an opaque, organization-scoped claim, never a credential or a user lookup.
   """
 
+  use Gettext, backend: TuistWeb.Gettext
+
+  import Ecto.Query
+
   alias Tuist.Accounts.Account
   alias Tuist.Repo
 
@@ -29,8 +33,21 @@ defmodule Tuist.ReportActor do
 
   def attributes(conn), do: Map.fetch!(conn.assigns, :report_actor)
 
+  def verified_account_filter(query, %Flop.Filter{op: :==, value: value}, _opts) do
+    from(r in query, where: fragment("if(? = '', ?, ?)", r.submission_auth, r.account_id, r.actor_account_id) == ^value)
+  end
+
+  def verified_account_filter(query, %Flop.Filter{op: :!=, value: value}, _opts) do
+    from(r in query, where: fragment("if(? = '', ?, ?)", r.submission_auth, r.account_id, r.actor_account_id) != ^value)
+  end
+
   def actor(record, legacy_name \\ nil) do
-    claimed = Map.get(record, :claimed_actor_id, "")
+    claimed =
+      case Map.get(record, :claimed_actor_id, "") do
+        "" -> Map.get(Map.get(record, :custom_values) || %{}, "tuist.reported_user", "")
+        value -> value
+      end
+
     claimed = if valid_identifier?(claimed), do: claimed, else: ""
     submission = Map.get(record, :submission_auth, "")
 
@@ -52,10 +69,10 @@ defmodule Tuist.ReportActor do
   end
 
   defp fallback_actor(_record, _claimed, submission, _legacy_name) do
-    presentation("Unknown", :unknown, submission, "")
+    presentation(dgettext("dashboard", "Unknown"), :unknown, submission, "")
   end
 
-  defp claimed_presentation("", submission), do: presentation("Unknown", :unknown, submission, "")
+  defp claimed_presentation("", submission), do: presentation(dgettext("dashboard", "Unknown"), :unknown, submission, "")
   defp claimed_presentation(claimed, submission), do: presentation(claimed, :reported, submission, claimed)
 
   defp presentation(name, source, submission, claimed, verified \\ nil) do

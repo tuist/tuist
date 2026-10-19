@@ -116,7 +116,8 @@ public struct XCResultParser: Sendable {
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
     /// into it, streamed to `output` as one JSON object per source file. Nil for a bundle without
-    /// a manifest, which has no coverage to tie to a repository.
+    /// a manifest, which has no coverage to tie to a repository, and for one whose manifest says
+    /// the client measured and sent the coverage itself.
     public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
         let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
         guard try await fileSystem.exists(manifestPath) else { return nil }
@@ -124,6 +125,7 @@ public struct XCResultParser: Sendable {
             XcodeCoverageManifest.self,
             from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
         )
+        guard !manifest.clientReported else { return nil }
         return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
     }
 

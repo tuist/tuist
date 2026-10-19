@@ -21,11 +21,22 @@ defmodule Tuist.Tests.Test do
       :xcode_version,
       :macos_version,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :is_ci,
       :build_system,
       :ran_at
     ],
-    sortable: [:ran_at, :duration, :inserted_at]
+    sortable: [:ran_at, :duration, :inserted_at],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -161,7 +172,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix", "cargo"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

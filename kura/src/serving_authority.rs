@@ -45,6 +45,7 @@ pub struct ServingAuthority {
     mutations: AtomicUsize,
     pub barrier: Mutex<Option<crate::handover::Receipt>>,
     pub(crate) handover_preparation: tokio::sync::Mutex<()>,
+    pub(crate) preparation: Mutex<Option<crate::handover::Preparation>>,
     marker: Option<std::path::PathBuf>,
     revoked_epoch: std::sync::atomic::AtomicU64,
     // These attestations exist only in the process that owned the writer. They
@@ -89,6 +90,7 @@ impl ServingAuthority {
             mutations: AtomicUsize::new(0),
             barrier: Mutex::new(None),
             handover_preparation: tokio::sync::Mutex::new(()),
+            preparation: Mutex::new(None),
             marker: None,
             revoked_epoch: std::sync::atomic::AtomicU64::new(0),
             owned_epoch: std::sync::atomic::AtomicU64::new(0),
@@ -369,6 +371,7 @@ impl ServingAuthority {
         serde_json::json!({"capability": "positive-fence-v1", "enabled": self.enabled, "identity": self.identity,
             "epoch": active.as_ref().map_or(0, |a| a.grant.epoch), "valid": valid,
             "remaining_ms": active.as_ref().map_or(0, |a| a.grant.expires_ms.saturating_sub(now_ms() + 2000)),
+            "preparation_supported": true, "preparation": *self.preparation.lock().unwrap_or_else(|e| e.into_inner()),
             "automatic_partition_promotion": false, "observed": self.intent(), "mutations": self.mutations(), "revoked_epoch": self.revoked_epoch.load(Ordering::SeqCst), "fenced_epoch": self.fenced_epoch.load(Ordering::SeqCst), "barrier": *self.barrier.lock().unwrap_or_else(|e| e.into_inner())})
     }
 }
@@ -576,6 +579,31 @@ mod tests {
             resume_epoch: None,
         }
     }
+    #[test]
+    fn serving_preparation_keeps_mutations_admitted_until_quiescing() {
+        let authority = authority();
+        let mut grant = grant(&authority, 1);
+        let mut destination = authority.identity().clone();
+        destination.pod_uid = "standby".into();
+        grant.handover = Some(crate::handover::Intent {
+            id: "prepare".into(),
+            destination,
+            source_url: "http://source".into(),
+            destination_url: "http://standby".into(),
+            deadline_ms: now_ms() + 1_200_000,
+        });
+        authority.install(grant.clone()).unwrap();
+        let permit = authority.admit().unwrap().unwrap();
+        permit.publish(|| Ok(())).unwrap();
+        drop(permit);
+        grant.phase = "Quiescing".into();
+        grant.handover.as_mut().unwrap().deadline_ms = now_ms() + 300_000;
+        authority.install(grant).unwrap();
+        assert!(authority.admit().is_err());
+        assert!(authority.admit_request(false).is_ok());
+        assert!(authority.barrier.lock().unwrap().is_none());
+    }
+
     #[test]
     fn startup_is_closed_and_identity_is_exact() {
         let a = authority();

@@ -4,6 +4,7 @@ import Path
 import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
+import TuistCache
 import TuistCI
 import TuistConfig
 import TuistConfigLoader
@@ -126,6 +127,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let derivedDataLocator: DerivedDataLocating
     private let testExecutionModeResolver: TestExecutionModeResolving
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
+    private let coverageExportService: CoverageExportServicing
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -173,6 +175,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
+        coverageExportService: CoverageExportServicing = CoverageExportService(),
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -207,6 +210,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.derivedDataLocator = derivedDataLocator
         self.testExecutionModeResolver = testExecutionModeResolver
         self.testCoverageEvidenceService = testCoverageEvidenceService
+        self.coverageExportService = coverageExportService
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
@@ -385,7 +389,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination,
-            schemeName: schemeName
+            schemeName: schemeName,
+            coverage: Self.binaryCacheCoverage(
+                schemeName: schemeName,
+                xcodebuildArguments: passthroughXcodeBuildArguments,
+                config: config
+            )
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -393,6 +402,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
+
+        // Which cached binaries carry coverage counters, for the server to judge the run's coverage
+        // per target; read off the binaries once they are in place.
+        if UploadResultBundleService.uploadsCoverage(config: config) {
+            let binaryCacheItems = await RunMetadataStorage.current.binaryCacheItems
+            if !binaryCacheItems.isEmpty {
+                await RunMetadataStorage.current.update(binaryCacheItems: CoverageInstrumentation.annotate(
+                    binaryCacheItems,
+                    graph: mapperEnvironment.initialGraphWithSources ?? mapperEnvironment.initialGraph ?? graph,
+                    generatedGraph: graph
+                ))
+            }
+        }
 
         if generateOnly {
             return
@@ -525,6 +547,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action
             )
         }
+
+        // The schemes' targets and files, for the coverage export to attribute what it measures;
+        // from the graph before the binary cache replaced any target with its xcframework, and
+        // before the targets' sources were stripped (`initialGraph` keeps no sources).
+        await coverageBuildSourcesService.record(
+            config: config,
+            targets: CoverageBuildTargets.targets(
+                schemes: schemes,
+                graph: mapperEnvironment.initialGraphWithSources ?? mapperEnvironment.initialGraph ?? graph,
+                generatedGraph: graph
+            )
+        )
 
         if !shouldRunTest(
             for: schemes,
@@ -2288,15 +2322,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // What TestCoverageAttribution recorded is reduced as soon as the run ends, before a stress
-        // pass runs tests over the same derived data and replaces the profile the reduction reads.
+        // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
+        // soon as the run ends, before a stress pass runs tests over the same derived data and
+        // replaces the profile both read.
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService.prepare(platform: evidencePlatform)
+        let runStartedAt = Date()
         let recordCoverageEvidence = {
-            guard let evidenceSession else { return }
-            _ = await testCoverageEvidenceService.record(
-                session: evidenceSession,
+            if let evidenceSession {
+                _ = await testCoverageEvidenceService.record(
+                    session: evidenceSession,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataDirectory: projectDerivedDataDirectory
+                )
+            }
+            guard action != .build else { return }
+            _ = await coverageExportService.export(
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: projectDerivedDataDirectory
+                derivedDataDirectory: projectDerivedDataDirectory,
+                config: config,
+                runStartedAt: runStartedAt
             )
         }
 
@@ -2550,13 +2594,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// coverage itself and isn't read, so a scheme with test plans is unknown (`nil`).
     static func coverageEnabled(testAction: TestAction?, xcodebuildArguments: [String], config: Tuist) -> Bool? {
         guard UploadResultBundleService.uploadsCoverage(config: config) else { return false }
-        if let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage"),
-           xcodebuildArguments.indices.contains(index + 1)
-        {
-            return xcodebuildArguments[index + 1].uppercased() == "YES"
-        }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage }
         guard let testAction, testAction.testPlans?.isEmpty ?? true else { return nil }
         return testAction.coverage
+    }
+
+    /// The variant of the binary cache the run reads, by the same rule: the instrumented binaries when
+    /// the run collects the coverage Tuist uploads, the plain ones otherwise. The scheme's test action
+    /// is read off the generated graph, once there is one.
+    static func binaryCacheCoverage(schemeName: String?, xcodebuildArguments: [String], config: Tuist) -> BinaryCacheCoverage {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return .off }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage ? .on : .off }
+        return .scheme(schemeName)
+    }
+
+    private static func passthroughCoverage(_ arguments: [String]) -> Bool? {
+        guard let index = arguments.lastIndex(of: "-enableCodeCoverage"), arguments.indices.contains(index + 1)
+        else { return nil }
+        return arguments[index + 1].uppercased() == "YES"
     }
 
     private static func merging(_ identifiers: [String], _ passthrough: [String]) -> [String] {
@@ -2638,7 +2693,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
                     stressNewTests: stressNewTests?.serverPayload,
-                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? [],
+                    scheme: scheme
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2737,7 +2793,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
         let buildRunId = await RunMetadataStorage.current.buildRunId
-        let gitHistory = await gitHistoryService.collect(
+        let gitHistory = await gitHistoryService.publish(
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
@@ -2770,7 +2826,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: [],
             stressNewTests: nil,
             gitHistory: gitHistory?.payload,
-            coverageUpload: nil,
+            coverage: nil,
             coverageEnabled: coverageEnabled
         )
 

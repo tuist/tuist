@@ -275,6 +275,13 @@ defmodule Tuist.Environment do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
+  def network_trusted_report_publishing_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_report_publishing, false)
+      ) do
+    not hosted and enabled == true
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
@@ -1290,6 +1297,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def origin_app_id(secrets \\ secrets()) do
+    get([:origin, :app, :id], secrets)
+  end
+
+  def origin_app_private_key(secrets \\ secrets()) do
+    get([:origin, :app, :private_key], secrets)
+  end
+
   def github_app_webhook_secret(secrets \\ secrets()) do
     System.get_env("TUIST_GITHUB_APP_WEBHOOK_SECRET") ||
       get([:github, :app_webhook_secret], secrets)
@@ -1743,6 +1758,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def rate_limit_fallback_replicas do
+    Application.get_env(:tuist, :rate_limit_fallback_replicas, 5)
+  end
+
   @doc """
   Returns the bucket size for the dashboard route rate limiter.
 
@@ -2042,19 +2061,6 @@ defmodule Tuist.Environment do
     "TUIST_RUNNERS_SITE_POOLS"
     |> System.get_env("")
     |> parse_runners_site_pools()
-  end
-
-  @doc """
-  Where Kura instances on a node-local pod network export traces
-  (`TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT`): a collector they reach from
-  their node, such as the Alloy receiver at its tailnet name. Unset, they
-  export none.
-  """
-  def kura_node_local_otlp_traces_endpoint do
-    case System.get_env("TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT") do
-      endpoint when is_binary(endpoint) and endpoint != "" -> endpoint
-      _ -> nil
-    end
   end
 
   @doc false

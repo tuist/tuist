@@ -19,17 +19,23 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
+
+  plug(ReportPublishingPlug, {:preflight, :xcode} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
   plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
+  plug(ReportPublishingPlug, :xcode when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create)
 
   tags ["Builds"]
+
+  @cursor_order_fields [:inserted_at, :id]
 
   operation(:index,
     summary: "List builds associated with a given project.",
@@ -95,6 +101,31 @@ defmodule TuistWeb.API.BuildsController do
         description:
           "Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234"
       ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        description: "Filter to builds executed on CI (true) or locally (false)."
+      ],
+      from: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return builds created at or after this Unix timestamp in seconds (inclusive)."
+      ],
+      to: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return builds created at or before this Unix timestamp in seconds (inclusive)."
+      ],
+      after: [
+        in: :query,
+        type: :string,
+        description: "Pass the `end_cursor` from a previous response to fetch the next (older) page."
+      ],
+      before: [
+        in: :query,
+        type: :string,
+        description: "Pass the `start_cursor` from a previous response to fetch the previous (newer) page."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -103,16 +134,16 @@ defmodule TuistWeb.API.BuildsController do
           type: :integer,
           default: 20,
           minimum: 1,
-          maximum: 100
+          maximum: 1000
         }
       ],
       page: [
         in: :query,
         type: %Schema{
           title: "BuildsIndexPage",
-          description: "The page number to return.",
+          description:
+            "The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.",
           type: :integer,
-          default: 1,
           minimum: 1
         }
       ]
@@ -155,6 +186,12 @@ defmodule TuistWeb.API.BuildsController do
                    cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
                    cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
                    inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
+                   started_at: %Schema{
+                     type: :string,
+                     format: :"date-time",
+                     nullable: true,
+                     description: "When the build started. Null when unavailable, including historical builds."
+                   },
                    url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
                    custom_metadata: %Schema{
                      type: :object,
@@ -190,31 +227,44 @@ defmodule TuistWeb.API.BuildsController do
            },
            required: [:builds, :pagination_metadata]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
-  def index(
-        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
-        _params
-      ) do
-    filters = build_filters(selected_project.id, params)
-    custom_values = parse_values_param(Map.get(params, :values))
+  def index(%{assigns: %{selected_project: selected_project}, params: params} = conn, _params) do
+    with {:ok, time_filters} <- inserted_at_filters(params),
+         :ok <- validate_pagination(params) do
+      list_builds(conn, selected_project, params, time_filters)
+    else
+      {:error, message} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: message})
+    end
+  end
 
-    attrs = %{
-      filters: filters,
-      order_by: [:inserted_at],
-      order_directions: [:desc],
-      page: page,
-      page_size: page_size
-    }
+  defp list_builds(conn, selected_project, params, time_filters) do
+    attrs =
+      Map.merge(build_pagination(params), %{
+        filters: build_filters(selected_project.id, params) ++ time_filters,
+        order_by: @cursor_order_fields,
+        order_directions: [:desc, :desc]
+      })
 
-    {builds, meta} = Builds.list_build_runs(attrs, preload: [:ran_by_account], custom_values: custom_values)
+    {builds, meta} =
+      Builds.list_build_runs(attrs,
+        preload: [:ran_by_account],
+        custom_values: parse_values_param(Map.get(params, :values)),
+        max_limit: 1000
+      )
+
+    {start_cursor, end_cursor} = Flop.Cursor.get_cursors(builds, @cursor_order_fields)
 
     json(conn, %{
       builds:
-        Enum.map(Tuist.ReportActor.preload(builds), fn build ->
+        Enum.map(builds, fn build ->
           %{
             id: build.id,
             actor: Tuist.ReportActor.actor(build),
@@ -233,7 +283,8 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_tasks_count: build.cacheable_tasks_count,
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
-            inserted_at: build.inserted_at,
+            inserted_at: format_inserted_at(build.inserted_at),
+            started_at: format_inserted_at(build.started_at),
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{
               tags: build.custom_tags || [],
@@ -251,7 +302,9 @@ defmodule TuistWeb.API.BuildsController do
         current_page: meta.current_page,
         page_size: meta.page_size,
         total_count: meta.total_count,
-        total_pages: meta.total_pages
+        total_pages: meta.total_pages,
+        start_cursor: if(is_nil(Map.get(params, :page)), do: start_cursor),
+        end_cursor: if(is_nil(Map.get(params, :page)), do: end_cursor)
       }
     })
   end
@@ -324,6 +377,12 @@ defmodule TuistWeb.API.BuildsController do
                description: "Bytes of content-addressable storage outputs uploaded by the build."
              },
              inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
+             started_at: %Schema{
+               type: :string,
+               format: :"date-time",
+               nullable: true,
+               description: "When the build started. Null when unavailable, including historical builds."
+             },
              url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
              custom_metadata: %Schema{
                type: :object,
@@ -369,7 +428,7 @@ defmodule TuistWeb.API.BuildsController do
 
           json(conn, %{
             id: build.id,
-            actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
+            actor: Tuist.ReportActor.actor(build),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -389,7 +448,8 @@ defmodule TuistWeb.API.BuildsController do
             cas_output_upload_count: cas_output_metrics.upload_count,
             cas_output_download_bytes: cas_output_metrics.download_bytes,
             cas_output_upload_bytes: cas_output_metrics.upload_bytes,
-            inserted_at: build.inserted_at,
+            inserted_at: format_inserted_at(build.inserted_at),
+            started_at: format_inserted_at(build.started_at),
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{
               tags: build.custom_tags || [],
@@ -404,43 +464,73 @@ defmodule TuistWeb.API.BuildsController do
     end
   end
 
+  defp build_pagination(%{page: page, page_size: page_size}), do: %{page: page, page_size: page_size}
+
+  defp build_pagination(%{before: before, page_size: page_size}), do: %{last: page_size, before: before}
+
+  defp build_pagination(%{after: after_cursor, page_size: page_size}), do: %{first: page_size, after: after_cursor}
+
+  defp build_pagination(params), do: %{page: 1, page_size: params.page_size}
+
+  defp validate_pagination(params) do
+    cond do
+      Map.has_key?(params, :after) and Map.has_key?(params, :before) ->
+        {:error, "`after` and `before` cannot be combined."}
+
+      Map.has_key?(params, :page) and (Map.has_key?(params, :after) or Map.has_key?(params, :before)) ->
+        {:error, "`page` cannot be combined with `after` or `before`."}
+
+      Enum.all?([:after, :before], &valid_build_cursor?(Map.get(params, &1))) ->
+        :ok
+
+      true ->
+        {:error, "`after` and `before` must be cursors returned by a previous response."}
+    end
+  end
+
+  defp valid_build_cursor?(nil), do: true
+
+  defp valid_build_cursor?(cursor) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, %{inserted_at: %NaiveDateTime{} = inserted_at, id: id} = decoded} when map_size(decoded) == 2 ->
+        Ecto.Type.cast(:naive_datetime_usec, Map.from_struct(inserted_at)) == {:ok, inserted_at} and
+          match?({:ok, _}, Ecto.UUID.cast(id))
+
+      _ ->
+        false
+    end
+  end
+
+  defp inserted_at_filters(params) do
+    from = Map.get(params, :from)
+    to = Map.get(params, :to)
+
+    if is_integer(from) and is_integer(to) and to < from do
+      {:error, "`to` must be greater than or equal to `from`."}
+    else
+      with {:ok, from_filter} <- inserted_at_filter(:>=, from),
+           {:ok, to_filter} <- inserted_at_filter(:<=, to) do
+        {:ok, from_filter ++ to_filter}
+      end
+    end
+  end
+
+  defp inserted_at_filter(_op, nil), do: {:ok, []}
+
+  defp inserted_at_filter(op, unix) do
+    case DateTime.from_unix(unix) do
+      {:ok, datetime} -> {:ok, [%{field: :inserted_at, op: op, value: DateTime.to_naive(datetime)}]}
+      {:error, _} -> {:error, "`from` and `to` must be valid Unix timestamps."}
+    end
+  end
+
   defp build_filters(project_id, params) do
-    filters = [%{field: :project_id, op: :==, value: project_id}]
+    equality_filters =
+      [:status, :category, :scheme, :configuration, :git_branch, :is_ci]
+      |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
+      |> Enum.filter(&(&1.value != nil))
 
-    filters =
-      if Map.get(params, :status) do
-        filters ++ [%{field: :status, op: :==, value: params.status}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :category) do
-        filters ++ [%{field: :category, op: :==, value: params.category}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :scheme) do
-        filters ++ [%{field: :scheme, op: :==, value: params.scheme}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :configuration) do
-        filters ++ [%{field: :configuration, op: :==, value: params.configuration}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :git_branch) do
-        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
-      else
-        filters
-      end
+    filters = [%{field: :project_id, op: :==, value: project_id}] ++ equality_filters
 
     case Map.get(params, :tags) do
       nil ->
@@ -468,6 +558,15 @@ defmodule TuistWeb.API.BuildsController do
     end)
     |> Enum.reject(&is_nil/1)
     |> Map.new()
+  end
+
+  # `inserted_at` is a ClickHouse DateTime64(6) loaded as a NaiveDateTime, which Jason
+  # encodes without an offset and with microseconds. The CLI's ISO8601 decoder accepts
+  # neither, so serialize it as a second-precision UTC timestamp.
+  defp format_inserted_at(nil), do: nil
+
+  defp format_inserted_at(%NaiveDateTime{} = inserted_at) do
+    inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
   end
 
   operation(:create,
@@ -889,7 +988,7 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    body_params = RemoteURL.strip_credentials_from_params(body_params)
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
     run_params =
       body_params
@@ -899,7 +998,8 @@ defmodule TuistWeb.API.BuildsController do
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
-        if build.status not in ["processing", "failed_processing"] do
+        if not ReportPublishingPlug.network_publisher?(conn) and
+             build.status not in ["processing", "failed_processing"] do
           Tuist.VCS.enqueue_vcs_pull_request_comment(%{
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
@@ -945,7 +1045,7 @@ defmodule TuistWeb.API.BuildsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
           actor_account_id: params.actor_account_id,
           claimed_actor_id: params.claimed_actor_id,
           submission_auth: params.submission_auth,

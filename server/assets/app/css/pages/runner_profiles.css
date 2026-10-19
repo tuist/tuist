@@ -153,5 +153,86 @@
         width: 100%;
       }
     }
+
+    & [data-part="section-toggle"] {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      cursor: pointer;
+      border: 0;
+      background: none;
+      padding: 0;
+      width: 100%;
+      color: var(--noora-surface-label-primary);
+      text-align: left;
+
+      &[aria-expanded="true"] [data-part="section-chevron"] {
+        transform: rotate(180deg);
+      }
+    }
+
+    & [data-part="section-heading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="summary"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="section-chevron"] {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    & [data-part="section-panel"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      padding-top: var(--noora-spacing-5);
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    & [data-part="additional-branches"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      & > [data-part="hint"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="branch-tags"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2);
+    }
+
+    & [data-part="branch-input"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > .noora-text-input {
+        flex-grow: 1;
+      }
+    }
   }
 }

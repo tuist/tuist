@@ -60,6 +60,22 @@ defmodule Tuist.Runners.JobLogsTest do
       end
     end
 
+    defp append_messages(job_id, messages) do
+      :ok =
+        messages
+        |> Enum.with_index(1)
+        |> Enum.map(fn {message, line_number} ->
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: line_number,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: message
+          }
+        end)
+        |> JobLogs.append()
+    end
+
     test "slices a 3-step job on `##[group]Run` markers" do
       job_id = 90_002
 
@@ -228,6 +244,167 @@ defmodule Tuist.Runners.JobLogsTest do
 
       assert Enum.map(lines_for_step(ranges, job_id, 1), & &1.message) == ["one", "two"]
       assert Map.get(ranges, 2) == nil
+    end
+
+    test "composite actions' nested steps don't start a step, and skipped steps write nothing" do
+      job_id = 90_007
+
+      append_messages(job_id, [
+        "Current runner version: '2.337.0'",
+        "Complete job name: Test",
+        "A job started hook has been configured by the self-hosted runner administrator",
+        "##[group]Run '/tmp/tuist-runner-job-started-hook.sh'",
+        "##[endgroup]",
+        "##[group]Run actions/checkout@v6",
+        "##[endgroup]",
+        "Prepare all required actions",
+        "Getting action download info",
+        "Download action repository 'ruby/setup-ruby@v1' (SHA:abc)",
+        "##[group]Run ./.github/actions/setup-dependencies",
+        "##[endgroup]",
+        "##[start-action display=Log specs;id=__self.__run]",
+        "##[group]Run echo specs",
+        "##[endgroup]",
+        "specs",
+        "##[end-action id=__self.__run;outcome=success;conclusion=success;duration_ms=44]",
+        "##[start-action display=Nested composite;id=__self.__self]",
+        "Prepare all required actions",
+        "##[group]Run ./.github/actions/nested",
+        "##[endgroup]",
+        "##[start-action display=Inner;id=__self.__self.__run]",
+        "##[group]Run echo inner",
+        "##[endgroup]",
+        "inner",
+        "##[end-action id=__self.__self.__run;outcome=success;conclusion=success;duration_ms=1]",
+        "##[end-action id=__self.__self;outcome=success;conclusion=success;duration_ms=2]",
+        "Prepare all required actions",
+        "##[group]Run ./.github/actions/simulator-workaround",
+        "##[endgroup]",
+        "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]",
+        "##[group]Run echo workaround",
+        "##[endgroup]",
+        "##[error]Process completed with exit code 26.",
+        "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]",
+        "##[group]Run actions/upload-artifact@v4",
+        "##[endgroup]",
+        "No files were found",
+        "Post job cleanup.",
+        "##[start-action display=Nested post;id=__abc.__run]",
+        "Post job cleanup.",
+        "##[end-action id=__abc.__run;outcome=success;conclusion=success;duration_ms=1]",
+        "Post job cleanup.",
+        "[command]/usr/bin/git version",
+        "Cleaning up orphan processes"
+      ])
+
+      steps = [
+        %{number: 1, name: "Set up job", conclusion: "success"},
+        %{number: 2, name: "Set up runner", conclusion: "success"},
+        %{number: 3, name: "Checkout code", conclusion: "success"},
+        %{number: 4, name: "Setup Dependencies", conclusion: "success"},
+        %{number: 5, name: "Apply Simulator Workaround", conclusion: "failure"},
+        %{number: 6, name: "Run shard", conclusion: "skipped"},
+        %{number: 7, name: "Upload Diagnostics", conclusion: "success"},
+        %{number: 13, name: "Post Setup Dependencies", conclusion: "success"},
+        %{number: 14, name: "Post Checkout code", conclusion: "success"},
+        %{number: 15, name: "Complete job", conclusion: "success"}
+      ]
+
+      ranges = JobLogs.step_line_ranges(job_id, steps)
+
+      assert ranges == %{
+               1 => {1, 2},
+               2 => {3, 5},
+               3 => {6, 7},
+               4 => {8, 27},
+               5 => {28, 35},
+               6 => nil,
+               7 => {36, 38},
+               13 => {39, 42},
+               14 => {43, 44},
+               15 => {45, 45}
+             }
+
+      assert Enum.map(lines_for_step(ranges, job_id, 5), & &1.message) == [
+               "Prepare all required actions",
+               "##[group]Run ./.github/actions/simulator-workaround",
+               "##[endgroup]",
+               "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]",
+               "##[group]Run echo workaround",
+               "##[endgroup]",
+               "##[error]Process completed with exit code 26.",
+               "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]"
+             ]
+    end
+
+    test "slices job container setup and teardown into their own steps" do
+      job_id = 90_008
+
+      append_messages(job_id, [
+        "Complete job name: Seed",
+        "##[group]Checking docker version",
+        "##[endgroup]",
+        "##[group]Starting job container",
+        "##[endgroup]",
+        "##[group]Run actions/checkout@v4",
+        "##[endgroup]",
+        "Post job cleanup.",
+        "[command]/usr/bin/git version",
+        "Stop and remove container: job_container",
+        "Stop and remove container: postgres",
+        "Remove container network: github_network",
+        "Evaluate and set job outputs",
+        "Cleaning up orphan processes"
+      ])
+
+      steps = [
+        %{number: 1, name: "Set up job", conclusion: "success"},
+        %{number: 2, name: "Initialize containers", conclusion: "success"},
+        %{number: 3, name: "Run actions/checkout@v4", conclusion: "success"},
+        %{number: 4, name: "Post Run actions/checkout@v4", conclusion: "success"},
+        %{number: 5, name: "Stop containers", conclusion: "success"},
+        %{number: 6, name: "Complete job", conclusion: "success"}
+      ]
+
+      assert JobLogs.step_line_ranges(job_id, steps) == %{
+               1 => {1, 1},
+               2 => {2, 5},
+               3 => {6, 7},
+               4 => {8, 9},
+               5 => {10, 12},
+               6 => {13, 14}
+             }
+    end
+
+    test "marks executed steps unattributed when the boundaries don't match them" do
+      job_id = 90_009
+
+      append_messages(job_id, [
+        "Complete job name: Test",
+        "##[group]Run echo a",
+        "##[endgroup]",
+        "##[group]Run tests",
+        "##[endgroup]",
+        "##[group]Run echo b",
+        "##[endgroup]",
+        "Cleaning up orphan processes"
+      ])
+
+      steps = [
+        %{number: 1, name: "Set up job", conclusion: "success"},
+        %{number: 2, name: "a", conclusion: "success"},
+        %{number: 3, name: "b", conclusion: "success"},
+        %{number: 4, name: "c", conclusion: "skipped"},
+        %{number: 5, name: "Complete job", conclusion: "success"}
+      ]
+
+      assert JobLogs.step_line_ranges(job_id, steps) == %{
+               1 => :unattributed,
+               2 => :unattributed,
+               3 => :unattributed,
+               4 => nil,
+               5 => :unattributed
+             }
     end
 
     test "empty log -> every step is unmapped" do

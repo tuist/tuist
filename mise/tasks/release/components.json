@@ -20,6 +20,7 @@
         "cas-plugin/**/*",
         "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
+        "mise/utilities/install_static_linux_sdk.sh",
         ".github/workflows/cli-release.yml",
         ".github/workflows/cli-build-publish.yml",
         ".github/workflows/cli-rc.yml",
@@ -138,6 +139,19 @@
         ".github/actions/cache-volume/**/*",
         "ci/cache-volume/**/*",
         ".github/workflows/cache-volume-action.yml"
+      ]
+    },
+    {
+      "name": "install-action",
+      "tag_prefix": "install-action@",
+      "tag_regex": "^install-action@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": ".github/actions/install/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/install/**/*",
+        ".github/workflows/install-action.yml",
+        "ci/cache-volume/publish.sh",
+        "mise/tasks/release/check.sh"
       ]
     },
     {

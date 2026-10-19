@@ -96,7 +96,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn(contentHashes)
 
@@ -207,7 +208,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -298,7 +300,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn([
                 staticLibraryGraphTarget: .test(hash: staticLibraryHash),
@@ -397,7 +400,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn(contentHashes)
 
@@ -492,7 +496,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -606,7 +611,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .value("Debug"),
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -667,7 +673,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .value(["App"]),
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -745,7 +752,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     configuration: .any,
                     defaultConfiguration: .any,
                     excludedTargets: .any,
-                    destination: .any
+                    destination: .any,
+                    coverage: .any
                 )
                 .willReturn(contentHashes)
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -812,6 +820,41 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    @Test(.inTemporaryDirectory) func map_asksTheHasherForTheRunsCoverageVariant() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage,
+            coverage: .scheme("App")
+        )
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [framework])
+        let graph = Graph.test(name: "input", projects: [path: project])
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .any
+            )
+            .willReturn([:])
+        given(cacheStorage).fetch(.any, cacheCategory: .any).willReturn([:])
+        given(cacheGraphMutator)
+            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(graph)
+
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        verify(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                coverage: .value(.scheme("App"))
+            )
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory) func map_reusesPrecomputedHashes_insteadOfHashingTheGraph() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -851,7 +894,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                coverage: .any
             )
             .called(0)
         verify(cacheGraphMutator)

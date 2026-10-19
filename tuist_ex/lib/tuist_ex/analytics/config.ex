@@ -16,7 +16,7 @@ defmodule TuistEx.Analytics.Config do
     end
   end
 
-  defp resolve_url(options, environment) do
+  def resolve_url(options, environment) do
     project_url = Keyword.get(project_tuist_config(options), :url)
     url = environment.("TUIST_URL") || Keyword.get(options, :url) || project_url || @default_url
 

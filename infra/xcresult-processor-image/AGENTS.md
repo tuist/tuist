@@ -12,7 +12,9 @@ Tuist server release in xcresult-processor mode under launchd, draining
 The image is the *deploy artifact*: `helm upgrade --set
 xcresultProcessor.image.tag=<sha>` updates the Pod spec, k8s rolls Pods,
 tart-kubelet creates new VMs from the new image tag and tears down the
-old ones.
+old ones. In managed envs that upgrade is the `tuist-xcresult-processor`
+release (`infra/helm/xcresult-processor`), which `server-deployment.yml`
+installs after the tuist release without waiting on it.
 
 ## Layout (inside the VM)
 
@@ -76,7 +78,8 @@ at least as new an Xcode as any active runner-image profile.
 The Xcode version is declared inline in
 `.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
-the `XCODE_VERSION` env var on that step). Bump it alongside the
+the `XCODE_VERSION` env var on that step, currently `27.1`). Track the
+newest stable runner Xcode, not prerelease profiles. Bump it alongside the
 runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
@@ -144,16 +147,25 @@ inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
-can see. tart-kubelet is not a real kubelet: it implements no container
-probes at all, and
-`infra/tart-kubelet/internal/podagent/reconciler.go` sets
-`PodReady=True` (plus synthesized Ready container statuses) as soon as
-the VM has an IP. A VM that boots and then dies at `tailscale-up.sh`
-therefore reads `1/1 Running` forever, the Deployment reports
-`Available=True`, and `:process_xcresult` simply stops being consumed.
+can see. The Deployment declares a `readinessProbe` on `GET /ready` (port
+9092, `Tuist.Readiness.Plug`), which tart-kubelet evaluates against the
+guest IP: the Pod stays NotReady until the release answers and can reach
+Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` then reads `0/1 Running`, the rolling update stops on it,
+and the deploy's "xcresult processor rollout" step fails and annotates the
+run. That step does not fail the deploy, and the processor is not in the
+tuist release's `helm upgrade --atomic --wait`, so a NotReady processor
+never holds or rolls back a server deploy. The probe shares the
+host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
+cannot reach its guest at `192.168.64.x` also shows up as
+`up{job="tuist-macos-pod-metrics"} == 0` for that Pod; check that metric
+before reading a NotReady processor as a dependency outage.
 
-This has happened twice, from unrelated causes with the same outward
-shape:
+Without the probe (`xcresultProcessor.readinessProbe.enabled: false`),
+tart-kubelet sets `PodReady=True` as soon as the VM has an IP, so such a VM
+reads `1/1 Running` forever, the Deployment reports `Available=True`, and
+`:process_xcresult` simply stops being consumed. This has happened twice,
+from unrelated causes with the same outward shape:
 
 - **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
   unable to complete a TCP handshake to the Tailscale control plane.
@@ -233,16 +245,17 @@ a server-side credential rejection and an unreachable control plane
 through the same "did not reach Running within timeout" path, which is
 what made the two incidents above look alike from the outside.
 
-**Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
-can see this class of failure, it is caught in the metrics pipeline
-instead. Four rules in
+**Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
+ExternalSecrets cannot see this class of failure at all, so it is caught
+in the metrics pipeline too. Five rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere. This is the readiness probe tart-kubelet cannot provide. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere in production, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 

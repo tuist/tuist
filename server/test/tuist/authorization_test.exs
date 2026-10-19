@@ -826,6 +826,38 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:runners_read, subject, other_account) == {:error, :forbidden}
   end
 
+  test "can.read.account.runners when an account token has runner write scope" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.update.account.runners only when the subject is an admin of the organization" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    admin = AccountsFixtures.user_fixture()
+    member = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(admin, organization, role: :admin)
+    Accounts.add_user_to_organization(member, organization, role: :user)
+
+    assert Authorization.authorize(:runners_update, admin, account) == :ok
+    assert Authorization.authorize(:runners_update, member, account) == {:error, :forbidden}
+  end
+
+  test "can.update.account.runners when an account token has runner write scope for that account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_update, subject, account) == :ok
+    assert Authorization.authorize(:runners_update, subject, other_account) == {:error, :forbidden}
+
+    for scopes <- [["account:runners:read"], ["mcp"]] do
+      assert Authorization.authorize(:runners_update, %{subject | scopes: scopes}, account) == {:error, :forbidden}
+    end
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -1576,6 +1608,39 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.authorize(:project_update, user, project) ==
              {:error, :forbidden}
+  end
+
+  test "can.update.project.settings when the subject is a user-issued token whose user is an admin" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture(creator: user)
+    project = ProjectsFixtures.project_fixture(account_id: Accounts.get_account_from_organization(organization).id)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      scopes: ["project:admin:write"],
+      all_projects: true,
+      issued_by: user
+    }
+
+    assert Authorization.authorize(:project_update, subject, project) == :ok
+    assert Authorization.authorize(:project_delete, subject, project) == :ok
+  end
+
+  test "can.update.project.settings when the subject is a user-issued token whose user is not an admin" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    project = ProjectsFixtures.project_fixture(account_id: Accounts.get_account_from_organization(organization).id)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      scopes: ["project:admin:write"],
+      all_projects: true,
+      issued_by: user
+    }
+
+    assert Authorization.authorize(:project_update, subject, project) == {:error, :forbidden}
+    assert Authorization.authorize(:project_delete, subject, project) == {:error, :forbidden}
   end
 
   test "can.attach.runners.interactive when the subject is a user of the account" do

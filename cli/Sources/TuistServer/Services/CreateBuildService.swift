@@ -113,7 +113,7 @@ import TuistHTTP
             casOutputs: [CASOutput],
             machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.reporting(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
             let status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? =
                 switch status {

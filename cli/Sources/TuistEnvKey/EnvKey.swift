@@ -474,6 +474,7 @@ public enum EnvKey: String, CaseIterable {
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
     case shareTrack = "TUIST_SHARE_TRACK"
+    case shareReleaseNotes = "TUIST_SHARE_RELEASE_NOTES"
 
     // CACHE
 
@@ -486,11 +487,13 @@ public enum EnvKey: String, CaseIterable {
     case cachePath = "TUIST_CACHE_PATH"
     case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
+    case cacheCoverage = "TUIST_CACHE_COVERAGE"
 
     // HASH CACHE
 
     case hashCachePath = "TUIST_HASH_CACHE_PATH"
     case hashCacheConfiguration = "TUIST_HASH_CACHE_CONFIGURATION"
+    case hashCacheCoverage = "TUIST_HASH_CACHE_COVERAGE"
 
     // HASH TEST
 

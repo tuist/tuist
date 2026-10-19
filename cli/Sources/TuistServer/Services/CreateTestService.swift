@@ -34,7 +34,7 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
-            coverageUpload: XcodeCoverageUpload?,
+            coverage: TestRunCoverage?,
             coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
@@ -94,10 +94,11 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
-            coverageUpload: XcodeCoverageUpload? = nil,
+            coverage: TestRunCoverage? = nil,
             coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.reporting(serverURL: serverURL)
+            let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
             let status = statusPayload(for: testSummary.status)
@@ -108,7 +109,7 @@ import TuistHTTP
             // what lets the dashboard say which executions were solicited. Remote runs send
             // no test cases here; their bundle carries the same information instead.
             let stressRepetitionsByTestCase = Dictionary(
-                (stressNewTests?.test_cases ?? []).map { candidate in
+                ((networkTrusted ? nil : stressNewTests)?.test_cases ?? []).map { candidate in
                     (
                         StressRepetitionKey(
                             module: candidate.module_name,
@@ -274,37 +275,35 @@ import TuistHTTP
                     body: .json(
                         .init(
                             git_branch: gitBranch,
-                            xcode_coverage_storage_key: coverageUpload?.storageKey,
                             execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
-                            git_object_format: history.objectFormat,
+                            git_object_format: networkTrusted ? nil : history.objectFormat,
                             scheme: testSummary.testPlanName,
-                            merge_base_sha: gitHistory?.mergeBaseSHA,
+                            merge_base_sha: networkTrusted ? nil : gitHistory?.mergeBaseSHA,
                             ci_host: ciHost,
-                            git_remote_url_origin: gitRemoteURLOrigin,
-                            history_fallback_reason: gitHistory?.fallbackReason,
-                            is_pull_request: gitHistory?.isPullRequest,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
+                            history_fallback_reason: networkTrusted ? nil : gitHistory?.fallbackReason,
+                            is_pull_request: networkTrusted ? nil : gitHistory?.isPullRequest,
                             status: status,
-                            shard_index: shardIndex,
-                            only_test_identifiers: onlyTestIdentifiers,
-                            coverage_evidence: testSummary.coverageEvidencePayload,
-                            git_dirty: gitHistory?.dirty,
-                            history_source: history.source,
-                            build_run_id: buildRunId,
-                            skip_test_identifiers: skipTestIdentifiers,
+                            shard_index: networkTrusted ? nil : shardIndex,
+                            only_test_identifiers: networkTrusted ? [] : onlyTestIdentifiers,
+                            coverage_evidence: networkTrusted ? nil : testSummary.coverageEvidencePayload,
+                            git_dirty: networkTrusted ? nil : gitHistory?.dirty,
+                            history_source: networkTrusted ? nil : history.source,
+                            coverage: networkTrusted ? nil : coveragePayload(coverage, toolVersion: xcodeVersion),
+                            build_run_id: networkTrusted ? nil : buildRunId,
+                            skip_test_identifiers: networkTrusted ? [] : skipTestIdentifiers,
                             git_ref: gitRef,
-                            base_branch: gitHistory?.baseBranch,
+                            base_branch: networkTrusted ? nil : gitHistory?.baseBranch,
                             model_identifier: modelIdentifier,
                             ci_run_id: ciRunId,
                             ci_provider: ciProviderPayload,
                             ci_project_handle: ciProjectHandle,
-                            pull_request_number: gitHistory?.pullRequestNumber,
-                            coverage_enabled: coverageEnabled,
-                            stress_new_tests: stressNewTests,
-                            xcode_coverage_partial: coverageUpload?.partial,
+                            pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
+                            coverage_enabled: networkTrusted ? nil : coverageEnabled,
+                            stress_new_tests: networkTrusted ? nil : stressNewTests,
                             macos_version: macOSVersion,
                             id: id,
-                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
-                            shard_plan_id: shardPlanId,
+                            shard_plan_id: networkTrusted ? nil : shardPlanId,
                             duration: testSummary.duration ?? 0,
                             xcode_version: xcodeVersion,
                             git_commit_sha: gitCommitSHA,
@@ -492,16 +491,18 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
-        report.map { report in
-            Components.Schemas.XcodeCoverage(
-                files: report.files.map { file in
-                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+    /// The build-system-neutral coverage block: the tool that measured the run, the Xcode that
+    /// provides it as the version, and the files inline or the key of their upload.
+    private func coveragePayload(_ coverage: TestRunCoverage?, toolVersion: String?) -> Components.Schemas.Coverage? {
+        coverage.map { coverage in
+            Components.Schemas.Coverage(
+                files: coverage.files?.map { file in
+                    Components.Schemas.Coverage.filesPayloadPayload(
                         covered_lines: file.coveredLines,
                         executable_lines: file.executableLines,
                         execution_counts: file.executionCounts,
                         functions: file.functions.map { function in
-                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                            Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload(
                                 covered_lines: function.coveredLines,
                                 executable_lines: function.executableLines,
                                 execution_count: function.executionCount,
@@ -516,7 +517,10 @@ import TuistHTTP
                         targets: file.targets
                     )
                 },
-                partial: report.partial
+                partial: coverage.partial,
+                storage_key: coverage.storageKey,
+                tool: coverage.tool,
+                tool_version: toolVersion
             )
         }
     }

@@ -38,6 +38,10 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_job_logs" in tool_names
       assert "list_runner_workflows" in tool_names
       assert "list_runner_profiles" in tool_names
+      assert "get_runner_catalog" in tool_names
+      assert "create_runner_profile" in tool_names
+      assert "update_runner_profile" in tool_names
+      assert "delete_runner_profile" in tool_names
       assert "list_runner_volumes" in tool_names
       assert "get_runner_volume" in tool_names
       assert "list_runner_volume_jobs" in tool_names
@@ -94,12 +98,11 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.36.0"
+      assert server.version == "1.38.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
 
-      assert server.instructions =~ "Never invent credentials."
       refute server.instructions =~ "auth_md"
       refute server.instructions =~ "agent_auth.skill"
       refute server.instructions =~ "anonymous registration"
@@ -109,9 +112,6 @@ defmodule Tuist.MCP.ServerTest do
 
       assert server.instructions =~
                "Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations."
-
-      assert server.instructions =~
-               "Verify the outcome of requested changes through the relevant Tuist tools before reporting success."
 
       refute server.instructions =~ "get_gradle_integration_guide"
       refute server.instructions =~ "get_bazel_integration_guide"
@@ -218,23 +218,50 @@ defmodule Tuist.MCP.ServerTest do
       refute "ask_tuist" in Map.keys(Server.server().prompts)
     end
 
-    test "instructs clients to answer questions with source-backed tools when they are available" do
+    test "describes source capabilities when the tools are available" do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :codebase_search_enabled?, fn -> true end)
 
       instructions = Server.server().instructions
 
-      assert instructions =~ "Use the relevant Tuist tool"
       assert instructions =~ "search_tuist_code"
-      assert instructions =~ "treat truncated results as partial"
-      assert instructions =~ "source revision"
+      assert instructions =~ "list_tuist_files"
+      assert instructions =~ "read_tuist_file"
+      assert instructions =~ "fixed revision"
+      assert instructions =~ "revision-pinned links"
+      assert instructions =~ "`truncated` and `truncation_reason` indicate partial results"
+      assert instructions =~ "next_start_line"
 
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       instructions = Server.server().instructions
-      refute instructions =~ "Use the relevant Tuist tool"
+      refute instructions =~ "search_tuist_code"
       assert instructions =~ "OAuth 2.0 with dynamic client registration"
       refute instructions =~ "auth_md"
       refute instructions =~ "agent_auth.skill"
+    end
+
+    test "server instructions describe capabilities and authentication without answer directives" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      for enabled <- [true, false] do
+        stub(Environment, :codebase_search_enabled?, fn -> enabled end)
+        instructions = Server.server().instructions
+
+        assert instructions =~ "standard browser authorization flow"
+        assert instructions =~ "does not authenticate local command-line tools or build-system integrations"
+
+        for directive <- [
+              "Use the relevant Tuist tool",
+              "inspect focused tests",
+              "treat truncated results as partial",
+              "cite returned links",
+              "Keep the answer focused",
+              "Never invent credentials",
+              "Verify the outcome"
+            ] do
+          refute instructions =~ directive
+        end
+      end
     end
 
     test "tool descriptions state their capability without steering tool selection" do

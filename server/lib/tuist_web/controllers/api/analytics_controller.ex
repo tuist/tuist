@@ -31,6 +31,8 @@ defmodule TuistWeb.API.AnalyticsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
+
   # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
   plug(
     LoaderPlug,
@@ -55,7 +57,6 @@ defmodule TuistWeb.API.AnalyticsController do
 
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   tags ["Analytics"]
 
@@ -366,6 +367,11 @@ defmodule TuistWeb.API.AnalyticsController do
                                build_duration: %Schema{
                                  type: :integer,
                                  description: "The compilation time of a binary in milliseconds."
+                               },
+                               instrumented: %Schema{
+                                 type: :boolean,
+                                 description:
+                                   "Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss."
                                },
                                subhashes: %Schema{
                                  type: :object,

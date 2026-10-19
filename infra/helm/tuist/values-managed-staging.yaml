@@ -97,6 +97,8 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    originAppKey:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -409,6 +411,11 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-staging
       tags: tag:tuist-k8s-staging
+      # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
+      # the xcresult VMs reach it directly instead of through a DERP relay.
+      # Switching needs the standalone proxy's device deleted by hand; see
+      # the runbook in #14235.
+      proxyGroup: tailnet-ingress
     # On here so the backup path itself is exercised before production depends
     # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
     backup:
@@ -579,10 +586,8 @@ xcresultProcessor:
   # Deployment controller create the new Pod in Pending before the
   # old Pod releases hostPort 9091, generating a FailedScheduling
   # warning every rollout. Recreate waits for full termination first
-  # so no Pending pod is created against an occupied port, and
-  # `helm upgrade --wait` blocks until the new Pod is actually Ready
-  # before declaring the rollout done. Same effective downtime -
-  # Tart VM cold-boot dominates either way.
+  # so no Pending pod is created against an occupied port. Same
+  # effective downtime - Tart VM cold-boot dominates either way.
   strategy:
     type: Recreate
     rollingUpdate: null
@@ -913,7 +918,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-    "27.1-rc":
+    "27.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -954,9 +959,8 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag
-  # (server-deployment.yml passes it via --set). The chart template
-  # constructs each pool's image as
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # (server-deployment.yml passes it, and each profile's digest in
+  # `runnerImageDigests`, via --set).
   runnerImageSemver: ""
   pools: []
 
@@ -1079,6 +1083,10 @@ rackFleet:
   joiningNodes: []
   runners:
     enabled: true
+    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
+    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
     # One host, two guest slots.
     autoscaling:
       enabled: true

@@ -5,6 +5,34 @@ import Testing
 @testable import TuistProcess
 
 @Suite struct CommandRunnerTests {
+    #if os(macOS)
+        @Test(arguments: ["--jobserver-auth", "--jobserver-fds"])
+        func preservesCargoJobserverDescriptors(flag: String) async throws {
+            let pipe = Pipe()
+            defer {
+                try? pipe.fileHandleForReading.close()
+                try? pipe.fileHandleForWriting.close()
+            }
+            let read = pipe.fileHandleForReading.fileDescriptor
+            let write = pipe.fileHandleForWriting.fileDescriptor
+            let probe = "test -p /dev/fd/\(read) && test -p /dev/fd/\(write)"
+            let environment = ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": "\(flag)=\(read),\(write)"]
+            let runner = CommandRunner()
+            let output = try await runner.run(
+                arguments: ["/bin/sh", "-c", "\(probe) && printf kept"],
+                environment: environment
+            ).concatenatedString()
+            #expect(output == "kept")
+            try await runner.runInheritingOutput(
+                arguments: ["/bin/sh", "-c", probe], environment: environment, workingDirectory: nil
+            )
+            try await runner.runInheritingOutput(
+                arguments: ["/bin/sh", "-c", "! test -p /dev/fd/\(read) && ! test -p /dev/fd/\(write)"],
+                environment: ["CARGO_MAKEFLAGS": "\(flag)=\(read),\(write)"], workingDirectory: nil
+            )
+        }
+    #endif
+
     @Test func streamsStandardOutputAndStandardError() async throws {
         await expectCompletes {
             let stream = CommandRunner().run(arguments: ["/bin/sh", "-c", "printf output; printf error >&2"])

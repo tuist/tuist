@@ -1,13 +1,13 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "A virtual platform team for app developers. Cache, insights, testing, previews, and runners across Xcode, Gradle, and Bazel."
+  "description": "A virtual platform team for developers. Build infrastructure for Xcode, Gradle, Bazel, Elixir, and Rust, with features tailored to each toolchain."
 }
 ---
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, and Bazel projects.
+**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects. Available features depend on your toolchain: Rust projects get Cargo build insights, nextest test insights, flaky test detection, compile-once test sharding, and experimental compilation caching.
 
 Start by <.localized_link href="/guides/install-tuist">installing the Tuist command-line interface</.localized_link>, then follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system.
 
@@ -16,12 +16,14 @@ Start by <.localized_link href="/guides/install-tuist">installing the Tuist comm
 <.home_cards>
   <.home_card
     title="Cache"
-    details="Share compilation outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, and Bazel's remote cache."
+    details="Share compilation outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, and Rust's experimental compilation cache."
+    supported_for="apple,gradle,bazel,rust"
     link="/guides/features/cache"
 />
   <.home_card
     title="Build & test insights"
-    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, and Bazel projects."
+    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, Bazel, Elixir, and Rust projects."
+    supported_for="apple,gradle,bazel,elixir,rust"
     link="/guides/features/build-insights"
 />
   <.home_card

@@ -108,7 +108,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -150,7 +151,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -222,7 +224,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -275,7 +278,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -345,28 +349,32 @@ struct ContentHashingIntegrationTests {
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let hashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithoutUnrelatedConfiguration,
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let implicitHashesWithUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithUnrelatedConfiguration,
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let implicitHashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithoutUnrelatedConfiguration,
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -416,21 +424,24 @@ struct ContentHashingIntegrationTests {
             configuration: debugConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let implicitHashes = try await subject.contentHashes(
             for: graph,
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let defaultConfigurationHashes = try await subject.contentHashes(
             for: graph,
             configuration: nil,
             defaultConfiguration: debugConfiguration.name,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -485,14 +496,16 @@ struct ContentHashingIntegrationTests {
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -566,28 +579,32 @@ struct ContentHashingIntegrationTests {
             configuration: BuildConfiguration.debug.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondDebugHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: BuildConfiguration.debug.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let firstReleaseHashes = try await subject.contentHashes(
             for: firstGraph,
             configuration: BuildConfiguration.release.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondReleaseHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: BuildConfiguration.release.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -630,14 +647,16 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondRun = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -685,7 +704,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -727,7 +747,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -770,7 +791,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -814,7 +836,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -856,7 +879,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -902,7 +926,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
@@ -945,7 +970,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
@@ -962,7 +988,8 @@ struct ContentHashingIntegrationTests {
                 configuration: "Debug",
                 defaultConfiguration: nil,
                 excludedTargets: [],
-                destination: nil
+                destination: nil,
+                coverage: .off
             )
         }
     }

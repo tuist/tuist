@@ -7,6 +7,8 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
   alias Tuist.Bazel
   alias Tuist.Bazel.Invocation
   alias Tuist.ClickHouseRepo
+  alias Tuist.Tests
+  alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -300,6 +302,52 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
       assert json_response(conn, 202) == %{"accepted" => 100, "rejected" => 1}
       assert ClickHouseRepo.aggregate(from(i in Invocation, where: i.project_id == ^project.id), :count) == 100
     end
+  end
+
+  test "unsigned Bazel target outcomes become isolated reports, with policy rechecked before ingestion", %{
+    conn: conn,
+    project: project
+  } do
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
+    reject(Tuist.MCP.Events.Publisher, :publish, 3)
+
+    event = %{
+      "account_handle" => project.account.name,
+      "project_handle" => project.name,
+      "invocation_id" => UUIDv7.generate(),
+      "command" => "test",
+      "status" => "failure",
+      "exit_code" => 1,
+      "started_at_ms" => 1_700_000_000_000,
+      "finished_at_ms" => 1_700_000_015_000,
+      "submission_auth" => "network_trusted",
+      "custom_values" => %{"tuist.reported_user" => "employee-123"},
+      "test_summaries" => [%{"target_label" => "//app:tests", "status" => "failure", "duration_ms" => 42}]
+    }
+
+    send_event = fn event ->
+      {body, signature} = sign_request(%{"events" => [event]})
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-cache-signature", signature)
+      |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+      |> post(~p"/webhooks/bazel-invocations", body)
+    end
+
+    assert event |> send_event.() |> json_response(202) == %{"accepted" => 1, "rejected" => 0}
+    [test] = ClickHouseRepo.all(from(t in Test, where: t.project_id == ^project.id))
+    {:ok, test} = Tests.get_test(test.id, preload: [:test_case_runs])
+    assert test.build_system == "bazel"
+    assert test.submission_auth == "network_trusted"
+    assert test.account_id == 0
+    assert test.claimed_actor_id == "employee-123"
+    assert [%{name: "//app:tests", test_case_id: nil, status: "failure"}] = test.test_case_runs
+    assert event |> send_event.() |> json_response(202) == %{"accepted" => 1, "rejected" => 0}
+    assert ClickHouseRepo.aggregate(from(t in Test, where: t.project_id == ^project.id), :count) == 1
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
+    assert event |> send_event.() |> json_response(202) == %{"accepted" => 0, "rejected" => 1}
+    assert ClickHouseRepo.aggregate(from(t in Test, where: t.project_id == ^project.id), :count) == 1
   end
 
   defp sign_request(body) do

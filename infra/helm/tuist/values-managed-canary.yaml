@@ -61,6 +61,8 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    originAppKey:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -327,6 +329,11 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-canary
       tags: tag:tuist-k8s-canary
+      # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
+      # the xcresult VMs reach it directly instead of through a DERP relay.
+      # Switching needs the standalone proxy's device deleted by hand; see
+      # the runbook in #14235.
+      proxyGroup: tailnet-ingress
     keeper:
       replicas: 1
     backup:
@@ -791,7 +798,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-    "27.1-rc":
+    "27.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -834,6 +841,39 @@ runnersFleet:
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
+
+# BER1 rack host borrowed from production ("Lending a host to another env" in
+# infra/rack-nodes/AGENTS.md): ber1-runner-b02 stays in production's rack fleet
+# but registers its Node here, so canary's runner pools and server drive its
+# guests and the deploy cascade's runners acceptance gate runs on rack hardware.
+# Canary has no ber1-runners Kura region, so these jobs get no private cache
+# endpoint and resolve canary's public cache. The fleet itself stays disabled:
+# production owns the host's Machine, power and bootstrap.
+rackFleet:
+  enabled: false
+  name: tuist-canary-rack-fleet
+  site: ber1
+  joiningNodes:
+    - tuist-tuist-rack-fleet-ber1-runner-b02
+  runners:
+    enabled: true
+    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
+    # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # One host, two guest slots.
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 2
+    # `tuist-canary-macos` resolves to 26.6, which the runners acceptance gate
+    # targets on every deploy, so one guest stays warm for it.
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

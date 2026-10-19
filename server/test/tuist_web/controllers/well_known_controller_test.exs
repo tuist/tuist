@@ -249,7 +249,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.36.0"
+      assert response["serverInfo"]["version"] == "1.38.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"

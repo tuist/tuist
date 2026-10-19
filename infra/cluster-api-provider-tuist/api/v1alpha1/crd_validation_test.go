@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -121,6 +122,55 @@ func TestRackPDUAdmission(t *testing.T) {
 		"another model":     {"site": "ber1", "model": "ap8959", "address": "192.168.0.16"},
 	} {
 		if errs := admits(t, structural, validator, pdu(spec)); len(errs) == 0 {
+			t.Errorf("%s was admitted", name)
+		}
+	}
+}
+
+func TestRackSiteAdmission(t *testing.T) {
+	structural, validator := generatedCRD(t, "infrastructure.cluster.x-k8s.io_racksites.yaml")
+	site := func(steps ...map[string]any) map[string]any {
+		contracted := make([]any, 0, len(steps))
+		for _, s := range steps {
+			contracted = append(contracted, s)
+		}
+		return map[string]any{
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha1", "kind": "RackSite",
+			"metadata": map[string]any{"name": "ber1"},
+			"spec":     map[string]any{"contractedPower": contracted},
+		}
+	}
+	paths, err := filepath.Glob("../../../rack-switch-fleet/k8s/*/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := 0
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		obj := map[string]any{}
+		if err := yaml.Unmarshal(raw, &obj); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if obj["kind"] != "RackSite" {
+			continue
+		}
+		rendered++
+		if errs := admits(t, structural, validator, obj); len(errs) != 0 {
+			t.Errorf("%s was refused: %v", path, errs)
+		}
+	}
+	if rendered == 0 {
+		t.Fatal("no committed RackSite objects under infra/rack-switch-fleet/k8s")
+	}
+	for name, step := range map[string]map[string]any{
+		"a day-first date": {"from": "05.10.2026", "watts": int64(3000)},
+		"no watts":         {"from": "2026-10-05", "watts": int64(0)},
+		"no date":          {"watts": int64(3000)},
+	} {
+		if errs := admits(t, structural, validator, site(step)); len(errs) == 0 {
 			t.Errorf("%s was admitted", name)
 		}
 	}

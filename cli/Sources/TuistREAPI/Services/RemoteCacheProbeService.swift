@@ -15,9 +15,6 @@ public protocol RemoteCacheProbing: Sendable {
 }
 
 public struct RemoteCacheProbeService: RemoteCacheProbing {
-    /// Each attempt allows the activation gateway its 20-second wait plus connection setup.
-    private static let probeTimeout: Duration = .seconds(30)
-
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {
@@ -28,9 +25,6 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         Logger.current.debug("Probing remote cache availability at \(endpoint.authority) (GetCapabilities)")
 
         let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
-
-        var options = CallOptions.defaults
-        options.timeout = Self.probeTimeout
 
         var metadata = Metadata()
         metadata.addString("Bearer \(token)", forKey: "authorization")
@@ -43,14 +37,8 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         do {
             try await withGRPCClient(transport: transport) { client in
                 let capabilities = Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client)
-                for attempt in 0 ..< 4 {
-                    do {
-                        _ = try await capabilities.getCapabilities(request, metadata: metadata, options: options)
-                        return
-                    } catch let error as RPCError {
-                        guard attempt < 3, [.unavailable, .resourceExhausted].contains(error.code) else { throw error }
-                        try await Task.sleep(for: .seconds(2))
-                    }
+                _ = try await REAPICapabilityNegotiation.run { options in
+                    try await capabilities.getCapabilities(request, metadata: metadata, options: options)
                 }
             }
         } catch let error as RPCError {

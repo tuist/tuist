@@ -38,7 +38,7 @@ defmodule TuistWeb.API.Schemas.ReportActor do
       submission_auth: %Schema{
         type: :string,
         description:
-          "token for authenticated report submissions, or empty for historical reports. Authentication does not verify report contents."
+          "token, network_trusted, or empty for historical reports. Authentication does not verify report contents."
       }
     }
   })

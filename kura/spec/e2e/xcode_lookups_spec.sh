@@ -19,6 +19,14 @@ Describe 'Xcode compilation-cache lookups against a distant cache'
     The value "$(lookup_concurrency cold-miss)" should satisfy lookup_at_least 4
   End
 
+  It 'restores every task after repeated local cache wipes without restarting the proxy'
+    Skip if 'requires Apple silicon, Xcode, local Kura, and KURA_E2E_XCODE=1' xcode_chunking_disabled
+    xcode_chunking_enabled || return 0
+
+    When call run_repeated_lookup_wipes
+    The status should be success
+  End
+
   It 'restores every task from the cache with concurrent lookups'
     Skip if 'requires Apple silicon, Xcode, local Kura, and KURA_E2E_XCODE=1' xcode_chunking_disabled
     xcode_chunking_enabled || return 0

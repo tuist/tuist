@@ -172,6 +172,14 @@ func (h *atsHarness) gauge(name string, labels ...string) float64 {
 		return testutil.ToFloat64(rackATSInputGood.WithLabelValues(values...))
 	case "input_voltage_volts":
 		return testutil.ToFloat64(rackATSInputVoltage.WithLabelValues(values...))
+	case "input_current_amps":
+		return testutil.ToFloat64(rackATSInputCurrent.WithLabelValues(values...))
+	case "output_current_amps":
+		return testutil.ToFloat64(rackATSOutputCurrent.WithLabelValues(values...))
+	case "output_voltage_volts":
+		return testutil.ToFloat64(rackATSOutputVoltage.WithLabelValues(values...))
+	case "output_apparent_power_va":
+		return testutil.ToFloat64(rackATSOutputApparentPower.WithLabelValues(values...))
 	case "observed":
 		return testutil.ToFloat64(rackATSObserved.WithLabelValues(values...))
 	case "ready":
