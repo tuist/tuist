@@ -15,6 +15,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseCurrentState
@@ -4406,6 +4407,46 @@ defmodule Tuist.TestsTest do
 
       assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
       assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "muted"}]) == []
+    end
+
+    test "plain Cargo outcomes preserve measured timing history, including real zero durations" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {scheme, duration, status} <- [
+            {"test", 100, "success"},
+            {"cargo test", 0, "failure"},
+            {"cargo test · local", 0, "success"},
+            {"test", 0, "success"}
+          ] do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: "cargo",
+            scheme: scheme,
+            status: status,
+            test_modules: [
+              %{
+                name: "app::api",
+                status: status,
+                duration: 100,
+                test_cases: [%{name: "integration", suite_name: "tests", status: status, duration: duration}]
+              }
+            ]
+          )
+      end
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.recent_durations == [0, 100]
+      assert test_case.avg_duration == 50
+
+      summary = Analytics.test_case_analytics_by_id(project.id, test_case.id)
+      assert summary.total_count == 4
+      assert summary.failed_count == 1
+      assert summary.avg_duration == 50
+      assert summary.p50_duration == 50
+
+      duration = Analytics.test_case_run_duration_analytics(project.id)
+      assert duration.total_average_duration == 50
     end
 
     test "preserves state when an in-flight ingestion read the row before the mute" do

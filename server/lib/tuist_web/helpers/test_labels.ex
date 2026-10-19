@@ -59,6 +59,9 @@ defmodule TuistWeb.Helpers.TestLabels do
 
   def test_run_label(%Project{build_system: :mix}, _scheme), do: "mix test"
 
+  def test_run_label(%Project{build_system: :cargo}, "cargo test"), do: "cargo test"
+  def test_run_label(%Project{build_system: :cargo}, "cargo test · " <> label), do: "cargo test · #{label}"
+
   def test_run_label(%Project{build_system: :cargo}, scheme)
       when scheme in [nil, "", "nextest", "nextest run", "cargo nextest run"], do: "cargo nextest run"
 

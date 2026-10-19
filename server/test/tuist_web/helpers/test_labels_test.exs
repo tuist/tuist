@@ -119,6 +119,12 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
                "mix test · clickhouse-floor"
     end
 
+    test "keeps plain Cargo tests distinct from nextest" do
+      project = %Project{build_system: :cargo}
+      assert TestLabels.test_run_label(project, "cargo test") == "cargo test"
+      assert TestLabels.test_run_label(project, "cargo test · ci") == "cargo test · ci"
+    end
+
     test "names Cargo runs after the complete nextest test command" do
       project = %Project{build_system: :cargo}
 
