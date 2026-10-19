@@ -187,7 +187,13 @@ job plans them with `mix tuist.test.build --cover`, which instruments the
 build for native coverage, so the shards count without compiling every
 module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
+fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
+whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
+variant and then the coverage variant (`tuist cache --coverage`), which the runs
+with `-enableCodeCoverage YES` look up. Every `tuist test` that uploads coverage
+passes `--derived-data-path`, because the coverage export reads the test
+products and the profile from derived data, and the result-bundle fallback it
+takes without one never covers cached code.
 
 ## Restore drills
 
@@ -259,3 +265,15 @@ recompiles every first-party module; the volume only spares the pinned
 third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
+
+## Generated-project dependency installation
+
+`actions/install/` implements the standalone `tuist/install` action; see
+[its guidance](actions/install/AGENTS.md). It automatically uses a custom workspace
+volume when the runner client is available, or GitHub archives otherwise, with
+pinned dependency installation using the project's already-installed CLI.
+`workflows/install-action.yml` tests/packages changes and automatically publishes
+relevant main changes through the `install-action` release component after tests
+pass. Bootstrap the distribution repository and release credential first.
+Recover an unrecorded distribution from its original SOURCE_COMMIT before
+publishing newer source; never replace an immutable version.

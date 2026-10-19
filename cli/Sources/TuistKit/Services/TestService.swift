@@ -4,6 +4,7 @@ import Path
 import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
+import TuistCache
 import TuistCI
 import TuistConfig
 import TuistConfigLoader
@@ -376,6 +377,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
+        let binaryCacheCoverage = Self.binaryCacheCoverage(
+            schemeName: schemeName,
+            xcodebuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
         let testGenerator = generatorFactory.testing(
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
@@ -385,11 +391,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipUnitTests: skipUnitTests,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache || Self
-                .requiresSourceBuildForCoverage(xcodebuildArguments: passthroughXcodeBuildArguments),
+                .requiresSourceBuildForCoverage(
+                    xcodebuildArguments: passthroughXcodeBuildArguments,
+                    binaryCacheCoverage: binaryCacheCoverage
+                ),
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination,
-            schemeName: schemeName
+            schemeName: schemeName,
+            coverage: binaryCacheCoverage
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -2584,8 +2594,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try? await fileSystem.remove(directory)
     }
 
-    /// An out-of-manifest coverage override cannot reuse ordinary cached products, even when uploads are disabled.
-    static func requiresSourceBuildForCoverage(xcodebuildArguments: [String]) -> Bool {
+    /// Coverage overrides can reuse an explicitly instrumented variant, but never ordinary cached products.
+    static func requiresSourceBuildForCoverage(
+        xcodebuildArguments: [String],
+        binaryCacheCoverage: BinaryCacheCoverage = .off
+    ) -> Bool {
+        guard binaryCacheCoverage != .on else { return false }
         guard let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage") else { return false }
         guard xcodebuildArguments.indices.contains(index + 1) else { return true }
         return !["NO", "FALSE", "0"].contains(xcodebuildArguments[index + 1].uppercased())
@@ -2596,13 +2610,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// coverage itself and isn't read, so a scheme with test plans is unknown (`nil`).
     static func coverageEnabled(testAction: TestAction?, xcodebuildArguments: [String], config: Tuist) -> Bool? {
         guard UploadResultBundleService.uploadsCoverage(config: config) else { return false }
-        if let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage"),
-           xcodebuildArguments.indices.contains(index + 1)
-        {
-            return xcodebuildArguments[index + 1].uppercased() == "YES"
-        }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage }
         guard let testAction, testAction.testPlans?.isEmpty ?? true else { return nil }
         return testAction.coverage
+    }
+
+    /// The variant of the binary cache the run reads, by the same rule: the instrumented binaries when
+    /// the run collects the coverage Tuist uploads, the plain ones otherwise. The scheme's test action
+    /// is read off the generated graph, once there is one.
+    static func binaryCacheCoverage(schemeName: String?, xcodebuildArguments: [String], config: Tuist) -> BinaryCacheCoverage {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return .off }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage ? .on : .off }
+        return .scheme(schemeName)
+    }
+
+    private static func passthroughCoverage(_ arguments: [String]) -> Bool? {
+        guard let index = arguments.lastIndex(of: "-enableCodeCoverage"), arguments.indices.contains(index + 1)
+        else { return nil }
+        return arguments[index + 1].uppercased() == "YES"
     }
 
     private static func merging(_ identifiers: [String], _ passthrough: [String]) -> [String] {

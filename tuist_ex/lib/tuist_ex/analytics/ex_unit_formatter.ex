@@ -97,6 +97,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
+            |> put_coverage_lines(state.opts)
 
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
@@ -135,6 +136,22 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     else
       _ -> payload
     end
+  end
+
+  # What the summary of a run counting natively reads, taken now for the same
+  # reason: Mimic swaps its copies back after the suite, which resets their
+  # native counters.
+  defp put_coverage_lines(payload, opts) do
+    if Keyword.get(opts, :coverage_summary, false),
+      do: Map.put(payload, :coverage_lines, Coverage.module_lines()),
+      else: payload
+  rescue
+    exception ->
+      Keyword.get(opts, :shell, &Report.debug/1).(
+        "tuist analytics: could not read the coverage summary: #{Exception.message(exception)}"
+      )
+
+      payload
   end
 
   @doc """

@@ -247,11 +247,17 @@ pub async fn run_backfill_pass_with_tuning(
     // never blocks sending while the fetcher is blocked handing off a batch
     // (a bounded bounce channel could deadlock that cycle).
     let (bounce_tx, bounce_rx) = mpsc::unbounded_channel();
-    let result = tokio::try_join!(
-        list_entries(&context, queue_tx),
-        fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
-        apply_batches(&context, apply_rx, bounce_tx),
-    );
+    let result = async {
+        if matches!(tuning.source, PassSource::RetainedIndex) {
+            prepare_retained_space(&context).await?;
+        }
+        tokio::try_join!(
+            list_entries(&context, queue_tx),
+            fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
+            apply_batches(&context, apply_rx, bounce_tx),
+        )
+    }
+    .await;
 
     let capacity_completed = context.capacity_fired.load(Ordering::Relaxed);
     let stats = context.snapshot_stats();
@@ -398,6 +404,65 @@ struct QueuedFetch {
 }
 
 // ---- Listing walk ----------------------------------------------------------
+
+async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbort> {
+    let mut candidates = cancellable(context, context.state.store.handover_reclaim_candidates())
+        .await?
+        .map_err(PassAbort::Hard)?;
+    if candidates.is_empty() {
+        return Ok(());
+    }
+    // Keep only segment identities, not the source's complete manifest set.
+    // A sealed, unpinned segment cannot gain a newly committed artifact while
+    // this walk proves that none of its current records belong to the source.
+    let mut missing = false;
+    let mut after = None;
+    loop {
+        let page = fetch_listing_page(context, after.as_deref()).await?;
+        context.state.metrics.record_backfill_listing_page();
+        context.update_stats(|stats| stats.pages_listed += 1);
+        for entry in page.entries {
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or_else(|| PassAbort::Hard("unknown retained record kind".into()))?;
+            if let Some(manifest) = context
+                .state
+                .store
+                .manifest(&entry.record_id)
+                .map_err(PassAbort::Hard)?
+                && let Some(segment) = manifest.segment_id
+            {
+                candidates.remove(&segment);
+            }
+            if candidates.is_empty() {
+                return Ok(());
+            }
+            if kind == BackfillRecordKind::SegmentArtifact
+                && !context
+                    .state
+                    .store
+                    .backfill_locally_covered(kind, &entry.record_id, entry.version_ms)
+                    .map_err(PassAbort::Hard)?
+            {
+                missing = true;
+            }
+        }
+        match page.next_after {
+            Some(next) => after = Some(next),
+            None => break,
+        }
+    }
+    if missing {
+        for segment in candidates {
+            cancellable(
+                context,
+                context.state.store.reclaim_handover_segment(&segment),
+            )
+            .await?
+            .map_err(PassAbort::Hard)?;
+        }
+    }
+    Ok(())
+}
 
 async fn list_entries(
     context: &PassContext<'_>,

@@ -86,21 +86,13 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
             let prefix = directory.isDescendant(of: rootDirectory)
                 ? "\(root)/\(directory.relative(to: rootDirectory).pathString)"
                 : directory.pathString
-            return quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
+            return SettingValue.quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
         }
         return scratchMappings + [
-            quoted("$(OBJROOT)=/^intermediates"),
-            quoted("$(SYMROOT)=/^products"),
-            quoted("\(root)=/^root"),
+            SettingValue.quoted("$(OBJROOT)=/^intermediates"),
+            SettingValue.quoted("$(SYMROOT)=/^products"),
+            SettingValue.quoted("\(root)=/^root"),
         ]
-    }
-
-    /// Quotes `value` as a single element of a build setting list.
-    private static func quoted(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 
     private static func appending(_ mappings: [String], to existing: SettingValue?) -> SettingValue {

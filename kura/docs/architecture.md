@@ -24,6 +24,21 @@ they cannot guarantee convergence for every fragmented or undersized ring.
 Full verification still rejects any remaining retained holes. Ordinary backward
 catch-up and forward pages retain their recency policies. Concurrent begin
 requests cannot duplicate repair, and a retry after the hold never reopens it.
+Preparation runs in an owned task so a source's shorter request timeout does not
+discard the walk or interrupt its body transfers. A retry observes preparation
+in progress until the same task finishes. Authoritative intent replacement or
+abort, the original intent deadline, and runtime drain still cancel the repair;
+request retries cannot extend its lifetime. Record verification remains scoped
+to its request and completion of repair alone grants no serving authority.
+Before downloading missing retained bodies, preparation walks the complete source
+index and excludes every locally referenced segment from a bounded candidate set.
+Only sealed, unpinned segments containing exclusively destination-only records may
+be reclaimed. This prevents unrelated newer segments from forcing FIFO repair to
+evict and download the shared corpus repeatedly. Active segments and locally newer
+versions of source-listed records are preserved. Listing failure reclaims nothing;
+the existing supervised cleanup finishes any durable retirement after cancellation.
+Mixed segments still follow normal rotation and the original deadline: this does
+not guarantee convergence for every physical layout or increase the ring budget.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
