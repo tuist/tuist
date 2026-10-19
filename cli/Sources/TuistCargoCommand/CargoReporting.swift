@@ -75,7 +75,7 @@ struct CargoReporting {
                 "duration": report.duration,
                 "status": failed ? "failure" : "success",
                 "test_modules": report.modules,
-                "scheme": environment["TUIST_SCHEME"] ?? "nextest",
+                "scheme": CargoNextestRun.scheme(label: environment["TUIST_SCHEME"]),
                 "execution_mode": "parallel",
             ],
             uniquingKeysWith: { _, new in new }
@@ -118,6 +118,11 @@ struct CargoReporting {
 }
 
 struct CargoNextestRun {
+    static func scheme(label: String?) -> String {
+        let label = label ?? "nextest"
+        return label == "cargo test" || label.hasPrefix("cargo test · ") ? "cargo nextest run · \(label)" : label
+    }
+
     let arguments: [String]
     let junitURL: URL
     let inventory: NextestInventory?

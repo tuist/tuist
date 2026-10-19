@@ -137,6 +137,10 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
       project = %Project{build_system: :cargo}
       assert TestLabels.test_run_label(project, "ci") == "cargo nextest run · ci"
       assert TestLabels.test_run_label(project, "test") == "cargo nextest run · test"
+      assert TestLabels.test_run_label(project, "cargo nextest run · cargo test") == "cargo nextest run · cargo test"
+
+      assert TestLabels.test_run_label(project, "cargo nextest run · cargo test · ci") ==
+               "cargo nextest run · cargo test · ci"
     end
 
     test "names other runs by their scheme, or Unknown without one" do
