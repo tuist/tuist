@@ -48,6 +48,71 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     end
   end
 
+  test "real formatter payloads use the common unsigned contract and tolerate evolving responses",
+       %{tmp_dir: directory} do
+    opts = options(directory, %{"TUIST_TAGS" => "compatibility"})
+
+    {:ok, state} =
+      TuistEx.Analytics.ExUnitFormatter.init(
+        opts ++ [submit: fn _, _ -> :ok end, mode: {:defer, self()}]
+      )
+
+    {:noreply, _} =
+      TuistEx.Analytics.ExUnitFormatter.handle_cast({:suite_finished, %{run: 1_000}}, state)
+
+    assert_receive {:deferred_test_run, {payload, _, false}}
+    runtime_fields = ~w(contract_version elixir_version otp_version mix_env custom_metadata)
+    assert Enum.all?(runtime_fields, &Map.has_key?(payload, String.to_existing_atom(&1)))
+
+    for response <- [
+          %{"id" => "old-server"},
+          %{"id" => "new-server", "actor" => nil},
+          %{
+            "id" => "future-server",
+            "actor" => %{"source" => "future", "submission_auth" => "future"},
+            "future" => %{}
+          }
+        ],
+        body <- [payload, JSON.decode!(JSON.encode!(payload))] do
+      expect(HTTP, :request, fn :post, _url, body, headers ->
+        wire = JSON.decode!(JSON.encode!(body))
+        refute Enum.any?(runtime_fields, &Map.has_key?(wire, &1))
+        refute Map.has_key?(wire, "git_remote_url_origin")
+        assert wire["build_system"] == "mix"
+        refute Enum.any?(headers, fn {name, _} -> name == "authorization" end)
+        {:ok, 200, response}
+      end)
+
+      assert {:ok, ^response} = AnalyticsHTTP.project_request(:post, "/tests", body, opts)
+    end
+  end
+
+  test "signed tests and unsigned Mix builds retain their existing runtime metadata", %{
+    tmp_dir: directory
+  } do
+    payload = %{
+      contract_version: "future",
+      elixir_version: "1.20",
+      custom_metadata: %{tags: ["compatibility"]}
+    }
+
+    for {suffix, overrides} <- [
+          {"/tests", %{"TUIST_TOKEN" => "existing-token"}},
+          {"/mix/builds", %{}}
+        ] do
+      expect(HTTP, :request, fn :post, _url, body, _headers ->
+        assert body == payload
+        {:ok, 201, %{"actor" => %{"source" => "future"}}}
+      end)
+
+      assert :ok =
+               if(suffix == "/tests",
+                 do: AnalyticsHTTP.submit_test_run(payload, options(directory, overrides)),
+                 else: AnalyticsHTTP.submit_mix_build(payload, options(directory, overrides))
+               )
+    end
+  end
+
   test "reads and shard planning still require credentials", %{tmp_dir: directory} do
     reject(HTTP, :request, 4)
 
