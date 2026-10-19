@@ -211,6 +211,15 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.cargo_project?(@selected_project)}
+        label={dgettext("dashboard", "Cargo Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"
+        }
+      />
+      <.sidebar_item
         :if={Project.mix_project?(@selected_project)}
         label={dgettext("dashboard", "Mix Cache")}
         icon="server"
