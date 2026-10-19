@@ -1410,20 +1410,22 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<
-        Path.AbsolutePath
-    > {
+    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<SwiftIncludePath> {
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies = graph.dependencies[targetDependency, default: []]
             .union(filterDependencies(from: targetDependency))
         let librarySwiftModuleMapPaths = dependencies.compactMap {
-            dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency
+            dependency -> SwiftIncludePath? in
+            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency,
+                  let swiftModuleMapPath
             else { return nil }
-            return swiftModuleMapPath
+            return SwiftIncludePath(path: swiftModuleMapPath.removingLastComponent())
         }
+        // Every slice of an xcframework ships a `.swiftmodule` with the same module name, so each slice's
+        // directory is only exposed to the SDK it was built for. Otherwise the compiler picks whichever slice
+        // comes first, e.g. the device interface for a simulator build.
         let xcframeworkLibrarySwiftModulePaths = dependencies.flatMap {
-            dependency -> [Path.AbsolutePath] in
+            dependency -> [SwiftIncludePath] in
             guard case let GraphDependency.xcframework(xcframework) = dependency,
                   xcframework.infoPlist.libraries.contains(where: {
                       ["a", "dylib"].contains($0.path.extension)
@@ -1431,17 +1433,17 @@ public class GraphTraverser: GraphTraversing {
             else { return [] }
 
             return xcframework.swiftModules.map { swiftModulePath in
-                if swiftModulePath.parentDirectory.extension == "swiftmodule" {
-                    return swiftModulePath.parentDirectory.parentDirectory
+                let includePath = if swiftModulePath.parentDirectory.extension == "swiftmodule" {
+                    swiftModulePath.parentDirectory.parentDirectory
                 } else {
-                    return swiftModulePath.parentDirectory
+                    swiftModulePath.parentDirectory
                 }
+                let libraryIdentifier = includePath.relative(to: xcframework.path).components.first
+                let library = xcframework.infoPlist.libraries.first { $0.identifier == libraryIdentifier }
+                return SwiftIncludePath(path: includePath, sdkCondition: library?.sdkCondition)
             }
         }
-        return Set(
-            librarySwiftModuleMapPaths.map { $0.removingLastComponent() }
-                + xcframeworkLibrarySwiftModulePaths
-        )
+        return Set(librarySwiftModuleMapPaths + xcframeworkLibrarySwiftModulePaths)
     }
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {

@@ -782,21 +782,6 @@ extension XCFrameworkInfoPlist.Library.Platform {
 }
 
 extension XCFrameworkInfoPlist.Library {
-    fileprivate var sdkCondition: String {
-        let graphPlatform = platform.graphPlatform
-        switch platformVariant {
-        case .simulator:
-            if let simulatorSDK = graphPlatform.xcodeSimulatorSDK {
-                return "sdk=\(simulatorSDK)*"
-            }
-            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
-        case .maccatalyst:
-            return "sdk=macosx*"
-        case nil:
-            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
-        }
-    }
-
     fileprivate func applies(to condition: PlatformCondition?) -> Bool {
         guard let condition else { return true }
         return condition.platformFilters.contains(platformFilter)
