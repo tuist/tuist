@@ -686,6 +686,33 @@ independent workqueues:
   replicas; the `hetzner-robot-controller` reflects the new server
   into a `HetznerBareMetalHost` CR automatically.
 
+## macOS image staging (`controllers/image_staging.go`)
+
+A macOS pool builds Pods from `status.servingImage` (`RunnerPool.PodImage()`),
+not `spec.image`. When Helm rolls `spec.image`, the pool keeps serving the old
+image while hosts download the new one off the job path, and switches once
+`min(stagedHosts, healthy hosts)` fleet hosts carry the new image's
+`tuist.dev/golden-<hash>` label, or `imageStagingTimeout` (2h) after
+`status.imageRolledAt`. The switch is a status patch written before any Pod uses
+it, and emits `RunnerImagePromoted`. Only then do Pods on the old image become
+stale and roll under `spec.rollout`. Linux pools always use `spec.image`.
+
+- `stagedHosts` is 0 for a pool with no warm floor, no replicas and no
+  `status.lastDemandAt` within 7 days (it promotes at once and nothing is
+  staged), otherwise `max(floor + 1, 2)`.
+- Every pool reconcile recomputes the fleet's plan (`planImagePrewarm`) and
+  patches the difference: per image, its `stagedHosts` healthy hosts get a
+  `tuist.dev/prewarm-image-<hash>: <image>` Node annotation, for the serving
+  image of every pool with recent demand and for the image it stages. Hosts
+  rank: holds the image, already asked for it, holds the image it replaces,
+  fewer golden bases, name. Unhealthy nodes keep their annotations untouched.
+- tart-kubelet downloads requested images one at a time and keeps them out of
+  the GC while the annotation stays (see `infra/tart-kubelet/AGENTS.md`), so a
+  pool between sessions still finds its image on a few hosts.
+- The server's drain check compares a Pod to `spec.image`, but only drains
+  Pods the controller marked `tuist.dev/drain-eligible`, which it does only for
+  Pods stale against the serving image.
+
 ## Machine-metrics sampling (in-VM, not in the controller)
 
 Runner-job machine metrics (CPU/memory/network/disk for the Metrics

@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,6 +35,7 @@ const defaultPrewarmTimeout = time.Hour
 // Pod's first VM takes.
 type goldenEnsurer interface {
 	ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error)
+	hasGolden(ctx context.Context, image string) (bool, error)
 }
 
 var _ goldenEnsurer = (*Reconciler)(nil)
@@ -42,21 +46,31 @@ type PrewarmGate interface {
 	Release()
 }
 
-// Prewarmer materialises the golden bases of the runner pools a freshly
-// registered host will serve, before the gate lets Pods onto it. A host that
-// was already registered is left alone: it is serving, and golden node
-// affinity already steers each pool to hosts that hold its image.
+// Prewarmer materialises golden bases ahead of the Pods that need them. A
+// freshly registered host pulls the images of the runner pools it will serve
+// before the gate lets Pods onto it; a host that was already registered is
+// serving and skips that. Afterwards, every host downloads the images the
+// runners-controller asks it to hold through prewarm annotations on its Node,
+// which is how a new runner image reaches a few hosts before pools switch to
+// it.
 type Prewarmer struct {
 	K8s     client.Reader
 	Goldens goldenEnsurer
 	Gate    PrewarmGate
 	// Fleet is this Node's `tuist.dev/fleet` label, which a pool's
-	// fleetSelector names. Empty disables prewarming.
+	// fleetSelector names. Empty disables the joining host's prewarm.
 	Fleet string
+	// NodeName is this host's Node, whose prewarm annotations name the
+	// images to hold. Empty disables annotation-driven downloads.
+	NodeName string
 	// DiskFree returns the root volume's free percentage.
 	DiskFree func() (float64, error)
-	// Timeout overrides defaultPrewarmTimeout.
+	// Timeout overrides defaultPrewarmTimeout, for the joining host's
+	// prewarm and for each requested image.
 	Timeout time.Duration
+	// Interval is how often the Node's prewarm annotations are read. Zero
+	// means defaultPrewarmInterval.
+	Interval time.Duration
 	// SyncRetry is how often an image the rack's image cache is still
 	// fetching is asked for again. Zero means defaultPrewarmSyncRetry.
 	SyncRetry time.Duration
@@ -66,25 +80,60 @@ type Prewarmer struct {
 // cache fetches its image (errMirrorSyncing).
 const defaultPrewarmSyncRetry = 30 * time.Second
 
+// defaultPrewarmInterval is how often a host checks which images it was asked
+// to hold. Promotion waits on the result, so this only adds to how long a
+// release takes to reach new runners, never to a job's wait.
+const defaultPrewarmInterval = time.Minute
+
+// prewarmImageAnnotationPrefix namespaces the Node annotations through which
+// the runners-controller asks this host to hold an image's golden base. The
+// value is the image ref and the suffix is the image hash goldenVMName uses.
+//
+// CONTRACT: must match the runners-controller's
+// `podtemplate.PrewarmImageAnnotationPrefix`.
+const prewarmImageAnnotationPrefix = "tuist.dev/prewarm-image-"
+
 // Start conforms to manager.Runnable. It never returns an error: a failed
 // prewarm only costs the first Pod of each image its pull.
 func (p *Prewarmer) Start(ctx context.Context) error {
+	if err := p.prewarmJoiningHost(ctx); err != nil {
+		return nil
+	}
+	if p.NodeName == "" {
+		return nil
+	}
+	interval := p.Interval
+	if interval <= 0 {
+		interval = defaultPrewarmInterval
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		p.prewarmRequested(ctx)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+// prewarmJoiningHost pulls the fleet's in-demand images while the gate keeps
+// Pods off a host that just registered. It returns an error only when ctx
+// ended while waiting on the gate.
+func (p *Prewarmer) prewarmJoiningHost(ctx context.Context) error {
 	logger := log.FromContext(ctx).WithName("prewarm")
 
 	held, err := p.Gate.Wait(ctx)
 	if err != nil {
-		return nil
+		return err
 	}
 	defer p.Gate.Release()
 	if !held || p.Fleet == "" {
 		return nil
 	}
 
-	timeout := p.Timeout
-	if timeout <= 0 {
-		timeout = defaultPrewarmTimeout
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, p.timeout())
 	defer cancel()
 
 	images, err := p.images(ctx)
@@ -112,10 +161,84 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 	return nil
 }
 
+// prewarmRequested downloads, one at a time, the images this host's Node
+// asks it to hold and does not hold yet. A pull stops below the prewarm disk
+// floor; the request stays and is retried on a later pass.
+func (p *Prewarmer) prewarmRequested(ctx context.Context) {
+	logger := log.FromContext(ctx).WithName("prewarm")
+
+	node := &corev1.Node{}
+	if err := p.K8s.Get(ctx, client.ObjectKey{Name: p.NodeName}, node); err != nil {
+		if !apierrors.IsNotFound(err) {
+			logger.Error(err, "read this host's prewarm requests")
+		}
+		return
+	}
+	for _, image := range requestedImages(node.Annotations) {
+		if ctx.Err() != nil {
+			return
+		}
+		held, err := p.Goldens.hasGolden(ctx, image)
+		if err != nil {
+			logger.Error(err, "check for a requested image's golden base", "image", image)
+			continue
+		}
+		if held {
+			continue
+		}
+		if free, err := p.DiskFree(); err == nil && free < prewarmMinFreePercent {
+			logger.Info("deferring requested image on disk space", "freePercent", free, "floorPercent", prewarmMinFreePercent, "image", image)
+			return
+		}
+		started := time.Now()
+		imageCtx, cancel := context.WithTimeout(ctx, p.timeout())
+		name, _, err := p.ensureGolden(imageCtx, image)
+		cancel()
+		if err != nil {
+			logger.Error(err, "download requested runner image", "image", image)
+			continue
+		}
+		logger.Info("downloaded requested runner image", "image", image, "golden", name, "duration", time.Since(started).String())
+	}
+}
+
+func (p *Prewarmer) timeout() time.Duration {
+	if p.Timeout > 0 {
+		return p.Timeout
+	}
+	return defaultPrewarmTimeout
+}
+
+// requestedImages returns the images named by prewarm annotations whose key
+// matches the image they name, sorted.
+func requestedImages(annotations map[string]string) []string {
+	var images []string
+	for key, image := range annotations {
+		if !strings.HasPrefix(key, prewarmImageAnnotationPrefix) || image == "" {
+			continue
+		}
+		if key != prewarmImageAnnotationPrefix+strings.TrimPrefix(goldenVMName(image), goldenBaseVMPrefix) {
+			continue
+		}
+		images = append(images, image)
+	}
+	sort.Strings(images)
+	return images
+}
+
 func (p *Prewarmer) images(ctx context.Context) ([]string, error) {
+	pools, err := listRunnerPools(ctx, p.K8s)
+	if err != nil {
+		return nil, err
+	}
+	return prewarmImages(pools, p.Fleet), nil
+}
+
+// listRunnerPools reads every RunnerPool as the slice tart-kubelet needs.
+func listRunnerPools(ctx context.Context, reader client.Reader) ([]prewarmPool, error) {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(runnerPoolListGVK)
-	if err := p.K8s.List(ctx, list); err != nil {
+	if err := reader.List(ctx, list); err != nil {
 		return nil, err
 	}
 	pools := make([]prewarmPool, 0, len(list.Items))
@@ -130,10 +253,10 @@ func (p *Prewarmer) images(ctx context.Context) ([]string, error) {
 		}
 		pools = append(pools, pool)
 	}
-	return prewarmImages(pools, p.Fleet), nil
+	return pools, nil
 }
 
-// prewarmPool is the slice of a RunnerPool the prewarmer reads.
+// prewarmPool is the slice of a RunnerPool tart-kubelet reads.
 type prewarmPool struct {
 	Spec struct {
 		Image         string `json:"image"`
@@ -145,6 +268,19 @@ type prewarmPool struct {
 			MinWarmPoolFloor *int32 `json:"minWarmPoolFloor"`
 		} `json:"autoscaling"`
 	} `json:"spec"`
+	Status struct {
+		ServingImage string `json:"servingImage"`
+	} `json:"status"`
+}
+
+// podImage is the image the pool's Pods run: its serving image once the
+// runners-controller has set one, which trails spec.image while a new image
+// is staged.
+func (p prewarmPool) podImage() string {
+	if p.Status.ServingImage != "" {
+		return p.Status.ServingImage
+	}
+	return p.Spec.Image
 }
 
 func (p prewarmPool) warmFloor() int32 {
@@ -170,10 +306,10 @@ func prewarmImages(pools []prewarmPool, fleet string) []string {
 		if pool.Spec.OS != "" && pool.Spec.OS != "darwin" {
 			continue
 		}
-		if pool.Spec.FleetSelector != fleet || pool.Spec.Image == "" {
+		if pool.Spec.FleetSelector != fleet || pool.podImage() == "" {
 			continue
 		}
-		c := candidate{image: pool.Spec.Image, floor: pool.warmFloor(), replicas: pool.Spec.Replicas}
+		c := candidate{image: pool.podImage(), floor: pool.warmFloor(), replicas: pool.Spec.Replicas}
 		if c.floor <= 0 && c.replicas <= 0 {
 			continue
 		}

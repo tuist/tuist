@@ -265,6 +265,13 @@ spec:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                servingImage:
+                  type: string
+                  description: Image new macOS Pods are built from. Trails spec.image until enough fleet hosts hold the new image's golden base, or the staging deadline counted from imageRolledAt passes. Linux Pods always use spec.image.
+                lastDemandAt:
+                  type: string
+                  format: date-time
+                  description: Last time this pool wanted runners (spec.replicas > 0). Hosts keep and stage the image of a pool with recent demand even while it sits at zero replicas.
                 unplaceableSince:
                   type: string
                   format: date-time

@@ -300,6 +300,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
+
 	tartClient := tart.New()
 	tartClient.Binary = tartBinary
 
@@ -337,6 +343,7 @@ func main() {
 			// 0 falls back to the collector's own default (1).
 			MinGoldensKept: minGoldensKept,
 			Images:         images,
+			Fleet:          nodeLabels["tuist.dev/fleet"],
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -450,12 +457,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
-	if err != nil {
-		setupLog.Error(err, "parse --node-labels")
-		os.Exit(1)
-	}
-
 	// Publish which golden base VMs this host holds as
 	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
 	// steer a pool's Pods toward hosts that can clone its image locally
@@ -483,10 +484,11 @@ func main() {
 	// nodeagent.PrewarmGate.
 	prewarmGate := nodeagent.NewPrewarmGate()
 	if err := mgr.Add(&podagent.Prewarmer{
-		K8s:     mgr.GetAPIReader(),
-		Goldens: reconciler,
-		Gate:    prewarmGate,
-		Fleet:   nodeLabels["tuist.dev/fleet"],
+		K8s:      mgr.GetAPIReader(),
+		Goldens:  reconciler,
+		Gate:     prewarmGate,
+		Fleet:    nodeLabels["tuist.dev/fleet"],
+		NodeName: nodeName,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")
 			if err != nil {

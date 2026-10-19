@@ -24,6 +24,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -57,6 +58,13 @@ type Collector struct {
 	// defaultGoldenRetention. Disk-pressure reclaim (RunOnceReclaim)
 	// ignores it.
 	GoldenRetention time.Duration
+
+	// Fleet is this Node's `tuist.dev/fleet` label. On a host whose fleet a
+	// RunnerPool serves, an unreferenced golden whose image no pool runs or
+	// stages any more is reaped without waiting out GoldenRetention: runner
+	// images roll often enough that superseded goldens would otherwise fill
+	// the disk. Empty keeps the retention window for every golden.
+	Fleet string
 
 	// Images, when set, names the rack image caches pulls may come from, so
 	// an OCI entry pulled through one counts as its upstream repository.
@@ -402,13 +410,14 @@ func (c *Collector) liveBackedGoldens(ctx context.Context) map[string]struct{} {
 
 // keepGolden decides whether to retain a golden base VM this pass and
 // stamps its last-seen time. A golden whose digest a current Pod still
-// references is always kept (and its retention clock reset). An
-// unreferenced golden is kept until GoldenRetention elapses since it was
-// last seen — except under `aggressive` reclaim, where unreferenced
-// always means reap. First unreferenced sighting starts the clock now
-// (covers a just-materialized golden the Pod List hasn't caught up to,
-// and pre-restart goldens), so it's never reaped on the very pass that
-// discovers it.
+// references, or that this host was asked to hold, is always kept (and its
+// retention clock reset). An unreferenced golden is kept until
+// GoldenRetention elapses since it was last seen — except under
+// `aggressive` reclaim, or when no RunnerPool names its image any more,
+// where unreferenced always means reap. First unreferenced sighting starts
+// the clock now (covers a just-materialized golden the Pod List hasn't
+// caught up to, and pre-restart goldens), so it's never reaped on the very
+// pass that discovers it.
 func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time, retention time.Duration, aggressive bool) bool {
 	c.goldenSeenMu.Lock()
 	defer c.goldenSeenMu.Unlock()
@@ -422,6 +431,11 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 	}
 	if aggressive {
 		return false
+	}
+	if expected.named != nil {
+		if _, named := expected.named[name]; !named {
+			return false
+		}
 	}
 	last, ok := c.goldenSeen[name]
 	if !ok {
@@ -493,6 +507,11 @@ type expectedSet struct {
 	// it on every pass, forcing the next golden materialization into a
 	// full multi-GB re-pull instead of a clonefile from the warm cache.
 	imageRepos map[string]struct{}
+	// named holds the golden base names of every image a RunnerPool runs or
+	// stages (spec.image and status.servingImage). An unreferenced golden
+	// outside it belongs to a superseded image and is reaped without waiting
+	// out GoldenRetention. Nil when the pools could not be listed.
+	named map[string]struct{}
 }
 
 func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
@@ -537,7 +556,59 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			out.vms[e.VMName] = struct{}{}
 		}
 	}
+
+	// Images the runners-controller asked this host to hold count as
+	// referenced, so a golden staged ahead of its pool's switch, or kept for a
+	// pool between sessions, survives an idle trough.
+	node := &corev1.Node{}
+	if err := c.K8s.Get(ctx, client.ObjectKey{Name: c.NodeName}, node); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	} else {
+		for _, image := range requestedImages(node.Annotations) {
+			out.vms[goldenVMName(image)] = struct{}{}
+			repository := ociRepository(image)
+			out.imageRepos[repository] = struct{}{}
+			for _, mirrored := range c.Images.mirroredRepositories(repository) {
+				out.imageRepos[mirrored] = struct{}{}
+			}
+		}
+	}
+
+	out.named = c.namedGoldens(ctx)
 	return out, nil
+}
+
+// namedGoldens returns the golden base names of every image a RunnerPool runs
+// or stages, or nil when that cannot tell superseded goldens apart: the pools
+// could not be listed, or no pool serves this host's fleet (a host running
+// other Tart workloads, whose images no RunnerPool names).
+func (c *Collector) namedGoldens(ctx context.Context) map[string]struct{} {
+	if c.Fleet == "" {
+		return nil
+	}
+	pools, err := listRunnerPools(ctx, c.K8s)
+	if err != nil {
+		log.FromContext(ctx).WithName("gc").Info("list runner pools; keeping unreferenced golden bases for the retention window", "error", err.Error())
+		return nil
+	}
+	named := map[string]struct{}{}
+	served := false
+	for _, pool := range pools {
+		if pool.Spec.FleetSelector == c.Fleet {
+			served = true
+		}
+		for _, image := range []string{pool.Spec.Image, pool.Status.ServingImage} {
+			if image != "" {
+				named[goldenVMName(image)] = struct{}{}
+			}
+		}
+	}
+	if !served {
+		return nil
+	}
+	return named
 }
 
 // ociRepository strips the tag and/or digest from an OCI image

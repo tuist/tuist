@@ -56,7 +56,8 @@ rules:
     resources: [serviceaccounts/token]
     verbs: [create]
   # A joining host reads the RunnerPools its fleet serves to pull their
-  # images before it takes Pods (tart-kubelet's podagent.Prewarmer).
+  # images before it takes Pods (tart-kubelet's podagent.Prewarmer), and the
+  # GC reads which images pools still run or stage.
   - apiGroups: ["tuist.dev"]
     resources: [runnerpools]
     verbs: [get, list]

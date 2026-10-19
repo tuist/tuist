@@ -62,7 +62,9 @@ func (l *poolLister) List(_ context.Context, list client.ObjectList, _ ...client
 
 type recordingGoldens struct {
 	pulled []string
-	err    map[string]error
+	// held lists images whose golden base is already on disk.
+	held map[string]bool
+	err  map[string]error
 	// onPull runs after each pull, standing in for the disk it consumes.
 	onPull func()
 }
@@ -76,6 +78,15 @@ func (g *recordingGoldens) ensureGolden(_ context.Context, image string) (string
 		return "", false, err
 	}
 	return goldenVMName(image), true, nil
+}
+
+func (g *recordingGoldens) hasGolden(_ context.Context, image string) (bool, error) {
+	for _, pulled := range g.pulled {
+		if pulled == image && g.err[image] == nil {
+			return true, nil
+		}
+	}
+	return g.held[image], nil
 }
 
 type fakeGate struct {

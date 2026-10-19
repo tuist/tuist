@@ -208,9 +208,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Setting on first reconcile (when `ObservedImage` is empty) is
 	// fine — there are no stale Pods yet, and the timestamp just
 	// establishes the t=0 baseline for any future roll.
+	//
+	// A macOS pool first seen without a serving image keeps serving the
+	// image the controller last observed, which is what its Pods run.
+	if pool.Spec.OS != "linux" && pool.Status.ServingImage == "" {
+		pool.Status.ServingImage = pool.Status.ObservedImage
+		if pool.Status.ServingImage == "" {
+			pool.Status.ServingImage = pool.Spec.Image
+		}
+	}
 	if pool.Status.ObservedImage != pool.Spec.Image {
 		pool.Status.ObservedImage = pool.Spec.Image
-		pool.Status.ImageRolledAt = metav1.Now()
+		pool.Status.ImageRolledAt = metav1.NewTime(r.now())
+	}
+	recordDemand(pool, r.now())
+
+	// Image staging. A macOS pool keeps building Pods from its serving
+	// image until enough hosts hold spec.image, so a release does not put a
+	// full image download in front of the next job on every host. Failures
+	// leave the pool on its serving image; the staging deadline still
+	// bounds how long that lasts.
+	if err := r.reconcileImageStaging(ctx, pool); err != nil {
+		logger.Error(err, "reconcile image staging; will retry next tick")
 	}
 
 	// Count Pods owned by this pool that are alive (not in a
@@ -1102,15 +1121,15 @@ func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 }
 
 // isStaleImage returns true when the Pod's runner container image
-// no longer matches the RunnerPool's spec.image — i.e., the chart
-// has rolled the image pin since this Pod was created. Used to
+// no longer matches the image the pool's Pods run (PodImage) — i.e.,
+// the pool has promoted a new image since this Pod was created. Used to
 // recycle Pending Pods on the next reconcile so a fresh image rolls
 // out without an operator-driven `kubectl delete pod` dance.
 func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 	if len(pod.Spec.Containers) == 0 {
 		return false
 	}
-	return pod.Spec.Containers[0].Image != pool.Spec.Image
+	return pod.Spec.Containers[0].Image != pool.PodImage()
 }
 
 // isStaleRuntimeClassRevision compares the revision Helm stamped on

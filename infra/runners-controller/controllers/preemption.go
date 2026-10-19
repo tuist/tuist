@@ -342,7 +342,7 @@ func (r *AutoscalerReconciler) nodesHoldingStarvedImages(
 		if input.starvedNeed() <= 0 {
 			continue
 		}
-		if image := fleet.members[input.name].pool.Spec.Image; image != "" {
+		if image := fleet.members[input.name].pool.PodImage(); image != "" {
 			keys = append(keys, podtemplate.GoldenNodeAffinityKey(image))
 		}
 	}

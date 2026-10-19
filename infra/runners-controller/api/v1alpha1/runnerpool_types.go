@@ -367,6 +367,22 @@ type RunnerPoolStatus struct {
 	// +optional
 	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
 
+	// ServingImage is the image new Pods are built from. On macOS it
+	// trails `spec.image` until enough of the fleet's hosts hold the new
+	// image's golden base, or until the staging deadline passes, so a
+	// release does not make the next job on every host download it. The
+	// deadline counts from `imageRolledAt`.
+	// Linux Pods always use `spec.image`.
+	// +optional
+	ServingImage string `json:"servingImage,omitempty"`
+
+	// LastDemandAt is the last time this pool wanted runners
+	// (`spec.replicas > 0`). Hosts keep the image of a pool with recent
+	// demand on disk, and stage its next image, even while the pool sits
+	// at zero replicas.
+	// +optional
+	LastDemandAt *metav1.Time `json:"lastDemandAt,omitempty"`
+
 	// UnplaceableSince is when this pool most recently began holding
 	// demand the scheduler could not place, and has held continuously
 	// since. Nil means the pool is placing everything it wants.
@@ -409,6 +425,15 @@ type RunnerPoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []RunnerPool `json:"items"`
+}
+
+// PodImage is the image the pool's Pods run: `status.servingImage` on
+// macOS once the controller has set it, `spec.image` otherwise.
+func (p *RunnerPool) PodImage() string {
+	if p.Spec.OS == "linux" || p.Status.ServingImage == "" {
+		return p.Spec.Image
+	}
+	return p.Status.ServingImage
 }
 
 func init() {
