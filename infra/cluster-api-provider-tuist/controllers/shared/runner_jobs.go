@@ -1,4 +1,4 @@
-package linux
+package shared
 
 import (
 	"context"
@@ -14,19 +14,22 @@ import (
 )
 
 const (
-	runnerPodNamespace        = "tuist-runners"
-	runnerPodLabel            = "tuist.dev/runner"
-	runnerJobsRecheckInterval = 30 * time.Second
+	runnerPodNamespace = "tuist-runners"
+	runnerPodLabel     = "tuist.dev/runner"
+
+	// RunnerJobsRecheckInterval is how soon a release held by
+	// HoldReleaseForRunnerJobs looks at the Node's runner Pods again.
+	RunnerJobsRecheckInterval = 30 * time.Second
 )
 
-// holdReleaseForRunnerJobs cordons the box's Node and returns the runner Pods
-// on it still running a CI job. Cluster API never drains Machines in these
-// clusters (they have no control plane Machines), so this is the runner
-// fleet's drain: job Pods are waited on, never evicted, and the
-// runners-controller retires idle runner Pods once the Node is cordoned. A
+// HoldReleaseForRunnerJobs cordons the Node of a Machine being deleted and
+// returns the runner Pods on it still running a CI job. Cluster API never
+// drains Machines in these clusters (they have no control plane Machines), so
+// this is the runner fleet's drain: job Pods are waited on, never evicted, and
+// the runners-controller retires idle runner Pods once the Node is cordoned. A
 // terminating Pod on an unreachable Node is not waited on, since its kubelet
 // can never confirm it.
-func holdReleaseForRunnerJobs(ctx context.Context, c client.Client, nodeName string) ([]string, error) {
+func HoldReleaseForRunnerJobs(ctx context.Context, c client.Client, nodeName string) ([]string, error) {
 	node := &corev1.Node{}
 	if err := c.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -62,7 +65,9 @@ func holdReleaseForRunnerJobs(ctx context.Context, c client.Client, nodeName str
 	return running, nil
 }
 
-func releaseHeldMessage(nodeName string, running []string) string {
+// ReleaseHeldMessage is the event message for a release HoldReleaseForRunnerJobs
+// is holding.
+func ReleaseHeldMessage(nodeName string, running []string) string {
 	shown := running
 	if len(shown) > 5 {
 		shown = shown[:5]

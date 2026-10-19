@@ -8,9 +8,10 @@ Two reconcilers, both on the same `RunnerPool` resource but with
 independent workqueues:
 
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match
-  `spec.replicas`. Idle Pods (those without the
-  `tuist.dev/runner-pool-owner` label) are the only ones eligible for
-  scale-down deletion; runners mid-job are never killed. It also owns
+  `spec.replicas`. Idle Pods (`isIdle`: no `tuist.dev/runner-pool-owner`
+  label, no exited Linux `poller`, no `claimed` macOS guest beat) are the
+  only ones eligible for scale-down deletion; runners mid-job are never
+  killed. It also owns
   a `tuist.dev/runner-pool-drain` finalizer: deleting or renaming a
   RunnerPool (e.g. a helm pool-topology change) would otherwise let
   GC cascade-delete the owned Pods — busy ones included — so the
@@ -304,8 +305,8 @@ independent workqueues:
     and a runner Pod becomes job-owning in place — so a priority high
     enough to evict for the large Pod would also kill customer builds.
     The signal that separates them (`isIdle`) reads init-container
-    status the scheduler never sees, which is why this lives in the
-    controller.
+    status and the guest heartbeat, which the scheduler never sees,
+    which is why this lives in the controller.
 
   Only nodes that report `Ready=True`, remain schedulable, carry no
   `tuist.dev/prewarming` taint (a joining macOS host still pulling its
@@ -640,9 +641,11 @@ independent workqueues:
   every poll and tart-kubelet republishes it as
   `tuist.dev/runner-heartbeat-state` (`polling` / `claimed`) plus
   `tuist.dev/runner-heartbeat-at`; a `polling` beat older than
-  `guestHeartbeatStaleAfter` stops counting. Linux needs none of it — the
-  poller is an init container, so the container runtime already reports
-  whether it is running.
+  `guestHeartbeatStaleAfter` stops counting. A `claimed` beat also makes
+  `isIdle` treat the Pod as busy without the owner label, the way an exited
+  `poller` does on Linux. Linux needs none of it — the poller is an init
+  container, so the container runtime already reports whether it is
+  running.
 
   **Absence is not death.** A Pod carrying no heartbeat annotations is one
   the host cannot speak for: pools with the cache-volume feature off have
@@ -931,18 +934,24 @@ running its Pods and takes new ones within a minute; no reboot is needed.
 
 Replacing a box means deleting its Machine: the fleet MachineDeployment
 is `strategy: OnDelete`, so nothing else rolls one, and lowering
-`ovhFleets.runners-linux.replicas` deletes a Machine the same way.
+`ovhFleets.runners-linux.replicas` deletes a Machine the same way. The
+macOS hosts go the same way: a Scaleway Mac mini's Machine is deleted by
+a scale-down, a replacement or a remediation, and a rack host's by
+parking, retiring or remediating it.
 Cluster API core never drains a Machine in the workload clusters. Their
 CAPI `Cluster` has no control plane Machines, so Machine deletion skips
 the drain, and with it every `MachineDrainRule`, and goes straight to
-the `OVHDedicatedMachine` (the CAPI controller logs `Skipping deletion
+the infrastructure Machine (the CAPI controller logs `Skipping deletion
 of Kubernetes Node ... cause="no control plane members"`). The
-provider's release deletes the Node and reinstalls the box, which kills
-whatever still runs there, so it waits for the box's CI jobs first. Two
-pieces make that wait, and neither works without the other:
+provider's release deletes the Node and reinstalls or revokes the host,
+which kills whatever still runs there, so it waits for the host's CI jobs
+first. This holds for the `OVHDedicatedMachine`, `VultrMachine`,
+`ScalewayElasticMetalMachine`, `ScalewayAppleSiliconMachine` and
+`RackAppleSiliconMachine` kinds. Two pieces make that wait, and neither
+works without the other:
 
-1. **The release wait** (`holdReleaseForRunnerJobs` in
-   `infra/cluster-api-provider-tuist/controllers/linux/runner_jobs.go`)
+1. **The release wait** (`HoldReleaseForRunnerJobs` in
+   `infra/cluster-api-provider-tuist/controllers/shared/runner_jobs.go`)
    cordons the Node and holds the release while any Pod labeled
    `tuist.dev/runner=true` in `tuist-runners` on it has not reached a
    terminal phase. It never evicts them. Runner Pods are single-shot
@@ -961,24 +970,27 @@ label. This is also why a PodDisruptionBudget cannot do this job: a PDB
 selects on labels, and that label is best-effort. The server degrades
 to running a job without it rather than dropping the job when the
 apiserver patch fails. `isIdle` additionally treats a terminated
-`poller` init container as proof of a claim, so a Pod running a job
-survives even when the label never landed.
+`poller` init container (Linux) or a `claimed` guest heartbeat (macOS)
+as proof of a claim, so a Pod running a job survives even when the label
+never landed. A macOS host with no status share publishes no beat, and
+there the label is the only signal.
 
 To replace a box, delete its Machine and follow the release:
 
 ```bash
 kubectl -n <namespace> delete machine <machine-name>
 kubectl -n <namespace> describe ovhdedicatedmachine <machine-name>
+# or scalewayapplesiliconmachine / rackapplesiliconmachine on macOS
 ```
 
-While the release waits, the `OVHDedicatedMachine` stays `Deleting` and
+While the release waits, the infrastructure Machine stays `Deleting` and
 its `WaitingForRunnerJobs` event names the jobs still running. The wait
 lasts as long as the node's longest in-flight job, up to six hours for a
 Linux job, and has no deadline; deleting the Pods it names releases the
 box sooner and kills those jobs. A terminating Pod on an unreachable Node
 does not hold the release, so a dead box is released once its Pods are
-evicted, about 5 minutes after the Node goes unreachable. The fleet then
-runs one box short for the ~20-40 min reinstall and the self-join.
+evicted, about 5 minutes after the Node goes unreachable. An OVH fleet
+then runs one box short for the ~20-40 min reinstall and the self-join.
 
 ### Emergency SSH access
 

@@ -849,6 +849,21 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
+	// Stage 0: wait for the CI jobs running on the host. Cluster API never
+	// drains this cluster's Machines, so the release cordons the Node and
+	// holds until no runner Pod on it is still running a job. Everything
+	// below ends those jobs: the reinstall wipes the host and the revoked
+	// identity stops tart-kubelet reporting them.
+	running, err := shared.HoldReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "WaitingForRunnerJobs", "%s",
+			shared.ReleaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: shared.RunnerJobsRecheckInterval}, nil
+	}
+
 	// Stage 1: release the Scaleway server back into the pool —
 	// rename + reinstall — so the host stays alive for the next
 	// adopt. Skip if already released (mid-cleanup retry).

@@ -1758,7 +1758,8 @@ rackFleet:
   #                             # instead.
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
-  #                             # host deletes its Node undrained
+  #                             # host cordons its Node and deletes it once
+  #                             # the runner jobs on it have finished
   #     nodeFleet: ""           # lends the host to another fleet's runner pools:
   #                             # its Node's tuist.dev/fleet label, which the
   #                             # rack fleet's own pools then skip
