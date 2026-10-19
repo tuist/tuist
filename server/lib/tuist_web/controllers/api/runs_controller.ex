@@ -29,6 +29,7 @@ defmodule TuistWeb.API.RunsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
@@ -247,6 +248,7 @@ defmodule TuistWeb.API.RunsController do
     summary: "Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.",
     deprecated: true,
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -856,6 +858,7 @@ defmodule TuistWeb.API.RunsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case Map.get(body_params, :type, "build") do
       "build" ->
@@ -923,6 +926,9 @@ defmodule TuistWeb.API.RunsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -978,6 +984,9 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

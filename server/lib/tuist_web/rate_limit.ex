@@ -4,6 +4,9 @@ defmodule TuistWeb.RateLimit do
   explicitly selected fixed-window callers may use a reduced node-local outage budget.
   Installations without Valkey use an approximate in-memory limiter.
 
+  Set `:fallback` to false to distinguish configured Valkey backend failures
+  from quota denials. Such failures return `{:error, :unavailable}` and never
+  use a local outage budget, even when `:failure_policy` is `:local`.
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
   """
@@ -91,7 +94,11 @@ defmodule TuistWeb.RateLimit do
 
     with_failure_denial(
       fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> shared_failure(:token_bucket, :deny, fn -> {:deny, ceil(cost / refill_rate * 1000)} end) end
+      fn ->
+        shared_failure(:token_bucket, :deny, fn ->
+          if opts[:fallback] == false, do: {:error, :unavailable}, else: {:deny, ceil(cost / refill_rate * 1000)}
+        end)
+      end
     )
   end
 
@@ -131,10 +138,14 @@ defmodule TuistWeb.RateLimit do
   end
 
   defp fixed_window_failure(key, opts, window) do
-    policy = if opts[:failure_policy] == :local, do: :local, else: :deny
+    policy = if opts[:failure_policy] == :local and opts[:fallback] != false, do: :local, else: :deny
 
     shared_failure(:fixed_window, policy, fn ->
-      if policy == :local, do: hit_local(key, opts, window), else: {:deny, window}
+      cond do
+        opts[:fallback] == false -> {:error, :unavailable}
+        policy == :local -> hit_local(key, opts, window)
+        true -> {:deny, window}
+      end
     end)
   end
 

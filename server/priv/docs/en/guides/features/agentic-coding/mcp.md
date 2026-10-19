@@ -38,7 +38,9 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After browser authorization or claim, the credential is user-scoped and each tool applies the same authorization checks as the dashboard. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
+Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
+
+Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>

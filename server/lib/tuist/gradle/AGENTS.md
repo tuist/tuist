@@ -13,6 +13,7 @@ This context owns Gradle report ingestion, task rankings and execution details.
 
 Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 
+- ID-only `Gradle.get_build/1` fails closed for UUIDs shared by multiple projects. Scoped lookups remain available and every child query uses the authorized parent's project as well as its build ID.
 - `Gradle.get_task/3` retrieves one execution with UUID validation and both project/build scoping; never expose task details by task ID alone.
 
 - Keep task telemetry limited to identity, cacheability, incremental status, and cache outcomes used by the Tasks UI, plus transfer durations needed by existing throughput widgets. Do not collect unused explanations, build options, or duplicate project paths.

@@ -9,6 +9,8 @@ defmodule Tuist.Mix.Build do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  alias Tuist.Accounts.Account
+
   @derive {
     Flop.Schema,
     filterable: [
@@ -35,7 +37,11 @@ defmodule Tuist.Mix.Build do
     field :id, Ch, type: "UUID"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
     field :duration_ms, Ch, type: "UInt64"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
     field :is_ci, Ch, type: "Bool"

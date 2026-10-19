@@ -327,6 +327,15 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :report_publishing_api do
+    plug :put_request_kind, "api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.ReportPublishingAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :ops_api do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
   end
@@ -712,6 +721,16 @@ defmodule TuistWeb.Router do
     patch "/Groups/:id", GroupsController, :patch
   end
 
+  scope "/api", TuistWeb.API, assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
+    pipe_through [:open_api, :report_publishing_api, :on_premise_api]
+    post "/projects/:account_handle/:project_handle/gradle/builds", GradleController, :create_build
+    post "/projects/:account_handle/:project_handle/builds", BuildsController, :create
+    post "/projects/:account_handle/:project_handle/xcode/builds", BuildsController, :create
+    post "/projects/:account_handle/:project_handle/mix/builds", MixController, :create_build
+    post "/projects/:account_handle/:project_handle/tests", TestsController, :create
+    post "/projects/:account_handle/:project_handle/bazel/publishing", BazelPublishingController, :create
+  end
+
   scope path: "/api",
         alias: TuistWeb.API,
         assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
@@ -844,7 +863,6 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
-          post "/", TestsController, :create
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
@@ -894,7 +912,6 @@ defmodule TuistWeb.Router do
           end
 
           get "/:build_id", BuildsController, :show
-          post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
           post "/upload/generate-url", BuildsController, :multipart_generate_url
           post "/upload/complete", BuildsController, :multipart_complete
@@ -919,7 +936,6 @@ defmodule TuistWeb.Router do
             get "/:build_id/cache-tasks", BuildCacheTasksController, :index
             get "/:build_id/cas-outputs", BuildCASOutputsController, :index
             get "/:build_id", BuildsController, :show
-            post "/", BuildsController, :create
           end
         end
 
@@ -929,7 +945,6 @@ defmodule TuistWeb.Router do
           get "/tasks/:task_id/executions", GradleTaskDetailsController, :history
           get "/builds/metrics", MetricsController, :gradle_metrics
           get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
-          post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
           get "/builds/:build_id/steps", GradleBuildStepsController, :index
@@ -941,7 +956,6 @@ defmodule TuistWeb.Router do
         end
 
         scope "/mix" do
-          post "/builds", MixController, :create_build
           get "/files", MixFilesController, :index
           get "/files/:file_id", MixFilesController, :show
           get "/files/:file_id/compilations", MixFilesController, :history
