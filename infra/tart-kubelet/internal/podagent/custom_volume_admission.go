@@ -42,6 +42,11 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 func (c *CustomVolumes) reservedBytes() uint64 {
 	var total uint64
 	for id, slot := range c.reservations {
+		// A clone reports the master's shared blocks as allocated; reserve its budget.
+		if slot.Kind == cachevolumes.KindCheckout {
+			total += cachevolumes.CheckoutGrowthBytes
+			continue
+		}
 		// Only a restore retains both an archive and an expanded master.
 		if slot.State != "active" {
 			total += customAdmissionBytes(slot)
@@ -59,6 +64,9 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 }
 
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
+	if slot.Kind == cachevolumes.KindCheckout {
+		return cachevolumes.CheckoutGrowthBytes
+	}
 	if slot.BaseGeneration > 0 {
 		return 2 * customCapacity
 	}

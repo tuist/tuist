@@ -60,6 +60,9 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			// Cold creation has no downloaded archive beside the private image.
 			minimum = uint64(b.SizeGB) * 1_000_000_000
 		}
+		if slot.Kind == KindCheckout {
+			minimum = CheckoutGrowthBytes
+		}
 		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}

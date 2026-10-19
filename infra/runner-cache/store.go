@@ -36,6 +36,10 @@ type Identity struct {
 
 const KindCheckout = "checkout"
 
+// CheckoutGrowthBytes is what a checkout clone is admitted with: it shares the
+// master's blocks, so only the job's writes to its workspace take new space.
+const CheckoutGrowthBytes = 8_000_000_000
+
 type Slot struct {
 	Identity
 	PodUID        string    `json:"pod_uid"`

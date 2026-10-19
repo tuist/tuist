@@ -418,3 +418,30 @@ func TestCheckoutIdentitiesNeverPublishOrCarryHeads(t *testing.T) {
 		}
 	}
 }
+
+func TestAPFSCheckoutCloneAdmitsOnItsGrowthBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		free         uint64
+		wantCapacity bool
+	}{
+		{name: "growth budget fits", free: CheckoutGrowthBytes},
+		{name: "growth budget does not fit", free: CheckoutGrowthBytes - 1, wantCapacity: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := newAPFS(t)
+			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
+			b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, []byte("checkout"), 0600) }
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			slot.Kind, slot.Generation = KindCheckout, 3
+			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
+			if tc.wantCapacity {
+				if !errors.Is(err, ErrCapacity) {
+					t.Fatalf("expected capacity rejection, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
