@@ -3,6 +3,7 @@ import TuistAuthentication
 
 public struct DesktopSettingsView: View {
     @AppStorage("showMenuBarExtra") private var showMenuBarExtra = false
+    @State private var serverInfo: (url: URL, version: String)?
     @ObservedObject private var applicationModel: MacApplicationModel
     @ObservedObject private var authenticationService: AuthenticationService
 
@@ -46,7 +47,13 @@ public struct DesktopSettingsView: View {
                 case let .loggedIn(account, _):
                     LabeledContent("Account", value: account.handle)
                     LabeledContent("Email", value: account.email)
-                    LabeledContent("Server", value: AppServerEnvironmentService().url().absoluteString)
+                    LabeledContent("Server") {
+                        Text(AppServerEnvironmentService().url().absoluteString)
+                            .textSelection(.enabled)
+                    }
+                    if let serverInfo, serverInfo.url == AppServerEnvironmentService().url() {
+                        LabeledContent("Server version", value: serverInfo.version)
+                    }
                     Button("Sign Out") {
                         applicationModel.errorHandling.fireAndHandleError {
                             await authenticationService.signOut()
@@ -59,5 +66,13 @@ public struct DesktopSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .task(id: authenticationService.authenticationState) {
+            serverInfo = nil
+            guard case .loggedIn = authenticationService.authenticationState else { return }
+            let url = AppServerEnvironmentService().url()
+            let version = await AppServerInfoService().version(for: url)
+            guard !Task.isCancelled, url == AppServerEnvironmentService().url(), let version else { return }
+            serverInfo = (url: url, version: version)
+        }
     }
 }

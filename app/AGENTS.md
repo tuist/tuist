@@ -10,7 +10,7 @@ This node covers the Tuist companion app under `app/`. The app provides a native
 - `Sources/TuistProjects` - Shared project context and native project switcher for both platforms; see `Sources/TuistProjects/AGENTS.md`. Preferences and recent projects are scoped by server and account, independently of feature models.
 - `Tests/TuistPreviewsTests` - iOS project context, preview, and Home state tests (the `TuistPreviews` scheme)
 - `Sources/TuistOnboarding` - iOS onboarding flow
-- `Sources/TuistProfile` - iOS user profile
+- `Sources/TuistProfile` - iOS user profile, including the connected server address and optional deployment version. Both iOS Profile and macOS Account settings use `AppServerInfoService` for lazy, nonblocking metadata discovery; see `../server/server-info.md`. Preserve normal operation on servers without the endpoint and keep app/server versions distinct.
 - `Sources/TuistNoora` - iOS design system components
 - `Sources/TuistErrorHandling` - Shared error handling
 - `Sources/TuistAppStorage` - Shared storage utilities

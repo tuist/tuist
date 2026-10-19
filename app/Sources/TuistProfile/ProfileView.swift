@@ -10,6 +10,7 @@ public struct ProfileView: View {
     @EnvironmentObject private var authenticationService: AuthenticationService
     private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     @State private var showDeleteConfirmation = false
+    @State private var serverInfo: (url: URL, version: String)?
 
     private let account: Account
 
@@ -66,6 +67,18 @@ public struct ProfileView: View {
             }
 
             Section {
+                LabeledContent("Server") {
+                    Text(serverURL.absoluteString)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+                if let serverInfo, serverInfo.url == serverURL {
+                    LabeledContent("Server version", value: serverInfo.version)
+                }
+            }
+            .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
+
+            Section {
                 HStack {
                     Text("App version")
                         .font(.body)
@@ -103,6 +116,13 @@ public struct ProfileView: View {
         }
         .listStyle(.insetGrouped)
         .background(Noora.Colors.surfaceBackgroundPrimary)
+        .task(id: serverURL) {
+            let url = serverURL
+            serverInfo = nil
+            let version = await AppServerInfoService().version(for: url)
+            guard !Task.isCancelled, url == serverURL, let version else { return }
+            serverInfo = (url: url, version: version)
+        }
         .alert("Delete Account", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
@@ -113,6 +133,10 @@ public struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
+    }
+
+    private var serverURL: URL {
+        AppServerEnvironmentService().url()
     }
 
     private var appVersion: String {
