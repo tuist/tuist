@@ -211,5 +211,15 @@ defmodule TuistWeb.AuthenticationPlug do
     end
   end
 
+  # An access token a user granted through the browser authorization flow, or
+  # one issued when they claimed an `auth.md` registration.
+  defp put_claimed_agent_user(conn, %AuthenticatedAccount{scopes: scopes, issued_by: %User{} = user}) do
+    if conn.request_path == "/mcp" and "mcp" in scopes do
+      TuistWeb.Authentication.put_current_user(conn, user)
+    else
+      conn
+    end
+  end
+
   defp put_claimed_agent_user(conn, _subject), do: conn
 end

@@ -381,3 +381,93 @@ func TestHandoverWaitsForTheResumedServingGrant(t *testing.T) {
 		t.Fatal(next)
 	}
 }
+
+func preparationFixture(t *testing.T) (*ServingAuthorityReconciler, *kurav1alpha1.KuraInstance, map[string]runtimeStatus, servingGrant) {
+	t.Helper()
+	r, instance, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	source := statuses["test-0"]
+	source.ServingAuthority.Valid, source.ServingAuthority.Epoch, source.ServingAuthority.Observed = true, grant.Epoch, &grant
+	statuses["test-0"] = source
+	target := statuses["test-1"]
+	target.ServingAuthority.PreparationSupported = true
+	statuses["test-1"] = target
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.PlannedHandover = &kurav1alpha1.PlannedHandoverRequest{ID: "prepare", PodName: "test-1", PodUID: target.ServingAuthority.Identity.PodUID, Incarnation: target.ServingAuthority.Identity.Incarnation}
+	if err := r.Update(context.Background(), instance); err != nil {
+		t.Fatal(err)
+	}
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Handover == nil || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Barrier != nil {
+		t.Fatal("preparation changed serving authority", next)
+	}
+	return r, instance, statuses, next
+}
+
+func TestHandoverPreparationRenewsSourceAndRequiresExactCompletion(t *testing.T) {
+	r, _, statuses, grant := preparationFixture(t)
+	preparationDeadline := grant.Handover.DeadlineMS
+	grant.ExpiresMS = time.Now().UnixMilli() + 7000
+	writeAuthorityGrant(t, r, grant)
+	renewed := authorityStep(t, r)
+	if renewed.Phase != "Serving" || renewed.ExpiresMS <= grant.ExpiresMS || renewed.Handover.DeadlineMS != preparationDeadline {
+		t.Fatal("pending preparation did not renew only the serving lease", renewed)
+	}
+	target := statuses["test-1"]
+	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true}
+	target.ServingAuthority.Preparation = preparation
+	statuses["test-1"] = target
+	if next := authorityStep(t, r); next.Phase != "Serving" {
+		t.Fatal("stale preparation authorized quiescence", next)
+	}
+	preparation.Epoch = grant.Epoch
+	preparation.Intent.Destination.Incarnation = "stale"
+	if next := authorityStep(t, r); next.Phase != "Serving" {
+		t.Fatal("wrong destination preparation accepted", next)
+	}
+	preparation.Intent = *grant.Handover
+	before := time.Now().UnixMilli()
+	next := authorityStep(t, r)
+	if next.Phase != "Quiescing" || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Barrier != nil || next.Handover.DeadlineMS < before+300000 || next.Handover.DeadlineMS > time.Now().UnixMilli()+300000 {
+		t.Fatal("completed preparation did not start the original bounded barrier", next)
+	}
+}
+
+func TestHandoverPreparationAbortsWithoutGrantingStandbyAuthority(t *testing.T) {
+	for _, scenario := range []string{"deadline", "cancel", "destination-replaced", "failure", "source-expired"} {
+		t.Run(scenario, func(t *testing.T) {
+			r, instance, statuses, grant := preparationFixture(t)
+			switch scenario {
+			case "deadline":
+				grant.Handover.DeadlineMS = time.Now().UnixMilli() - 1
+				writeAuthorityGrant(t, r, grant)
+			case "cancel":
+				instance.Spec.PlannedHandover = nil
+				if err := r.Update(context.Background(), instance); err != nil {
+					t.Fatal(err)
+				}
+			case "destination-replaced":
+				target := statuses["test-1"]
+				target.ServingAuthority.Identity.Incarnation = "replacement"
+				statuses["test-1"] = target
+			case "failure":
+				target := statuses["test-1"]
+				target.ServingAuthority.Preparation = &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch, Error: "retained repair failed"}
+				statuses["test-1"] = target
+			case "source-expired":
+				grant.ExpiresMS = time.Now().UnixMilli()
+				writeAuthorityGrant(t, r, grant)
+			}
+			next := authorityStep(t, r)
+			expected := "Serving"
+			if scenario == "source-expired" {
+				expected = "Fencing"
+			}
+			if next.Phase != expected || next.Holder != grant.Holder || next.Epoch != grant.Epoch || next.Handover != nil || next.LastHandover != "prepare" || next.Barrier != nil {
+				t.Fatal("preparation abort changed writer or retained a blocking intent", next)
+			}
+		})
+	}
+}

@@ -26,6 +26,9 @@ may require a separate browser sign-in. Personal settings are native and use the
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
   restore button.
+- `ios/distribution/`: post-build ad-hoc device signing and IPA packaging; see
+  `ios/distribution/AGENTS.md`. Reuse the Tuist distribution certificate with an
+  Atlas-specific profile; device enrollment and 1Password setup are in the README.
 - `previews/`: isolated native Settings screenshot harnesses and UI tests; see `previews/AGENTS.md`.
 - `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
   light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
@@ -128,8 +131,12 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - `Info.plist` is a complete template, not a merge into Once's default plist.
   Keep its identifier, executable, families and supported platform consistent
   with the manifest, and smoke-test simulator installation after changes.
-- Mobile builds are arm64 Android debug APKs and arm64 iOS simulator apps. Store
-  delivery requires separate device targets, signing, app icons and store setup.
+- Mobile builds are arm64 Android debug APKs, arm64 iOS simulator apps and arm64
+  iOS device apps. `AtlasIOSDevice` uses separate device Rust targets and shared
+  production Swift sources; do not ship screenshot fixtures. CI device builds use
+  only the local cache, not the shared cache accessible to PRs. Main-branch delivery
+  provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
+  still requires app icons and store setup.
   The CLI builds for the host and is distributed as an executable tar archive;
   it must not be sent to Tuist's mobile preview endpoints.
 - GitHub CI uses the existing private Once project. Its repository connection to
@@ -141,5 +148,8 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   only for `atlas-native/**` changes and skips draft PRs. Keep building, testing
   and each language's linting in distinct jobs. There is no unconditional merge
   queue trigger because it cannot apply GitHub path filters.
-- Main-branch delivery uses the `nightly` Tuist preview track, gated by all build,
-  test and lint jobs. Forks use local caching and no OIDC; no PR publishes previews.
+- Main-branch delivery uses the `nightly` Tuist preview track for APK, simulator
+  app and signed device IPA, gated by all build, test and lint jobs. Only the
+  protected publication job's signing step receives 1Password access; upload
+  steps do not. Forks use local caching
+  and no OIDC; no PR publishes previews or receives distribution credentials.

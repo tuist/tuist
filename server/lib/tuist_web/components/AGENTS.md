@@ -3,6 +3,9 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- The project sidebar accepts `previews_available` from the authorized layout.
+  Keep Xcode/Gradle's default Previews entry; other build systems gain it after
+  their first preview upload without database queries during component rendering.
 - Preview cards show app/build metadata and a single truncated first nonblank release-notes line. Share the plain-text summary helper with the previews table; never render notes as HTML or Markdown. Full notes remain on the preview detail page.
 - `Runs.RanByBadge.run_ran_by_badge_cell/1` is shared by command/run tables and persistent build-entity activity. Render CI with the shared settings badge, known local reporting accounts with the user badge, and missing environment/attribution as Unknown. Nullable environment must not become local or expose an inferred actor.
 - `LayoutComponents.head_canonical_link` shares canonical URLs across marketing, docs, and app layouts. Project descriptions fall back to page and project identity; preserve explicit descriptions and keep social URL metadata aligned with the canonical URL.
@@ -14,7 +17,7 @@ This area owns shared UI components for LiveView and templates.
 - Pass the build source to the shared timeline. Bazel uses a full-width CPU chart above memory and network; Xcode and Gradle retain the four-chart grid.
 - Render source-specific legend labels: Bazel has File preparation, Fetching and Analysis/setup; Gradle has Testing, Packaging, Configuration and Artifact transforms. Their legend buttons expose the selected group via `aria-pressed`, with filtering handled locally by the hook. Xcode keeps its passive legend.
 - Provide reusable UI components (navigation, auth components, forms).
-- Mix projects expose a Mix Cache sidebar item at `/mix-cache`, alongside the other build systems' cache pages.
+- Mix projects expose a Mix Cache sidebar item at `/mix-cache`; Cargo projects expose Cargo Cache at `/cargo-cache`. Keep both project-build-system gates and selected states aligned with the shared toolchain cache dashboard routes.
 - `ReapiCacheOutputs` presents real successful CAS transfers from the same analytics queries as Bazel: download/upload count graph, time-weighted Kura throughput and a digest/operation-filtered, searchable, sortable, paginated table. The caller scopes project, invocation and client kind. Never synthesize content hashes from action keys, compressed sizes or remote rows from local copies. Reset pagination after search, filter, key drill-down/clearing and sorting. Legacy/absent measurements remain honestly unavailable.
 - Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.
 - Cargo exposes the shared Shards navigation beside its test runs/cases, just like Xcode and Mix. Keep the navigation gate aligned with supported shard-reporting build systems; do not build a separate Rust sharding page.

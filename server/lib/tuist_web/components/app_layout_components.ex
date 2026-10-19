@@ -20,6 +20,8 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:current_path, :string, required: true)
   attr(:current_user, :map, required: true)
 
+  attr(:previews_available, :boolean, default: false)
+
   def project_sidebar(assigns) do
     ~H"""
     <.sidebar>
@@ -206,6 +208,15 @@ defmodule TuistWeb.AppLayoutComponents do
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
+        }
+      />
+      <.sidebar_item
+        :if={Project.cargo_project?(@selected_project)}
+        label={dgettext("dashboard", "Cargo Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"
         }
       />
       <.sidebar_item
@@ -412,7 +423,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={Project.supports_previews?(@selected_project)}
+        :if={Project.supports_previews?(@selected_project) or @previews_available}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}

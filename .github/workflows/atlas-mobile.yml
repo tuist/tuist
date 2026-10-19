@@ -82,6 +82,8 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: ios-device
+            runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -92,7 +94,7 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
           operation: build
-          authenticated: ${{ github.repository == 'tuist/tuist' }}
+          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' }}
 
   build-fork:
     name: Build fork (${{ matrix.platform }})
@@ -106,6 +108,8 @@ jobs:
           - platform: android
             runner: ubuntu-24.04
           - platform: ios
+            runner: tuist-macos-27-0
+          - platform: ios-device
             runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
@@ -173,7 +177,7 @@ jobs:
     needs: [build, test, lint-rust, lint-swift, lint-kotlin]
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: tuist-macos-27-0
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: atlas-mobile-previews
     permissions:
       contents: read
@@ -188,10 +192,14 @@ jobs:
         with:
           name: atlas-mobile-ios
           path: atlas-native/delivery/ios
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-mobile-ios-device
+          path: atlas-native/delivery/ios-device
       - uses: ./.github/actions/mise-install
         with:
           working-directory: atlas-native
-          install: tuist
+          install: tuist 1password-cli jq
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login
       - name: Publish Android preview
@@ -201,12 +209,23 @@ jobs:
       - name: Publish iOS simulator preview
         run: |
           ditto -x -k delivery/ios/Atlas-ios-simulator.zip delivery/ios
-          device=$(xcrun simctl list devices available -j | /usr/bin/python3 -c 'import json,sys; print(next(d["udid"] for runtime,group in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in group if d["isAvailable"]))')
+          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable)][0].udid')
           xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" delivery/ios/Atlas.app
           xcrun simctl launch "$device" dev.tuist.atlas
           mise exec -- tuist share delivery/ios/Atlas.app --track nightly
           mise exec -- tuist inspect bundle delivery/ios/Atlas.app
+      - name: Sign iOS device preview
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p .once/out/AtlasIOSDevice
+          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
+          mise run bundle:ios
+      - name: Publish iOS device preview
+        run: |
+          mise exec -- tuist share delivery/ios-device/Atlas.ipa --track nightly
+          mise exec -- tuist inspect bundle delivery/ios-device/Atlas.ipa
       - name: Link to previews
         run: echo 'Internal builds are available in [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile/previews).' >> "$GITHUB_STEP_SUMMARY"

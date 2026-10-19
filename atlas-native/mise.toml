@@ -47,6 +47,15 @@ depends = ["prepare:rust"]
 description = "Build the arm64 iOS simulator app"
 run = "once build AtlasIOS"
 
+[tasks."build:ios-device"]
+depends = ["prepare:rust"]
+description = "Build the arm64 iOS device app without distribution credentials"
+run = "once build AtlasIOSDevice"
+
+[tasks."bundle:ios"]
+description = "Sign the device app with the Atlas ad-hoc profile and package an IPA"
+run = "bash ios/distribution/bundle.sh"
+
 [tasks."test:core"]
 depends = ["prepare:rust"]
 description = "Test navigation, authentication, and the JNI bridge"

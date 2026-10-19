@@ -331,6 +331,18 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to create a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows an account token with project:admin:write scope and access to all of the account's projects to create a project in its account."
+      )
+
+      allow([
+        :authenticated_as_account,
+        :accounts_match,
+        :covers_all_projects,
+        issuer_role: :user,
+        scopes_permit: "project:admin:write"
+      ])
     end
 
     action :read do
@@ -346,18 +358,37 @@ defmodule Tuist.Authorization do
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
 
-      desc("Allows an account token with project:admin:read scope to read projects.")
+      desc("Allows an account token with project:admin:read or project:admin:write scope to read projects.")
       allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:admin:write"])
     end
 
     action :update do
       desc("Allows the admin of an account to update a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:admin:write scope to update a project it can access.")
+
+      allow([
+        :authenticated_as_account,
+        :project_access_permitted,
+        issuer_role: :admin,
+        scopes_permit: "project:admin:write"
+      ])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:admin:write scope to delete a project it can access.")
+
+      allow([
+        :authenticated_as_account,
+        :project_access_permitted,
+        issuer_role: :admin,
+        scopes_permit: "project:admin:write"
+      ])
     end
   end
 
