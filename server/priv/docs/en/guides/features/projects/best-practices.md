@@ -100,8 +100,6 @@ jobs:
       - run: tuist generate --no-open
 ```
 
-Use `macos-latest` for a GitHub-hosted runner; the install step stays the same. Use the action in place of your existing `tuist install` and dependency-cache steps, before generating or building the project.
-
 For a project in a subdirectory, pass its path relative to the checkout:
 
 ```yaml
