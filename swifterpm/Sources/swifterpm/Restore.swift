@@ -1505,10 +1505,10 @@ enum WorkspaceRestorer {
             "object": [
                 "artifacts": artifacts,
                 "dependencies": dependencies,
-                "prebuilts": try await WorkspacePrebuilts.applicable(
+                "prebuilts": try await WorkspacePrebuilts.carriedOver(
                     existingWorkspacePrebuilts(scratchDir: scratchDir),
                     pins: resolved.pins,
-                    packageDir: packageDir
+                    name: { try await WorkspacePrebuilts.nameProbe(packageDir) }
                 ),
             ],
             "version": 7,
