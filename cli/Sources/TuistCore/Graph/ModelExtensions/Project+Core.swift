@@ -4,6 +4,18 @@ import TuistSupport
 import XcodeGraph
 
 extension Project {
+    /// Whether the project's code is the repository's own: a project of the workspace, or a package the
+    /// manifest references by path, which resolves without a hash. A package resolved from source control
+    /// or a registry carries the hash of that resolution and lives outside the repository. This is the
+    /// rule the server applies to a reported target (`external_hash` empty), so coverage judges the two
+    /// alike.
+    public var isRepositoryOwned: Bool {
+        switch type {
+        case .local: return true
+        case let .external(hash): return hash == nil
+        }
+    }
+
     /// It returns the project targets sorted based on the target type and the dependencies between them.
     /// The most dependent and non-tests targets are sorted first in the list.
     ///

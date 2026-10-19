@@ -22,7 +22,7 @@ public struct InstrumentedBinaryCacheWarmGraphMapper: GraphMapping {
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
         graph.projects = graph.projects.mapValues { project in
-            guard case .local = project.type else { return project }
+            guard project.isRepositoryOwned else { return project }
             var project = project
             project.targets = project.targets.mapValues { target in
                 guard Self.instrumentedProducts.contains(target.product) else { return target }

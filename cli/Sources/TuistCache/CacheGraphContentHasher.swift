@@ -178,7 +178,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             .variant == .debug
         let instrumented = isDebug && coverage.isOn(in: graph)
         return { target in
-            guard instrumented, case .local = target.project.type else { return additionalStrings }
+            guard instrumented, target.project.isRepositoryOwned else { return additionalStrings }
             return additionalStrings + [Self.coverageDimension]
         }
     }
