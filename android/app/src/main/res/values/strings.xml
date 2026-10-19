@@ -45,4 +45,18 @@
     <string name="preview_delete">Delete preview</string>
     <string name="delete_preview_title">Delete Preview</string>
     <string name="delete_preview_message">Are you sure you want to delete this preview? This action cannot be undone.</string>
+    <string name="home_activity">Build and test activity</string>
+    <string name="home_last_seven_days">Last 7 days</string>
+    <string name="home_build_failures">Build failures</string>
+    <string name="home_test_failures">Test failures</string>
+    <string name="home_new_flaky_tests">New flaky tests</string>
+    <string name="home_no_build_failures">No failed builds reported in the last seven days.</string>
+    <string name="home_no_test_failures">No failed test runs reported in the last seven days.</string>
+    <string name="home_no_new_flaky_tests">No tests newly marked flaky in the last seven days.</string>
+    <string name="home_activity_unavailable">Activity is unavailable. The server may need an update, or the request may have failed.</string>
+    <string name="home_activity_unsupported">This activity isn’t available for this project’s build system yet.</string>
+    <string name="home_activity_forbidden">You don’t have permission to view this activity.</string>
+    <string name="home_activity_invalid">The server returned activity that couldn’t be displayed.</string>
+    <string name="home_open_details">Open details in your browser</string>
+    <string name="home_share">Share %1$s</string>
 </resources>

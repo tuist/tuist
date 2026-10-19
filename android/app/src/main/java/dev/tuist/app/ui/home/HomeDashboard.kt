@@ -48,11 +48,14 @@ import dev.tuist.app.ui.previews.ProjectDropdown
 @Composable
 fun HomeDashboard(
     viewModel: PreviewsViewModel,
+    activityViewModel: HomeActivityViewModel,
     onSeeAllPreviews: () -> Unit,
     onPreviewClick: (previewId: String, fullHandle: String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val projectContext by viewModel.projectContext.collectAsStateWithLifecycle()
+    val activity by activityViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
@@ -64,8 +67,8 @@ fun HomeDashboard(
             TopAppBar(
                 title = { Text(stringResource(R.string.home_title)) },
                 actions = {
-                    (uiState as? PreviewsUiState.Success)?.let { state ->
-                        ProjectDropdown(state.projects, state.selectedProject, viewModel::selectProject)
+                    projectContext.selectedProject?.let { selected ->
+                        ProjectDropdown(projectContext.projects, selected, viewModel::selectProject)
                     }
                 },
             )
@@ -73,14 +76,20 @@ fun HomeDashboard(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.refresh() },
+            isRefreshing = isRefreshing || (activity.fullHandle == projectContext.selectedProject?.fullName && activity.isRefreshing),
+            onRefresh = { viewModel.refresh(); activityViewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(NooraSpacing.Spacing6),
+                verticalArrangement = Arrangement.spacedBy(NooraSpacing.Spacing6),
             ) {
+                projectContext.selectedProject?.let { selected ->
+                    item(key = "home_activity") {
+                        HomeActivityCards(activity, selected.fullName, activityViewModel::retry, activityViewModel::refresh)
+                    }
+                }
                 item(key = "recent_previews") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),

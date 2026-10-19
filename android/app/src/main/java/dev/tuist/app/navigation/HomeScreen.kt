@@ -13,11 +13,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -27,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
 import dev.tuist.app.ui.home.HomeDashboard
+import dev.tuist.app.ui.home.HomeActivityViewModel
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.previews.PreviewsViewModel
@@ -36,6 +39,11 @@ import dev.tuist.app.ui.profile.ProfileScreen
 fun HomeScreen() {
     val navController = rememberNavController()
     val previewsViewModel: PreviewsViewModel = hiltViewModel()
+    val activityViewModel: HomeActivityViewModel = hiltViewModel()
+    val projectContext by previewsViewModel.projectContext.collectAsStateWithLifecycle()
+    LaunchedEffect(projectContext.selectedProject?.fullName) {
+        activityViewModel.selectProject(projectContext.selectedProject?.fullName)
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true
@@ -99,6 +107,7 @@ fun HomeScreen() {
             composable<HomeTabs.Home> {
                 HomeDashboard(
                     viewModel = previewsViewModel,
+                    activityViewModel = activityViewModel,
                     onSeeAllPreviews = { navigateToTab(HomeTabs.Previews) },
                     onPreviewClick = { previewId, fullHandle ->
                         navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))

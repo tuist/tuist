@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -58,6 +59,60 @@ class PreviewsViewModelTest {
 
     private fun createViewModel(): PreviewsViewModel {
         return PreviewsViewModel(previewsRepository, authRepository, context)
+    }
+
+    @Test
+    fun `project context is available even when previews cannot load`() = runTest(testDispatcher) {
+        val project = createProject(1, "tuist/one")
+        every { authRepository.authState } returns flowOf(AuthState.LoggedIn(Account(email = "sample@example.invalid", handle = "sample")))
+        coEvery { previewsRepository.listProjects() } returns listOf(project)
+        coEvery { previewsRepository.listPreviews("tuist", "one", page = 1) } throws RuntimeException("Preview service unavailable")
+        val subject = createViewModel()
+        advanceUntilIdle()
+        assertEquals(project, subject.projectContext.value.selectedProject)
+        assertTrue(subject.uiState.value is PreviewsUiState.Error)
+    }
+
+    @Test
+    fun `switching before previews settle rejects the old response`() = runTest(testDispatcher) {
+        val first = createProject(1, "tuist/one")
+        val second = createProject(2, "tuist/two")
+        val pending = CompletableDeferred<PreviewsPage>()
+        every { authRepository.authState } returns flowOf(AuthState.LoggedIn(Account(email = "sample@example.invalid", handle = "sample")))
+        coEvery { previewsRepository.listProjects() } returns listOf(first, second)
+        coEvery { previewsRepository.listPreviews("tuist", "one", page = 1) } coAnswers { pending.await() }
+        coEvery { previewsRepository.listPreviews("tuist", "two", page = 1) } returns PreviewsPage(listOf(createPreview("new", "New")), 1, false)
+        val subject = createViewModel()
+        advanceUntilIdle()
+        assertEquals(first, subject.projectContext.value.selectedProject)
+
+        subject.selectProject(second)
+        assertEquals(second, subject.projectContext.value.selectedProject)
+        advanceUntilIdle()
+        pending.complete(PreviewsPage(listOf(createPreview("old", "Old")), 1, false))
+        advanceUntilIdle()
+
+        val result = subject.uiState.value as PreviewsUiState.Success
+        assertEquals(second, result.selectedProject)
+        assertEquals(listOf("new"), result.previews.map { it.id })
+    }
+
+    @Test
+    fun `a late preview failure cannot replace the newly selected project`() = runTest(testDispatcher) {
+        val first = createProject(1, "tuist/one")
+        val second = createProject(2, "tuist/two")
+        val pending = CompletableDeferred<Unit>()
+        every { authRepository.authState } returns flowOf(AuthState.LoggedIn(Account(email = "sample@example.invalid", handle = "sample")))
+        coEvery { previewsRepository.listProjects() } returns listOf(first, second)
+        coEvery { previewsRepository.listPreviews("tuist", "one", page = 1) } coAnswers { pending.await(); throw RuntimeException("Late failure") }
+        coEvery { previewsRepository.listPreviews("tuist", "two", page = 1) } returns PreviewsPage(emptyList(), 1, false)
+        val subject = createViewModel()
+        advanceUntilIdle()
+        subject.selectProject(second)
+        advanceUntilIdle()
+        pending.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(second, (subject.uiState.value as PreviewsUiState.Success).selectedProject)
     }
 
     @Test

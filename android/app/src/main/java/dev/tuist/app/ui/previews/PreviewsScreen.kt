@@ -79,6 +79,7 @@ fun PreviewsScreen(
     viewModel: PreviewsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val projectContext by viewModel.projectContext.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -94,8 +95,8 @@ fun PreviewsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.previews_title)) },
                 actions = {
-                    (uiState as? PreviewsUiState.Success)?.let { state ->
-                        ProjectDropdown(state.projects, state.selectedProject, viewModel::selectProject)
+                    projectContext.selectedProject?.let { selected ->
+                        ProjectDropdown(projectContext.projects, selected, viewModel::selectProject)
                     }
                 },
             )

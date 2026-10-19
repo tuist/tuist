@@ -6,10 +6,10 @@ This node covers the Tuist Android companion app under `android/`. The app provi
 - `app/src/main/java/dev/tuist/app/` - Main app source
   - `MainActivity.kt` - Entry point, deep link handling, environment switching
   - `TuistApplication.kt` - Hilt application class
-  - `data/` - Data layer (auth, network, models, environment config)
+  - `data/` - Data layer (auth, network, models, environment config); the bounded Home activity adapter is covered by `app/src/main/java/dev/tuist/app/data/home/AGENTS.md`.
   - `navigation/` - Navigation graph and routes
   - `ui/home/` - Extensible landing screen; see `app/src/main/java/dev/tuist/app/ui/home/AGENTS.md`.
-  - `ui/` - Compose UI (theme, login, Home dashboard, previews, profile). Home is the default tab and shows a compact overview card with the three newest previews and a link to the full Previews browser. Project selection lives in the native top app bar on both tabs, outside preview content. `navigation/HomeScreen.kt` owns a shared `PreviewsViewModel` so both tabs use the same project selection and data; tab navigation saves and restores each tab's state.
+  - `ui/` - Compose UI (theme, login, Home dashboard, previews, profile). Home is the default tab and shows project-scoped build failures, failed test runs, newly flaky tests, and a compact card with the three newest previews and a link to the full Previews browser. Project selection lives in the native top app bar on both tabs, outside preview content. `navigation/HomeScreen.kt` owns shared `PreviewsViewModel` and `HomeActivityViewModel` instances. The former exposes authoritative project context before fetching previews, so activity remains usable when previews fail; both feature models reject stale project responses. Tab navigation saves and restores each tab's state.
 - `app/src/main/res/` - Resources (icons, drawables, strings, themes)
 
 ## Technology Stack
