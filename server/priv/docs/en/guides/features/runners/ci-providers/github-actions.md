@@ -38,4 +38,4 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
 
 ## Cache volumes {#cache-volumes}
 
-Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#github-actions">cache volumes</.localized_link>. Attach the volume before installing dependencies.
+Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes#github-actions">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
