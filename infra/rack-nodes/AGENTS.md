@@ -977,6 +977,16 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+Staging and canary rent no macOS runner hosts: their only macOS runners are
+the rack hosts production lends them (b01 and b02, "Lending a host to
+another env" below), and `runner_site` is on for every account there
+(`Tuist.FeatureFlags.runner_site_enabled?/1`). Their `runnersFleet.hostCount`
+is 0, so the chart renders no rented macOS pools and sets
+`TUIST_RUNNERS_RENTED_MACOS_FLEET=false`: dispatch sends every macOS profile
+to the rack's pool, and nothing spills over. A job waits while its env's host
+is down, cordoned or busy. Their Scaleway minis only run the xcresult
+processor (`macosFleet`).
+
 A catalog shape can run a bigger guest on the rack than on the rented fleet
 (`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
 8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
@@ -1003,7 +1013,8 @@ The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 While a pool is down, dispatch routes new jobs to the rented pool for the same
 Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
-minute. A cluster the server cannot read leaves the rack up.
+minute. A cluster the server cannot read leaves the rack up. An env that
+rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
@@ -1071,11 +1082,17 @@ the Node there. Rotating the kubeconfig takes a new item name: the Secret is
 named after the item, and the drift loop keys on the Secret's name, not its
 contents.
 
-Before enabling the flag for any account other than Tuist's own, the rack's
-runner VMs have to be isolated from the rack's private networks and the
-tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
-catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
-runner VM.
+Any account's jobs can run on a rack host, since staging and canary route all
+of theirs there. A runner VM is isolated from the rack's private networks, the
+host's own listeners, its sibling guests and the tailnet: the VM egress
+firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
+translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
+`vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
+from a VM on the host it lands on; run it on a host before lending it to an
+env, and after a change to either. The one rack target a guest reaches on
+purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
+probe's cluster DNS check always fails on a lent host, which has no route to
+the borrowing cluster's Service CIDR.
 
 ## Tests
 
