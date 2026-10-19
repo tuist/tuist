@@ -274,13 +274,18 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  @doc """
+  Records that GitHub placed `executed_workflow_job_id` on `runner_name`
+  within `account_id`, as reported by a `workflow_job.in_progress` webhook or
+  read back from GitHub's API. Safe to repeat for the same pair.
+  """
   # Binds the runner→job proof onto the live claim (drives metrics
   # attribution while the job runs) and the durable session (the
   # backstop that outlives the pod). The claim and session agree in
   # the common case; when they disagree — or when only one is still
   # present — we surface `:mismatch` so it's never silently the
   # weaker `:matched`.
-  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+  def record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)

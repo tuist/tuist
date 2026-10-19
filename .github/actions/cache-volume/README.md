@@ -24,7 +24,10 @@ identical action inputs. Do not restore archive caches into these paths. If you
 set `GRADLE_USER_HOME`, use paths beneath that location. Paths must be absent or
 empty; the action never deletes existing content. The same key identifies the
 same data even if the mount path changes. Do not attach the same key twice in
-one job under different paths.
+one job under different paths. Keep keys stable when
+dependencies or tools change: each job starts from the latest saved contents and
+your tools update them, so a key that changes with a lockfile hash starts empty
+every time.
 
 PRs consume warm snapshots and write
 to their own clones; by default only successful default-branch push, manual, and scheduled
@@ -41,7 +44,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
+| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. |
 | `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 

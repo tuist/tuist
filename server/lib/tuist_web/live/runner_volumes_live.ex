@@ -27,6 +27,7 @@ defmodule TuistWeb.RunnerVolumesLive do
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Volumes")} · #{account.name} · Tuist",
        can_manage: Authorization.authorize(:runners_update, user, account) == :ok,
+       include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(account),
        pending_action: nil,
        selected: nil,
        selected_tab: "overview",
@@ -43,6 +44,8 @@ defmodule TuistWeb.RunnerVolumesLive do
       if params["id"] do
         CacheVolumes.get(socket.assigns.selected_account.id, params["id"]) || raise NotFoundError
       end
+
+    if selected && selected.builtin_name && !socket.assigns.include_builtin, do: raise(NotFoundError)
 
     %{preset: preset, period: period} = storage_period(params)
 
@@ -166,7 +169,8 @@ defmodule TuistWeb.RunnerVolumesLive do
       socket.assigns
 
     period = socket.assigns.analytics_period
-    sort_options = [sort_by: socket.assigns.sort_by, sort_order: socket.assigns.sort_order]
+    builtin = [include_builtin: socket.assigns.include_builtin]
+    sort_options = [sort_by: socket.assigns.sort_by, sort_order: socket.assigns.sort_order] ++ builtin
 
     assign_async(socket, :data, fn ->
       data =
@@ -196,9 +200,9 @@ defmodule TuistWeb.RunnerVolumesLive do
           account.id
           |> CacheVolumes.list(search, page, sort_options)
           |> Map.put(:history, [])
-          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, period))
-          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, previous_period(period)))
-          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period))
+          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period, builtin))
+          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period), builtin))
+          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period, nil, builtin))
         end
 
       {:ok, %{data: data}}
@@ -391,10 +395,20 @@ defmodule TuistWeb.RunnerVolumesLive do
     )
   end
 
-  def volume_name(key) do
-    if String.length(key) > @volume_name_max_length,
-      do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",
-      else: key
+  # Managed caches show what they hold rather than their storage key; the
+  # Xcode and module caches share the built-in volume.
+  def display_name(%{builtin_name: name}) when is_binary(name),
+    do: dgettext("dashboard_runners", "Xcode and module caches")
+
+  def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: key}), do: key
+
+  def volume_name(volume) do
+    name = display_name(volume)
+
+    if String.length(name) > @volume_name_max_length,
+      do: String.slice(name, 0, @volume_name_max_length - 1) <> "…",
+      else: name
   end
 
   def bytes(nil), do: "—"

@@ -412,6 +412,9 @@ func main() {
 		}
 		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
 		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
+		if customVolumes != nil {
+			converge.Custom = customVolumes
+		}
 		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
 			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
 		if err := mgr.Add(converge); err != nil {
