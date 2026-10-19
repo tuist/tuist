@@ -59,7 +59,7 @@ defmodule TuistEx.Cache.Reapi do
     if Keyword.get(options, :remote, true) do
       with {:ok, config} <- Config.resolve(analytics_options),
            {:ok, token} <- Auth.token(Keyword.put(analytics_options, :url, config.url)),
-           {:ok, endpoint} <- endpoint(options, config, token),
+           {:ok, endpoint, allow_insecure?} <- endpoint(options, config, token, analytics_options),
            {:ok, 200, %{"token" => cache_token}} <-
              HTTP.request(
                :post,
@@ -72,7 +72,9 @@ defmodule TuistEx.Cache.Reapi do
                %{},
                [{"authorization", "Bearer " <> token}]
              ) do
-        connect(endpoint, cache_token, config.project_handle, invocation_id)
+        connect(endpoint, cache_token, config.project_handle, invocation_id,
+          allow_insecure: allow_insecure?
+        )
       else
         _ -> nil
       end
@@ -83,10 +85,18 @@ defmodule TuistEx.Cache.Reapi do
     _, _ -> nil
   end
 
-  defp endpoint(options, config, token) do
-    case Keyword.get(options, :endpoint) do
+  defp endpoint(options, config, token, analytics_options) do
+    environment = Keyword.get(analytics_options, :environment, &System.get_env/1)
+
+    {override, allow_insecure?} =
+      case environment.("TUIST_CACHE_ENDPOINT") do
+        value when value in [nil, ""] -> {Keyword.get(options, :endpoint), false}
+        value -> {value, true}
+      end
+
+    case override do
       url when is_binary(url) ->
-        {:ok, url}
+        {:ok, url, allow_insecure?}
 
       _ ->
         url =
@@ -98,21 +108,27 @@ defmodule TuistEx.Cache.Reapi do
                {"authorization", "Bearer " <> token},
                {"x-tuist-feature-flags", "kura"}
              ]) do
-          {:ok, 200, %{"endpoints" => [endpoint | _]}} when is_binary(endpoint) -> {:ok, endpoint}
-          _ -> {:error, :unavailable}
+          {:ok, 200, %{"endpoints" => [endpoint | _]}} when is_binary(endpoint) ->
+            {:ok, endpoint, false}
+
+          _ ->
+            {:error, :unavailable}
         end
     end
   end
 
-  def connect(url, token, %{account: account, project: project}, invocation_id) do
+  def connect(url, token, project, invocation_id, options \\ [])
+
+  def connect(url, token, %{account: account, project: project}, invocation_id, options) do
     uri = URI.parse(url)
 
     if uri.scheme not in ["http", "https"] or is_nil(uri.host) or not is_nil(uri.userinfo) or
          not is_nil(uri.query) or not is_nil(uri.fragment) or uri.path not in [nil, "", "/"],
        do: throw(:invalid_endpoint)
 
-    if uri.scheme == "http" and String.downcase(uri.host) not in ["localhost", "127.0.0.1", "::1"],
-      do: throw(:invalid_endpoint)
+    if uri.scheme == "http" and String.downcase(uri.host) not in ["localhost", "127.0.0.1", "::1"] and
+         Keyword.get(options, :allow_insecure) != true,
+       do: throw(:invalid_endpoint)
 
     restore_paths(:grpc, MapSet.new())
     {:ok, _} = Application.ensure_all_started(:tuist_ex)

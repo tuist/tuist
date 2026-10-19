@@ -238,6 +238,9 @@
             value={value(Cache.recent_hit_rate(@recent_builds.result))}
             style="primary"
           />
+          <p data-part="recent-builds-coverage">
+            {recent_builds_coverage(@recent_builds.result)}
+          </p>
           <.chart
             id="mix-cache-recent-builds-chart"
             type="bar"
@@ -294,7 +297,7 @@
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_cache", "Hit Rate")}>
-            <.text_cell label={value(row.cache.hit_rate)} />
+            <.text_cell label={recent_hit_rate_label(row.cache)} />
           </:col>
           <:col :let={row} label={dgettext("dashboard_cache", "Ran by")}>
             <.build_ran_by_badge_cell build={row.build} />
