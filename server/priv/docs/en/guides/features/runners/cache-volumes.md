@@ -256,14 +256,6 @@ On macOS, paths are symlinks: use download caches such as `~/.npm`;
 `node_modules` and tools that replace their cache directory
 are unsupported. Ignore workspace links without a trailing slash in `.gitignore`.
 
-`tuist/cache-volume` and `tuist/gradle-cache` expose a `cache-hit` output.
-`tuist/cache-volume` also works in ordinary GitHub Actions container jobs,
-without privileged mode or extra workflow permissions. Native jobs and
-containers running as different users have separate volumes. GitHub container
-jobs and Docker actions require Linux: macOS volumes are mounted in the macOS
-guest and are not shared with a separate Docker VM. Linux and macOS volumes
-with the same key are separate.
-
 ## Saving changes {#saving-changes}
 
 The Xcode and module caches save the changes of successful jobs from your own
