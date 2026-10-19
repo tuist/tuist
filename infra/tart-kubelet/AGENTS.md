@@ -82,7 +82,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   masters a job asked for but did not get within its 25 seconds first, then the
   custom HEADs the server lists for the host class (free space only, no eviction).
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
-  carry a bounded `reason` and the host logs why.
+  carry a bounded `reason` and the host logs why; a 425 retried until the
+  deadline is `execution_pending`, not `denied`.
   A job whose base is not local mounts the newest older master of the same
   lineage instead of an empty directory (reported as `mounted_generation`) and its
   base is queued. A superseded master used in the last day stays until its

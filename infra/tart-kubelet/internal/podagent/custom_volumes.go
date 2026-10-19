@@ -398,13 +398,25 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
-		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
-			cancel()
-			continue
+		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
+		status, err := c.request(acquireCtx, "authorize", body, &identity)
+		// 425 means GitHub has not yet reported which job this runner executes.
+		for status == http.StatusTooEarly {
+			select {
+			case <-acquireCtx.Done():
+			case <-time.After(customAuthorizeRetry):
+				status, err = c.request(acquireCtx, "authorize", body, &identity)
+			}
+			if acquireCtx.Err() != nil && status != http.StatusOK {
+				err = cachevolumes.ErrExecutionPending
+				break
+			}
 		}
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
-		if err != nil {
+		if errors.Is(err, cachevolumes.ErrExecutionPending) {
+			response["reason"] = "execution_pending"
+			log.FromContext(ctx).Info("custom cache volume not authorized in time: GitHub has not reported the job running on this pod; job continues cold", "pod", pod.Name)
+		} else if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
 		} else {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
