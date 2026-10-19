@@ -2,9 +2,11 @@ defmodule Tuist.GitHistory.Workers.RepairWorker do
   @moduledoc """
   Repairs what a commit's late arrival left behind, queued by
   `Tuist.GitHistory.record_commits/3` when an upload stored a commit whose
-  child was stored before it: the refs that numbered the child as if it
-  connected to nothing are placed again (`Tuist.GitHistory.replace_children/2`),
-  and the nearest folded descendants whose fold found no ancestor fold again
+  child was stored at most a day before it
+  (`Tuist.GitHistory.late_children/2`): the refs that numbered the child as
+  if it connected to nothing are placed again
+  (`Tuist.GitHistory.replace_children/2`), and the descendants whose fold
+  found no ancestor fold again
   (`Tuist.Tests.Coverage.Commits.refold_descendants/2`), after the refs moved
   and outside their lock.
 

@@ -549,6 +549,30 @@ defmodule Tuist.GitHistoryTest do
       assert {owned(repository, "main"), owned(repository, "pull/1"), coverage_places(project)} == snapshot
     end
 
+    test "leave a child stored more than a day before its parent arrives as it was", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.record_commits(repository, "sha1", [commit("h", ["g"], 10)])
+      GitHistory.advance_ref(repository, "main", nil, "h")
+      measure(project, repository, ["h"])
+      GitHistory.sync_coverage_places(repository, ["h"])
+
+      # A full checkout filling in old history, not two runs racing.
+      stored = DateTime.add(DateTime.utc_now(), -25 * 3600, :second)
+      Repo.update_all(from(c in GitHistory.Commit, where: c.sha == "h"), set: [inserted_at: stored])
+
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9)])
+
+      assert [] = all_enqueued(worker: RepairWorker)
+      assert GitHistory.late_children(repository, ["g"]) == []
+      assert :ok = GitHistory.replace_children(repository, ["g"])
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"h", 5}]
+      assert [{"h", _main, 5}] = coverage_places(project)
+    end
+
     test "leave the refs alone when a batch brings its commits with their children", %{repository: repository} do
       seed(repository)
       GitHistory.advance_ref(repository, "main", nil, "d")

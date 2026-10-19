@@ -20,9 +20,9 @@ defmodule Tuist.GitHistory do
   The client cannot always send a commit before its children: a depth-1
   checkout uploads its head with the parent edge but not the parent, which
   another run uploads later. Until then every walk from the child ends
-  there, so when an upload stores a commit whose child was already stored,
-  the child's refs are placed again through it (`replace_children/2`) and
-  the folds that found no ancestor fold again
+  there, so when an upload stores a commit whose child was stored at most a
+  day before (`late_children/2`), the child's refs are placed again through
+  it (`replace_children/2`) and the folds that found no ancestor fold again
   (`Tuist.GitHistory.Workers.RepairWorker`).
 
   Every walk is bounded by the project's settings (`settings/1`): a window in
@@ -289,23 +289,51 @@ defmodule Tuist.GitHistory do
 
   defp enqueue_repair(repository_id, inserted) do
     arrived =
-      Repo.all(
-        from(p in CommitParent,
-          join: c in Commit,
-          on: c.repository_id == p.repository_id and c.sha == p.child_sha,
-          where: p.repository_id == ^repository_id and p.parent_sha in ^inserted and p.child_sha not in ^inserted,
-          distinct: true,
-          select: p.parent_sha
-        )
-      )
+      repository_id
+      |> late_edges(inserted)
+      |> where([p], p.child_sha not in ^inserted)
+      |> distinct(true)
+      |> select([p], p.parent_sha)
+      |> Repo.all()
 
     if arrived != [], do: {:ok, _job} = RepairWorker.enqueue(repository_id, arrived)
     :ok
   end
 
+  @repair_window_hours 24
+
   @doc """
-  Places again the refs that numbered a child of one of `shas` while that
-  commit was not stored: each such ref releases its commits from the lowest
+  The children of `shas` stored at most a day before the commit of `shas`
+  they point at: the ones a late parent is repaired for. A gap that old is
+  history a full checkout filled in, not two runs racing, and repairing it
+  would renumber most of a ref and refold its commits; `rebuild_refs/1`
+  repairs it by hand. The commits' own dates are no measure: a parent and its
+  child are committed close together however late the parent arrives.
+  """
+  def late_children(_repository_id, []), do: []
+
+  def late_children(repository_id, shas) do
+    repository_id |> late_edges(shas) |> distinct(true) |> select([p], p.child_sha) |> Repo.all()
+  end
+
+  defp late_edges(repository_id, shas) do
+    from(p in CommitParent,
+      as: :edge,
+      join: child in Commit,
+      as: :child,
+      on: child.repository_id == p.repository_id and child.sha == p.child_sha,
+      join: parent in Commit,
+      as: :parent,
+      on: parent.repository_id == p.repository_id and parent.sha == p.parent_sha,
+      where:
+        p.repository_id == ^repository_id and p.parent_sha in ^shas and
+          child.inserted_at >= datetime_add(parent.inserted_at, ^(-@repair_window_hours), "hour")
+    )
+  end
+
+  @doc """
+  Places again the refs that numbered a child of one of `shas`
+  (`late_children/2`) while that commit was not stored: each such ref releases its commits from the lowest
   such child up and advances again from its own head, now through the
   arrived commit down to where it really connects, and so does every ref
   forked from a released commit. Heads and observation times stay as they
@@ -320,14 +348,8 @@ defmodule Tuist.GitHistory do
 
           pending =
             Repo.all(
-              from(p in CommitParent,
-                join: child in Commit,
-                on: child.repository_id == p.repository_id and child.sha == p.child_sha,
-                join: parent in Commit,
-                on: parent.repository_id == p.repository_id and parent.sha == p.parent_sha,
-                where:
-                  p.repository_id == ^repository_id and p.parent_sha in ^shas and p.position == 0 and
-                    not is_nil(child.ref_id) and is_nil(parent.ref_id),
+              from([edge: p, child: child, parent: parent] in late_edges(repository_id, shas),
+                where: p.position == 0 and not is_nil(child.ref_id) and is_nil(parent.ref_id),
                 group_by: child.ref_id,
                 select: {child.ref_id, min(child.position)}
               )

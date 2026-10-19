@@ -106,11 +106,12 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   Refolds, per project, the descendants of `shas` whose fold found no
   ancestor to read (`no_ancestor`, `unbuilt_file_unknown`) because the walk
-  ended where one of `shas` was missing. A path stops at the first commit the
-  project measured (`reported_kind` `measured`): such a fold reads no
-  ancestor, and every fold below it finds it as its baseline. A partial or
-  carried one is no baseline, so the walk goes on past it, visiting at most
-  `window_commits` commits.
+  ended where one of `shas` was missing, starting from the children stored
+  shortly before it arrived (`Tuist.GitHistory.late_children/2`). A path
+  stops at the first commit the project measured (`reported_kind`
+  `measured`): such a fold reads no ancestor, and every fold below it finds
+  it as its baseline. A partial or carried one is no baseline, so the walk
+  goes on past it, visiting at most `window_commits` commits.
   """
   def refold_descendants(repository_id, shas) do
     %{rows: rows} =
@@ -120,9 +121,8 @@ defmodule Tuist.Tests.Coverage.Commits do
           SELECT DISTINCT project_id FROM coverage_commits WHERE repository_id = $1
         ),
         walk (project_id, sha) AS (
-          SELECT pr.project_id, p.child_sha
-          FROM projects pr CROSS JOIN git_commit_parents p
-          WHERE p.repository_id = $1 AND p.parent_sha = ANY ($2::varchar[])
+          SELECT pr.project_id, child.sha
+          FROM projects pr CROSS JOIN unnest($2::varchar[]) AS child (sha)
           UNION
           SELECT w.project_id, p.child_sha
           FROM walk w JOIN git_commit_parents p ON p.repository_id = $1 AND p.parent_sha = w.sha
@@ -138,7 +138,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         """,
         [
           repository_id,
-          shas,
+          GitHistory.late_children(repository_id, shas),
           GitHistory.settings(nil).window_commits,
           GapReasons.encode([:no_ancestor, :unbuilt_file_unknown])
         ]
