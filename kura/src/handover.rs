@@ -33,6 +33,16 @@ pub struct Intent {
     pub deadline_ms: u64,
 }
 
+// A preparation report is a scheduling hint, never a retained-data receipt.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Preparation {
+    pub intent: Intent,
+    pub source: Holder,
+    pub epoch: u64,
+    pub complete: bool,
+    pub error: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Receipt {
     pub id: String,
@@ -243,7 +253,7 @@ async fn verify_inner(
                     .store
                     .handover_eviction_generation
                     .load(Ordering::Acquire);
-                reconcile_retained_corpus(state, &request).await?;
+                reconcile_retained_corpus(state, &request, None).await?;
                 let mut hold = state
                     .store
                     .handover_hold
@@ -340,6 +350,7 @@ fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> 
 async fn reconcile_retained_corpus(
     state: &SharedState,
     request: &VerifyRequest,
+    preparation_epoch: Option<u64>,
 ) -> Result<(), String> {
     // A feed cursor covers arrivals, not everything the source still retains:
     // bootstrap is horizon bounded and local eviction can remove older rows.
@@ -350,7 +361,7 @@ async fn reconcile_retained_corpus(
     let mut tuning = BackfillPassTuning::from_config(&state.config);
     tuning.source = PassSource::RetainedIndex;
     tuning.feed_rows = false;
-    tuning.bandwidth_shaped = false;
+    tuning.bandwidth_shaped = preparation_epoch.is_some();
     let cancel = CancellationToken::new();
     let pass = run_backfill_pass_with_tuning(
         state,
@@ -367,7 +378,10 @@ async fn reconcile_retained_corpus(
     loop {
         tokio::select! {
             biased;
-            _ = check.tick() => require_current_destination(state, request)?,
+            _ = check.tick() => match preparation_epoch {
+                Some(epoch) => require_current_preparation(state, request, epoch)?,
+                None => require_current_destination(state, request)?,
+            },
             outcome = &mut pass => {
                 return match outcome {
                     BackfillPassOutcome::Completed { stats, .. } => {
@@ -382,6 +396,66 @@ async fn reconcile_retained_corpus(
                 };
             }
         }
+    }
+}
+
+fn require_current_preparation(
+    state: &SharedState,
+    request: &VerifyRequest,
+    epoch: u64,
+) -> Result<(), String> {
+    let authority = &state.runtime.authority;
+    let grant = authority.intent().ok_or("no preparation intent")?;
+    let now = crate::utils::now_ms();
+    if state.runtime.is_draining()
+        || grant.phase != "Serving"
+        || grant.epoch != epoch
+        || epoch == 0
+        || grant.expires_ms <= now.saturating_add(2_000)
+        || grant.holder != request.source
+        || grant.holder == *authority.identity()
+        || grant.handover.as_ref() != Some(&request.intent)
+        || request.intent.destination != *authority.identity()
+        || now >= request.intent.deadline_ms
+    {
+        return Err("preparation identity, grant or deadline mismatch".into());
+    }
+    Ok(())
+}
+
+async fn prepare_live_destination(
+    state: &SharedState,
+    preparation: &Preparation,
+) -> Result<(), String> {
+    let request = VerifyRequest {
+        begin: false,
+        intent: preparation.intent.clone(),
+        source: preparation.source.clone(),
+        record: None,
+        records: Vec::new(),
+        receipt: None,
+    };
+    let _preparation = state.runtime.authority.handover_preparation.lock().await;
+    loop {
+        require_current_preparation(state, &request, preparation.epoch)?;
+        let before = state
+            .store
+            .handover_eviction_generation
+            .load(Ordering::Acquire);
+        reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
+        require_current_preparation(state, &request, preparation.epoch)?;
+        if before
+            == state
+                .store
+                .handover_eviction_generation
+                .load(Ordering::Acquire)
+        {
+            // Writes and eviction remain possible. Quiescing must still repair,
+            // take both holds, verify every retained record and revoke the source.
+            return Ok(());
+        }
+        tracing::info!(event.name="kura.handover.preparation_revisit", id=%preparation.intent.id,
+            "Revisiting live standby preparation after retained-record eviction");
     }
 }
 
@@ -626,9 +700,54 @@ pub fn spawn(state: SharedState) {
             let Some(grant) = authority.intent() else {
                 continue;
             };
-            let Some(intent) = grant.handover else {
+            let Some(intent) = grant.handover.clone() else {
                 continue;
             };
+            if grant.phase == "Serving" && intent.destination == *authority.identity() {
+                let mut preparation = Preparation {
+                    intent: intent.clone(),
+                    source: grant.holder,
+                    epoch: grant.epoch,
+                    complete: false,
+                    error: None,
+                };
+                {
+                    let mut current = authority
+                        .preparation
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    if current.as_ref().is_some_and(|previous| {
+                        previous.intent == intent
+                            && previous.source == preparation.source
+                            && previous.epoch == preparation.epoch
+                    }) {
+                        continue;
+                    }
+                    *current = Some(preparation.clone());
+                }
+                let remaining = intent
+                    .deadline_ms
+                    .saturating_sub(crate::utils::now_ms())
+                    .min(1_200_000);
+                match tokio::time::timeout(
+                    Duration::from_millis(remaining),
+                    prepare_live_destination(&state, &preparation),
+                )
+                .await
+                {
+                    Ok(Ok(())) => preparation.complete = true,
+                    Ok(Err(error)) => preparation.error = Some(bounded_detail(&error)),
+                    Err(_) => preparation.error = Some("live preparation deadline exceeded".into()),
+                }
+                tracing::info!(event.name="kura.handover.prepared", id=%intent.id,
+                    complete=preparation.complete, error=?preparation.error,
+                    "Finished standby preparation while the source serves");
+                *authority
+                    .preparation
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = Some(preparation);
+                continue;
+            }
             if grant.phase != "Quiescing"
                 || grant.holder != *authority.identity()
                 || authority.mutations() != 0
@@ -732,6 +851,216 @@ mod tests {
             source,
             records: Vec::new(),
             record: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn live_preparation_copies_retained_data_without_holds_or_a_receipt() {
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        source
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "old-inline",
+                "text/plain",
+                b"retained",
+                1000,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let blob = source
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "segment",
+                "application/octet-stream",
+                &vec![42; 128 * 1024],
+            )
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(&target.state, url);
+        let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.phase = "Serving".into();
+        target
+            .state
+            .runtime
+            .authority
+            .install(grant.clone())
+            .unwrap();
+        let preparation = Preparation {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            epoch: grant.epoch,
+            complete: false,
+            error: None,
+        };
+        prepare_live_destination(&target.state, &preparation)
+            .await
+            .unwrap();
+        let expected = record(
+            &source.state,
+            BackfillRecordKind::SegmentArtifact,
+            &blob.artifact_id,
+            blob.version_ms,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        verify_record(&target.state, &expected).await.unwrap();
+        let retained = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(retained.len(), 2);
+        for entry in retained {
+            let retained = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            verify_record(&target.state, &retained).await.unwrap();
+        }
+        assert!(source.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            verify_inner(&target.state, request.clone())
+                .await
+                .unwrap_err()
+                .contains("phase")
+        );
+
+        // A preparation result cannot stand in for the later frozen-corpus check.
+        target.state.store.delete_namespace("ios").await.unwrap();
+        assert!(verify_record(&target.state, &expected).await.is_err());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn live_preparation_cancels_blocked_peer_io_on_authority_change() {
+        for stop in ["abort", "epoch", "grant-expiry", "deadline", "drain"] {
+            let target = test_context(|_| {}).await;
+            let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let app = axum::Router::new().fallback({
+                let entered = entered.clone();
+                move || {
+                    let entered = entered.clone();
+                    async move {
+                        entered.notify_one();
+                        std::future::pending::<()>().await;
+                        Json(serde_json::json!({"entries": [], "next_after": null}))
+                    }
+                }
+            });
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let mut request = begin_request(&target.state, url);
+            let mut grant = target.state.runtime.authority.intent().unwrap();
+            grant.phase = "Serving".into();
+            if stop == "deadline" {
+                request.intent.deadline_ms = crate::utils::now_ms() + 1000;
+            }
+            grant.handover = Some(request.intent.clone());
+            // An observed standby grant has no local writer lease; validate its
+            // wall deadline in the preparation loop even if API polling stops.
+            if stop == "grant-expiry" {
+                // Advance the epoch so replacing the test's initial deadline is
+                // not a same-epoch grant regression.
+                grant.epoch += 1;
+                grant.expires_ms = crate::utils::now_ms() + 3000;
+            }
+            target
+                .state
+                .runtime
+                .authority
+                .install(grant.clone())
+                .unwrap();
+            let preparation = Preparation {
+                intent: request.intent,
+                source: request.source,
+                epoch: grant.epoch,
+                complete: false,
+                error: None,
+            };
+            let state = target.state.clone();
+            let worker =
+                tokio::spawn(async move { prepare_live_destination(&state, &preparation).await });
+            tokio::time::timeout(Duration::from_secs(5), entered.notified())
+                .await
+                .unwrap();
+            match stop {
+                "abort" => {
+                    grant.handover = None;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "epoch" => {
+                    grant.epoch += 1;
+                    target.state.runtime.authority.install(grant).unwrap();
+                }
+                "drain" => {
+                    target.state.runtime.request_drain();
+                }
+                "deadline" | "grant-expiry" => {}
+                _ => unreachable!(),
+            }
+            assert!(
+                tokio::time::timeout(Duration::from_secs(3), worker)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .is_err(),
+                "{stop}"
+            );
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .handover_preparation
+                    .try_lock()
+                    .is_ok(),
+                "{stop}"
+            );
+            assert!(
+                target.state.store.handover_hold.lock().unwrap().is_none(),
+                "{stop}"
+            );
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .barrier
+                    .lock()
+                    .unwrap()
+                    .is_none(),
+                "{stop}"
+            );
+            server.abort();
         }
     }
 

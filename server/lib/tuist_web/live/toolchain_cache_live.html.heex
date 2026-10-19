@@ -1,7 +1,7 @@
-<div id="mix-cache">
+<div id={@cache_id}>
   <div data-part="filters">
     <.dropdown
-      id="mix-cache-environment"
+      id={"#{@cache_id}-environment"}
       label={
         case @environment do
           "ci" -> "CI"
@@ -26,7 +26,7 @@
       />
     </.dropdown>
     <.date_picker
-      id="mix-cache-date-range"
+      id={"#{@cache_id}-date-range"}
       name="analytics-date-range"
       presets={[
         %{
@@ -47,11 +47,15 @@
         <.button
           label={dgettext("dashboard", "Cancel")}
           variant="secondary"
-          phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "mix-cache-date-range"})}
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel", detail: %{id: "#{@cache_id}-date-range"})
+          }
         />
         <.button
           label={dgettext("dashboard", "Apply")}
-          phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "mix-cache-date-range"})}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply", detail: %{id: "#{@cache_id}-date-range"})
+          }
         />
       </:actions>
     </.date_picker>
@@ -67,14 +71,9 @@
   >
     <div data-part="widgets">
       <.percentile_dropdown_widget
-        id="mix-cache-widget-hit_rate"
+        id={"#{@cache_id}-widget-hit_rate"}
         title={percentile_title(@hit_rate_type)}
-        description={
-          dgettext(
-            "dashboard",
-            "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
-          )
-        }
+        description={hit_rate_description(@selected_project)}
         loading={!ready?}
         value={if ready?, do: value(selected_metric(@analytics.result.metrics, @hit_rate_type))}
         metrics={if ready?, do: percentile_metrics(@analytics.result.metrics)}
@@ -89,14 +88,9 @@
       />
       <.widget
         :for={metric <- transport_widgets(@transfer_type, @latency_type, @throughput_type)}
-        id={"mix-cache-widget-#{metric.id}"}
+        id={"#{@cache_id}-widget-#{metric.id}"}
         title={transport_title(metric.id, metric.type)}
-        description={
-          dgettext(
-            "dashboard",
-            "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
-          )
-        }
+        description={@transport_description}
         loading={!ready?}
         value={
           if ready?,
@@ -143,7 +137,7 @@
     <.card_section data-part="analytics-card-chart-section" data-chart-frame="cache">
       <.chart_type_toggle
         :if={@widget == "hit_rate"}
-        id="mix-cache-hit-rate"
+        id={"#{@cache_id}-hit-rate"}
         chart_type={@chart_type}
         chart_type_event="select_cache_hit_rate_chart_type"
         uri={@uri}
@@ -157,7 +151,7 @@
             do: dgettext("dashboard_projects", "No cache observations yet"),
             else: dgettext("dashboard", "No cache measurements yet")
         }
-        get_started_href="/en/docs/guides/features/cache/elixir"
+        get_started_href={@cache_guide}
       >
         <:image>
           <img
@@ -179,7 +173,7 @@
           ready? and chart_available?(@analytics.result, @widget) and
             (@widget != "hit_rate" or @chart_type == "line")
         }
-        id="mix-cache-chart"
+        id={"#{@cache_id}-chart"}
         type="line"
         extra_options={
           chart_options(analytics_series(@analytics.result, @widget), chart_formatter(@widget))
@@ -197,7 +191,7 @@
           ready? and @analytics.result.series != [] and @widget == "hit_rate" and
             @chart_type == "scatter"
         }
-        id="mix-cache-hit-rate-scatter-chart"
+        id={"#{@cache_id}-hit-rate-scatter-chart"}
         chart={@scatter}
         period={@period}
         value_format="{value}%"
@@ -222,11 +216,11 @@
   >
     <:actions>
       <.button
-        id="mix-cache-view-more"
+        id={"#{@cache_id}-view-more"}
         variant="secondary"
         label={dgettext("dashboard_cache", "View more")}
         size="medium"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        navigate={build_runs_path(@selected_account, @selected_project)}
         disabled={!@recent_builds.ok? || Enum.empty?(@recent_builds.result)}
       />
     </:actions>
@@ -235,14 +229,14 @@
         <div data-part="builds-chart">
           <.legend
             title={dgettext("dashboard_cache", "Cache hit rate")}
-            value={value(Cache.recent_hit_rate(@recent_builds.result))}
+            value={value(@cache_module.recent_hit_rate(@recent_builds.result))}
             style="primary"
           />
-          <p data-part="recent-builds-coverage">
+          <p :if={@selected_project.build_system == :mix} data-part="recent-builds-coverage">
             {recent_builds_coverage(@recent_builds.result)}
           </p>
           <.chart
-            id="mix-cache-recent-builds-chart"
+            id={"#{@cache_id}-recent-builds-chart"}
             type="bar"
             extra_options={
               %{
@@ -279,21 +273,22 @@
           />
         </div>
         <.table
-          id="mix-cache-recent-builds-table"
+          id={"#{@cache_id}-recent-builds-table"}
           rows={Enum.take(@recent_builds.result, 7)}
-          row_key={fn row -> "mix-cache-build-#{row.build.id}" end}
+          row_key={fn row -> "#{@cache_id}-build-#{row.build.id}" end}
           row_navigate={
             fn row ->
-              url(
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/mix-builds/#{row.build.id}?tab=cache"
+              unverified_url(
+                @socket,
+                recent_build_path(row, @selected_account, @selected_project)
               )
             end
           }
         >
           <:col :let={row} label={dgettext("dashboard_builds", "Command")}>
             <.text_and_description_cell
-              label="mix compile"
-              description={if row.build.mix_env not in [nil, ""], do: row.build.mix_env}
+              label={build_command(@selected_project, row.build)}
+              description={build_description(@selected_project, row.build)}
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_cache", "Hit Rate")}>
@@ -318,7 +313,7 @@
     <.empty_card_section
       :if={ready? and @recent_builds.result == []}
       title={dgettext("dashboard_cache", "No data yet")}
-      get_started_href="/en/docs/guides/features/cache/elixir"
+      get_started_href={@cache_guide}
       data-part="empty-builds-table-card-section"
     >
       <:image>

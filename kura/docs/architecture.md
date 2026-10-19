@@ -6,7 +6,17 @@ Managed instances can opt into `PositiveFenceV1` serving authority. A dedicated
 thread observes Kubernetes CAS grants bound to immutable identities; public
 middleware and store commits carry epoch permits. Peer replication stays enabled
 on standbys. Expired primaries retain an unclean-volume marker, preventing a
-restarted stale store from rejoining peers. Named planned handover freezes the
+restarted stale store from rejoining peers. A preparation-capable named standby
+first reconciles retained data under a Serving grant, while the primary continues
+accepting writes. The controller persists that exact intent for at most 20 minutes;
+the destination serializes it with frozen-corpus repair and uses normal background
+bandwidth admission. It repeats on eviction but never takes a hold or issues a
+receipt. Its completion report is bound to the source epoch and identity and the
+complete intent. Cancellation, expiry, drain or an identity change stops this work.
+Completion only allows the controller to start the original five-minute Quiescing
+phase; ongoing writes or later eviction can make more repair necessary. Older
+destinations retain the existing direct-quiescence flow, and an older source can
+keep serving during preparation. Named planned handover then freezes the
 source, reconciles its complete retained index on the destination through the
 bounded backfill pipeline, then freezes the destination. The reconciliation
 ignores the normal bootstrap age horizon and recency selection cutoff, but

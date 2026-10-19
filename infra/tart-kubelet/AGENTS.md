@@ -18,6 +18,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
   instead of blocking the single reconcile worker. The golden keeps the Pod
   image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
+- A golden is named after the Pod's image ref string (`goldenVMName`), not
+  the content it resolves to, and so are the golden Node labels the
+  runners-controller's affinity reads. Catalog RunnerPools name their image
+  by digest (`ghcr.io/tuist/tuist-runner@sha256:…`, see
+  `runnersFleet.runnerImageDigests` in the tuist chart), so a runner image
+  release that only re-tags a profile keeps that profile's golden. A pool
+  that pins a tag gets a new golden, and a cold pull, with every new tag.
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first

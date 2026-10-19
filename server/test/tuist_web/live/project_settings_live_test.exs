@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "renders the project settings page", %{
@@ -18,6 +19,20 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
     # Then
     assert html =~ "Settings"
+  end
+
+  test "report publishing has no dashboard control even when enabled for the instance", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
+
+    for system <- [:xcode, :gradle, :mix, :bazel] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+      refute html =~ "Network-trusted"
+      refute has_element?(lv, "button[phx-click=toggle_network_trusted_builds]")
+    end
   end
 
   test "hides bundle settings for Bazel projects", %{
@@ -54,7 +69,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     organization: organization,
     project: project
   } do
-    {:ok, _project} = Tuist.Projects.update_project(project, %{default_branch: "develop"})
+    {:ok, _project} = Projects.update_project(project, %{default_branch: "develop"})
 
     {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
 
@@ -75,7 +90,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     |> form("#default-branch-form", %{"project" => %{"default_branch" => "trunk"}})
     |> render_submit()
 
-    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "trunk"
+    assert Projects.get_project_by_id(project.id).default_branch == "trunk"
   end
 
   test "a blank default branch does not overwrite the current one", %{
@@ -89,7 +104,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     |> form("#default-branch-form", %{"project" => %{"default_branch" => "develop"}})
     |> render_submit()
 
-    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert Projects.get_project_by_id(project.id).default_branch == "develop"
 
     html =
       lv
@@ -97,7 +112,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
       |> render_submit()
 
     assert html =~ "can&#39;t be blank"
-    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert Projects.get_project_by_id(project.id).default_branch == "develop"
   end
 
   describe "project logo" do
@@ -139,7 +154,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "/logo?v="
-      assert Tuist.Projects.get_project_by_id(project.id).logo_storage_key
+      assert Projects.get_project_by_id(project.id).logo_storage_key
     end
 
     test "removes the logo", %{
@@ -150,7 +165,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
       stub(Tuist.Storage, :put_object, fn _key, _binary, :project_logos -> :ok end)
       stub(Tuist.Storage, :delete_object, fn _key, :project_logos -> :ok end)
 
-      {:ok, _} = Tuist.Projects.set_project_logo(project, "bytes", "image/png")
+      {:ok, _} = Projects.set_project_logo(project, "bytes", "image/png")
 
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
       assert html =~ "/logo?v="
@@ -161,7 +176,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
         |> render_click()
 
       refute html =~ "/logo?v="
-      assert is_nil(Tuist.Projects.get_project_by_id(project.id).logo_storage_key)
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
     end
   end
 end
