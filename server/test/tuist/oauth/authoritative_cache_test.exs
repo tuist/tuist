@@ -80,6 +80,26 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     assert Repo.get!(Token, token.id).refresh_token_revoked_at
   end
 
+  for operation <- [:revoke, :revoke_refresh_token] do
+    test "#{operation} preserves database write errors instead of acknowledging success" do
+      token = create_access_token()
+      row = Repo.get!(Token, token.id)
+      failed = row |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(:value, "owned write failure")
+      expect(Repo, :update, fn %Ecto.Changeset{} -> {:error, failed} end)
+      reject(Boruta.Cache, :delete, 1)
+
+      assert {:error, ^failed} = apply(AccessTokens, unquote(operation), [token])
+      fresh = Repo.get!(Token, token.id)
+      assert fresh.revoked_at == row.revoked_at
+      assert fresh.refresh_token_revoked_at == row.refresh_token_revoked_at
+    end
+  end
+
+  test "upstream public client invalidation does not call the replicated cache" do
+    reject(Boruta.Cache, :delete, 1)
+    assert :ok = ClientStore.invalidate_public()
+  end
+
   test "upstream refresh revocation is authoritative despite retained legacy token keys" do
     token = create_access_token()
     keys = [{OAuthToken, :value, token.value}, {OAuthToken, :refresh_token, token.refresh_token}]
