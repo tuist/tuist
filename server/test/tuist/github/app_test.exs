@@ -58,6 +58,46 @@ defmodule Tuist.GitHub.AppTest do
       assert expires_at_datetime == ~U[2024-04-30 11:20:30Z]
     end
 
+    test "restricts the token to the requested repositories and permissions" do
+      # Given
+      scope = %{repository_ids: [42], permissions: %{"contents" => "read"}}
+
+      stub(Req, :post, fn opts ->
+        assert opts[:json] == %{repository_ids: [42], permissions: %{"contents" => "read"}}
+        {:ok, %Req.Response{status: 201, body: %{"token" => "ghs_scoped", "expires_at" => "2024-04-30T11:20:30Z"}}}
+      end)
+
+      # When
+      result = App.get_installation_token("12345", scope: scope)
+
+      # Then
+      assert {:ok, %{token: "ghs_scoped"}} = result
+    end
+
+    test "caches a scoped token separately from the full-scope token" do
+      # Given
+      test_pid = self()
+
+      stub(KeyValueStore, :get_or_update, fn key, _opts, func ->
+        send(test_pid, {:key, key})
+        func.()
+      end)
+
+      stub(Req, :post, fn _opts ->
+        {:ok, %Req.Response{status: 201, body: %{"token" => "ghs_token", "expires_at" => "2024-04-30T11:20:30Z"}}}
+      end)
+
+      # When
+      App.get_installation_token("12345")
+      App.get_installation_token("12345", scope: %{repository_ids: [42], permissions: %{"contents" => "read"}})
+
+      # Then
+      assert_received {:key, full}
+      assert_received {:key, scoped}
+      refute full == scoped
+      assert Enum.take(scoped, length(full)) == full
+    end
+
     test "returns error when request fails with non-201 status" do
       # Given
       installation_id = "12345"

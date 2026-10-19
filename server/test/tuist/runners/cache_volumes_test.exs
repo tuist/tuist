@@ -4,6 +4,9 @@ defmodule Tuist.Runners.CacheVolumesTest do
   import Mimic
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.GitHub.App
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.Buildkite
@@ -18,6 +21,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -1395,6 +1399,126 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, %{action: "keep"}} = publish_report("node", main.id)
       assert {:ok, %{action: "delete"}} = publish_report("node", retained.id)
       assert volume(account).head_id == main.id
+    end
+  end
+
+  describe "allocate_checkout/1" do
+    setup %{account: account, job: job} do
+      job = Map.merge(job, %{head_sha: String.duplicate("a", 40), head_branch: "feature"})
+
+      Repo.insert!(
+        struct(
+          WorkflowJob,
+          Map.merge(job, %{provider: "github", status: "running", fleet_name: "macos", enqueued_at: DateTime.utc_now()})
+        )
+      )
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        executed_workflow_job_id: job.workflow_job_id,
+        fleet_name: "macos",
+        pod_name: "mac-pod",
+        node_name: "mac-node",
+        platform: :macos,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      installation = %{installation_id: "99", client_url: nil}
+      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
+      stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, installation} end)
+      stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
+
+      stub(GitHubClient, :get_workflow_run, fn _ ->
+        {:ok,
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "head_branch" => "main",
+           "event" => "push",
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 123}
+         }}
+      end)
+
+      stub(GitHubClient, :get_repository, fn _, _ ->
+        {:ok, %{"id" => 123, "full_name" => job.repository, "default_branch" => "main"}}
+      end)
+
+      stub(App, :get_installation_token, fn _, _ ->
+        {:ok, %{token: "ghs_read", expires_at: ~U[2026-10-19 12:00:00Z]}}
+      end)
+
+      params = %{
+        "pod_name" => "mac-pod",
+        "pod_uid" => "mac-uid",
+        "node_name" => "mac-node",
+        "architecture" => "arm64",
+        "uid" => 501
+      }
+
+      %{job: job, params: params}
+    end
+
+    test "allocates the repository's checkout volume with what the host needs to fill it", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      expect(App, :get_installation_token, fn %{installation_id: "99"}, opts ->
+        assert opts[:scope] == %{repository_ids: [123], permissions: %{"contents" => "read"}}
+        {:ok, %{token: "ghs_read", expires_at: ~U[2026-10-19 12:00:00Z]}}
+      end)
+
+      assert {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+
+      assert checkout.clone_url == "https://github.com/org/repo"
+      assert checkout.default_branch == "main"
+      assert checkout.commit == job.head_sha
+      assert checkout.token == "ghs_read"
+      assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
+      assert volume(account).key == "checkout"
+      assert volume(account).platform == "macos"
+    end
+
+    test "never lets a use of the checkout volume publish, even from the default branch", %{params: params} do
+      assert {:ok, %{can_publish: false} = checkout} = CacheVolumes.allocate_checkout(params)
+      refute Repo.get!(Usage, checkout.id).can_publish
+    end
+
+    test "is unavailable unless the account has cached checkouts", %{params: params} do
+      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
+      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "is unavailable for GitHub Enterprise Server installations", %{params: params} do
+      stub(VCS, :installation_api_url, fn _ -> "https://ghes.example.com/api/v3" end)
+      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "is pending until the executed job is known", %{account: account, params: params} do
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "macos",
+        pod_name: "waiting-pod",
+        node_name: "mac-node",
+        platform: :macos,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      assert {:error, :pending} = CacheVolumes.allocate_checkout(%{params | "pod_name" => "waiting-pod"})
+    end
+
+    test "the reserved name cannot be requested as a custom volume", %{params: params} do
+      assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "key", "checkout"))
+      assert {:ok, _} = CacheVolumes.allocate(Map.put(params, "key", "checkouts"))
     end
   end
 end

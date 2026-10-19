@@ -558,6 +558,23 @@ host replicas and superseded S3 objects are not a physical-storage census.
   Guest APFS contents are not measured while mounted; verified usage is captured
   after teardown. Tokens and presigned URLs are not persisted in these records.
 
+- **Cached checkouts** (macOS hosts, `<runner-cache-root>/custom/checkouts/<scope>/<clear generation>/`):
+  when an account has cached checkouts, each GitHub repository its jobs build has a volume
+  with the reserved key `checkout` in `runner_cache_volumes`, recorded like any other volume
+  and in the same usage history. Its contents are the repository's source as the host fetched
+  it from GitHub with a read-only, repository-scoped installation token: `master.sparseimage`
+  (an APFS image holding a working tree at the default-branch tip, the full `.git` with every
+  branch and tag, the commits of jobs served in the last 14 days under `refs/tuist/recent/`, and
+  the Git LFS objects those commits reference) and `master.json` (tip commit, build and refresh
+  times, recent job commits). Each job mounts a private clone that is discarded with the job;
+  no job writes the master and nothing is uploaded to object storage. The token is held in
+  memory for the duration of a refresh and never written to disk, the image or the share. A
+  master is removed after seven days without a job mount, on disk pressure, when the volume is
+  cleared (its clear generation changes), and rebuilt from a fresh clone at least every 30
+  days, so history removed from GitHub persists on a host until then or until the volume is
+  cleared. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
+  host uses, not customer data.
+
 Export joins volumes, uses and measurements by account ID and includes the
 account's `runner-volume-masters` prefix and local image/master/journal/scratch
 files. Use a fenced, detached image for a consistent export. Accepted remote

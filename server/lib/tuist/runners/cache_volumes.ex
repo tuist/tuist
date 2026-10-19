@@ -10,7 +10,10 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.GitHub.App
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -23,8 +26,10 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.VCS
 
   @retention_seconds 7 * 24 * 60 * 60
+  @checkout_key "checkout"
 
   # A saved snapshot at or above @full_percent of its capacity, which a clone filled
   # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
@@ -39,7 +44,7 @@ defmodule Tuist.Runners.CacheVolumes do
         "architecture" => arch,
         "uid" => user_id
       }) do
-    with true <- valid_key?(key),
+    with true <- valid_key?(key) and key != @checkout_key,
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
@@ -66,6 +71,65 @@ defmodule Tuist.Runners.CacheVolumes do
   def allocate(_), do: {:error, :unavailable}
 
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
+
+  @doc "The reserved name of a repository's checkout volume, which no job can request."
+  def checkout_key, do: @checkout_key
+
+  @doc """
+  Allocates the checkout volume of the GitHub repository the pod is running a job
+  for. Only the host fills it from GitHub, so its uses never publish. Besides the
+  identity, the result carries the clone URL, the default branch, the job's commit
+  and a token that can only read that repository's contents, for the host alone.
+  """
+  def allocate_checkout(%{
+        "pod_name" => pod,
+        "pod_uid" => uid,
+        "node_name" => node,
+        "architecture" => arch,
+        "uid" => user_id
+      }) do
+    with true <- arch in ["amd64", "arm64"],
+         true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
+         true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
+         {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
+         {:ok, account} <- Accounts.get_account_by_id(job.account_id),
+         true <- FeatureFlags.runner_cached_checkouts_enabled?(account),
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
+         true <- VCS.installation_api_url(installation) == "https://api.github.com",
+         {:ok, identity} <- Identity.resolve(job),
+         {:ok, token} <-
+           App.get_installation_token(installation,
+             scope: %{repository_ids: [identity.repository_id], permissions: %{"contents" => "read"}}
+           ),
+         {:ok, allocation} <-
+           allocate_for_job(job, identity, %{
+             pod_name: pod,
+             pod_uid: uid,
+             node_name: node,
+             key: @checkout_key,
+             architecture: arch,
+             platform: to_string(platform),
+             uid: user_id
+           }) do
+      usage = Repo.get!(Usage, allocation.id)
+
+      {:ok,
+       Map.merge(allocation, %{
+         generation: usage.generation,
+         repository: job.repository,
+         clone_url: "https://github.com/" <> job.repository,
+         default_branch: identity.default_branch,
+         commit: job.head_sha,
+         token: token.token,
+         token_expires_at: token.expires_at
+       })}
+    else
+      {:error, :pending} -> {:error, :pending}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  def allocate_checkout(_), do: {:error, :unavailable}
 
   # The session's executed binding is the proof that this runner runs the job.
   # The job row can still be `queued` or `claimed` by another Pod until the
@@ -119,7 +183,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
       # Lock the profile before the volume, in the same order as policy changes,
       # so their revocation sees every use granted under the previous policy.
-      grant = writer_grant(identity, writer_profile(job, identity))
+      # The host is the only writer of a checkout volume, so its uses never publish.
+      grant =
+        if attrs.key == @checkout_key,
+          do: :denied,
+          else: writer_grant(identity, writer_profile(job, identity))
+
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)

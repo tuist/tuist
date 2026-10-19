@@ -115,3 +115,10 @@ these schemas persist volume identities and per-job uses.
 - The GitHub writer policy is the job's runner profile, resolved from `requested_dispatch_label`. A missing profile or a legacy pool label means the repository's default branch saves (`trusted`). On a profile, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to the default branch) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Other provider and built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
 
 - There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.
+
+- `checkout` is a reserved key: `allocate/1` refuses it, and only
+  `allocate_checkout/1` (host agent, `/runners/cache-volumes/checkout`) creates
+  it, for GitHub jobs of accounts with `:runner_cached_checkouts`, on github.com
+  installations. Its uses are never publishable whatever the runner profile says.
+  The response carries a token restricted to the repository with `contents: read`
+  (`Tuist.GitHub.App` `scope:`); it is for the host only and must never be logged.
