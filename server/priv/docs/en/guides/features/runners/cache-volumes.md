@@ -229,6 +229,27 @@ test:
 <!-- -->
 :::
 
+### How keys work {#how-keys-work}
+
+A key names a volume that changes over time; it is not the name of a fixed
+snapshot like an `actions/cache` key.
+
+- **One volume per key.** Each key is scoped to the repository (on Buildkite,
+  the pipeline; on GitLab CI, the project), platform, CPU architecture and user.
+  Every job that attaches it starts from the latest saved contents, and eligible
+  jobs save their changes back to the same volume.
+- **Keep keys stable.** Don't put versions or lockfile hashes in a key. With
+  `actions/cache`, a key like `deps-${{ hashFiles('Package.resolved') }}`
+  creates a new entry for each change, and `restore-keys` falls back to an older
+  one. Here, a new key is a new, empty volume: the first job after every change
+  starts cold, and the old volumes stay around until they expire. Keep the key
+  and let your tool update the contents; package managers reuse whatever is
+  still valid.
+- **No partial matches.** There are no restore keys. A key that hasn't been
+  saved yet starts empty.
+- **Start over on purpose.** Change the key, or clear the volume in the
+  dashboard, when you want a job to start empty.
+
 On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
 On macOS, paths are symlinks: use download caches such as `~/.npm`;
