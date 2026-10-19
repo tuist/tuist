@@ -733,6 +733,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    MixBuildsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: MixBuildsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
@@ -1307,6 +1315,148 @@ components:
         - end
         - start
       title: RunnerVolumePeriod
+      type: object
+      x-struct:
+      x-validate:
+    MixBuild:
+      properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
+        ci_host:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                type: string
+                x-struct:
+                x-validate:
+              type: object
+              x-struct:
+              x-validate:
+          required:
+            - tags
+            - values
+          type: object
+          x-struct:
+          x-validate:
+        diagnostics_error_count:
+          type: integer
+          x-struct:
+          x-validate:
+        diagnostics_warning_count:
+          type: integer
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        elixir_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        mix_env:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        otp_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - actor
+        - status
+        - duration_ms
+        - is_ci
+        - elixir_version
+        - otp_version
+        - mix_env
+        - git_branch
+        - git_commit_sha
+        - git_ref
+        - ci_provider
+        - ci_run_id
+        - ci_project_handle
+        - ci_host
+        - custom_metadata
+        - diagnostics_error_count
+        - diagnostics_warning_count
+        - started_at
+        - inserted_at
+      title: MixBuild
       type: object
       x-struct:
       x-validate:
@@ -2034,6 +2184,40 @@ components:
         - status
         - data
       title: PreviewArtifactUpload
+      type: object
+      x-struct:
+      x-validate:
+    OnceRunTests:
+      description: Test totals for test runs; null for other kinds.
+      nullable: true
+      properties:
+        failed:
+          type: integer
+          x-struct:
+          x-validate:
+        passed:
+          type: integer
+          x-struct:
+          x-validate:
+        skipped:
+          type: integer
+          x-struct:
+          x-validate:
+        test_cases:
+          type: integer
+          x-struct:
+          x-validate:
+        test_suites:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - test_cases
+        - passed
+        - failed
+        - skipped
+        - test_suites
+      title: OnceRunTests
       type: object
       x-struct:
       x-validate:
@@ -3669,6 +3853,266 @@ components:
       type: object
       x-struct:
       x-validate:
+    MixBuildDetail:
+      properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
+        cache:
+          description: Dependency cache observations recorded by the build.
+          properties:
+            avg_read_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            avg_write_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            bypasses:
+              description: Dependencies that skipped the cache.
+              type: integer
+              x-struct:
+              x-validate:
+            hit_rate:
+              description: Hits divided by hits plus misses, as a percentage; null without lookups.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            hits:
+              description: Local and remote hits.
+              type: integer
+              x-struct:
+              x-validate:
+            local_hits:
+              type: integer
+              x-struct:
+              x-validate:
+            misses:
+              type: integer
+              x-struct:
+              x-validate:
+            p50_read_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p50_write_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p90_read_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p90_write_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p99_read_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p99_write_duration_us:
+              description: Cache operation duration in microseconds.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            read_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+            remote_hits:
+              type: integer
+              x-struct:
+              x-validate:
+            saved_duration_ms:
+              description: Estimated compilation avoided by hits, not elapsed build savings.
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+            write_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - avg_read_duration_us
+            - avg_write_duration_us
+            - bypasses
+            - hit_rate
+            - hits
+            - local_hits
+            - misses
+            - p50_read_duration_us
+            - p50_write_duration_us
+            - p90_read_duration_us
+            - p90_write_duration_us
+            - p99_read_duration_us
+            - p99_write_duration_us
+            - read_bytes
+            - remote_hits
+            - saved_duration_ms
+            - write_bytes
+          title: MixBuildCache
+          type: object
+          x-struct:
+          x-validate:
+        ci_host:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                type: string
+                x-struct:
+                x-validate:
+              type: object
+              x-struct:
+              x-validate:
+          required:
+            - tags
+            - values
+          type: object
+          x-struct:
+          x-validate:
+        diagnostics_error_count:
+          type: integer
+          x-struct:
+          x-validate:
+        diagnostics_warning_count:
+          type: integer
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        elixir_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        mix_env:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        otp_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - cache
+        - id
+        - actor
+        - status
+        - duration_ms
+        - is_ci
+        - elixir_version
+        - otp_version
+        - mix_env
+        - git_branch
+        - git_commit_sha
+        - git_ref
+        - ci_provider
+        - ci_run_id
+        - ci_project_handle
+        - ci_host
+        - custom_metadata
+        - diagnostics_error_count
+        - diagnostics_warning_count
+        - started_at
+        - inserted_at
+      title: MixBuildDetail
+      type: object
+      x-struct:
+      x-validate:
     StressNewTestsResult:
       description: 'What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.'
       properties:
@@ -4033,6 +4477,33 @@ components:
       minimum: 1
       title: RunsIndexPageSize
       type: integer
+      x-struct:
+      x-validate:
+    OnceRunActions:
+      properties:
+        cached:
+          type: integer
+          x-struct:
+          x-validate:
+        executed:
+          type: integer
+          x-struct:
+          x-validate:
+        failed:
+          type: integer
+          x-struct:
+          x-validate:
+        total:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - total
+        - cached
+        - executed
+        - failed
+      title: OnceRunActions
+      type: object
       x-struct:
       x-validate:
     RunnerJobVolumes:
@@ -4515,6 +4986,15 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CommitCoverageFilesSortBy:
+      default: coverage
+      enum:
+        - coverage
+        - path
+      title: CommitCoverageFilesSortBy
+      type: string
+      x-struct:
+      x-validate:
     BuildMultipartUploadURLGenerationParams:
       description: Parameters to generate a signed URL for a build multipart upload part.
       properties:
@@ -4539,6 +5019,14 @@ components:
       maximum: 100
       minimum: 1
       title: CacheRunsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    CommitCoverageFilesPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: CommitCoverageFilesPage
       type: integer
       x-struct:
       x-validate:
@@ -5090,6 +5578,111 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    OnceRun:
+      properties:
+        cache:
+          properties:
+            download_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+            hit_rate:
+              description: Percentage of the run's actions served from the cache; null without actions.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            upload_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - hit_rate
+            - download_bytes
+            - upload_bytes
+          title: OnceRunCacheSummary
+          type: object
+          x-struct:
+          x-validate:
+        command:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        finished_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_rev:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        host_class:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        kind:
+          enum:
+            - build
+            - test
+            - generic
+          title: OnceRunKind
+          type: string
+          x-struct:
+          x-validate:
+        run_id:
+          description: The client-chosen run ID, unique within the project.
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: in_progress until the run is finalized; lost runs are failures.
+          enum:
+            - success
+            - failure
+            - in_progress
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - run_id
+        - kind
+        - command
+        - status
+        - duration_ms
+        - is_ci
+        - git_rev
+        - git_branch
+        - host_class
+        - started_at
+        - finished_at
+        - cache
+      title: OnceRun
+      type: object
+      x-struct:
+      x-validate:
     CacheEndpoint:
       properties:
         endpoint:
@@ -5158,6 +5751,229 @@ components:
         - in_progress_count
         - last_run_at
       title: RunnerWorkflow
+      type: object
+      x-struct:
+      x-validate:
+    CargoBuildDetail:
+      properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
+        cache:
+          description: Aggregate cache counters reported by the build, or null when it reported none. Estimated avoided compiler time is not wall-clock savings.
+          nullable: true
+          properties:
+            background_upload_failures:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            divergences:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            downloaded_bytes:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            estimated_compiler_duration_avoided_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            hit_rate:
+              description: Percentage of task decisions that reused a cached result; null without decisions.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            hits:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            materialization_duration_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            misses:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            prefetch_duration_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            prefetched_actions:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            remote_action_lookup_duration_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            remote_blob_transfer_duration_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            remote_failures:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            task_misses:
+              description: 'Tasks compiled rather than reused: misses, unconsulted tasks and verifications.'
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            unconsulted:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            upload_drain_duration_ns:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            uploaded_bytes:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+            verifications:
+              minimum: 0
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - task_misses
+            - hit_rate
+            - hits
+            - misses
+            - unconsulted
+            - verifications
+            - divergences
+            - prefetched_actions
+            - downloaded_bytes
+            - uploaded_bytes
+            - remote_failures
+            - background_upload_failures
+            - estimated_compiler_duration_avoided_ns
+            - prefetch_duration_ns
+            - materialization_duration_ns
+            - remote_action_lookup_duration_ns
+            - remote_blob_transfer_duration_ns
+            - upload_drain_duration_ns
+          title: CargoBuildCache
+          type: object
+          x-struct:
+          x-validate:
+        ci_host:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        command:
+          description: The Cargo subcommand, for example build or check.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        rust_version:
+          description: The rustc version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - cache
+        - id
+        - actor
+        - command
+        - rust_version
+        - status
+        - duration_ms
+        - is_ci
+        - git_branch
+        - git_commit_sha
+        - git_ref
+        - ci_provider
+        - ci_run_id
+        - ci_project_handle
+        - ci_host
+        - started_at
+        - inserted_at
+      title: CargoBuildDetail
       type: object
       x-struct:
       x-validate:
@@ -6245,6 +7061,14 @@ components:
       minimum: 1
       title: BuildTargetsIndexPageSize
       type: integer
+      x-struct:
+      x-validate:
+    MixBuildStatus:
+      enum:
+        - success
+        - failure
+      title: MixBuildStatus
+      type: string
       x-struct:
       x-validate:
     TestCaseRunsIndexPageSize:
@@ -7383,6 +8207,15 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CargoBuildsIndexPageSize:
+      default: 20
+      description: The maximum number of builds to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: CargoBuildsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     TestCaseEventsPageSize:
       default: 20
       description: The maximum number of events to return in a single page.
@@ -7715,6 +8548,14 @@ components:
       type: string
       x-struct:
       x-validate:
+    CargoBuildsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: CargoBuildsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -7782,6 +8623,126 @@ components:
         - test_case_run_id
         - test_case_run_attachment_id
       title: CrashReportParams
+      type: object
+      x-struct:
+      x-validate:
+    OnceRunList:
+      properties:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        runs:
+          items:
+            properties:
+              cache:
+                properties:
+                  download_bytes:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  hit_rate:
+                    description: Percentage of the run's actions served from the cache; null without actions.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  upload_bytes:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - hit_rate
+                  - download_bytes
+                  - upload_bytes
+                title: OnceRunCacheSummary
+                type: object
+                x-struct:
+                x-validate:
+              command:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: integer
+                x-struct:
+                x-validate:
+              finished_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_branch:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_rev:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              host_class:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              is_ci:
+                type: boolean
+                x-struct:
+                x-validate:
+              kind:
+                enum:
+                  - build
+                  - test
+                  - generic
+                title: OnceRunKind
+                type: string
+                x-struct:
+                x-validate:
+              run_id:
+                description: The client-chosen run ID, unique within the project.
+                type: string
+                x-struct:
+                x-validate:
+              started_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: in_progress until the run is finalized; lost runs are failures.
+                enum:
+                  - success
+                  - failure
+                  - in_progress
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - run_id
+              - kind
+              - command
+              - status
+              - duration_ms
+              - is_ci
+              - git_rev
+              - git_branch
+              - host_class
+              - started_at
+              - finished_at
+              - cache
+            title: OnceRun
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - runs
+        - pagination_metadata
+      title: OnceRunList
       type: object
       x-struct:
       x-validate:
@@ -7854,6 +8815,14 @@ components:
       type: integer
       x-struct:
       x-validate:
+    OnceRunsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: OnceRunsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     PreviewsIndex:
       properties:
         pagination_metadata:
@@ -7869,6 +8838,217 @@ components:
         - previews
         - pagination_metadata
       title: PreviewsIndex
+      type: object
+      x-struct:
+      x-validate:
+    OnceRunDetail:
+      properties:
+        actions:
+          properties:
+            cached:
+              type: integer
+              x-struct:
+              x-validate:
+            executed:
+              type: integer
+              x-struct:
+              x-validate:
+            failed:
+              type: integer
+              x-struct:
+              x-validate:
+            total:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - total
+            - cached
+            - executed
+            - failed
+          title: OnceRunActions
+          type: object
+          x-struct:
+          x-validate:
+        cache:
+          properties:
+            content_download_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+            content_saved_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+            content_upload_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+            hit_rate:
+              description: Hits divided by lookups, as a percentage.
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            hits:
+              type: integer
+              x-struct:
+              x-validate:
+            misses:
+              type: integer
+              x-struct:
+              x-validate:
+            total_lookups:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - hits
+            - misses
+            - total_lookups
+            - hit_rate
+            - content_download_bytes
+            - content_upload_bytes
+            - content_saved_bytes
+          title: OnceRunCache
+          type: object
+          x-struct:
+          x-validate:
+        cancellation_reason:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        command:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        exit_status:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        finished_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_dirty:
+          type: boolean
+          x-struct:
+          x-validate:
+        git_rev:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        host_class:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        kind:
+          enum:
+            - build
+            - test
+            - generic
+          title: OnceRunKind
+          type: string
+          x-struct:
+          x-validate:
+        once_version:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        run_id:
+          description: The client-chosen run ID, unique within the project.
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: in_progress until the run is finalized; lost runs are failures.
+          enum:
+            - success
+            - failure
+            - in_progress
+          type: string
+          x-struct:
+          x-validate:
+        tests:
+          description: Test totals for test runs; null for other kinds.
+          nullable: true
+          properties:
+            failed:
+              type: integer
+              x-struct:
+              x-validate:
+            passed:
+              type: integer
+              x-struct:
+              x-validate:
+            skipped:
+              type: integer
+              x-struct:
+              x-validate:
+            test_cases:
+              type: integer
+              x-struct:
+              x-validate:
+            test_suites:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - test_cases
+            - passed
+            - failed
+            - skipped
+            - test_suites
+          title: OnceRunTests
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - run_id
+        - kind
+        - command
+        - status
+        - duration_ms
+        - is_ci
+        - git_rev
+        - git_branch
+        - host_class
+        - started_at
+        - finished_at
+        - cache
+        - once_version
+        - git_dirty
+        - exit_status
+        - cancellation_reason
+        - actions
+        - tests
+      title: OnceRunDetail
       type: object
       x-struct:
       x-validate:
@@ -7989,6 +9169,22 @@ components:
         - upload_url
       title: CoverageUpload
       type: object
+      x-struct:
+      x-validate:
+    OnceRunStatus:
+      enum:
+        - success
+        - failure
+      title: OnceRunStatus
+      type: string
+      x-struct:
+      x-validate:
+    CargoBuildStatus:
+      enum:
+        - success
+        - failure
+      title: CargoBuildStatus
+      type: string
       x-struct:
       x-validate:
     GradleTaskObservation:
@@ -8216,6 +9412,123 @@ components:
       type: integer
       x-struct:
       x-validate:
+    MixBuildCache:
+      description: Dependency cache observations recorded by the build.
+      properties:
+        avg_read_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        avg_write_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        bypasses:
+          description: Dependencies that skipped the cache.
+          type: integer
+          x-struct:
+          x-validate:
+        hit_rate:
+          description: Hits divided by hits plus misses, as a percentage; null without lookups.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        hits:
+          description: Local and remote hits.
+          type: integer
+          x-struct:
+          x-validate:
+        local_hits:
+          type: integer
+          x-struct:
+          x-validate:
+        misses:
+          type: integer
+          x-struct:
+          x-validate:
+        p50_read_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        p50_write_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        p90_read_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        p90_write_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        p99_read_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        p99_write_duration_us:
+          description: Cache operation duration in microseconds.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        read_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        remote_hits:
+          type: integer
+          x-struct:
+          x-validate:
+        saved_duration_ms:
+          description: Estimated compilation avoided by hits, not elapsed build savings.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        write_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - avg_read_duration_us
+        - avg_write_duration_us
+        - bypasses
+        - hit_rate
+        - hits
+        - local_hits
+        - misses
+        - p50_read_duration_us
+        - p50_write_duration_us
+        - p90_read_duration_us
+        - p90_write_duration_us
+        - p99_read_duration_us
+        - p99_write_duration_us
+        - read_bytes
+        - remote_hits
+        - saved_duration_ms
+        - write_bytes
+      title: MixBuildCache
+      type: object
+      x-struct:
+      x-validate:
     CacheTaskStatus:
       enum:
         - hit_local
@@ -8223,6 +9536,68 @@ components:
         - miss
       title: CacheTaskStatus
       type: string
+      x-struct:
+      x-validate:
+    CommitCoverageFilesSortOrder:
+      default: asc
+      enum:
+        - asc
+        - desc
+      title: CommitCoverageFilesSortOrder
+      type: string
+      x-struct:
+      x-validate:
+    OnceRunCache:
+      properties:
+        content_download_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        content_saved_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        content_upload_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        hit_rate:
+          description: Hits divided by lookups, as a percentage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        hits:
+          type: integer
+          x-struct:
+          x-validate:
+        misses:
+          type: integer
+          x-struct:
+          x-validate:
+        total_lookups:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - hits
+        - misses
+        - total_lookups
+        - hit_rate
+        - content_download_bytes
+        - content_upload_bytes
+        - content_saved_bytes
+      title: OnceRunCache
+      type: object
+      x-struct:
+      x-validate:
+    MixBuildsIndexPageSize:
+      default: 20
+      description: The maximum number of builds to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: MixBuildsIndexPageSize
+      type: integer
       x-struct:
       x-validate:
     RunnerJobVolume:
@@ -8408,6 +9783,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectVCSConnection
       x-validate:
+    OnceRunKind:
+      enum:
+        - build
+        - test
+        - generic
+      title: OnceRunKind
+      type: string
+      x-struct:
+      x-validate:
     GenerationsIndexAfter:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: GenerationsIndexAfter
@@ -8492,6 +9876,205 @@ components:
         - unknown
       title: CASOutputType
       type: string
+      x-struct:
+      x-validate:
+    BranchCoverage:
+      description: "The coverage of a branch's latest complete commit: the union of every run that measured it and its measured set."
+      properties:
+        branch:
+          description: The branch the commit was read from.
+          type: string
+          x-struct:
+          x-validate:
+        complete:
+          description: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
+          type: boolean
+          x-struct:
+          x-validate:
+        completeness:
+          description: '`signal` when the client signalled completion, or empty.'
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage over the measured product files, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        measured_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        measured_files_count:
+          description: Product files some run measured.
+          type: integer
+          x-struct:
+          x-validate:
+        partial:
+          type: boolean
+          x-struct:
+          x-validate:
+        partial_schemes:
+          description: The schemes only measured by runs that skipped tests on purpose.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        reported:
+          description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+          nullable: true
+          properties:
+            carried_from:
+              description: The commits the carried coverage was observed at.
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            carried_tests_count:
+              description: Those of them whose coverage was carried forward.
+              type: integer
+              x-struct:
+              x-validate:
+            coverage:
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            gap_files_count:
+              description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+              type: integer
+              x-struct:
+              x-validate:
+            kind:
+              description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
+              enum:
+                - measured
+                - reported
+                - partial
+                - observed
+              type: string
+              x-struct:
+              x-validate:
+            skipped_tests_count:
+              description: The candidate tests no run of the commit executed.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - coverage
+            - covered_lines
+            - executable_lines
+            - skipped_tests_count
+            - carried_tests_count
+            - gap_files_count
+            - carried_from
+          title: CoverageReported
+          type: object
+          x-struct:
+          x-validate:
+        schemes:
+          description: The schemes that measured the commit.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              files_count:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - files_count
+              - covered_lines
+              - executable_lines
+              - coverage
+            title: CoverageTarget
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        test_run_ids:
+          items:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        unmeasured_files_count:
+          description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - branch
+        - git_commit_sha
+        - covered_lines
+        - executable_lines
+        - coverage
+        - measured_files_count
+        - unmeasured_files_count
+        - schemes
+        - partial_schemes
+        - partial
+        - complete
+        - completeness
+        - test_run_ids
+        - targets
+      title: BranchCoverage
+      type: object
       x-struct:
       x-validate:
     Run:
@@ -8744,6 +10327,30 @@ components:
       type: object
       x-struct:
       x-validate:
+    OnceRunCacheSummary:
+      properties:
+        download_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        hit_rate:
+          description: Percentage of the run's actions served from the cache; null without actions.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        upload_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - hit_rate
+        - download_bytes
+        - upload_bytes
+      title: OnceRunCacheSummary
+      type: object
+      x-struct:
+      x-validate:
     TestModuleRunStatus:
       enum:
         - success
@@ -8871,6 +10478,37 @@ components:
         - skipped
       title: TestSuiteRunStatus
       type: string
+      x-struct:
+      x-validate:
+    CoverageFileRow:
+      properties:
+        coverage:
+          description: Line coverage, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          description: Executable lines the tests ran at least once.
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          description: Lines the compiler instrumented.
+          type: integer
+          x-struct:
+          x-validate:
+        path:
+          description: "The file's path, relative to the repository's root."
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - path
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: CoverageFileRow
+      type: object
       x-struct:
       x-validate:
     XcodeBuildStep:
@@ -9790,6 +11428,15 @@ components:
       type: object
       x-struct:
       x-validate:
+    CommitCoverageFilesPageSize:
+      default: 20
+      description: The maximum number of files to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: CommitCoverageFilesPageSize
+      type: integer
+      x-struct:
+      x-validate:
     BuildMultipartUploadCompletionParams:
       description: Parameters to complete a multipart upload for a build.
       properties:
@@ -9805,6 +11452,235 @@ components:
         - build_id
         - multipart_upload_parts
       title: BuildMultipartUploadCompletionParams
+      type: object
+      x-struct:
+      x-validate:
+    CargoBuild:
+      properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
+        ci_host:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_project_handle:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_provider:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        command:
+          description: The Cargo subcommand, for example build or check.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        rust_version:
+          description: The rustc version.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          enum:
+            - success
+            - failure
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - actor
+        - command
+        - rust_version
+        - status
+        - duration_ms
+        - is_ci
+        - git_branch
+        - git_commit_sha
+        - git_ref
+        - ci_provider
+        - ci_run_id
+        - ci_project_handle
+        - ci_host
+        - started_at
+        - inserted_at
+      title: CargoBuild
+      type: object
+      x-struct:
+      x-validate:
+    CoverageFileDetail:
+      description: A product file's coverage at a commit, merged over every run that measured it.
+      properties:
+        carried_lines:
+          description: Lines that count as covered only through a skipped test whose coverage was carried forward; no run of the commit executed them.
+          items:
+            type: integer
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          description: Executable lines the tests ran at least once.
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          description: Lines the compiler instrumented.
+          type: integer
+          x-struct:
+          x-validate:
+        functions:
+          items:
+            properties:
+              covered_lines:
+                description: The function's executable lines the tests ran, null when several runs covered it and their lines could not be told apart.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              execution_count:
+                description: How many times the function was called.
+                type: integer
+                x-struct:
+                x-validate:
+              line_number:
+                description: The line the function starts at.
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - line_number
+              - execution_count
+              - covered_lines
+              - executable_lines
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_blob_id:
+          description: The Git blob object id of the file's contents the runs measured, null when unknown.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit the file was read at.
+          type: string
+          x-struct:
+          x-validate:
+        lines:
+          description: Every executable line and how many times it ran, by line number. Only with `include_lines`.
+          items:
+            properties:
+              count:
+                type: integer
+                x-struct:
+                x-validate:
+              line:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - line
+              - count
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        path:
+          description: "The file's path, relative to the repository's root."
+          type: string
+          x-struct:
+          x-validate:
+        targets:
+          description: The targets whose binaries compiled the file.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - git_commit_sha
+        - path
+        - git_blob_id
+        - targets
+        - covered_lines
+        - executable_lines
+        - coverage
+        - carried_lines
+        - functions
+      title: CoverageFileDetail
       type: object
       x-struct:
       x-validate:
@@ -9858,6 +11734,15 @@ components:
         - disk_total_bytes
       title: RunnerJobMetric
       type: object
+      x-struct:
+      x-validate:
+    OnceRunsIndexPageSize:
+      default: 20
+      description: The maximum number of runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: OnceRunsIndexPageSize
+      type: integer
       x-struct:
       x-validate:
     BuildMultipartUploadStartParams:
@@ -10215,6 +12100,124 @@ components:
       type: string
       x-struct:
       x-validate:
+    CargoBuildList:
+      properties:
+        builds:
+          items:
+            properties:
+              actor:
+                $ref: '#/components/schemas/ReportActor'
+              ci_host:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_project_handle:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_provider:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_run_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              command:
+                description: The Cargo subcommand, for example build or check.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: integer
+                x-struct:
+                x-validate:
+              git_branch:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_ref:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              is_ci:
+                type: boolean
+                x-struct:
+                x-validate:
+              rust_version:
+                description: The rustc version.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              started_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                enum:
+                  - success
+                  - failure
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - actor
+              - command
+              - rust_version
+              - status
+              - duration_ms
+              - is_ci
+              - git_branch
+              - git_commit_sha
+              - git_ref
+              - ci_provider
+              - ci_run_id
+              - ci_project_handle
+              - ci_host
+              - started_at
+              - inserted_at
+            title: CargoBuild
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - builds
+        - pagination_metadata
+      title: CargoBuildList
+      type: object
+      x-struct:
+      x-validate:
     BuildCASOutputsIndexPage:
       default: 1
       description: The page number to return.
@@ -10259,6 +12262,58 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CommitCoverageFiles:
+      properties:
+        files:
+          items:
+            properties:
+              coverage:
+                description: Line coverage, in percent.
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                description: Executable lines the tests ran at least once.
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                description: Lines the compiler instrumented.
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root."
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - covered_lines
+              - executable_lines
+              - coverage
+            title: CoverageFileRow
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit the files were read at.
+          type: string
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - git_commit_sha
+        - files
+        - pagination_metadata
+      title: CommitCoverageFiles
+      type: object
+      x-struct:
+      x-validate:
     Tokens:
       description: A list of project tokens.
       properties:
@@ -10271,6 +12326,163 @@ components:
       required:
         - tokens
       title: Tokens
+      type: object
+      x-struct:
+      x-validate:
+    MixBuildList:
+      properties:
+        builds:
+          items:
+            properties:
+              actor:
+                $ref: '#/components/schemas/ReportActor'
+              ci_host:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_project_handle:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_provider:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              ci_run_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              custom_metadata:
+                properties:
+                  tags:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  values:
+                    additionalProperties:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - tags
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+              diagnostics_error_count:
+                type: integer
+                x-struct:
+                x-validate:
+              diagnostics_warning_count:
+                type: integer
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: integer
+                x-struct:
+                x-validate:
+              elixir_version:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_branch:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_ref:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              is_ci:
+                type: boolean
+                x-struct:
+                x-validate:
+              mix_env:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              otp_version:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              started_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                enum:
+                  - success
+                  - failure
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - actor
+              - status
+              - duration_ms
+              - is_ci
+              - elixir_version
+              - otp_version
+              - mix_env
+              - git_branch
+              - git_commit_sha
+              - git_ref
+              - ci_provider
+              - ci_run_id
+              - ci_project_handle
+              - ci_host
+              - custom_metadata
+              - diagnostics_error_count
+              - diagnostics_warning_count
+              - started_at
+              - inserted_at
+            title: MixBuild
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - builds
+        - pagination_metadata
+      title: MixBuildList
       type: object
       x-struct:
       x-validate:
@@ -10384,6 +12596,125 @@ components:
       title: ArtifactMultipartUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+      x-validate:
+    CargoBuildCache:
+      description: Aggregate cache counters reported by the build, or null when it reported none. Estimated avoided compiler time is not wall-clock savings.
+      nullable: true
+      properties:
+        background_upload_failures:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        divergences:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        downloaded_bytes:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        estimated_compiler_duration_avoided_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        hit_rate:
+          description: Percentage of task decisions that reused a cached result; null without decisions.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        hits:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        materialization_duration_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        misses:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        prefetch_duration_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        prefetched_actions:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        remote_action_lookup_duration_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        remote_blob_transfer_duration_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        remote_failures:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        task_misses:
+          description: 'Tasks compiled rather than reused: misses, unconsulted tasks and verifications.'
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        unconsulted:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        upload_drain_duration_ns:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        uploaded_bytes:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+        verifications:
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - task_misses
+        - hit_rate
+        - hits
+        - misses
+        - unconsulted
+        - verifications
+        - divergences
+        - prefetched_actions
+        - downloaded_bytes
+        - uploaded_bytes
+        - remote_failures
+        - background_upload_failures
+        - estimated_compiler_duration_avoided_ns
+        - prefetch_duration_ns
+        - materialization_duration_ns
+        - remote_action_lookup_duration_ns
+        - remote_blob_transfer_duration_ns
+        - upload_drain_duration_ns
+      title: CargoBuildCache
+      type: object
+      x-struct:
       x-validate:
     AppBuild:
       properties:
@@ -21252,6 +23583,279 @@ paths:
       tags:
         - Projects
   /api/projects/{account_handle}/{project_handle}/mix/builds:
+    get:
+      callbacks: {}
+      operationId: listMixBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: MixBuildStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by whether the build ran on CI.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by Mix environment, for example dev or test.
+          in: query
+          name: mix_env
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of builds to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: MixBuildsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: MixBuildsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
+                        ci_host:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_project_handle:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_provider:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_run_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          required:
+                            - tags
+                            - values
+                          type: object
+                          x-struct:
+                          x-validate:
+                        diagnostics_error_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        diagnostics_warning_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        elixir_version:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_ref:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        mix_env:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        otp_version:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - actor
+                        - status
+                        - duration_ms
+                        - is_ci
+                        - elixir_version
+                        - otp_version
+                        - mix_env
+                        - git_branch
+                        - git_commit_sha
+                        - git_ref
+                        - ci_provider
+                        - ci_run_id
+                        - ci_project_handle
+                        - ci_host
+                        - custom_metadata
+                        - diagnostics_error_count
+                        - diagnostics_warning_count
+                        - started_at
+                        - inserted_at
+                      title: MixBuild
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - builds
+                  - pagination_metadata
+                title: MixBuildList
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Mix builds
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List Mix (Elixir) builds for a project, newest first.
+      tags:
+        - Mix
     post:
       callbacks: {}
       operationId: createMixBuild
@@ -22129,6 +24733,535 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/file:
+    get:
+      callbacks: {}
+      description: "The file's figures and functions at the commit, merged over every run that measured it, and its per-line execution counts with `include_lines`. Per-file coverage is kept for a shorter time than a commit's figures, so a commit can be found while its files are not."
+      operationId: getCommitCoverageFile
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: "The file's path, relative to the repository's root."
+          in: query
+          name: path
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Whether to include every executable line and how many times it ran.
+          in: query
+          name: include_lines
+          required: false
+          schema:
+            default: false
+            type: boolean
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A product file's coverage at a commit, merged over every run that measured it.
+                properties:
+                  carried_lines:
+                    description: Lines that count as covered only through a skipped test whose coverage was carried forward; no run of the commit executed them.
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Line coverage, in percent.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    description: Executable lines the tests ran at least once.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    description: Lines the compiler instrumented.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  functions:
+                    items:
+                      properties:
+                        covered_lines:
+                          description: The function's executable lines the tests ran, null when several runs covered it and their lines could not be told apart.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        execution_count:
+                          description: How many times the function was called.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        line_number:
+                          description: The line the function starts at.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - line_number
+                        - execution_count
+                        - covered_lines
+                        - executable_lines
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  git_blob_id:
+                    description: The Git blob object id of the file's contents the runs measured, null when unknown.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: The commit the file was read at.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  lines:
+                    description: Every executable line and how many times it ran, by line number. Only with `include_lines`.
+                    items:
+                      properties:
+                        count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        line:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - line
+                        - count
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  path:
+                    description: "The file's path, relative to the repository's root."
+                    type: string
+                    x-struct:
+                    x-validate:
+                  targets:
+                    description: The targets whose binaries compiled the file.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - git_commit_sha
+                  - path
+                  - git_blob_id
+                  - targets
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - carried_lines
+                  - functions
+                title: CoverageFileDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: The file's coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The commit gathered no coverage, or no coverage of the file is kept for it
+      summary: Get the code coverage of a file at a commit.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getMixBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
+                  cache:
+                    description: Dependency cache observations recorded by the build.
+                    properties:
+                      avg_read_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      avg_write_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      bypasses:
+                        description: Dependencies that skipped the cache.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      hit_rate:
+                        description: Hits divided by hits plus misses, as a percentage; null without lookups.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      hits:
+                        description: Local and remote hits.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      local_hits:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      misses:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p50_read_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      p50_write_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      p90_read_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      p90_write_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      p99_read_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      p99_write_duration_us:
+                        description: Cache operation duration in microseconds.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      read_bytes:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      remote_hits:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      saved_duration_ms:
+                        description: Estimated compilation avoided by hits, not elapsed build savings.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_bytes:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - avg_read_duration_us
+                      - avg_write_duration_us
+                      - bypasses
+                      - hit_rate
+                      - hits
+                      - local_hits
+                      - misses
+                      - p50_read_duration_us
+                      - p50_write_duration_us
+                      - p90_read_duration_us
+                      - p90_write_duration_us
+                      - p99_read_duration_us
+                      - p99_write_duration_us
+                      - read_bytes
+                      - remote_hits
+                      - saved_duration_ms
+                      - write_bytes
+                    title: MixBuildCache
+                    type: object
+                    x-struct:
+                    x-validate:
+                  ci_host:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_project_handle:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_provider:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_run_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - tags
+                      - values
+                    type: object
+                    x-struct:
+                    x-validate:
+                  diagnostics_error_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  diagnostics_warning_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  elixir_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  mix_env:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  otp_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - cache
+                  - id
+                  - actor
+                  - status
+                  - duration_ms
+                  - is_ci
+                  - elixir_version
+                  - otp_version
+                  - mix_env
+                  - git_branch
+                  - git_commit_sha
+                  - git_ref
+                  - ci_provider
+                  - ci_run_id
+                  - ci_project_handle
+                  - ci_host
+                  - custom_metadata
+                  - diagnostics_error_count
+                  - diagnostics_warning_count
+                  - started_at
+                  - inserted_at
+                title: MixBuildDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Mix build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a Mix (Elixir) build with its diagnostics counts and dependency cache summary.
+      tags:
+        - Mix
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks:
     get:
       callbacks: {}
@@ -24104,6 +27237,173 @@ paths:
       summary: It uploads a given cache action item.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/files:
+    get:
+      callbacks: {}
+      description: "One page of the product files the commit's runs measured, with their line coverage, least covered first by default. Per-file coverage is kept for a shorter time than a commit's figures, so an older commit can list no files."
+      operationId: listCommitCoverageFiles
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: CommitCoverageFilesPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of files to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CommitCoverageFilesPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Keeps the files whose path contains it, ignoring case.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: What to sort the files by.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: coverage
+            enum:
+              - coverage
+              - path
+            title: CommitCoverageFilesSortBy
+            type: string
+            x-struct:
+            x-validate:
+        - description: The order to sort the files in.
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            default: asc
+            enum:
+              - asc
+              - desc
+            title: CommitCoverageFilesSortOrder
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  files:
+                    items:
+                      properties:
+                        coverage:
+                          description: Line coverage, in percent.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          description: Executable lines the tests ran at least once.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          description: Lines the compiler instrumented.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: "The file's path, relative to the repository's root."
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - path
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageFileRow
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: The commit the files were read at.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - git_commit_sha
+                  - files
+                  - pagination_metadata
+                title: CommitCoverageFiles
+                type: object
+                x-struct:
+                x-validate:
+          description: A page of the commit's files
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run or commit was not found, or gathered no coverage
+      summary: List the files of a commit's code coverage.
+      tags:
+        - Tests
   /api/runs/{run_id}/generate-url:
     post:
       callbacks: {}
@@ -25200,6 +28500,241 @@ paths:
       tags:
         - XcodeCachedModule
   /api/projects/{account_handle}/{project_handle}/cargo/builds:
+    get:
+      callbacks: {}
+      description: Cargo test runs reported as nextest are listed with test runs, not builds.
+      operationId: listCargoBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: CargoBuildStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by whether the build ran on CI.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by Cargo subcommand, for example build or check.
+          in: query
+          name: command
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of builds to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CargoBuildsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: CargoBuildsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
+                        ci_host:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_project_handle:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_provider:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ci_run_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        command:
+                          description: The Cargo subcommand, for example build or check.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_ref:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        rust_version:
+                          description: The rustc version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - actor
+                        - command
+                        - rust_version
+                        - status
+                        - duration_ms
+                        - is_ci
+                        - git_branch
+                        - git_commit_sha
+                        - git_ref
+                        - ci_provider
+                        - ci_run_id
+                        - ci_project_handle
+                        - ci_host
+                        - started_at
+                        - inserted_at
+                      title: CargoBuild
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - builds
+                  - pagination_metadata
+                title: CargoBuildList
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Cargo builds
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List Cargo builds for a project, newest first.
+      tags:
+        - Cargo
     post:
       callbacks: {}
       operationId: createCargoBuild
@@ -31981,6 +35516,299 @@ paths:
       summary: List a project's notification alert rules.
       tags:
         - Project Notification Alerts
+  /api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getCargoBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
+                  cache:
+                    description: Aggregate cache counters reported by the build, or null when it reported none. Estimated avoided compiler time is not wall-clock savings.
+                    nullable: true
+                    properties:
+                      background_upload_failures:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      divergences:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      downloaded_bytes:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      estimated_compiler_duration_avoided_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      hit_rate:
+                        description: Percentage of task decisions that reused a cached result; null without decisions.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      hits:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      materialization_duration_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      misses:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      prefetch_duration_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      prefetched_actions:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      remote_action_lookup_duration_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      remote_blob_transfer_duration_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      remote_failures:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      task_misses:
+                        description: 'Tasks compiled rather than reused: misses, unconsulted tasks and verifications.'
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      unconsulted:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      upload_drain_duration_ns:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      uploaded_bytes:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      verifications:
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - task_misses
+                      - hit_rate
+                      - hits
+                      - misses
+                      - unconsulted
+                      - verifications
+                      - divergences
+                      - prefetched_actions
+                      - downloaded_bytes
+                      - uploaded_bytes
+                      - remote_failures
+                      - background_upload_failures
+                      - estimated_compiler_duration_avoided_ns
+                      - prefetch_duration_ns
+                      - materialization_duration_ns
+                      - remote_action_lookup_duration_ns
+                      - remote_blob_transfer_duration_ns
+                      - upload_drain_duration_ns
+                    title: CargoBuildCache
+                    type: object
+                    x-struct:
+                    x-validate:
+                  ci_host:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_project_handle:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_provider:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ci_run_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  command:
+                    description: The Cargo subcommand, for example build or check.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  rust_version:
+                    description: The rustc version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - cache
+                  - id
+                  - actor
+                  - command
+                  - rust_version
+                  - status
+                  - duration_ms
+                  - is_ci
+                  - git_branch
+                  - git_commit_sha
+                  - git_ref
+                  - ci_provider
+                  - ci_run_id
+                  - ci_project_handle
+                  - ci_host
+                  - started_at
+                  - inserted_at
+                title: CargoBuildDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Cargo build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a Cargo build with its decoded cache counters.
+      tags:
+        - Cargo
   /api/cache/multipart/start:
     post:
       callbacks: {}
@@ -33997,6 +37825,248 @@ paths:
       summary: List build branches or workload groups.
       tags:
         - Metrics
+  /api/projects/{account_handle}/{project_handle}/once/runs:
+    get:
+      callbacks: {}
+      operationId: listOnceRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by run kind.
+          in: query
+          name: kind
+          required: false
+          schema:
+            enum:
+              - build
+              - test
+              - generic
+            title: OnceRunKind
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by the result of finalized runs.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: OnceRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by whether the run happened on CI.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: OnceRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: OnceRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  runs:
+                    items:
+                      properties:
+                        cache:
+                          properties:
+                            download_bytes:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              description: Percentage of the run's actions served from the cache; null without actions.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            upload_bytes:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - hit_rate
+                            - download_bytes
+                            - upload_bytes
+                          title: OnceRunCacheSummary
+                          type: object
+                          x-struct:
+                          x-validate:
+                        command:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        finished_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_rev:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        host_class:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        kind:
+                          enum:
+                            - build
+                            - test
+                            - generic
+                          title: OnceRunKind
+                          type: string
+                          x-struct:
+                          x-validate:
+                        run_id:
+                          description: The client-chosen run ID, unique within the project.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: in_progress until the run is finalized; lost runs are failures.
+                          enum:
+                            - success
+                            - failure
+                            - in_progress
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - run_id
+                        - kind
+                        - command
+                        - status
+                        - duration_ms
+                        - is_ci
+                        - git_rev
+                        - git_branch
+                        - host_class
+                        - started_at
+                        - finished_at
+                        - cache
+                      title: OnceRun
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - runs
+                  - pagination_metadata
+                title: OnceRunList
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Once runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List Once runs for a project, newest first.
+      tags:
+        - Once
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}
@@ -36515,6 +40585,287 @@ paths:
       summary: List the jobs that used a runner volume.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}:
+    get:
+      callbacks: {}
+      operationId: getOnceRun
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The run ID, unique within the project.
+          in: path
+          name: once_run_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    properties:
+                      cached:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executed:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      failed:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - total
+                      - cached
+                      - executed
+                      - failed
+                    title: OnceRunActions
+                    type: object
+                    x-struct:
+                    x-validate:
+                  cache:
+                    properties:
+                      content_download_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      content_saved_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      content_upload_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      hit_rate:
+                        description: Hits divided by lookups, as a percentage.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      hits:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      misses:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_lookups:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hits
+                      - misses
+                      - total_lookups
+                      - hit_rate
+                      - content_download_bytes
+                      - content_upload_bytes
+                      - content_saved_bytes
+                    title: OnceRunCache
+                    type: object
+                    x-struct:
+                    x-validate:
+                  cancellation_reason:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  command:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  exit_status:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  finished_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_dirty:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  git_rev:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  host_class:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  kind:
+                    enum:
+                      - build
+                      - test
+                      - generic
+                    title: OnceRunKind
+                    type: string
+                    x-struct:
+                    x-validate:
+                  once_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  run_id:
+                    description: The client-chosen run ID, unique within the project.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: in_progress until the run is finalized; lost runs are failures.
+                    enum:
+                      - success
+                      - failure
+                      - in_progress
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tests:
+                    description: Test totals for test runs; null for other kinds.
+                    nullable: true
+                    properties:
+                      failed:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      passed:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      skipped:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      test_cases:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      test_suites:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - test_cases
+                      - passed
+                      - failed
+                      - skipped
+                      - test_suites
+                    title: OnceRunTests
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - run_id
+                  - kind
+                  - command
+                  - status
+                  - duration_ms
+                  - is_ci
+                  - git_rev
+                  - git_branch
+                  - host_class
+                  - started_at
+                  - finished_at
+                  - cache
+                  - once_version
+                  - git_dirty
+                  - exit_status
+                  - cancellation_reason
+                  - actions
+                  - tests
+                title: OnceRunDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Once run details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get a Once run with its action totals, cache summary and, for test runs, test totals.
+      tags:
+        - Once
   /api/projects/{account_handle}/{project_handle}/once/actions:
     get:
       callbacks: {}
@@ -37252,6 +41603,261 @@ paths:
       summary: Get a Mix compiled module and its analytics across builds.
       tags:
         - MixCompiledModule
+  /api/projects/{account_handle}/{project_handle}/tests/coverage:
+    get:
+      callbacks: {}
+      description: "The coverage of the branch's latest complete commit: the newest commit whose pipeline signalled it finished (see `completeCommitCoverage`) and whose figure is whole, the point the branch's coverage trend ends at. The branch's commits are the ones its ref owns in the commit graph, newest first by when they were made, or, when its ref owns none, the commits its runs were labelled with, newest first by when they ran; one indexed read, newest first, finds the commit. Newer commits still in progress, or whose figure is a lower bound, are left out."
+      operationId: getBranchCoverage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The branch to read. The project's default branch when omitted.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: "The coverage of a branch's latest complete commit: the union of every run that measured it and its measured set."
+                properties:
+                  branch:
+                    description: The branch the commit was read from.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  complete:
+                    description: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  completeness:
+                    description: '`signal` when the client signalled completion, or empty.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Line coverage over the measured product files, in percent.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_files_count:
+                    description: Product files some run measured.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  partial:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  partial_schemes:
+                    description: The schemes only measured by runs that skipped tests on purpose.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  reported:
+                    description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+                    nullable: true
+                    properties:
+                      carried_from:
+                        description: The commits the carried coverage was observed at.
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      carried_tests_count:
+                        description: Those of them whose coverage was carried forward.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      gap_files_count:
+                        description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      kind:
+                        description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
+                        enum:
+                          - measured
+                          - reported
+                          - partial
+                          - observed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      skipped_tests_count:
+                        description: The candidate tests no run of the commit executed.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kind
+                      - coverage
+                      - covered_lines
+                      - executable_lines
+                      - skipped_tests_count
+                      - carried_tests_count
+                      - gap_files_count
+                      - carried_from
+                    title: CoverageReported
+                    type: object
+                    x-struct:
+                    x-validate:
+                  schemes:
+                    description: The schemes that measured the commit.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        files_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - files_count
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageTarget
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_run_ids:
+                    items:
+                      format: uuid
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  unmeasured_files_count:
+                    description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - branch
+                  - git_commit_sha
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - measured_files_count
+                  - unmeasured_files_count
+                  - schemes
+                  - partial_schemes
+                  - partial
+                  - complete
+                  - completeness
+                  - test_run_ids
+                  - targets
+                title: BranchCoverage
+                type: object
+                x-struct:
+                x-validate:
+          description: The coverage of the branch's latest complete commit
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found, or no complete commit on the branch gathered coverage
+      summary: Get the code coverage of a branch.
+      tags:
+        - Tests
   /api/organizations/{organization_name}/members/{user_name}:
     delete:
       callbacks: {}
@@ -42242,6 +46848,255 @@ paths:
       summary: Create a Gradle build with task data.
       tags:
         - Gradle
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}:
+    get:
+      callbacks: {}
+      description: "The commit's coverage, complete or not: the union of every run that measured it, its measured set and its targets."
+      operationId: getCommitCoverage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: "A commit's coverage: the union of every run that measured it and its measured set."
+                properties:
+                  complete:
+                    description: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  completeness:
+                    description: '`signal` when the client signalled completion, or empty.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Line coverage over the measured product files, in percent.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_files_count:
+                    description: Product files some run measured.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  partial:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  partial_schemes:
+                    description: The schemes only measured by runs that skipped tests on purpose.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  reported:
+                    description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+                    nullable: true
+                    properties:
+                      carried_from:
+                        description: The commits the carried coverage was observed at.
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      carried_tests_count:
+                        description: Those of them whose coverage was carried forward.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      gap_files_count:
+                        description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      kind:
+                        description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
+                        enum:
+                          - measured
+                          - reported
+                          - partial
+                          - observed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      skipped_tests_count:
+                        description: The candidate tests no run of the commit executed.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kind
+                      - coverage
+                      - covered_lines
+                      - executable_lines
+                      - skipped_tests_count
+                      - carried_tests_count
+                      - gap_files_count
+                      - carried_from
+                    title: CoverageReported
+                    type: object
+                    x-struct:
+                    x-validate:
+                  schemes:
+                    description: The schemes that measured the commit.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        files_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - files_count
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageTarget
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_run_ids:
+                    items:
+                      format: uuid
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  unmeasured_files_count:
+                    description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - git_commit_sha
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - measured_files_count
+                  - unmeasured_files_count
+                  - schemes
+                  - partial_schemes
+                  - partial
+                  - complete
+                  - completeness
+                  - test_run_ids
+                  - targets
+                title: CommitCoverage
+                type: object
+                x-struct:
+                x-validate:
+          description: The commit's coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run or commit was not found, or gathered no coverage
+      summary: Get the code coverage of a commit.
+      tags:
+        - Tests
   /api/projects:
     get:
       callbacks: {}
