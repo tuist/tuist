@@ -215,8 +215,9 @@ releases leadership after graceful shutdown. Authority reconciliation runs on
 all replicas because unrelated workers can keep that lease while draining after
 grant renewal has stopped. A surviving replica can continue renewing during
 that interval. Loss of all authority reconcilers still expires grants and
-requires positive fencing. Upgrade runtime and
-controller in either order: old runtimes cannot acknowledge live-writer fencing,
+requires positive fencing. Run at least two controller replicas for rollout
+continuity; a single replica cannot renew grants while its only process restarts.
+Upgrade runtime and controller in either order: old runtimes cannot acknowledge live-writer fencing,
 and old controllers ignore that additive report. Recovery becomes automatic only
 when both support it; rollback to either old component leaves an expired writer
 closed and needing the original external recovery procedure.
