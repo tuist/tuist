@@ -59,10 +59,13 @@ consumer is Claude Managed Agents `self_hosted` environments.
   asked for is a `Tuist.Sandboxes.SandboxNode` row (`sandbox_nodes`) keyed by
   node and pod name; placements budget against the smaller of it and the
   reported limit, so a growth is only used once the daemon reports it and a
-  shrink stops placements first. `admissible?/2` asks for a growth and admits
-  the item if the node reports it within 2.5 s, which keeps the poller inside
-  the queue's 5 s acknowledgement; a deferred growth stays asked for and the
-  item stays queued. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
+  shrink stops placements first. A growth the kubelet defers (read from the
+  Pod's `PodResizePending` condition) is given back and the next node tried;
+  only the last deferral stays asked for. `admissible?/2` asks for a growth
+  and admits the item once the kubelet has applied it, within 2.5 s, which
+  keeps the poller inside the queue's 5 s acknowledgement; otherwise the item
+  stays queued. The chart's floor is 1 GiB, so every node's first sandbox
+  grows its carve-out. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
   minute) shrinks carve-outs back toward what their running sandboxes hold,
   never below the floor and only three minutes after the last growth,
   sending the daemon `reclaim` before the resize because the kubelet refuses

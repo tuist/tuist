@@ -10,13 +10,14 @@ queue and routes each session to its sandbox, and a worker inside the VM
 executes the bash and file tools.
 
 GitHub Actions runners stay on Kata (`infra/runners-controller`); sandboxd is
-a separate substrate on the same nodes. The DaemonSet Pod reserves
-`sandboxes.memoryGiB` for guests (request equals limit) under a PriorityClass
+a separate substrate on the same nodes. The DaemonSet Pod starts at
+`sandboxes.memoryGiB` (request equals limit) under a PriorityClass
 with `preemptionPolicy: Never`: runner Pods carry no priority and become
 job-owning in place, so the daemon must never evict one. On a full node it
-waits, first in the scheduling queue, for a job to finish. With
-`sandboxes.maxMemoryGiB` above it, `memoryGiB` is only the floor of an elastic
-carve-out the server resizes in place (see "Server side").
+waits, first in the scheduling queue, for a job to finish. `memoryGiB` defaults
+to 1 GiB, which holds the daemon and a template build but no sandbox, so a node
+gives sandboxes nothing until one needs memory; the server then grows the Pod in
+place up to `sandboxes.maxMemoryGiB` (see "Server side").
 
 ## Pieces
 
@@ -231,7 +232,7 @@ process is running; `worker_exited` follows as an event. Credentials travel
 only in `start_worker` args, are handed to the guest over vsock, and are never
 written to the node's disk by the daemon.
 
-The daemon rereads its cgroup's memory limit every second and sends a
+The daemon rereads its cgroup's memory limit every 250 ms and sends a
 `report` as soon as it changes, so a resize of its Pod reaches the server's
 budget without waiting out the 30 s interval. `reclaim` writes the excess over
 `target_bytes` to the cgroup's `memory.reclaim` and answers the limit and
@@ -281,7 +282,9 @@ acknowledged by the server's poller; the worker never polls.
   in whole GiB up to the ceiling, records the size it asked for in
   `sandbox_nodes`, and places once the daemon reports the new limit. The
   kubelet applies a growth that fits the node at once and defers one that
-  does not; the runners controller then retires idle warm runners on that
+  does not; the server reads the Pod's resize status, gives a deferred
+  growth back and tries the next node, and the last deferral stays asked
+  for while the runners controller retires idle warm runners on that
   node, and the scheduler, which counts the requested size, places no runner
   Pod into the room meanwhile. Placements budget against the smaller of the
   reported limit and the size asked for. A minute-by-minute job shrinks a

@@ -980,17 +980,18 @@ buildersFleet:
     enabled: false
 
 # Firecracker sandboxes for coding-agent sessions, on the OVH RISE-S that also
-# hosts the Linux runner pool. 8 GiB of the box's 64 GB is always reserved
-# for guests, growing up to 40 GiB when sandboxes need it; the kata runner
-# pools keep the rest. The ceiling sits close to the box so validation can
-# drive a growth into idle warm runners. Tags are pinned to
+# hosts the Linux runner pool. The daemon starts at the chart's 1 GiB floor,
+# which holds no sandbox, and grows up to 40 GiB as sandboxes need memory; the
+# kata runner pools keep the rest. The ceiling sits close to the box so
+# validation can drive a growth into idle warm runners, and the medium shape
+# is built at startup too. Tags are pinned to
 # `sha-<git-sha>` builds from sandboxd-image.yml / sandbox-image.yml on the
 # branch under validation. The admin API is on so validation Jobs can drive
 # the daemon without going through the server.
 sandboxes:
   enabled: true
   image:
-    tag: "sha-da1edbe6d171"
+    tag: "sha-3b10e1eddbaf"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -1000,8 +1001,8 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  memoryGiB: 8
   maxMemoryGiB: 40
+  prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
   admin:
     enabled: true

@@ -2419,23 +2419,28 @@ sandboxes:
   # `node.cluster.x-k8s.io/pool` values the DaemonSet may land on. Required.
   nodePools: []
   tolerations: []
-  # Memory the DaemonSet Pod reserves for guests (request == limit), so
-  # kube-scheduler keeps kata runner Pods out of it. It is also the budget
-  # the server places sandboxes against: each creating, resuming or running
-  # sandbox is charged its guest memory plus a fixed VMM overhead, and a
-  # node whose sum would overflow the limit is skipped or has idle
-  # sandboxes paused first. Size it from concurrent active turns, not from
-  # the number of sessions: paused sandboxes cost disk, not memory.
-  memoryGiB: 16
-  # With a ceiling above memoryGiB, memoryGiB becomes the floor of an elastic
-  # carve-out. When sandboxes need more, the server grows the daemon Pod's
-  # memory in place, in whole GiB, up to this ceiling: into memory no Pod
-  # requests right away, or into room the runners controller frees on that
-  # node by retiring idle warm runners (never ones running a job). Once
-  # sandboxes pause it shrinks the Pod back, and the runner pools' budget,
-  # which counts the daemon's memory, grows again. 0 keeps memoryGiB fixed.
-  maxMemoryGiB: 0
-  cpu: "2"
+  # Memory the DaemonSet Pod starts at (request == limit): the floor of the
+  # node's carve-out. kube-scheduler keeps runner Pods out of it, so it is
+  # memory runners can never use. 1 GiB holds the daemon and a template
+  # build but no sandbox, so a node gives sandboxes nothing until one needs
+  # memory. The server places sandboxes against the current limit: each
+  # creating, resuming or running sandbox is charged its guest memory plus a
+  # fixed VMM overhead, with 512 MiB kept for the daemon. Paused sandboxes
+  # cost disk, not memory.
+  memoryGiB: 1
+  # The most the server may grow a node's carve-out to, in place and in whole
+  # GiB, when sandboxes need it: into memory no Pod requests right away, or
+  # into room the runners controller frees on that node by retiring idle
+  # warm runners (never ones running a job). A growth a node cannot take
+  # moves on to the next node. Once sandboxes pause the carve-out shrinks
+  # back to memoryGiB, and the runner pools' budget, which counts the
+  # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
+  # carve-out fixed.
+  maxMemoryGiB: 16
+  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
+  # the request only sets their share when the node's CPU is contended, so
+  # it stays small and leaves runner Pods' scheduling capacity alone.
+  cpu: "250m"
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of
   # workspace_gb, memory image), so the server reserves each sandbox's

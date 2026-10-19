@@ -356,7 +356,7 @@ func durationEnv(logger *slog.Logger, key string, fallback time.Duration) time.D
 // memoryLimitPollInterval is how often the daemon rereads its cgroup's
 // memory limit. The server resizes the Pod in place and waits for the new
 // limit to be reported before it places a guest into it.
-const memoryLimitPollInterval = time.Second
+const memoryLimitPollInterval = 250 * time.Millisecond
 
 // watchMemoryLimit calls changed whenever the cgroup's memory limit moves
 // away from the last value seen.
