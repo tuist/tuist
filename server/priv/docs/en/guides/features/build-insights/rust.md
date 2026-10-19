@@ -26,7 +26,7 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 ## Find what slows a build down {#explore-your-builds}
 
-Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds. Builds and their cache counters are also available through `GET /api/projects/{account_handle}/{project_handle}/cargo/builds` and the `list_cargo_builds` and `get_cargo_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
+Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds. Builds and their cache counters are also available through `tuist build cargo list` and `tuist build cargo show`, `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, and the `list_cargo_builds` and `get_cargo_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 

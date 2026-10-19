@@ -57,7 +57,7 @@ For each build, the package collects:
 
 ## Find what slows a build down {#find-what-slows-a-build-down}
 
-Open a build from **Builds → Build Runs** on the dashboard. Builds, their diagnostics counts, and their dependency cache summaries are also available through `GET /api/projects/{account_handle}/{project_handle}/mix/builds` and the `list_mix_builds` and `get_mix_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
+Open a build from **Builds → Build Runs** on the dashboard. Builds, their diagnostics counts, and their dependency cache summaries are also available through `tuist build mix list` and `tuist build mix show`, `GET /api/projects/{account_handle}/{project_handle}/mix/builds`, and the `list_mix_builds` and `get_mix_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 The **Overview** tab lists the files the build compiled. You can group them by module, search them, and sort them by:
 - **Compilation duration**, to find the files that are slow by themselves.
