@@ -31,6 +31,8 @@ struct UploadBuildRunServiceTests {
     private let ciController = MockCIControlling()
     private let generationMetadataStore = MockGenerationMetadataStoring()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
+    private let xcActivityLogController = MockXCActivityLogControlling()
+    private let authentication = MockServerAuthenticationControlling()
 
     init() throws {
         given(generationMetadataStore)
@@ -52,7 +54,9 @@ struct UploadBuildRunServiceTests {
             gitController: gitController,
             ciController: ciController,
             generationMetadataStore: generationMetadataStore,
-            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
+            xcActivityLogController: xcActivityLogController,
+            serverAuthenticationController: authentication
         )
 
         given(serverEnvironmentService)
@@ -101,6 +105,39 @@ struct UploadBuildRunServiceTests {
         Matcher.register([XCActivityBuildFile].self)
         Matcher.register([XCActivityTarget].self)
         Matcher.register([MachineMetricSample].self)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func publishesLocallyParsedBuildWithoutUploadingAnArchive() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let path = directory.appending(component: "build.xcactivitylog")
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
+        serverEnvironmentService.reset()
+        given(serverEnvironmentService).url(configServerURL: .any)
+            .willReturn(try #require(URL(string: "https://tuist.example")))
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        given(xcActivityLogController).parse(.value(path)).willReturn(.test(
+            mainSection: .test(timeStartedRecording: 10, timeStoppedRecording: 12),
+            buildStep: .test(errorCount: 1)
+        ))
+        _ = try await subject.uploadBuildRun(
+            activityLogPath: path, projectPath: directory,
+            config: .test(fullHandle: "acme/widgets"), scheme: "App", configuration: "Debug"
+        )
+        verify(xcActivityLogController).parse(.value(path)).called(1)
+        verify(uploadBuildService).uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any).called(0)
+        verify(createBuildService).createBuild(
+            fullHandle: .any, serverURL: .any, id: .any, generationId: .value(nil), category: .any,
+            configuration: .any, customMetadata: .any, duration: .value(2000),
+            files: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+            gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
+            modelIdentifier: .any, macOSVersion: .any, scheme: .any,
+            targets: .any, xcodeCacheUploadEnabled: .value(false), xcodeVersion: .any,
+            status: .any, ciRunId: .any, ciProjectHandle: .any,
+            ciHost: .any, ciProvider: .any, cacheableTasks: .any,
+            casOutputs: .any, machineMetrics: .any
+        ).called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

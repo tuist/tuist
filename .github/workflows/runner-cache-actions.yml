@@ -1,0 +1,169 @@
+name: Runner Cache Actions
+
+on:
+  pull_request:
+    paths:
+      - .github/actions/xcode-cache/**
+      - .github/actions/module-cache/**
+      - .github/actions/gradle-cache/**
+      - ci/runner-caches/**
+      - infra/runner-image/tuist-runner-cache
+      - infra/runner-image/runner-caches_test.sh
+      - .github/workflows/runner-cache-actions.yml
+      - ci/cache-volume/publish.sh
+      - mise/tasks/release/components.json
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/xcode-cache/**
+      - .github/actions/module-cache/**
+      - .github/actions/gradle-cache/**
+      - ci/runner-caches/**
+      - infra/runner-image/tuist-runner-cache
+      - infra/runner-image/runner-caches_test.sh
+      - .github/workflows/runner-cache-actions.yml
+      - ci/cache-volume/publish.sh
+      - mise/tasks/release/components.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-cache-actions-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+      - run: bash .github/actions/xcode-cache/action_test.sh
+      - run: bash .github/actions/module-cache/action_test.sh
+      - run: bash .github/actions/gradle-cache/action_test.sh
+      - run: bash infra/runner-image/runner-caches_test.sh
+      - run: bash ci/runner-caches/integrations_test.sh
+      - run: bash ci/runner-caches/prepare-release_test.sh
+      - run: bash ci/runner-caches/release_check_test.sh
+      - name: Actions share their scripts
+        run: |
+          cmp .github/actions/xcode-cache/activate.sh .github/actions/module-cache/activate.sh
+          cmp .github/actions/xcode-cache/action_test.sh .github/actions/module-cache/action_test.sh
+          cmp .github/actions/xcode-cache/scripts/package.sh .github/actions/module-cache/scripts/package.sh
+      - name: Install test helper
+        run: |
+          mkdir "$RUNNER_TEMP/helper-bin"
+          cat > "$RUNNER_TEMP/helper-bin/tuist-runner-cache" <<'HELPER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          [[ "$1" == activate ]]
+          printf 'TUIST_TEST_%s_CACHE=on\n' "${2^^}"
+          HELPER
+          chmod +x "$RUNNER_TEMP/helper-bin/tuist-runner-cache"
+          cat > "$RUNNER_TEMP/helper-bin/tuist-cache-volume" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          [[ "$1" == --key && "$2" == tuist-gradle ]]
+          printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
+          CLIENT
+          chmod +x "$RUNNER_TEMP/helper-bin/tuist-cache-volume"
+          echo "$RUNNER_TEMP/helper-bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/xcode-cache
+      - uses: ./.github/actions/module-cache
+      - uses: ./.github/actions/gradle-cache
+        id: gradle
+      - name: Verify exported environment
+        run: |
+          test "$TUIST_TEST_XCODE_CACHE" = on
+          test "$TUIST_TEST_MODULE_CACHE" = on
+          test "${{ steps.gradle.outputs.cache-hit }}" = true
+          test -f "$HOME/.gradle/init.d/tuist-gradle-cache.gradle"
+
+  release:
+    if: github.event_name != 'pull_request' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+      - name: Reject stale release runs
+        run: |
+          latest=$(git tag -l 'runner-caches@*' --sort=-version:refname | head -n1)
+          if [[ -n "$latest" ]]; then
+            git merge-base --is-ancestor "$latest" HEAD
+          fi
+      - id: check
+        run: mise run --skip-tools release:check runner-caches
+      - name: Verify distribution credential access
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          while IFS=$'\t' read -r repository _; do
+            gh api "repos/tuist/$repository" --jq '.permissions.push' | grep -qx true
+          done < ci/runner-caches/distributions
+      - name: Check out distribution repositories
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        env:
+          RELEASE_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)"
+          while IFS=$'\t' read -r repository _; do
+            git -c "http.https://github.com/.extraheader=$auth" clone --quiet --branch main \
+              "https://github.com/tuist/$repository.git" "distributions/$repository"
+            git -C "distributions/$repository" config http.https://github.com/.extraheader "$auth"
+          done < ci/runner-caches/distributions
+      - name: Prepare or recover coordinated release
+        id: prepare
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        env:
+          VERSION: v${{ steps.check.outputs.runner-caches-next-version-number }}
+        run: bash ci/runner-caches/prepare-release.sh "$VERSION" distributions packages
+      - name: Publish all distributions
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.prepare.outputs.source-commit }}
+        run: |
+          while IFS=$'\t' read -r repository _; do
+            bash ci/cache-volume/publish.sh "packages/$repository" "distributions/$repository" "$VERSION" "$SOURCE_COMMIT"
+          done < ci/runner-caches/distributions
+      - name: Record coordinated release
+        if: steps.check.outputs.runner-caches-should-release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ github.token }}
+          target_commitish: ${{ steps.prepare.outputs.source-commit }}
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          name: Runner Caches ${{ steps.prepare.outputs.version }}
+          body: |
+            Xcode, module and Gradle cache integrations, released together from ${{ steps.prepare.outputs.source-commit }}.
+
+            - GitHub actions: [xcode-cache](https://github.com/tuist/xcode-cache/tree/${{ steps.prepare.outputs.version }}), [module-cache](https://github.com/tuist/module-cache/tree/${{ steps.prepare.outputs.version }}), [gradle-cache](https://github.com/tuist/gradle-cache/tree/${{ steps.prepare.outputs.version }})
+            - Buildkite plugins: [xcode-cache](https://github.com/tuist/xcode-cache-buildkite-plugin/tree/${{ steps.prepare.outputs.version }}), [module-cache](https://github.com/tuist/module-cache-buildkite-plugin/tree/${{ steps.prepare.outputs.version }}), [gradle-cache](https://github.com/tuist/gradle-cache-buildkite-plugin/tree/${{ steps.prepare.outputs.version }})
+            - GitLab CI templates: [xcode-cache](https://github.com/tuist/xcode-cache-gitlab/tree/${{ steps.prepare.outputs.version }}), [module-cache](https://github.com/tuist/module-cache-gitlab/tree/${{ steps.prepare.outputs.version }}), [gradle-cache](https://github.com/tuist/gradle-cache-gitlab/tree/${{ steps.prepare.outputs.version }})
+
+            Immutable version tags and moving major tags are available in each distribution repository.
+      - name: Release changes queued behind recovery
+        if: steps.prepare.outputs.source-commit != '' && steps.prepare.outputs.source-commit != github.sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run runner-cache-actions.yml --ref main

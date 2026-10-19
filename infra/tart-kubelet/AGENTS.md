@@ -78,7 +78,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
 
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
-  Background master prefetch is single-slot, bounded, reserved and joined at stop.
+  Master prefetch runs one download at a time from a bounded, deduplicated queue:
+  masters a job asked for but did not get within its 25 seconds first, then the
+  custom HEADs the server lists for the host class (free space only, no eviction).
+  Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
+  carry a bounded `reason` and the host logs why.
+  A job whose base is not local mounts the newest older master of the same
+  lineage instead of an empty directory (reported as `mounted_generation`) and its
+  base is queued. A superseded master used in the last day stays until its
+  successor is downloaded through the queue (`LocalImages.Replace`).
   Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
   cold request has no archive to budget beside its image.
 - Expose mailboxes while the filesystem is mounted, independently of worker

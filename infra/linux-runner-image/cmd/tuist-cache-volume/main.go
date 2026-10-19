@@ -28,6 +28,7 @@ func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var errInvalidPath = errors.New("invalid cache path")
+var hexComponent = regexp.MustCompile(`^[0-9a-f]{8,}$`)
 
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
@@ -65,6 +66,9 @@ func main() {
 	if !keyPattern.MatchString(*key) || len(targets) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: tuist-cache-volume --key NAME --path DIR [--path DIR]")
 		os.Exit(2)
+	}
+	if contentHashedKey(*key) {
+		fmt.Fprintf(os.Stderr, "::notice::Cache volume key %q looks like it contains a content hash. Every new key starts an empty volume; use a stable name and let your tools update the saved contents.\n", *key)
 	}
 	if err := attach(*key, targets); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -238,6 +242,17 @@ func requestJSON(client *http.Client, req *http.Request, result any) error {
 		return fmt.Errorf("cache service returned %d", response.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result)
+}
+
+// contentHashedKey reports a key with a component that looks like a lockfile or
+// commit hash: hex with both digits and letters, at least eight characters long.
+func contentHashedKey(key string) bool {
+	for _, part := range strings.FieldsFunc(strings.ToLower(key), func(r rune) bool { return strings.ContainsRune("-_./", r) }) {
+		if hexComponent.MatchString(part) && strings.ContainsAny(part, "0123456789") && strings.ContainsAny(part, "abcdef") {
+			return true
+		}
+	}
+	return false
 }
 
 func containsPath(parent, child string) bool {

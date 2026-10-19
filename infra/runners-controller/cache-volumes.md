@@ -397,7 +397,8 @@ before removing the old replica, so the next job on that host attaches locally
 instead of downloading.
 The HEAD check returns the new image and content digests, and the host downloads
 that generation through the use that installed its replica. The server accepts
-this only for the current HEAD of the same, uncleared lineage on the same node.
+this only for the current HEAD of the same, uncleared lineage; like `retain`, it
+is read-only and does not require the use to have been allocated on that node.
 One refresh runs at a time per host, through the same admission as a prefetch,
 with a five-minute deadline and a bounded queue. While it downloads, maintenance
 and admission skip that volume instead of waiting for it. A failed, rejected or

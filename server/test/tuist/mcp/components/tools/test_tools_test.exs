@@ -15,13 +15,32 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
   alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
   alias Tuist.MCP.Components.Tools.UpdateTestCase
+  alias Tuist.MCP.Tool
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.TestRunQuery
   alias Tuist.Xcode
 
   describe "list_test_runs" do
+    test "query description lists supported fields and a complete negation example" do
+      description = Tool.descriptor(ListTestRuns)["inputSchema"]["properties"]["query"]["description"]
+
+      assert description =~ "Supported fields: `git_branch`, `scheme`, and `status`."
+      assert description =~ "case-insensitive substring matches"
+      assert description =~ "AND semantics"
+      assert [_, example] = Regex.run(~r/for example `([^`]+)`/, description)
+      assert example == ~s(-git_branch~"gh-readonly-queue")
+
+      assert {:ok, [%{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}]} =
+               TestRunQuery.filters(example)
+
+      for field <- ["git_branch", "scheme", "status"] do
+        assert {:ok, [_filter]} = TestRunQuery.filters(~s(#{field}:"value"))
+      end
+    end
+
     test "returns paginated test runs with metrics" do
       project = %{id: 1, name: "app"}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)

@@ -255,8 +255,27 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Only a job that **succeeded** promotes. The gate is `JOB_PASSED` (zero exit AND
-  a job result of `succeeded`), not the runner's exit status. `run.sh` folds
+  **Opt-in caches.** When the dispatch response carries `"automatic_caches":
+  false` (the server's `:runner_opt_in_caches` flag for the account, macOS
+  fleets only), everything above still runs, but `stage_runner_caches` moves
+  the module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
+  Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
+  `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
+  `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
+  attach-time `cache-usage.json`. The `tuist/module-cache` and
+  `tuist/xcode-cache` actions, Buildkite plugins and GitLab snippets
+  (`ci/runner-caches/`) run `/usr/local/bin/tuist-runner-cache activate
+  <cache>`, which prints that file for the action to export, chains a
+  workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
+  with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).
+  `mode` (`automatic` or `opt-in`) tells the helper which case it is in; an
+  absent `mode` means a runner that never staged caches. If the directory
+  cannot be created, the job keeps automatic caches. A workflow's relative
+  `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
+  contract in step with these exports. Run `runner-caches_test.sh`.
+  Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
+  `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
+  reached the caches, not the runner's exit status. `run.sh` folds
   every Listener code except a restart into 0, and the GitLab executor exits 0
   for job outcomes by design. Gating on the exit status promoted failed and
   cancelled jobs, about one in ten of one account's HEAD publishes in a week.
