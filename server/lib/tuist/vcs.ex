@@ -22,6 +22,8 @@ defmodule Tuist.VCS do
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
+  alias Tuist.Projects.Project
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
@@ -1715,6 +1717,80 @@ defmodule Tuist.VCS do
 
       {:error, _reason} = error ->
         error
+    end
+  end
+
+  @doc """
+  Links a project to a repository its account's GitHub App installation can
+  access, storing GitHub's canonical repository name and adopting the
+  repository's default branch. Linking a project to the repository it is
+  already linked to returns the existing connection.
+  """
+  def connect_github_repository(%Project{} = project, repository_full_handle, opts \\ [])
+      when is_binary(repository_full_handle) do
+    case Repo.get_by(VCSConnection, project_id: project.id) do
+      nil ->
+        create_github_connection(project, repository_full_handle, Keyword.get(opts, :created_by_id))
+
+      %VCSConnection{provider: :github} = connection ->
+        if String.downcase(connection.repository_full_handle) == String.downcase(repository_full_handle),
+          do: {:ok, connection},
+          else: {:error, {:already_connected, connection}}
+
+      %VCSConnection{} = connection ->
+        {:error, {:already_connected, connection}}
+    end
+  end
+
+  defp create_github_connection(project, repository_full_handle, created_by_id) do
+    with {:ok, installation} <- installed_github_app(project.account_id),
+         {:ok, repository} <- installation_repository(installation, repository_full_handle),
+         {:ok, connection} <-
+           Projects.create_vcs_connection(%{
+             project_id: project.id,
+             provider: :github,
+             repository_full_handle: repository.full_name,
+             created_by_id: created_by_id,
+             github_app_installation_id: installation.id
+           }) do
+      if is_binary(repository.default_branch) and repository.default_branch != "" do
+        Projects.update_project(project, %{default_branch: repository.default_branch})
+      end
+
+      {:ok, connection}
+    end
+  end
+
+  defp installed_github_app(account_id) do
+    case get_github_app_installation_for_account(account_id) do
+      {:ok, %GitHubAppInstallation{installation_id: installation_id} = installation} when not is_nil(installation_id) ->
+        {:ok, installation}
+
+      _ ->
+        {:error, :github_app_not_installed}
+    end
+  end
+
+  # An installation token can read any public repository, so access is checked
+  # against the installation's own repositories, as the dashboard does.
+  defp installation_repository(installation, repository_full_handle) do
+    handle = String.downcase(repository_full_handle)
+
+    with {:ok, repositories} <- get_github_app_installation_repositories(installation),
+         %{} = repository <- Enum.find(repositories, &(String.downcase(&1.full_name) == handle)) do
+      {:ok, repository}
+    else
+      _ -> {:error, :repository_not_accessible}
+    end
+  end
+
+  @doc """
+  Removes a project's link to a GitHub repository.
+  """
+  def disconnect_github_repository(%Project{} = project) do
+    case Repo.get_by(VCSConnection, project_id: project.id, provider: :github) do
+      nil -> {:error, :not_found}
+      connection -> Projects.delete_vcs_connection(connection)
     end
   end
 

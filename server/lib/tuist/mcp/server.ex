@@ -104,6 +104,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjectTokens,
     Tools.StartProjectLogoUpload,
     Tools.CompleteProjectLogoUpload,
+    Tools.ConnectProjectRepository,
+    Tools.DisconnectProjectRepository,
     Tools.ListPreviews,
     Tools.GetPreview,
     Tools.GetLatestPreview

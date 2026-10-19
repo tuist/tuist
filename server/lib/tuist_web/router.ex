@@ -901,6 +901,9 @@ defmodule TuistWeb.Router do
 
         get "/notification-alerts", ProjectNotificationAlertsController, :index
 
+        put "/vcs-connection", ProjectVCSConnectionController, :update
+        delete "/vcs-connection", ProjectVCSConnectionController, :delete
+
         scope "/builds" do
           get "/", BuildsController, :index
 

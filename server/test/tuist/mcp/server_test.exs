@@ -94,6 +94,8 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
       assert "get_project" in tool_names
+      assert "connect_project_repository" in tool_names
+      assert "disconnect_project_repository" in tool_names
       assert "list_project_tokens" in tool_names
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names

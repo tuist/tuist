@@ -241,6 +241,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
+| `connect_project_repository` | Link a project to a GitHub repository that the account's GitHub App installation can access. The project adopts the repository's default branch. Requires project administrator permission. | `account_handle`, `project_handle`, `repository_full_handle` |
+| `disconnect_project_repository` | Remove a project's link to its GitHub repository. Requires project administrator permission. | `account_handle`, `project_handle` |
 
 #### Account tokens
 
