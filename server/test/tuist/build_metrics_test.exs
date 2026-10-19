@@ -6,6 +6,7 @@ defmodule Tuist.BuildMetricsTest do
   alias Tuist.Builds
   alias Tuist.Builds.BuildIssue
   alias Tuist.Gradle
+  alias Tuist.HomeActivity
   alias Tuist.IngestRepo
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Action
@@ -18,6 +19,42 @@ defmodule Tuist.BuildMetricsTest do
   setup do
     start_at = DateTime.new!(Date.utc_today(), ~T[00:00:00.000000])
     %{start_at: start_at, opts: [start_datetime: start_at, end_datetime: DateTime.add(start_at, 1, :day)]}
+  end
+
+  test "Home failure feeds are bounded and isolate project, outcome, source kind and run time" do
+    now = %{DateTime.utc_now() | microsecond: {0, 6}}
+
+    for system <- ~w(xcode gradle bazel once) do
+      project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+      other = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+      failure = [status: "failure", exit_status: 1, exit_code: 1]
+
+      timed = fn at, attrs ->
+        if system == "gradle", do: Keyword.put(attrs, :started_at, DateTime.to_naive(at)), else: attrs
+      end
+
+      for offset <- [60, 120, 180, 240] do
+        at = DateTime.add(now, -offset)
+        build(system, project, at, timed.(at, failure))
+      end
+
+      build(system, project, DateTime.add(now, -10), [])
+      old = DateTime.add(now, -8, :day)
+      build(system, project, old, timed.(old, failure))
+      build(system, other, DateTime.add(now, -5), timed.(DateTime.add(now, -5), failure))
+      if system == "gradle", do: build(system, project, DateTime.add(now, -1), timed.(old, failure))
+
+      if system in ["bazel", "once"] do
+        kind = if system == "bazel", do: :command, else: :kind
+        build(system, project, DateTime.add(now, -1), Keyword.put(failure, kind, "test"))
+      end
+
+      assert {:ok, rows} = HomeActivity.build_failures(project)
+      assert length(rows) == 3
+
+      assert Enum.map(rows, & &1.occurred_at) ==
+               Enum.map([60, 120, 180], &(now |> DateTime.add(-&1) |> DateTime.to_unix()))
+    end
   end
 
   defp listing("gradle", project, params), do: Gradle.list_builds(project.id, params, failure_category: true)

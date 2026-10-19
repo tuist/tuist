@@ -7588,6 +7588,21 @@ components:
       type: object
       x-struct:
       x-validate:
+    HomeActivity:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/HomeActivityItem'
+          maxItems: 3
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - items
+      title: HomeActivity
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.HomeActivity
+      x-validate:
     GradleBuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -7797,6 +7812,41 @@ components:
       title: TestCaseRunsIndexPage
       type: integer
       x-struct:
+      x-validate:
+    HomeActivityItem:
+      properties:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        occurred_at:
+          description: Run timestamp (report time for legacy sources) or flaky-state transition, in Unix seconds.
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        subtitle:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: Deployment-relative project dashboard path; append to the complete server base URL.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - subtitle
+        - occurred_at
+        - url
+      title: HomeActivityItem
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.HomeActivityItem
       x-validate:
     BuildsIndexPage:
       default: 1
@@ -26031,6 +26081,70 @@ paths:
       summary: Create a new build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/home/test-failures:
+    get:
+      callbacks: {}
+      operationId: getHomeTestFailures
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeActivity'
+          description: Recent project activity
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: This build system is not supported by this section
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Latest three failed test runs from the last seven days.
+      tags:
+        - Home
   /api/projects/{account_handle}/{project_handle}/builds/metrics/duration:
     get:
       callbacks: {}
@@ -31248,6 +31362,70 @@ paths:
       summary: List a project's notification alert rules.
       tags:
         - Project Notification Alerts
+  /api/projects/{account_handle}/{project_handle}/home/flaky-tests:
+    get:
+      callbacks: {}
+      operationId: getHomeFlakyTests
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeActivity'
+          description: Recent project activity
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: This build system is not supported by this section
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Latest three currently flaky tests marked flaky in the last seven days.
+      tags:
+        - Home
   /api/cache/multipart/start:
     post:
       callbacks: {}
@@ -31668,6 +31846,70 @@ paths:
       summary: Create a shard plan.
       tags:
         - Shards
+  /api/projects/{account_handle}/{project_handle}/home/build-failures:
+    get:
+      callbacks: {}
+      operationId: getHomeBuildFailures
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeActivity'
+          description: Recent project activity
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: This build system is not supported by this section
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Latest three failed builds from the last seven days.
+      tags:
+        - Home
   /api/projects/{account_handle}/{project_handle}/tests/crash-reports:
     post:
       callbacks: {}

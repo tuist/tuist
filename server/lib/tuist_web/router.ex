@@ -805,6 +805,12 @@ defmodule TuistWeb.Router do
           get "/:cache_run_id", CacheRunsController, :show
         end
 
+        scope "/home" do
+          get "/build-failures", HomeActivityController, :build_failures
+          get "/test-failures", HomeActivityController, :test_failures
+          get "/flaky-tests", HomeActivityController, :flaky_tests
+        end
+
         scope "/tests" do
           get "/", TestsController, :index
 

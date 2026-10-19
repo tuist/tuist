@@ -371,6 +371,22 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  def list_recent_failed_test_runs(project_id, since, limit) when limit in 1..20 do
+    since = DateTime.to_naive(since)
+    now = NaiveDateTime.utc_now()
+
+    ClickHouseRepo.all(
+      from(run in Test,
+        hints: ["FINAL"],
+        where: run.project_id == ^project_id and run.status == "failure",
+        where: run.ran_at >= ^since and run.ran_at <= ^now,
+        order_by: [desc: run.ran_at, desc: run.id],
+        limit: ^limit,
+        select: %{id: run.id, scheme: run.scheme, git_branch: run.git_branch, ran_at: run.ran_at}
+      )
+    )
+  end
+
   def latest_completed_test_runs(project_id, limit \\ 40) do
     from(t in Test,
       where: t.project_id == ^project_id,
@@ -3345,6 +3361,35 @@ defmodule Tuist.Tests do
     }
 
     {flaky_tests, meta}
+  end
+
+  def list_recent_flaky_test_cases(project_id, since, limit) when limit in 1..20 do
+    since = DateTime.to_naive(since)
+
+    # A new current flaky state must have a mark within this window. Any later
+    # unmark is also in the window, so bounded history still excludes resolved tests.
+    flags =
+      project_id
+      |> currently_flaky_test_case_ids_subquery([])
+      |> where([event], event.project_id == ^project_id and event.inserted_at >= ^since)
+
+    ClickHouseRepo.all(
+      from(test_case in TestCase,
+        hints: ["FINAL"],
+        inner_join: flag in subquery(flags),
+        on: test_case.id == flag.test_case_id,
+        where: test_case.project_id == ^project_id,
+        order_by: [desc: flag.marked_flaky_at, asc: test_case.id],
+        limit: ^limit,
+        select: %{
+          id: test_case.id,
+          name: test_case.name,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
+          marked_flaky_at: flag.marked_flaky_at
+        }
+      )
+    )
   end
 
   defp extract_search_term(filters) do

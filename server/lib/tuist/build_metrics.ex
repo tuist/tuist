@@ -1,6 +1,6 @@
 defmodule Tuist.BuildMetrics do
   @moduledoc """
-  Project-scoped build health for Grafana. Rates and percentiles are
+  Project-scoped build health shared by Grafana and companion Home. Rates and percentiles are
   aggregated from builds, never from bucket summaries. Cache savings use explicit
   report metadata. Failure categories use metadata or recorded failure evidence;
   absent evidence remains unknown.
@@ -69,11 +69,12 @@ defmodule Tuist.BuildMetrics do
       end)
 
     {source, params} = source(project_id, opts)
+    timestamp = cohort_timestamp(params)
 
     query = """
     SELECT * FROM (#{source}) AS builds
-    WHERE inserted_at >= {start_datetime:DateTime64(6)}
-      AND inserted_at < {end_datetime:DateTime64(6)}
+    WHERE #{timestamp} >= {start_datetime:DateTime64(6)}
+      AND #{timestamp} < {end_datetime:DateTime64(6)}
       #{Enum.join(filters, " ")}
     """
 
@@ -105,7 +106,8 @@ defmodule Tuist.BuildMetrics do
            "AND command IN ('build', 'test', 'run', 'coverage')"}
       end
 
-    category = failure_category_sql(system, opts)
+    category =
+      if Keyword.get(opts, :include_failure_categories, true), do: failure_category_sql(system, opts), else: "'unknown'"
 
     """
     SELECT #{if system == "bazel", do: "invocation_id", else: "toString(id)"} AS id, #{duration} AS duration_ms, #{started} AS started_at,
@@ -273,7 +275,8 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp once_source(opts) do
-    failure_category = once_failure_category_sql(opts)
+    failure_category =
+      if Keyword.get(opts, :include_failure_categories, true), do: once_failure_category_sql(opts), else: "'unknown'"
 
     """
     SELECT run_id AS id, wall_ms AS duration_ms, started_at, started_at AS inserted_at,
@@ -464,13 +467,19 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp recent_failures(prefix, params) do
+    limit =
+      case params[:limit] do
+        value when is_integer(value) and value in 1..100 -> value
+        _ -> 100
+      end
+
     {:ok, %{rows: rows}} =
       execute(
         prefix <>
           """
           SELECT id, #{timestamp_sql(params, "started_at")}, duration_ms,
             account_id, requested_tasks, workload, failure_category, git_branch, reported_user
-          FROM cohort WHERE status = 'failure' ORDER BY inserted_at DESC, id DESC LIMIT 100
+          FROM cohort WHERE status = 'failure' ORDER BY #{cohort_timestamp(params)} DESC, id DESC LIMIT #{limit}
           """,
         params
       )
@@ -520,6 +529,9 @@ defmodule Tuist.BuildMetrics do
     count(cache_work_avoided_ms) AS cache_work_avoided_samples
     """
   end
+
+  defp cohort_timestamp(%{time_field: "started_at"}), do: "started_at"
+  defp cohort_timestamp(_params), do: "inserted_at"
 
   defp timestamp_sql(%{build_system: "once"}, column), do: "extract(epoch FROM #{column})::bigint"
   defp timestamp_sql(_params, column), do: "toUnixTimestamp(#{column})"
