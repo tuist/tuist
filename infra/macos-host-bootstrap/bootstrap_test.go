@@ -1368,6 +1368,7 @@ var hashPartInstaller = map[string]string{
 	"tailnet-resolver":        "installTailnetResolver",
 	"local-network-allowlist": "installLocalNetworkAllowlist",
 	"software-update-policy":  "installSoftwareUpdatePolicy",
+	"command-line-tools":      "installCommandLineTools",
 	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
 	"host-sensors":            "installHostSensors",
@@ -1952,5 +1953,23 @@ func TestValidateImageMirror(t *testing.T) {
 		if err := ValidateImageMirror(bad); err == nil {
 			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
 		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_NeverFailsAndOnlyInstallsWithoutGit(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	if strings.Contains(script, "set -e") || !strings.HasSuffix(strings.TrimSpace(script), "exit 0") {
+		t.Fatal("the step must never fail the bootstrap")
+	}
+	if !strings.HasPrefix(script, "set -uo pipefail\nif /usr/bin/git --version") {
+		t.Fatal("a host with a working git must skip the install")
+	}
+	for _, forbidden := range []string{"xcrun", "xcode-select", "python3"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("runs %q, which a host without the tools does not have", forbidden)
+		}
+	}
+	if !strings.Contains(script, ".com.apple.dt.CommandLineTools.installondemand.in-progress") {
+		t.Fatal("softwareupdate only offers the tools while the on-demand marker exists")
 	}
 }
