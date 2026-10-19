@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -886,5 +887,40 @@ func TestConvergeLeavesARecentMasterInPlace(t *testing.T) {
 				t.Fatal("downloaded a master it left in place")
 			}
 		})
+	}
+}
+
+type recordingCustomPrefetch struct{ identities []cachevolumes.Identity }
+
+func (r *recordingCustomPrefetch) PrefetchMaster(identity cachevolumes.Identity) bool {
+	r.identities = append(r.identities, identity)
+	return true
+}
+
+// Custom-volume HEADs go to the custom-volume agent, never the built-in queue.
+func TestConvergeHandsCustomHeadsToTheCustomAgent(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	scope := strings.Repeat("a", 64)
+	source := &stubPrefetch{masters: []PrefetchMaster{{
+		Kind: "custom", ID: "11111111-1111-4111-8111-111111111111", AccountID: 42, Scope: scope, Generation: 3,
+		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+	}}}
+	custom := &recordingCustomPrefetch{}
+	w := newTestConvergeWorker(m)
+	w.Prefetch = source
+	w.Custom = custom
+
+	drain(w)
+	want := cachevolumes.Identity{
+		ID: "11111111-1111-4111-8111-111111111111", Account: 42, Scope: scope, BaseGeneration: 3,
+		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+	}
+	if len(custom.identities) != 1 || custom.identities[0] != want {
+		t.Fatalf("custom prefetches = %+v", custom.identities)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.queue) != 0 {
+		t.Fatalf("queued a custom HEAD as a built-in master: %+v", w.queue)
 	}
 }

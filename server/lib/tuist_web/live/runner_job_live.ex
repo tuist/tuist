@@ -202,11 +202,19 @@ defmodule TuistWeb.RunnerJobLive do
             <.badge_cell
               :if={not is_nil(usage.warm)}
               label={
-                if usage.warm,
-                  do: dgettext("dashboard_runners", "Hit"),
-                  else: dgettext("dashboard_runners", "Miss")
+                cond do
+                  CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                  usage.warm -> dgettext("dashboard_runners", "Hit")
+                  true -> dgettext("dashboard_runners", "Miss")
+                end
               }
-              color={if usage.warm, do: "success", else: "neutral"}
+              color={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> "warning"
+                  usage.warm -> "success"
+                  true -> "neutral"
+                end
+              }
               style="light-fill"
             />
             <.text_cell :if={is_nil(usage.warm)} label="—" />

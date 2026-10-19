@@ -430,6 +430,15 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
     assert jobs =~ "Hit"
     refute jobs =~ "Cache status"
+    refute jobs =~ "Older copy"
+
+    older = %{usage | base_generation: 3, mounted_generation: 2}
+    data = %{assigns.data.result | history: [older]}
+
+    older_jobs =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert older_jobs =~ "Older copy"
     refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"

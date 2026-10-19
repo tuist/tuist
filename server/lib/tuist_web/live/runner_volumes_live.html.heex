@@ -484,13 +484,20 @@
             <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
               <.badge_cell
                 label={
-                  case usage.warm do
-                    true -> dgettext("dashboard_runners", "Hit")
-                    false -> dgettext("dashboard_runners", "Miss")
-                    nil -> "—"
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                    usage.warm == true -> dgettext("dashboard_runners", "Hit")
+                    usage.warm == false -> dgettext("dashboard_runners", "Miss")
+                    true -> "—"
                   end
                 }
-                color={if usage.warm, do: "success", else: "neutral"}
+                color={
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> "warning"
+                    usage.warm -> "success"
+                    true -> "neutral"
+                  end
+                }
                 style="light-fill"
               />
             </:col>

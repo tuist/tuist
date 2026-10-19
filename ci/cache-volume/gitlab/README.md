@@ -41,7 +41,9 @@ the template. `SOURCE_COMMIT` records its monorepo source.
 You can also vendor `cache-volume.yml` and use `include:local`, or mirror it to
 your GitLab instance. Until the first release, use a reviewed monorepo commit.
 No GitLab.com-only Catalog component is required. For multiple directories, call
-the client once per key/path pair (maximum eight per job).
+the client once per key/path pair (maximum eight per job). Keep keys stable,
+for example `gradle-dependencies`: a key is a volume name, not a content hash,
+so do not include lockfile, tool-version or commit hashes. A new key starts empty.
 
 Volume targets must be absent or empty. Remove overlapping `cache:paths` or
 artifact restoration paths; keep unrelated archive caches. GitLab restores

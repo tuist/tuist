@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -55,9 +56,13 @@ type LocalImages struct {
 	// of removing it right away. Refreshes take this type's filesystem admission,
 	// not APFSImages' reservations.
 	RefreshWithin time.Duration
-	refresh       refresher
-	locks         sync.Map
-	admission     contextMutex
+	// Replace, when set, is asked to fetch the HEAD that superseded a master used
+	// in the last day. The stale master stays while it reports the fetch queued, so
+	// jobs can mount it until its successor is local. It replaces RefreshWithin.
+	Replace   func(Identity) bool
+	refresh   refresher
+	locks     sync.Map
+	admission contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -184,6 +189,25 @@ func (b *LocalImages) freeBytes(ctx context.Context) (uint64, error) {
 // exactly like the APFS manager, rather than summing logical image sizes.
 func (b *LocalImages) reserve(ctx context.Context) error {
 	return b.reserveBytes(ctx, b.MinFreeBytes)
+}
+
+// reserveSpare admits work only while free space already covers it.
+func (b *LocalImages) reserveSpare(ctx context.Context) error {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return err
+	}
+	defer b.admission.Unlock()
+	if b.FreeBytes == nil && b.FreeBytesContext == nil {
+		return errors.New("missing filesystem admission")
+	}
+	free, err := b.freeBytes(ctx)
+	if err != nil {
+		return err
+	}
+	if free < b.MinFreeBytes {
+		return ErrCapacity
+	}
+	return nil
 }
 
 func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
@@ -608,10 +632,56 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 	if err != nil {
 		return err
 	}
-	if head.BaseGeneration == slot.BaseGeneration || b.queueRefresh(path, slot, head, info.ModTime()) {
+	if head.BaseGeneration == slot.BaseGeneration {
+		return nil
+	}
+	if b.Replace != nil {
+		next := slot.Identity
+		next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) && b.Replace(next) {
+			return nil
+		}
+		return removeMaster(path)
+	}
+	if b.queueRefresh(path, slot, head, info.ModTime()) {
 		return nil
 	}
 	return removeMaster(path)
+}
+
+// olderMaster is the newest master of the slot's lineage older than its base,
+// with its generation, or "" when this host holds none.
+func (b *LocalImages) olderMaster(slot Slot) (string, int64) {
+	if !scopePattern.MatchString(slot.Scope) {
+		return "", 0
+	}
+	paths, err := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))
+	if err != nil {
+		return "", 0
+	}
+	best, newest := "", int64(0)
+	for _, path := range paths {
+		name := filepath.Base(path)
+		if len(name) < 21 || name[20] != '-' {
+			continue
+		}
+		generation, err := strconv.ParseInt(name[:20], 10, 64)
+		if err != nil || generation <= newest || generation >= slot.BaseGeneration {
+			continue
+		}
+		best, newest = path, generation
+	}
+	return best, newest
+}
+
+// HasMaster reports whether the immutable master a warm identity clones from is
+// already on this host.
+func (b *LocalImages) HasMaster(identity Identity) bool {
+	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
+		return false
+	}
+	_, err := os.Stat(b.master(Slot{Identity: identity}))
+	return err == nil
 }
 
 // Prefetch restores only a validated immutable master. It cannot mount a job's

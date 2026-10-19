@@ -330,36 +330,6 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	}
 }
 
-func TestCustomPrefetchHasIndependentDeadlineAndNoQueue(t *testing.T) {
-	started := make(chan struct{})
-	finished := make(chan error, 1)
-	p := &customPrefetcher{ctx: context.Background(), slots: make(chan struct{}, 1), budget: 20 * time.Millisecond, restore: func(ctx context.Context, _ cachevolumes.Slot) error {
-		close(started)
-		<-ctx.Done()
-		finished <- ctx.Err()
-		return ctx.Err()
-	}}
-	if p.start(cachevolumes.Identity{}) {
-		t.Fatal("prefetching empty master")
-	}
-	if !p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("did not start")
-	}
-	<-started
-	if p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("queued another prefetch")
-	}
-	select {
-	case err := <-finished:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("unbounded prefetch")
-	}
-	p.wait.Wait()
-}
-
 func TestCustomAdmissionLockWaitUsesRequestDeadline(t *testing.T) {
 	m, _ := m2L(t)
 	c := &CustomVolumes{Root: m.Root, Builtins: m}
