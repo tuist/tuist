@@ -80,8 +80,6 @@ This flag ensures that dependencies are resolved using the exact versions pinned
 
 For generated projects, use [tuist/install](https://github.com/tuist/install) to install the dependencies pinned in `Package.resolved` and cache them between runs. It automatically uses <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> on Tuist Runners and GitHub's cache on other runners.
 
-Commit `Package.resolved`, install Tuist, and configure any private-package authentication before running the action. Leave `packageManifestEnvironment` at its `.automatic` default; typical CI workflows need no custom exclusions.
-
 ```yaml
 name: Generate project
 on:
