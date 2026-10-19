@@ -26,7 +26,7 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:ok,
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Volumes")} · #{account.name} · Tuist",
-       can_manage: Authorization.authorize(:account_update, user, account) == :ok,
+       can_manage: Authorization.authorize(:runners_update, user, account) == :ok,
        pending_action: nil,
        selected: nil,
        selected_tab: "overview",
@@ -127,7 +127,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def handle_event("confirm", _, socket) do
     account = socket.assigns.selected_account
 
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
+    with :ok <- Authorization.authorize(:runners_update, socket.assigns.current_user, account),
          {:delete, id} <- socket.assigns.pending_action,
          volume when not is_nil(volume) <- CacheVolumes.get(account.id, id) do
       case CacheVolumes.delete(account.id, volume.id) do

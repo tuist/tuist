@@ -503,7 +503,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+          :if={Authorization.authorize(:runners_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"
           navigate={runner_profiles_path}

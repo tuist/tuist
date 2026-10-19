@@ -6,7 +6,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeTools do
   def execute(action, conn, args) do
     authorization =
       if action == :clear,
-        do: RunnerTools.authorize_profiles_account(args, conn.assigns),
+        do: RunnerTools.authorize_runners_update(args, conn.assigns),
         else: RunnerTools.authorize_account(args, conn.assigns)
 
     with {:ok, account} <- authorization do
@@ -123,7 +123,7 @@ defmodule Tuist.MCP.Components.Tools.ClearRunnerVolume do
   @impl EMCP.Tool
   def description,
     do:
-      "Clear saved volume contents after user confirmation. This cannot be undone. Running jobs retain private copies but cannot save them; later jobs start empty. Requires account administration."
+      "Clear saved volume contents after user confirmation. This cannot be undone. Running jobs retain private copies but cannot save them; later jobs start empty. Requires account administration or the account:runners:write scope."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.RunnerVolumeTools.execute(:clear, conn, args)
 end
