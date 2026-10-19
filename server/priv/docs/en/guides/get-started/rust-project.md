@@ -20,12 +20,12 @@ https://tuist.dev/en/docs/guides/get-started/rust-project
 
 - A Rust project built with Cargo.
 - The Tuist CLI and a Tuist account.
-- [cargo-nextest](https://nexte.st/docs/installation/) to report individual test results and split tests across CI workers.
+- Optionally, [cargo-nextest](https://nexte.st/docs/installation/) for per-test timing, retry history, and splitting tests across CI workers.
 
 Tuist works with your existing Cargo project. You don't need to add a Rust dependency or change how your project builds.
 
 > [!NOTE] Why nextest?
-> Nextest gives Tuist individual test results, durations, and retry history. It also lets you build tests once and run them on multiple CI workers. You only need nextest for test insights and sharding, not for build insights.
+> Plain `cargo test` reports individual test results, including doctests. Nextest adds measured per-test durations, retry history, and build-once test sharding across CI workers. It is optional for test insights and not needed for build insights.
 
 ## Connect the project
 
@@ -56,10 +56,10 @@ command = "tuist"
 args = ["cargo"]
 ```
 
-Run `mise reshim` after adding the wrapper. You can then use `cargo build`, `cargo check`, and `cargo nextest run` as usual. Mise runs them through Tuist for you.
+Run `mise reshim` after adding the wrapper. You can then use `cargo build`, `cargo check`, `cargo test`, and `cargo nextest run` as usual. Mise runs them through Tuist for you.
 
 > [!TIP] Coding agents
-> This is useful when working with coding agents: they can keep running `cargo build` and `cargo nextest run` without being reminded to add the `tuist` prefix.
+> This is useful when working with coding agents: they can keep running `cargo build` and `cargo test` without being reminded to add the `tuist` prefix.
 
 ## Build insights
 
@@ -69,15 +69,17 @@ The compiler timings are for crates, not individual source files. See <.localize
 
 ## Test insights
 
-To see individual test results, run your tests with nextest:
+Run your tests as usual:
 
 ```sh
-tuist cargo nextest run --workspace
+tuist cargo test --workspace
 ```
 
-Open **Tests** in the dashboard to find slow tests, inspect failures, and follow retry attempts. Your existing nextest profiles and JUnit report settings still work. Read more in <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust Flaky Tests</.localized_link>.
+Open **Tests** in the dashboard to see passed, failed, and ignored tests, including doctests. Plain Cargo reports suite durations, but stable libtest does not expose per-test timings. For per-test timing and retry history, use `tuist cargo nextest run --workspace`; your existing nextest profiles and JUnit report settings still work.
 
-You can still use `cargo test`, but it won't send individual test results to Tuist. Nextest doesn't run doctests, so run those separately:
+Read more in <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust Flaky Tests</.localized_link>.
+
+Nextest doesn't run doctests, so run those separately when using it:
 
 ```sh
 tuist cargo test --doc

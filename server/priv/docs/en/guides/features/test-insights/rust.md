@@ -2,18 +2,26 @@
 {
   "title": "Rust Test Insights",
   "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
-  "description": "Track nextest test results, durations, failures, skipped tests, and retries in the Tuist dashboard."
+  "description": "Track Cargo and nextest test results, including Rust doctests, in the Tuist dashboard."
 }
 ---
 # Rust test insights {#rust-test-insights}
 
-Tuist reports the results of `cargo nextest run` using nextest's test inventory and JUnit report. No Rust dependency or separate Tuist executable is required.
+Tuist reports individual test results from plain `cargo test`, including doctests. You can also use `cargo nextest run` for measured per-test durations, retry history, and test sharding. No Rust dependency or additional test runner is required for plain Cargo reporting.
 
 > [!IMPORTANT] Requirements
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link>.
-> - Install [cargo-nextest](https://nexte.st/docs/installation/).
+> - Install [cargo-nextest](https://nexte.st/docs/installation/) only if you want to use nextest.
 
 ## Report your test runs {#report-your-test-runs}
+
+```sh
+tuist cargo test --workspace
+```
+
+With the mise Cargo wrapper configured, you can keep typing `cargo test`. Cargo still compiles and runs your tests; Tuist does not replace it with nextest. See [Plain Cargo tests and doctests](#cargo-test) for reporting details.
+
+For nextest:
 
 ```sh
 tuist cargo nextest run --workspace
@@ -27,7 +35,7 @@ tuist cargo nextest run --profile ci -E 'test(authentication)'
 
 Tuist adds its JUnit configuration through a nextest tool configuration. Your selected profile and any existing JUnit destination are respected. Existing reports are not deleted; Tuist only uploads a report if it can verify that the invocation wrote a fresh one. Reporting does not alter nextest's exit status.
 
-## What is tracked {#what-is-tracked}
+## What nextest tracks {#what-is-tracked}
 
 - Per-test status and duration, including reported failures and skipped cases.
 - Failure messages and retry attempts, when present in the JUnit report.
@@ -55,13 +63,17 @@ Test-case durations describe individual work. Binary and module-path timings use
 
 ## Plain Cargo tests and doctests {#cargo-test}
 
-`tuist cargo test` remains Cargo/libtest. Tuist never silently converts it into nextest, and it does not produce nextest's per-test telemetry.
-
-Nextest does not execute doctests. Run them separately:
+`tuist cargo test` reports passed, failed, and ignored tests from Cargo/libtest's default output on stable Rust. This includes unit tests, integration tests, and doctests, including `compile_fail`, `should_panic`, and `no_run` examples. To run only doctests:
 
 ```sh
 tuist cargo test --doc
 ```
+
+Results appear under **Tests** as `cargo test`. Module identities come from Cargo package and target metadata, not executable hashes. Doctests use a separate `<package>::doctest/<library>` module; their names include the source location, so moving an example can change its identity.
+
+Stable libtest output reports whole-suite time but not individual test durations. Tuist sends zero for unavailable test-case and Rust-namespace timings; these are not measured zero-duration tests and are excluded from per-case duration histories and aggregate timing analytics. Outcomes still contribute to reliability and run counts. These Cargo test labels are reserved for unmeasured reporting; do not use them as custom nextest labels. Use nextest when you need per-test timing, retries, discovery, or sharding. Nextest does not execute doctests, so run `cargo test --doc` separately when using it.
+
+Tuist streams stdout and stderr while collecting up to 50 MB for parsing. This uses pipes, which can affect automatic color detection. Nonexecuting commands (`--no-run`, `--list`), quiet or Cargo-verbose output (`-v`, `-vv`, `--verbose`, `CARGO_TERM_VERBOSE`, or `CARGO_TERM_QUIET`), alternate output formats, and uncaptured test output are forwarded without individual test reporting. Custom harnesses, incomplete summaries, ambiguous target attribution, and reports exceeding the limits are not uploaded. In workspaces where packages have identically named integration targets, select a package explicitly with `-p <package>`; otherwise Cargo's output may not identify which package ran a target. Tuist never treats filtered or unexecuted tests as passed. After Cargo exits, Tuist drains buffered output and waits for 250 ms of inactivity rather than waiting indefinitely for background descendants that inherited its pipes. Time blocked writing to a slow output consumer is not treated as inactivity. Continuously writing descendants have an 8 MB post-exit allowance per output stream. If reading stops before EOF, the test report is omitted.
 
 ## Reliability and selection {#reliability-and-selection}
 
