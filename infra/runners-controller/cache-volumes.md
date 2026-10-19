@@ -88,6 +88,10 @@ The filesystem-specific implementation lives in `../runner-cache/local.go`:
   digest, the Linux identifier is not a cache-file inventory. Downloads are
   bounded in compressed and logical size, extents must stay inside the image,
   and the checksum is verified before installation.
+- Agents older than this format cannot read its archives and restore such a
+  HEAD cold without publishing, so nothing replaces it. Rolling the Linux agent
+  or tart-kubelet back past this format requires clearing the volumes whose HEAD
+  a newer agent published.
 - The host agent owns loop devices and mounts. Only `pods/<pod UID>` is exposed
   to that job's runner and DinD containers. Masters, images, journals, tokens and
   signed URLs stay outside workflow mounts. Mount operations reject symlinks.

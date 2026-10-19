@@ -50,11 +50,10 @@ type LocalImages struct {
 	// Reclaim makes room in another cache sharing this filesystem, after local
 	// masters have been evicted. It must preserve all active reservations.
 	Reclaim func(context.Context, uint64) error
-	// RefreshMaster restores a newer master of a lineage with the same admission
-	// as a prefetch. When set, a stale master last used (cloned, restored or
-	// published) within RefreshWithin is refreshed in the background instead of
-	// being removed right away.
-	RefreshMaster func(context.Context, Slot) error
+	// RefreshWithin, when positive, refreshes a stale master last used (cloned,
+	// restored or published) within it to the new HEAD in the background instead
+	// of removing it right away. Refreshes take this type's filesystem admission,
+	// not APFSImages' reservations.
 	RefreshWithin time.Duration
 	refresh       refresher
 	locks         sync.Map

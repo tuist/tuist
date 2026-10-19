@@ -34,6 +34,9 @@ func (h *headTransfer) Download(_ context.Context, slot Slot, path string) error
 	h.mu.Lock()
 	h.downloaded = append(h.downloaded, slot)
 	h.mu.Unlock()
+	if h.fail {
+		return errors.New("download failed")
+	}
 	if h.started != nil {
 		h.started <- struct{}{}
 		<-h.release
@@ -52,7 +55,6 @@ func newRefreshing(t *testing.T) (*LocalImages, *headTransfer) {
 	b, _ := newLocal(t)
 	remote := &headTransfer{heads: map[string]Identity{}, errs: map[string]error{}}
 	b.Transfer = remote
-	b.RefreshMaster = b.Prefetch
 	b.RefreshWithin = time.Hour
 	return b, remote
 }
@@ -137,7 +139,7 @@ func TestStaleMasterIsRemovedWhenItCannotBeRefreshed(t *testing.T) {
 		"head without digests": func(b *LocalImages, remote *headTransfer, scope string) {
 			remote.heads[scope] = Identity{BaseGeneration: 2}
 		},
-		"refresh disabled": func(b *LocalImages, _ *headTransfer, _ string) { b.RefreshMaster = nil },
+		"refresh disabled": func(b *LocalImages, _ *headTransfer, _ string) { b.RefreshWithin = 0 },
 		"lineage cleared":  func(_ *LocalImages, remote *headTransfer, scope string) { remote.errs[scope] = ErrConflict },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -168,7 +170,7 @@ func TestFailedRefreshStillRemovesTheStaleMaster(t *testing.T) {
 	scope := strings.Repeat("a", 64)
 	stale := installMaster(t, b, first, scope, 1, time.Now())
 	remote.heads[scope] = head(2)
-	b.RefreshMaster = func(context.Context, Slot) error { return errors.New("download failed") }
+	remote.fail = true
 	if err := b.Maintain(); err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +179,7 @@ func TestFailedRefreshStillRemovesTheStaleMaster(t *testing.T) {
 
 func TestMaintenanceContinuesPastAnUnreachableLineage(t *testing.T) {
 	b, remote := newRefreshing(t)
-	b.RefreshMaster = nil
+	b.RefreshWithin = 0
 	unreachable, cleared := strings.Repeat("a", 64), strings.Repeat("b", 64)
 	kept := installMaster(t, b, first, unreachable, 1, time.Now())
 	removed := installMaster(t, b, second, cleared, 1, time.Now())
@@ -269,5 +271,54 @@ func TestStaleMasterIsRemovedWhenTheRefreshQueueIsFull(t *testing.T) {
 	}
 	if _, queued := b.refresh.pending.Load(b.master(stale)); queued {
 		t.Fatal("left the master marked as queued")
+	}
+}
+
+func TestRefreshKeepsTheLastUseOfAMasterAJobRestoredMeanwhile(t *testing.T) {
+	b, remote := newRefreshing(t)
+	scope := strings.Repeat("a", 64)
+	stale := installMaster(t, b, first, scope, 1, time.Now().Add(-time.Hour/2))
+	remote.heads[scope] = head(2)
+	attachedAt := time.Now().Truncate(time.Second)
+	current := stale
+	current.Identity.BaseGeneration, current.ImageDigest, current.ContentDigest = 2, head(2).ImageDigest, head(2).ContentDigest
+	var once sync.Once
+	// A foreground attach restores and clones the HEAD while the refresh waits
+	// for admission.
+	b.FreeBytes = func(string) (uint64, error) {
+		once.Do(func() { installMaster(t, b, second, scope, 2, attachedAt) })
+		return 1 << 40, nil
+	}
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, func() bool { return !exists(b.master(stale)) })
+	if len(remote.downloads()) != 0 {
+		t.Fatal("downloaded a master that a job had restored")
+	}
+	if info, err := os.Stat(b.master(current)); err != nil || !info.ModTime().Equal(attachedAt) {
+		t.Fatal("refresh changed the last use of a master a job restored", err)
+	}
+}
+
+func TestRefreshCarriesOverAUseOfTheStaleMasterAfterItWasQueued(t *testing.T) {
+	b, remote := newRefreshing(t)
+	scope := strings.Repeat("a", 64)
+	stale := installMaster(t, b, first, scope, 1, time.Now().Add(-time.Hour/2))
+	remote.heads[scope] = head(2)
+	clonedAt := time.Now().Truncate(time.Second)
+	var once sync.Once
+	b.FreeBytes = func(string) (uint64, error) {
+		once.Do(func() { os.Chtimes(b.master(stale), clonedAt, clonedAt) })
+		return 1 << 40, nil
+	}
+	if err := b.Maintain(); err != nil {
+		t.Fatal(err)
+	}
+	next := stale
+	next.Identity.BaseGeneration, next.ImageDigest, next.ContentDigest = 2, head(2).ImageDigest, head(2).ContentDigest
+	eventually(t, func() bool { return !exists(b.master(stale)) })
+	if info, err := os.Stat(b.master(next)); err != nil || !info.ModTime().Equal(clonedAt) {
+		t.Fatal("refresh lost the stale master's latest use", err)
 	}
 }

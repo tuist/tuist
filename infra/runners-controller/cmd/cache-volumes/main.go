@@ -185,7 +185,7 @@ func main() {
 	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
-	backend.RefreshMaster, backend.RefreshWithin = backend.Prefetch, 24*time.Hour
+	backend.RefreshWithin = 24 * time.Hour
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)

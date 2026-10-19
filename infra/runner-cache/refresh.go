@@ -35,12 +35,12 @@ type refresher struct {
 
 // queueRefresh reports whether the stale master stays until its refresh finishes.
 func (b *LocalImages) queueRefresh(master string, stale Slot, head Identity, usedAt time.Time) bool {
-	if b.RefreshMaster == nil || time.Since(usedAt) >= b.RefreshWithin || head.BaseGeneration <= stale.BaseGeneration {
+	if b.RefreshWithin <= 0 || time.Since(usedAt) >= b.RefreshWithin || head.BaseGeneration <= stale.BaseGeneration {
 		return false
 	}
 	next := stale
 	next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
-	if !validHead(next.Identity) {
+	if !validHead(next.Identity) || !scopePattern.MatchString(next.Scope) {
 		return false
 	}
 	if _, err := os.Stat(b.master(next)); err == nil {
@@ -78,24 +78,45 @@ func (b *LocalImages) refreshMasters() {
 }
 
 func (b *LocalImages) refreshMaster(job refreshJob) {
-	master := b.master(job.next)
-	if _, err := os.Stat(master); os.IsNotExist(err) {
-		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
-		done := b.Observe.Start("refresh", "remote")
-		b.refresh.active.Store(job.stale.Scope, struct{}{})
-		err = b.RefreshMaster(ctx, job.next)
-		b.refresh.active.Delete(job.stale.Scope)
-		cancel()
-		if err == nil {
-			// Carry the last use over so a master no job attaches is not refreshed
-			// on every publication until it ages out.
-			err = os.Chtimes(master, job.usedAt, job.usedAt)
-		}
-		done(err)
+	ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+	done := b.Observe.Start("refresh", "remote")
+	b.refresh.active.Store(job.stale.Scope, struct{}{})
+	err := b.reserve(ctx)
+	if err == nil {
+		err = b.restoreRefresh(ctx, job)
 	}
+	b.refresh.active.Delete(job.stale.Scope)
+	cancel()
+	done(err)
 	unlock := b.lock(job.stale.Scope)
 	defer unlock()
 	_ = removeMaster(job.master)
+}
+
+// restoreRefresh installs the newer master under the scope lock. Only a master
+// it installed inherits the stale master's last use, so a master no job attaches
+// is not refreshed on every publication until it ages out, and a master a job
+// restored or cloned meanwhile keeps its own.
+func (b *LocalImages) restoreRefresh(ctx context.Context, job refreshJob) error {
+	unlock, err := b.lockContext(ctx, job.stale.Scope)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	master := b.master(job.next)
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := b.restoreMaster(ctx, job.next, master); err != nil {
+		return err
+	}
+	usedAt := job.usedAt
+	if info, err := os.Stat(job.master); err == nil && info.ModTime().After(usedAt) {
+		usedAt = info.ModTime()
+	}
+	return os.Chtimes(master, usedAt, usedAt)
 }
 
 func removeMaster(path string) error {
