@@ -32,6 +32,16 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     |> post("/api/projects/#{project.account.name}/#{project.name}#{suffix}", body)
   end
 
+  defp assert_network_actor(response) do
+    assert response["actor"] == %{
+             "name" => "developer-123",
+             "source" => "reported",
+             "claimed_actor_id" => "developer-123",
+             "submission_auth" => "network_trusted",
+             "verified_account_handle" => nil
+           }
+  end
+
   test "instance enablement applies to newly created private projects across accounts", %{conn: conn, user: user} do
     other_user = AccountsFixtures.user_fixture(preload: [:account])
 
@@ -59,6 +69,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
         |> json_response(200)
 
       refute response["id"] == client_id
+      assert_network_actor(response)
       Builds.Build.Buffer.flush()
       {:ok, build} = Builds.get_build(response["id"], project_id: project.id)
       assert build.account_id == 0
@@ -79,6 +90,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
       conn |> publish(project, "/mix/builds", %{id: client_id, duration_ms: 42, status: "success"}) |> json_response(201)
 
     refute response["id"] == client_id
+    assert_network_actor(response)
     [build] = ClickHouseRepo.all(from(b in Build, where: b.id == ^response["id"]))
     assert build.account_id == 0
     assert build.claimed_actor_id == "developer-123"
@@ -111,6 +123,9 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
 
       response = conn |> publish(project, "/tests", body) |> json_response(200)
       refute response["id"] == client_id
+      assert_network_actor(response)
+      assert [child_response] = response["test_case_runs"]
+      assert child_response["actor"] == response["actor"]
       {:ok, test} = Tests.get_test(response["id"], preload: [:test_case_runs])
       assert test.account_id == 0
       assert test.actor_account_id == 0

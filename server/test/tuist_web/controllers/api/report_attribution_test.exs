@@ -302,6 +302,42 @@ defmodule TuistWeb.API.ReportAttributionTest do
       assert reports(project, @kind) == []
     end
 
+    if kind in [:build, :build_alias, :test, :legacy_build] do
+      test "#{kind}: retries preserve stored attribution instead of the retrying identity", context do
+        %{conn: conn, organization: organization, user: user} = context
+        project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: @system)
+        payload = body(@kind)
+        {:ok, original_token, _} = Tuist.Guardian.encode_and_sign(user, %{}, token_type: "access_token")
+
+        original =
+          conn
+          |> put_req_header("authorization", "Bearer #{original_token}")
+          |> put_req_header("x-tuist-actor-id", "original-claim")
+          |> publish(project, @kind, @path, payload)
+          |> json_response(@success)
+
+        [stored] = reports(project, @kind)
+        retrying_user = AccountsFixtures.user_fixture(preload: [:account])
+        :ok = Accounts.add_user_to_organization(retrying_user, organization, role: :user)
+        {:ok, retry_token, _} = Tuist.Guardian.encode_and_sign(retrying_user, %{}, token_type: "access_token")
+
+        retried =
+          conn
+          |> put_req_header("authorization", "Bearer #{retry_token}")
+          |> put_req_header("x-tuist-actor-id", "retry-claim")
+          |> publish(project, @kind, @path, payload)
+          |> json_response(@success)
+
+        assert retried["id"] == original["id"]
+        assert retried["actor"] == original["actor"]
+        assert retried["actor"]["verified_account_handle"] == user.account.name
+        assert retried["actor"]["claimed_actor_id"] == "original-claim"
+        [after_retry] = reports(project, @kind)
+        assert Map.take(after_retry, Tuist.ReportActor.fields()) == Map.take(stored, Tuist.ReportActor.fields())
+        if @kind == :test, do: assert_child_actor(project, after_retry, retried)
+      end
+    end
+
     test "#{kind}: project credentials and missing claims never imply a verified person", context do
       %{conn: conn, organization: organization} = context
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: @system)
