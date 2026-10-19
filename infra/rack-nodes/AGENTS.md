@@ -566,38 +566,56 @@ image, with `tart pull` and `tart clone` (see "macOS runner runtime" in
 it runs from ghcr.io. When b04-b09 joined on 2026-10-14 each pulled 33 to 62
 GB in its first hour and a half, peaking at 0.3 to 0.5 Gbit/s per mini, so
 one 60 GB image took 16 to 27 minutes against the pull's 20 minute timeout,
-while edge-a's WAN took 5.8 Gbit/s
-and half the rack's guest slots sat in `CreatingVM`. Every runner image release
-repeats that on every mini. The cache makes an image cross the WAN once per
-rack.
+while edge-a's WAN took 5.8 Gbit/s and half the rack's guest slots sat in
+`CreatingVM`. Every runner image release repeats that on every mini. The
+cache makes an image cross the WAN once per rack.
 
 `rackFleet.imageCache` in the tuist chart values declares it, and
-`templates/image-cache.yaml` in the rack-nodes chart runs it: a zot registry
-(the full image; the minimal one has no sync), one Deployment per entry of
-`nodes`, pinned to that storage node, on the host network at the node's
-machines address and `port` (`10.10.0.11:5000` on ber1-store-a), in plain
-HTTP. Its storage is a `scw-local-nvme` volume of `sizeGi` on the node's XFS
-`/data`, under a project quota, and the pod requests the same as
-`ephemeral-storage`, so the ber1-runners Kura region's placement, which reads
-every pod's request on the node, places its instances around it. A cache
-that fills fails its next sync and those hosts pull from ghcr.io; it never
-takes the Kura region with it.
+`templates/image-cache.yaml` in the rack-nodes chart runs it, one Deployment
+per entry of `nodes`, pinned to that storage node, on the host network at the
+node's machines address (`10.10.0.11` on ber1-store-a). It has two
+containers:
 
-- **What it holds.** zot syncs an image of `repositories` from `upstream` on
-  its first manifest request and answers only once all of it is local, with
-  the upstream's manifest bytes, so the digest is ghcr.io's. Requests for an
-  image that is already being fetched share that one fetch, and the fetch
-  carries on when a requester gives up. A `prewarm` container asks for each
-  `prewarm` Xcode's image every `syncInterval`, one at a time, so a release's
-  images are fetched as soon as a deploy names them. zot's own periodic sync
-  cannot be used: it starts from the registry's repository listing, which
-  ghcr.io refuses. The tags come from the same catalog values as the pools'
-  images; the deploy passes `runnersFleet.runnerImageSemver` to this release
-  too.
-- **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
-  within `keepPulledWithin`, and deletes the rest; garbage collection then
-  frees their blobs. A release's previous images go a day after the rack has
-  rolled off them.
+- **A plain registry**, zot, on `port` (5000), in plain HTTP, with no sync
+  extension. It serves what the filler has copied into it and answers 404 for
+  anything else, at once. It fetches nothing itself.
+- **The filler**, `rack-image-filler` from the operator's image
+  (`infra/cluster-api-provider-tuist/internal/rackimagefiller`). It copies the
+  images of `xcodeVersions` from ghcr.io into the registry, named as the
+  catalog names the pools' images (the deploy passes
+  `runnersFleet.runnerImageSemver` to this release too). Each pass, every
+  `fillInterval`:
+  - **Plans before it downloads.** It reads each wanted image's manifest and
+    counts the blobs the registry lacks against the free space on the volume,
+    less `reserveGiB`. An image that does not fit is skipped (`no_space`)
+    and nothing of it is fetched. The images come in priority order: the
+    first ones win the space.
+  - **Evicts deliberately.** When a wanted image does not fit, it deletes every
+    tag no `xcodeVersions` entry wants (across all of the registry's
+    repositories, but never a manifest a wanted tag points at), and copies on
+    a later pass, once zot's collection (every 10 minutes, after 5) has freed
+    the blobs.
+  - **Copies blob by blob**, skipping the blobs the registry holds, and the
+    manifest last, so a mini never sees a partial image. A copy that fails
+    keeps the blobs it finished; releases share about 57% of their blobs, so
+    moving an image to a new release fetches only what the release changed.
+  - **Is bounded when something goes wrong.** A failing image backs off,
+    doubling from 10 minutes to 6 hours, and the downloads of a UTC day stop
+    at `dailyBudgetGiB`. Both live in a state file on the volume, so a
+    restart resets neither.
+
+  Its log shows each pass's outcomes (`held`, `copied`, `no_space`,
+  `evicting`, `over_budget`, `backing_off`, `failed`), and it serves them as
+  `rack_image_filler_image_outcome` on `metricsPort` (5001).
+
+Storage is a `scw-local-nvme` volume of `sizeGi` on the node's XFS `/data`,
+under a project quota, and the pod requests the same as `ephemeral-storage`,
+so the ber1-runners Kura region's placement, which reads every pod's request
+on the node, places its instances around it. The claim is named after its
+size, because a claim cannot shrink: a new `sizeGi` makes a new volume, which
+the filler fills again, and Helm deletes the old claim once the Deployment's
+Recreate has released it.
+
 - **How the minis use it.** Tart has no mirror configuration, only `--insecure`
   for plain HTTP, so tart-kubelet chooses the reference. Each host named in
   `routeHosts` (`["*"]` for all of them) gets, through the operator's
@@ -605,59 +623,51 @@ takes the Kura region with it.
   with `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
   golden base it asks the cache for the image's manifest. If the cache holds
   it, tart-kubelet pulls `10.10.0.11:5000/tuist/tuist-runner@<that digest>`
-  with `--insecure`. If the cache is still fetching it, the Pod is requeued
-  (`ImageCacheSyncing`) for up to 30 minutes rather than pulling the same
-  image from ghcr.io beside it. If the cache is down, does not hold the image,
-  or the pull fails, tart-kubelet pulls from ghcr.io as before. The golden
-  keeps the name the Pod's image gives it, so Pods, golden Node labels, the
-  runners-controller's affinity and the GC key on nothing new.
-- **Pre-pull.** A joining host's prewarm (`podagent.Prewarmer`) materializes
-  through the same `ensureGolden`, so it goes through the cache too, and it
-  asks again every 30 seconds for an image the cache is still fetching rather
-  than letting Pods onto the host to wait on that fetch.
-- **Integrity.** Tart does not check a blob against its digest. The cache's
-  bytes are what zot fetched over TLS and wrote under its digest, and the hop
-  to the mini is the machines segment, which carries only our hosts; guests
-  are behind the hosts' NAT. Pulling by digest pins the manifest the probe
-  saw.
-- **Private images.** Everything mirrored today is public, so the cache syncs
-  anonymously. A private repository needs zot's `credentialsFile` for the
-  upstream, from a 1Password item through ESO, mounted into the cache pod. The
-  credential stays on the storage node; the minis keep pulling unauthenticated
-  from the segment.
+  with `--insecure`. If the cache is down, slow, does not hold the image, or
+  the pull fails, it pulls from ghcr.io as before. The golden keeps the name
+  the Pod's image gives it, so Pods, golden Node labels, the
+  runners-controller's affinity and the GC key on nothing new. A joining
+  host's prewarm (`podagent.Prewarmer`) materializes through the same
+  `ensureGolden`, so it goes through the cache too.
+- **Integrity.** Tart does not check a blob against its digest. The registry
+  checks every blob the filler uploads against its digest, the filler fetched
+  them over TLS, and the hop to the mini is the machines segment, which
+  carries only our hosts; guests are behind the hosts' NAT. Pulling by digest
+  pins the manifest the probe saw.
+- **Private images.** Everything cached today is public, so the filler reads
+  ghcr.io anonymously. A private repository needs a credential for the filler,
+  from a 1Password item through ESO, mounted into the cache pod. It stays on
+  the storage node; the minis keep pulling unauthenticated from the segment.
 
-Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
-layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
-distinct blobs; a release shares about 57% of its blobs with the one before,
-so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
-928 GB, also home to the Kura region, which takes precedence on it. So
-production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
-which moves to the next minor when one ships. The other versions come from
-ghcr.io, and so does 27.1 for about a day after a new image, until the old
-tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
-version beside it needs about 160 GiB through a release change, and every
-image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
-gives the site more disk.
+Sizing: each runner image is 55 to 62 GB compressed (263 layers of up to
+512 MiB); all nine catalog images are 404 GB of distinct blobs, 578 GB beside
+the release before. ber1-store-a's `/data` is 928 GB, also home to the Kura
+region, which takes precedence on it. So production's cache is 64 GiB, one
+image: the latest Xcode minor, 27.1. On a release the filler evicts the old
+27.1 before it copies the new one, and the minis pull from ghcr.io in
+between. Raise `sizeGi`, and list the busiest older versions after 27.1, once
+a drive in store-a's spare M.2 slots, or store-b, gives the site more disk.
 
-The claim is named after its size, because a claim cannot shrink: a new
-`sizeGi` makes a new volume, which the cache fills again from the upstream,
-and Helm deletes the old claim once the Deployment's Recreate has released
-it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
-is what the Kura region's placement counts.
+What the filler replaced, so it is not brought back: zot's on-demand sync. It
+stages a whole image before writing it into storage, so a fetch needs about
+twice the image's size, and a fetch that fails throws all of it away. At
+64 GiB every fetch of 27.1 ran out of space on the write, and the prewarm
+loop then in place asked again every 10 minutes: from 2026-10-16 17:40 UTC to
+2026-10-18 08:40 ber1-store-a received about 200 GB an hour from ghcr.io.
+zot's periodic sync cannot be used either: it starts from the registry's
+repository listing, which ghcr.io refuses.
 
 Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
-`enabled`; once
-`kubectl -n tuist logs deploy/tuist-tuist-rack-image-cache-ber1-store-a -c prewarm`
-shows the prewarm set fetched, add `ber1-runner-b01` to `routeHosts` (real rack
+`enabled`; once the filler's log shows `copied` (then `held`) for every
+`xcodeVersions` image, add `ber1-runner-b01` to `routeHosts` (real rack
 hardware, running staging's jobs); then the other hosts, or `"*"`. Routing
-needs an operator image with `--rackhost-image-mirror-hosts`, and re-pushes the
-launchd config of the hosts added, and only theirs, through the drift loop.
-`tart_kubelet_image_mirror_probe_total{result}` and
+re-pushes the launchd config of the hosts added, and only theirs, through the
+drift loop. `tart_kubelet_image_mirror_probe_total{result}` and
 `tart_kubelet_image_pull_seconds{source}` show what the hosts did; the
 `upstream` and `mirror` pull times on the same hosts are the before and after.
-Taking a host out of `routeHosts` is its rollback. `mise run rack:fleet-test` checks
-that every cache and cache gateway is a storage node of the site at its
-RackLinuxHost's address.
+Taking a host out of `routeHosts` is its rollback, and `enabled: false` the
+cache's. `mise run rack:fleet-test` checks that every cache and cache gateway
+is a storage node of the site at its RackLinuxHost's address.
 
 ## Production
 

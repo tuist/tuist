@@ -1351,18 +1351,16 @@ rackFleet:
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
   # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
-  # the prewarm set sync, then route hosts through it one at a time in
-  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
-  # one re-pushes that mini's launchd config and needs an operator image
-  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+  # the filler copy `xcodeVersions`, then route hosts through it one at a time
+  # in `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs;
+  # each one re-pushes that mini's launchd config. `["*"]` routes every mini.
   #
-  # Off until the site's storage nodes have more disk (a drive in store-a's
-  # spare M.2 slots, or store-b): Kura takes precedence on store-a. zot stages
-  # a whole image before writing it into storage, so fetching one needs about
-  # twice its size (a 58.8 GiB image needs ~118 GiB), plus the previous tag
-  # while it ages out (`keepPulledWithin`). At 64 GiB every fetch of 27.1 ran
-  # out of space and was retried, 2026-10-16 17:40 to 10-18, ~200 GB/h over
-  # the WAN.
+  # Kura takes precedence on store-a's disk: 64 GiB holds one runner image,
+  # 27.1, and leaves the ber1-runners Kura region room for its accounts'
+  # claims to grow. On a release the filler evicts the old 27.1 before it
+  # copies the new one, and the minis pull from ghcr.io in between. Raise it,
+  # and add the busiest older versions after 27.1, once the site's storage
+  # nodes have more disk: a drive in store-a's spare M.2 slots, or store-b.
   imageCache:
     enabled: false
     routeHosts: []
@@ -1370,7 +1368,7 @@ rackFleet:
       - name: ber1-store-a
         address: 10.10.0.11
     sizeGi: 64
-    prewarm: ["27.1"]
+    xcodeVersions: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the

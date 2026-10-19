@@ -397,19 +397,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if err := r.createPod(ctx, pod); err != nil {
-		reason := "TartCreateFailed"
-		if errors.Is(err, errMirrorSyncing) {
-			reason = "ImageCacheSyncing"
-			logger.Info("waiting for the rack image cache", "reason", err.Error())
-		} else {
-			logger.Error(err, "create failed; will retry")
-		}
+		logger.Error(err, "create failed; will retry")
 		// Surface the failure to the API server immediately so
 		// `kubectl describe pod` shows it.
 		_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
 			Phase:   corev1.PodPending,
 			Message: err.Error(),
-			Reason:  reason,
+			Reason:  "TartCreateFailed",
 		})
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
@@ -804,11 +798,7 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 // keys on.
 func (r *Reconciler) pullGoldenImage(ctx context.Context, image string) (imagePull, error) {
 	logger := log.FromContext(ctx)
-	mirrors, err := r.Images.sources(ctx, image)
-	if err != nil {
-		return imagePull{}, err
-	}
-	for _, pull := range mirrors {
+	for _, pull := range r.Images.sources(ctx, image) {
 		err := r.pullWithReclaim(ctx, pull)
 		if err == nil {
 			return pull, nil

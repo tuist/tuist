@@ -1,55 +1,30 @@
 {{- $cache := .Values.rackFleet.imageCache | default dict }}
 {{- if and .Values.capi.enabled .Values.rackFleet.enabled $cache.enabled }}
 {{- $fleetName := include "rackNodes.imageCacheName" . }}
-{{- $prewarmTags := include "rackNodes.imageCachePrewarmTags" . | fromJsonArray }}
-{{- $repositories := required "rackFleet.imageCache.repositories names what the cache serves" $cache.repositories }}
+{{- $images := include "rackNodes.imageCacheImages" . | fromJsonArray }}
 {{- range $node := (required "rackFleet.imageCache.nodes needs a storage node to run on" $cache.nodes) }}
 {{- $name := printf "%s-%s" $fleetName $node.name | trunc 63 | trimSuffix "-" }}
 {{- $sizeSuffix := printf "-%dgi" (int $cache.sizeGi) }}
 {{- $claimName := printf "%s%s" ($name | trunc (int (sub 63 (len $sizeSuffix))) | trimSuffix "-") $sizeSuffix }}
 {{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address }}
 {{- /*
-zot fetches an image of the repositories on its first manifest request and
-answers only once all of it is local, with the upstream's digest; concurrent
-requests for it share that one fetch. tart-kubelet waits for that answer
-itself (Tart's own client gives up after 60 idle seconds) and pulls by the
-digest it was given. zot's periodic sync cannot run against ghcr.io, which
-refuses the repository listing it starts from, so the prewarm container
-below asks for each prewarm tag instead, through the same on-demand path.
+A plain registry: it serves what the filler below has copied into it and
+answers 404 for anything else, at once, so a mini pulls that from the
+upstream. It fetches nothing itself. Collection runs often, so the space an
+eviction frees reaches the filler's next pass.
 */}}
-{{- $onDemand := list }}
-{{- range $repositories }}
-{{- $onDemand = append $onDemand (dict "prefix" .) }}
-{{- end }}
-{{- $registries := list (dict "urls" (list (printf "https://%s" $cache.upstream)) "onDemand" true "tlsVerify" true "maxRetries" 3 "retryDelay" "1m" "content" $onDemand) }}
-{{- $keepTags := list (dict "pulledWithin" $cache.keepPulledWithin) }}
-{{- if $prewarmTags }}
-{{- $quoted := list }}
-{{- range $prewarmTags }}
-{{- $quoted = append $quoted (regexQuoteMeta .) }}
-{{- end }}
-{{- $keepTags = prepend $keepTags (dict "patterns" (list (printf "^(%s)$" (join "|" $quoted)))) }}
-{{- end }}
-{{- $prewarmURLs := list }}
-{{- range $repository := $repositories }}
-{{- range $tag := $prewarmTags }}
-{{- $prewarmURLs = append $prewarmURLs (printf "http://%s:%d/v2/%s/manifests/%s" $address (int $cache.port) $repository $tag) }}
-{{- end }}
-{{- end }}
 {{- $config := dict
   "distSpecVersion" "1.1.1"
   "storage" (dict
-    "rootDirectory" "/var/lib/zot"
+    "rootDirectory" "/data/zot"
     "dedupe" true
     "gc" true
-    "gcDelay" "1h"
-    "gcInterval" "1h"
-    "retention" (dict "policies" (list (dict "repositories" (list "**") "deleteReferrers" true "deleteUntagged" true "keepTags" $keepTags))))
+    "gcDelay" "5m"
+    "gcInterval" "10m")
   "http" (dict "address" $address "port" ($cache.port | toString))
   "log" (dict "level" "info")
   "extensions" (dict
-    "metrics" (dict "enable" true "prometheus" (dict "path" "/metrics"))
-    "sync" (dict "enable" true "registries" $registries)) }}
+    "metrics" (dict "enable" true "prometheus" (dict "path" "/metrics"))) }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -160,32 +135,27 @@ spec:
               mountPath: /etc/zot
               readOnly: true
             - name: data
-              mountPath: /var/lib/zot
+              mountPath: /data
             - name: tmp
               mountPath: /tmp
-        {{- if $prewarmURLs }}
-        # Asks the cache for each prewarm image every syncInterval, one at a
-        # time, so a release's images are fetched once, as soon as the deploy
-        # names them, before a mini asks. A manifest the cache already holds
-        # answers at once (after zot checks the tag against the upstream); one
-        # it does not is answered when all of it is local, which the read
-        # timeout outlasts.
-        - name: prewarm
-          image: {{ printf "%s:%s" $cache.prewarmImage.repository $cache.prewarmImage.tag | quote }}
-          imagePullPolicy: {{ $cache.prewarmImage.pullPolicy }}
-          command: [/bin/sh, -c]
+        {{- if $images }}
+        # Copies the images into the registry above, from the upstream, under
+        # the bounds infra/cluster-api-provider-tuist/internal/rackimagefiller
+        # describes: only what fits the volume and the day's budget, blob by
+        # blob, backing off a failing image for hours.
+        - name: filler
+          image: {{ include "rackNodes.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.macosFleet.image.pullPolicy }}
+          command: [/usr/local/bin/rack-image-filler]
           args:
-            - |
-              while :; do
-                for url in {{ join " " $prewarmURLs }}; do
-                  if wget -q -O /dev/null -T 10800 --header "Accept: application/vnd.oci.image.manifest.v1+json" "$url"; then
-                    echo "prewarmed $url"
-                  else
-                    echo "prewarm of $url failed; the next pass retries it"
-                  fi
-                done
-                sleep {{ $cache.syncInterval | quote }}
-              done
+            - --images={{ join "," $images }}
+            - --registry={{ $address }}:{{ int $cache.port }}
+            - --state-file=/data/filler/state.json
+            - --volume=/data
+            - --reserve-gib={{ int $cache.reserveGiB }}
+            - --daily-budget-gib={{ int $cache.dailyBudgetGiB }}
+            - --interval={{ $cache.fillInterval }}
+            - --metrics-address={{ $address }}:{{ int $cache.metricsPort }}
           securityContext:
             runAsUser: 65534
             runAsNonRoot: true
@@ -194,11 +164,10 @@ spec:
             capabilities:
               drop: [ALL]
           resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              memory: 32Mi
+            {{- toYaml $cache.fillerResources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
         {{- end }}
       volumes:
         - name: config

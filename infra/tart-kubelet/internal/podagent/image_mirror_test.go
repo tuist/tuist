@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -116,10 +115,7 @@ func TestImageSourcesPullsFromAMirrorThatHoldsTheImage(t *testing.T) {
 	mirror := mirrorFor(t, srv)
 	s := &ImageSources{Mirrors: []ImageMirror{mirror}}
 
-	pulls, err := s.sources(context.Background(), mirroredImage)
-	if err != nil {
-		t.Fatal(err)
-	}
+	pulls := s.sources(context.Background(), mirroredImage)
 	want := mirror.Endpoint.Host + "/tuist/tuist-runner@" + testManifestDigest()
 	if len(pulls) != 1 || pulls[0].ref != want || !pulls[0].insecure || pulls[0].mirror != srv.URL {
 		t.Fatalf("pulls = %+v, want one insecure pull of %s", pulls, want)
@@ -150,6 +146,9 @@ func TestImageSourcesFallsBackToTheUpstream(t *testing.T) {
 				http.Error(w, "boom", http.StatusInternalServerError)
 			}))
 		},
+		"mirror too slow to answer": func(t *testing.T) ImageMirror {
+			return mirrorFor(t, fakeMirror(t, blocksUntilCancelled))
+		},
 		"digest the body does not have": func(t *testing.T) ImageMirror {
 			return mirrorFor(t, fakeMirror(t, func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("0", 64))
@@ -158,11 +157,8 @@ func TestImageSourcesFallsBackToTheUpstream(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			s := &ImageSources{Mirrors: []ImageMirror{mirror(t)}, HTTP: &http.Client{Timeout: 2 * time.Second}}
-			pulls, err := s.sources(context.Background(), mirroredImage)
-			if err != nil {
-				t.Fatalf("sources: %v", err)
-			}
+			s := &ImageSources{Mirrors: []ImageMirror{mirror(t)}, HTTP: &http.Client{Timeout: 200 * time.Millisecond}}
+			pulls := s.sources(context.Background(), mirroredImage)
 			if len(pulls) != 0 {
 				t.Fatalf("pulls = %+v, want none so the upstream is pulled", pulls)
 			}
@@ -175,60 +171,12 @@ func TestImageSourcesOnlyMirrorsTheirUpstream(t *testing.T) {
 	s := &ImageSources{Mirrors: []ImageMirror{mirrorFor(t, srv)}}
 
 	for _, image := range []string{"quay.io/tuist/tuist-runner:tag", "img", "tuist/tuist-runner:tag"} {
-		pulls, err := s.sources(context.Background(), image)
-		if err != nil || len(pulls) != 0 {
-			t.Fatalf("sources(%q) = %+v, %v; want nothing to mirror", image, pulls, err)
+		if pulls := s.sources(context.Background(), image); len(pulls) != 0 {
+			t.Fatalf("sources(%q) = %+v; want nothing to mirror", image, pulls)
 		}
 	}
-	if pulls, err := (*ImageSources)(nil).sources(context.Background(), mirroredImage); err != nil || pulls != nil {
-		t.Fatalf("a host without mirrors must pull from the upstream: %+v, %v", pulls, err)
-	}
-}
-
-// A cache fetching the image holds the manifest request open until it has
-// all of it. The host requeues instead of pulling the same image from the
-// upstream beside it, and stops waiting once the sync timeout has passed.
-func TestImageSourcesWaitsForASyncingMirrorThenGivesUp(t *testing.T) {
-	release := make(chan struct{})
-	srv := fakeMirror(t, func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case <-release:
-			servesManifest(w, r)
-		case <-r.Context().Done():
-		}
-	})
-	t.Cleanup(func() {
-		select {
-		case <-release:
-		default:
-			close(release)
-		}
-	})
-	now := time.Date(2026, 10, 14, 15, 0, 0, 0, time.UTC)
-	s := &ImageSources{
-		Mirrors:     []ImageMirror{mirrorFor(t, srv)},
-		HTTP:        &http.Client{Timeout: 100 * time.Millisecond},
-		SyncTimeout: 30 * time.Minute,
-		now:         func() time.Time { return now },
-	}
-
-	if _, err := s.sources(context.Background(), mirroredImage); !errors.Is(err, errMirrorSyncing) {
-		t.Fatalf("first probe: err = %v, want errMirrorSyncing", err)
-	}
-	now = now.Add(29 * time.Minute)
-	if _, err := s.sources(context.Background(), mirroredImage); !errors.Is(err, errMirrorSyncing) {
-		t.Fatalf("probe within the timeout: err = %v, want errMirrorSyncing", err)
-	}
-	now = now.Add(time.Minute)
-	pulls, err := s.sources(context.Background(), mirroredImage)
-	if err != nil || len(pulls) != 0 {
-		t.Fatalf("probe past the timeout = %+v, %v; want the upstream", pulls, err)
-	}
-
-	close(release)
-	pulls, err = s.sources(context.Background(), mirroredImage)
-	if err != nil || len(pulls) != 1 {
-		t.Fatalf("probe once synced = %+v, %v; want the mirror", pulls, err)
+	if pulls := (*ImageSources)(nil).sources(context.Background(), mirroredImage); pulls != nil {
+		t.Fatalf("a host without mirrors must pull from the upstream: %+v", pulls)
 	}
 }
 
@@ -308,24 +256,6 @@ func TestEnsureGoldenFallsBackWhenTheMirrorPullFails(t *testing.T) {
 	}
 }
 
-func TestEnsureGoldenRequeuesWhileTheMirrorSyncs(t *testing.T) {
-	srv := fakeMirror(t, func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() })
-	bin, log := fakeTartForGolden(t, false)
-	r := &Reconciler{Tart: &tart.Client{Binary: bin}, Images: &ImageSources{
-		Mirrors: []ImageMirror{mirrorFor(t, srv)},
-		HTTP:    &http.Client{Timeout: 100 * time.Millisecond},
-	}}
-
-	if _, _, err := r.ensureGolden(context.Background(), mirroredImage); !errors.Is(err, errMirrorSyncing) {
-		t.Fatalf("err = %v, want errMirrorSyncing", err)
-	}
-	for _, call := range tartCalls(t, log) {
-		if strings.HasPrefix(call, "pull") {
-			t.Fatalf("pulled while the mirror was syncing: %q", call)
-		}
-	}
-}
-
 // An OCI entry pulled through a mirror is kept exactly as one pulled from
 // the upstream would be.
 func TestExpectedSetKeepsMirrorPulledImages(t *testing.T) {
@@ -364,49 +294,23 @@ func TestExpectedSetKeepsMirrorPulledImages(t *testing.T) {
 
 func blocksUntilCancelled(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() }
 
-// A cache that holds the image is pulled from even while another is still
-// fetching it, in either order: a syncing backup must not hold up a VM the
-// other cache can start now.
-func TestImageSourcesUsesAReadyMirrorBesideASyncingOne(t *testing.T) {
+// A cache that holds the image is pulled from whatever another one does, in
+// either order: a hung backup must not hold up a VM the other can start now.
+func TestImageSourcesUsesAReadyMirrorBesideAHungOne(t *testing.T) {
 	ready := mirrorFor(t, fakeMirror(t, servesManifest))
-	syncing := mirrorFor(t, fakeMirror(t, blocksUntilCancelled))
+	hung := mirrorFor(t, fakeMirror(t, blocksUntilCancelled))
 
 	for name, mirrors := range map[string][]ImageMirror{
-		"ready first":   {ready, syncing},
-		"syncing first": {syncing, ready},
+		"ready first": {ready, hung},
+		"hung first":  {hung, ready},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &ImageSources{Mirrors: mirrors, HTTP: &http.Client{Timeout: 100 * time.Millisecond}}
-			pulls, err := s.sources(context.Background(), mirroredImage)
-			if err != nil {
-				t.Fatalf("sources: %v, want the ready mirror", err)
-			}
+			pulls := s.sources(context.Background(), mirroredImage)
 			if len(pulls) != 1 || pulls[0].mirror != ready.Endpoint.String() {
 				t.Fatalf("pulls = %+v, want one pull from %s", pulls, ready.Endpoint)
 			}
 		})
-	}
-}
-
-// Two caches fetching the image cost one sync timeout, not one each.
-func TestImageSourcesWaitsForSyncingMirrorsTogether(t *testing.T) {
-	now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
-	s := &ImageSources{
-		Mirrors: []ImageMirror{
-			mirrorFor(t, fakeMirror(t, blocksUntilCancelled)),
-			mirrorFor(t, fakeMirror(t, blocksUntilCancelled)),
-		},
-		HTTP:        &http.Client{Timeout: 100 * time.Millisecond},
-		SyncTimeout: 30 * time.Minute,
-		now:         func() time.Time { return now },
-	}
-	if _, err := s.sources(context.Background(), mirroredImage); !errors.Is(err, errMirrorSyncing) {
-		t.Fatalf("first probe: err = %v, want errMirrorSyncing", err)
-	}
-	now = now.Add(30 * time.Minute)
-	pulls, err := s.sources(context.Background(), mirroredImage)
-	if err != nil || len(pulls) != 0 {
-		t.Fatalf("after one sync timeout = %+v, %v; want the upstream", pulls, err)
 	}
 }
 
@@ -423,14 +327,13 @@ func TestImageSourcesHoldsADigestPinnedImageToItsDigest(t *testing.T) {
 	s := &ImageSources{Mirrors: []ImageMirror{mirrorFor(t, srv)}}
 
 	pinned := "ghcr.io/tuist/tuist-runner@" + testManifestDigest()
-	pulls, err := s.sources(context.Background(), pinned)
-	if err != nil || len(pulls) != 0 {
-		t.Fatalf("sources(%s) = %+v, %v; want the upstream for a manifest that is not the pinned one", pinned, pulls, err)
+	if pulls := s.sources(context.Background(), pinned); len(pulls) != 0 {
+		t.Fatalf("sources(%s) = %+v; want the upstream for a manifest that is not the pinned one", pinned, pulls)
 	}
 
 	pinnedToServed := "ghcr.io/tuist/tuist-runner@" + otherDigest
-	pulls, err = s.sources(context.Background(), pinnedToServed)
-	if err != nil || len(pulls) != 1 || !strings.HasSuffix(pulls[0].ref, "@"+otherDigest) {
-		t.Fatalf("sources(%s) = %+v, %v; want the mirror when it serves the pinned manifest", pinnedToServed, pulls, err)
+	pulls := s.sources(context.Background(), pinnedToServed)
+	if len(pulls) != 1 || !strings.HasSuffix(pulls[0].ref, "@"+otherDigest) {
+		t.Fatalf("sources(%s) = %+v; want the mirror when it serves the pinned manifest", pinnedToServed, pulls)
 	}
 }

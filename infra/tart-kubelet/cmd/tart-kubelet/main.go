@@ -82,7 +82,6 @@ func main() {
 		cacheVolumeCapGiB    int
 		cacheVolumeCASGiB    int
 		imageMirrors         imageMirrorList
-		imageMirrorSync      time.Duration
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -159,8 +158,6 @@ func main() {
 		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
 			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
 			"pulled with `tart pull --insecure`. A mirror that is down, does not hold the image or fails the pull falls back to the upstream.")
-	flag.DurationVar(&imageMirrorSync, "image-mirror-sync-timeout", 30*time.Minute,
-		"How long a Pod waits for an --image-mirror that is still fetching its image before the host pulls from the upstream instead.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -305,7 +302,7 @@ func main() {
 
 	var images *podagent.ImageSources
 	if len(imageMirrors) > 0 {
-		images = &podagent.ImageSources{Mirrors: imageMirrors, SyncTimeout: imageMirrorSync}
+		images = &podagent.ImageSources{Mirrors: imageMirrors}
 		setupLog.Info("pulling golden bases through image mirrors", "mirrors", imageMirrors.String())
 	}
 
