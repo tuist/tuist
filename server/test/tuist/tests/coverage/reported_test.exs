@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.Workers.RepairWorker
   alias Tuist.KeyValueStore
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -13,6 +14,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
+  alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -1877,6 +1879,63 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{carried_lines: [], covered_lines: 2} = Commits.file_detail(project.id, "head", "Sources/Math.swift")
     assert Commits.file_detail(project.id, "head", "Sources/Text.swift", measured: true) == nil
+  end
+
+  test "a selective commit folded before its parent was stored folds again once the parent arrives", %{
+    project: project,
+    account: account
+  } do
+    # Each run's depth-1 checkout uploads its commit with the parent edge, and
+    # `late` is uploaded only after `tip` and its descendants were folded.
+    repository =
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("tip", ["late"], 3),
+        CoverageFixtures.commit("next", ["tip"], 4),
+        CoverageFixtures.commit("full", ["next"], 5),
+        CoverageFixtures.commit("after", ["full"], 6)
+      ])
+
+    row = &Repo.get_by!(CoverageCommit, project_id: project.id, git_commit_sha: &1)
+
+    selective = fn sha ->
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: sha,
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
+      })
+    end
+
+    base_run(project, account)
+    selective.("tip")
+    selective.("next")
+    base_run(project, account, sha: "full")
+    selective.("after")
+    Oban.drain_queue(queue: :default, with_scheduled: true)
+
+    assert %{reported_kind: "partial"} = folded = row.("tip")
+    assert :unbuilt_file_unknown in reasons(folded)
+    assert %{reported_kind: "measured"} = row.("full")
+    assert %{reported_kind: "reported", carried_from: ["full"]} = row.("after")
+
+    # A partial fold is no baseline, so the walk goes past `tip` to `next` (as
+    # if a target it skipped had found no baseline either), and stops at the
+    # measured `full`, whose fold reads no ancestor.
+    Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha in ["next", "after"]),
+      set: [gap_reasons: GapReasons.encode([:no_ancestor])]
+    )
+
+    GitHistory.record_commits(repository, "sha1", [CoverageFixtures.commit("late", ["base"], 2)])
+    assert [repair] = all_enqueued(worker: RepairWorker)
+    assert :ok = perform_job(RepairWorker, repair.args)
+
+    assert ~w(next tip) ==
+             [worker: CommitWorker] |> all_enqueued() |> Enum.map(& &1.args["git_commit_sha"]) |> Enum.sort()
+
+    for job <- all_enqueued(worker: CommitWorker), do: assert(:ok = perform_job(CommitWorker, job.args))
+
+    assert Commits.nearest_measured_ancestor(project.id, repository, "tip", ["App"], kind: "measured") == {"base", 2}
+    assert %{reported_kind: "reported", gap_reasons: 0} = row.("tip")
   end
 
   test "is the measured figure when Tuist skipped nothing", %{project: project, account: account} do

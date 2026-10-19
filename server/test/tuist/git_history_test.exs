@@ -2,6 +2,7 @@ defmodule Tuist.GitHistoryTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.Workers.RepairWorker
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests.CoverageCommit
@@ -504,6 +505,56 @@ defmodule Tuist.GitHistoryTest do
 
       assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"h", 5}]
       assert coverage_places(project) == [{"c", main.id, 3}, {"d", main.id, 4}]
+    end
+
+    test "place a child again once the parent its depth-1 checkout could not send arrives", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      before = ~U[2026-09-01 10:00:00.000000Z]
+      GitHistory.advance_ref(repository, "main", nil, "d", observed_at: before)
+
+      # The child arrives with its parent edge but not the parent, so the
+      # default branch numbers it right above what it owned.
+      GitHistory.record_commits(repository, "sha1", [commit("h", ["g"], 10), commit("p1", ["h"], 11)])
+      GitHistory.advance_ref(repository, "main", nil, "h", observed_at: DateTime.add(before, 60))
+      GitHistory.advance_ref(repository, "pull/1", "main", "p1")
+      measure(project, repository, ["d", "h", "p1"])
+      GitHistory.sync_coverage_places(repository, ["d", "h", "p1"])
+      main = GitHistory.ref(repository, "main")
+      pull = GitHistory.ref(repository, "pull/1")
+
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"h", 5}]
+      assert {pull.fork_position, owned(repository, "pull/1")} == {5, [{"p1", 6}]}
+      assert [] = all_enqueued(worker: RepairWorker)
+
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9)])
+
+      assert [job] = all_enqueued(worker: RepairWorker)
+      assert job.args == %{"repository_id" => repository, "shas" => ["g"]}
+      assert :ok = perform_job(RepairWorker, job.args)
+
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"g", 5}, {"h", 6}]
+      assert {GitHistory.ref(repository, "pull/1").fork_position, owned(repository, "pull/1")} == {6, [{"p1", 7}]}
+      assert coverage_places(project) == [{"d", main.id, 4}, {"h", main.id, 6}, {"p1", pull.id, 7}]
+      assert %{head_sha: "h", head_observed_at: observed_at} = GitHistory.ref(repository, "main")
+      assert observed_at == main.head_observed_at
+
+      # Repeating the upload, or the repair, changes nothing.
+      snapshot = {owned(repository, "main"), owned(repository, "pull/1"), coverage_places(project)}
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9), commit("h", ["g"], 10)])
+      assert [_job] = all_enqueued(worker: RepairWorker)
+      assert :ok = perform_job(RepairWorker, job.args)
+      assert {owned(repository, "main"), owned(repository, "pull/1"), coverage_places(project)} == snapshot
+    end
+
+    test "leave the refs alone when a batch brings its commits with their children", %{repository: repository} do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9), commit("h", ["g"], 10)])
+
+      assert [] = all_enqueued(worker: RepairWorker)
     end
 
     test "ask again for a commit stored without its parents, and repair its edge", %{repository: repository} do

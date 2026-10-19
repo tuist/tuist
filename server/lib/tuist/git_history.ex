@@ -17,6 +17,14 @@ defmodule Tuist.GitHistory do
   what is new and repeating one changes nothing), and the VCS provider fills
   what the client could not send. Both write the same tables.
 
+  The client cannot always send a commit before its children: a depth-1
+  checkout uploads its head with the parent edge but not the parent, which
+  another run uploads later. Until then every walk from the child ends
+  there, so when an upload stores a commit whose child was already stored,
+  the child's refs are placed again through it (`replace_children/2`) and
+  the folds that found no ancestor fold again
+  (`Tuist.GitHistory.Workers.RepairWorker`).
+
   Every walk is bounded by the project's settings (`settings/1`): a window in
   days and commits, applied to what is stored and to how far a walk goes.
   Generation numbers (Git's commit-graph ones, computed on write) let a walk
@@ -47,6 +55,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.GitHistory.CommitParent
   alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Repository
+  alias Tuist.GitHistory.Workers.RepairWorker
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -252,15 +261,117 @@ defmodule Tuist.GitHistory do
         end)
       end)
 
-    {:ok, :ok} =
+    {:ok, inserted} =
       Repo.transaction(fn ->
-        rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Commit, &1, on_conflict: :nothing))
+        inserted =
+          rows
+          |> Enum.chunk_every(500)
+          |> Enum.flat_map(fn chunk ->
+            {_count, inserted} = Repo.insert_all(Commit, chunk, on_conflict: :nothing, returning: [:sha])
+            Enum.map(inserted, & &1.sha)
+          end)
+
         edges |> Enum.chunk_every(1_000) |> Enum.each(&Repo.insert_all(CommitParent, &1, on_conflict: :nothing))
         raise_generations(repository_id, rows)
-        :ok
+        inserted
       end)
 
+    enqueue_repair(repository_id, inserted)
+  end
+
+  # A commit that arrives after a child of its was stored (a depth-1
+  # checkout uploads its head with the parent edge but not the parent) was
+  # the end of every walk from that child: the child's refs were numbered as
+  # if it connected to nothing, and its coverage was folded without an
+  # ancestor. A child the same upload stored needs nothing: no walk reached it
+  # before its parent was there.
+  defp enqueue_repair(_repository_id, []), do: :ok
+
+  defp enqueue_repair(repository_id, inserted) do
+    arrived =
+      Repo.all(
+        from(p in CommitParent,
+          join: c in Commit,
+          on: c.repository_id == p.repository_id and c.sha == p.child_sha,
+          where: p.repository_id == ^repository_id and p.parent_sha in ^inserted and p.child_sha not in ^inserted,
+          distinct: true,
+          select: p.parent_sha
+        )
+      )
+
+    if arrived != [], do: {:ok, _job} = RepairWorker.enqueue(repository_id, arrived)
     :ok
+  end
+
+  @doc """
+  Places again the refs that numbered a child of one of `shas` while that
+  commit was not stored: each such ref releases its commits from the lowest
+  such child up and advances again from its own head, now through the
+  arrived commit down to where it really connects, and so does every ref
+  forked from a released commit. Heads and observation times stay as they
+  are, so no ref moves back; the coverage copies follow
+  (`Tuist.GitHistory.Workers.RepairWorker` runs it).
+  """
+  def replace_children(repository_id, shas) do
+    {:ok, :ok} =
+      Repo.transaction(
+        fn ->
+          lock_refs(repository_id)
+
+          pending =
+            Repo.all(
+              from(p in CommitParent,
+                join: child in Commit,
+                on: child.repository_id == p.repository_id and child.sha == p.child_sha,
+                join: parent in Commit,
+                on: parent.repository_id == p.repository_id and parent.sha == p.parent_sha,
+                where:
+                  p.repository_id == ^repository_id and p.parent_sha in ^shas and p.position == 0 and
+                    not is_nil(child.ref_id) and is_nil(parent.ref_id),
+                group_by: child.ref_id,
+                select: {child.ref_id, min(child.position)}
+              )
+            )
+
+          touched = replace(repository_id, Map.new(pending), MapSet.new(), [])
+          sync_coverage(repository_id, touched)
+        end,
+        timeout: to_timeout(minute: 2)
+      )
+
+    :ok
+  end
+
+  # Roots first, then in creation order, as `rebuild_refs/1` advances them. A
+  # ref forked at a released commit forks again wherever the commit landed.
+  defp replace(_repository_id, pending, _done, touched) when map_size(pending) == 0, do: touched
+
+  defp replace(repository_id, pending, done, touched) do
+    ref = Enum.min_by(Repo.all(from(r in Ref, where: r.id in ^Map.keys(pending))), &{not is_nil(&1.parent_ref_id), &1.id})
+    from_position = Map.fetch!(pending, ref.id)
+    done = MapSet.put(done, ref.id)
+
+    {moved, forked} =
+      if is_binary(ref.head_sha) and known?(repository_id, ref.head_sha) do
+        released = release(from(c in Commit, where: c.ref_id == ^ref.id and c.position >= ^from_position))
+        advanced = advance(repository_id, ref, ref.head_sha, is_nil(ref.parent_ref_id), [])
+
+        forked =
+          Repo.all(
+            from(r in Ref,
+              where:
+                r.parent_ref_id == ^ref.id and r.fork_position >= ^from_position and r.id not in ^MapSet.to_list(done),
+              select: r.id
+            )
+          )
+
+        {released ++ advanced, forked}
+      else
+        {[], []}
+      end
+
+    pending = Enum.reduce(forked, Map.delete(pending, ref.id), &Map.put(&2, &1, 0))
+    replace(repository_id, pending, done, moved ++ touched)
   end
 
   # Kahn's algorithm over the batch's own edges, keeping the given order among
