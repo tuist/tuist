@@ -121,17 +121,25 @@ eviction and project-cleanup rules.
   customized compile actions rather than silently removing them.
 - Keep the generated compile alias. Direct `mix tuist.compile` task
   discovery can compile dependencies before caching can inspect them.
-- Already-current outputs aren't cache hits and aren't published retrospectively.
-  Clean just a supported dependency's build with `mix deps.clean NAME --build`
-  after it has populated the cache, then compile again.
+- Already-current, valid outputs for selected, supported dependencies count as
+  local hits with reason `up_to_date`. They aren't published retrospectively and
+  carry no artifact key, transfer bytes, restore latency or estimated time saved. To test a
+  snapshot restore, clean just a supported dependency's build with
+  `mix deps.clean NAME --build` after it has populated the cache, then compile again.
 - Match `MIX_ENV`, `MIX_TARGET`, compiler settings and declared inputs. Path changes
   also change keys unless portable reuse is enabled.
 - Unsupported dependencies appear as **Not cached**, not misses. They are excluded
-  from hit rate. A build with no lookups has an unavailable rate, not 0%.
+  from hit rate. A build with neither lookups nor up-to-date local hits has an
+  unavailable rate, not 0%.
 - Missing credentials, unavailable endpoints and corrupt snapshots fall back to
   compilation. Compiler failures still fail the build.
 - CAS records can arrive after the build report. Refresh to see newly ingested
   transfers. Local hits and legacy builds have no remote CAS outputs.
+
+For self-hosted servers, deploy support for compile-report contract `0.2` before
+upgrading the package that reports `up_to_date` local hits. Older servers reject
+this reason and cannot ingest those build reports; changing the contract version
+alone does not negotiate support.
 
 ## Manual compile integration
 
@@ -167,7 +175,7 @@ installation. Each dependency remains a single CAS bundle, avoiding per-file or
 chunk requests for small artifacts.
 
 Remote credentials/connections are resolved lazily; idle builds and local hits
-don't contact remote endpoints. One session is closed on every exit, including
+(including already-current outputs) don't contact remote endpoints. One session is closed on every exit, including
 compiler failure. Client RPCs have a 30-second deadline. Mix remains responsible
 for lock checks, local dependency compilation and unsupported work.
 

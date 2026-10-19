@@ -267,7 +267,8 @@ defmodule TuistWeb.API.MixController do
            dependency_cache: %Schema{
              type: :array,
              maxItems: 5_000,
-             description: "Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.",
+             description:
+               "Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.",
              items: %Schema{
                type: :object,
                properties: %{
@@ -282,11 +283,21 @@ defmodule TuistWeb.API.MixController do
                      "custom_compiler",
                      "unmodeled_input",
                      "inputs_changed",
-                     "store_failed"
+                     "store_failed",
+                     "up_to_date"
                    ]
                  },
-                 key: %Schema{type: :string, pattern: "^([a-f0-9]{64})?$"},
-                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 key: %Schema{
+                   type: :string,
+                   pattern: "^([a-f0-9]{64})?$",
+                   description: "Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass."
+                 },
+                 duration_ms: %Schema{
+                   type: :integer,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Lookup/compilation duration, or validation time for up-to-date local reuse."
+                 },
                  read_bytes: %Schema{
                    type: :integer,
                    nullable: true,
