@@ -582,8 +582,13 @@ xcresultProcessor:
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can
+    # The Tart VMs are only on the tailnet, so the in-cluster receiver
+    # address does not resolve there. Use the receiver's fully qualified
+    # tailnet name for traces and logs; see values-managed-production.yaml.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-canary.taild6d7bb.ts.net:4317
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-canary.taild6d7bb.ts.net:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
