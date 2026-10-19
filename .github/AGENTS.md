@@ -187,7 +187,13 @@ job plans them with `mix tuist.test.build --cover`, which instruments the
 build for native coverage, so the shards count without compiling every
 module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
+fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
+whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
+variant and then the coverage variant (`tuist cache --coverage`), which the runs
+with `-enableCodeCoverage YES` look up. Every `tuist test` that uploads coverage
+passes `--derived-data-path`, because the coverage export reads the test
+products and the profile from derived data, and the result-bundle fallback it
+takes without one never covers cached code.
 
 ## Restore drills
 
