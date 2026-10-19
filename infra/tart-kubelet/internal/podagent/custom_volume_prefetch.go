@@ -15,6 +15,8 @@ const (
 	customAcquireBudget  = 25 * time.Second
 	customPrefetchBudget = 5 * time.Minute
 	customPrefetchQueue  = 16
+	// customPrefetchRetry spaces out attempts at a master whose download failed.
+	customPrefetchRetry = 10 * time.Minute
 )
 
 // PrefetchMaster queues a HEAD the server listed for this host's fleet, behind
@@ -42,12 +44,15 @@ type customPrefetcher struct {
 	mu         sync.Mutex
 	stopped    bool
 	pending    map[string]*customPrefetch
+	failed     map[string]time.Time
 	requested  chan *customPrefetch
 	background chan *customPrefetch
 	wait       sync.WaitGroup
 }
 
-var installed = func() <-chan struct{} {
+// resolved is returned when there is nothing to wait for: the master is already
+// here, or its last download failed too recently to try again.
+var resolved = func() <-chan struct{} {
 	done := make(chan struct{})
 	close(done)
 	return done
@@ -66,6 +71,7 @@ func newCustomPrefetcher(ctx context.Context, restore func(context.Context, cach
 		restore:    restore,
 		has:        has,
 		pending:    map[string]*customPrefetch{},
+		failed:     map[string]time.Time{},
 		requested:  make(chan *customPrefetch, customPrefetchQueue),
 		background: make(chan *customPrefetch, customPrefetchQueue),
 	}
@@ -81,7 +87,7 @@ func (p *customPrefetcher) start(identity cachevolumes.Identity, requested bool)
 		return nil
 	}
 	if p.has != nil && p.has(identity) {
-		return installed
+		return resolved
 	}
 	key := prefetchKey(identity)
 	p.mu.Lock()
@@ -91,6 +97,9 @@ func (p *customPrefetcher) start(identity cachevolumes.Identity, requested bool)
 	}
 	if job, ok := p.pending[key]; ok {
 		return job.done
+	}
+	if at, ok := p.failed[key]; ok && time.Since(at) < customPrefetchRetry {
+		return resolved
 	}
 	job := &customPrefetch{identity: identity, requested: requested, done: make(chan struct{})}
 	queue := p.background
@@ -121,20 +130,32 @@ func (p *customPrefetcher) work() {
 			}
 		}
 		if p.ctx.Err() != nil {
-			p.finish(job)
+			p.finish(job, nil)
 			return
 		}
 		ctx, cancel := context.WithTimeout(p.ctx, p.budget)
 		done := cachevolumes.Observer(observeCustomCache).Start("prefetch", "remote")
-		done(p.restore(ctx, cachevolumes.Slot{Identity: job.identity}, job.requested))
+		err := p.restore(ctx, cachevolumes.Slot{Identity: job.identity}, job.requested)
+		done(err)
 		cancel()
-		p.finish(job)
+		p.finish(job, err)
 	}
 }
 
-func (p *customPrefetcher) finish(job *customPrefetch) {
+func (p *customPrefetcher) finish(job *customPrefetch, err error) {
+	key := prefetchKey(job.identity)
 	p.mu.Lock()
-	delete(p.pending, prefetchKey(job.identity))
+	delete(p.pending, key)
+	for failed, at := range p.failed {
+		if time.Since(at) >= customPrefetchRetry {
+			delete(p.failed, failed)
+		}
+	}
+	if err != nil && p.ctx.Err() == nil {
+		p.failed[key] = time.Now()
+	} else {
+		delete(p.failed, key)
+	}
 	p.mu.Unlock()
 	close(job.done)
 }

@@ -45,6 +45,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bounded to two minutes with no queue and the same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
+- APFS `Attach` clones the newest older master of the same scope when the base is
+  not local, records it in `<image>.base` and `Slot.MountedGeneration`, and never
+  downloads in that case. With `Replace` set, maintenance keeps a superseded master
+  used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
 - Linux refreshes a superseded master used in the last day to the new HEAD in

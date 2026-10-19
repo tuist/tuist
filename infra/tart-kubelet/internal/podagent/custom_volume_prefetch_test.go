@@ -62,7 +62,7 @@ func TestCustomPrefetchJoinsDuplicatesAndServesRequestedMastersFirst(t *testing.
 	if p.start(cachevolumes.Identity{Scope: strings.Repeat("a", 64)}, true) != nil {
 		t.Fatal("queued a cold identity")
 	}
-	if p.start(warmCustomIdentity("z", 1), true) != installed {
+	if p.start(warmCustomIdentity("z", 1), true) != resolved {
 		t.Fatal("queued a master that is already on the host")
 	}
 	running := p.start(warmCustomIdentity("a", 1), false)
@@ -94,7 +94,7 @@ func TestCustomPrefetchBoundsEachDownload(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	finished := make(chan error, 1)
-	p := &customPrefetcher{ctx: ctx, budget: 20 * time.Millisecond, pending: map[string]*customPrefetch{},
+	p := &customPrefetcher{ctx: ctx, budget: 20 * time.Millisecond, pending: map[string]*customPrefetch{}, failed: map[string]time.Time{},
 		requested: make(chan *customPrefetch, 1), background: make(chan *customPrefetch, 1),
 		restore: func(ctx context.Context, _ cachevolumes.Slot, _ bool) error {
 			<-ctx.Done()
@@ -252,5 +252,86 @@ func TestCustomMailboxQueuesATimedOutMasterAndExplains(t *testing.T) {
 	close(release)
 	if <-interrupted {
 		t.Fatal("the download stopped with the job's deadline")
+	}
+}
+
+func TestCustomPrefetchWaitsBeforeRetryingAFailedDownload(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var attempts atomic.Int32
+	p := newCustomPrefetcher(ctx, func(context.Context, cachevolumes.Slot, bool) error {
+		attempts.Add(1)
+		return errors.New("object store unavailable")
+	}, nil)
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	identity := warmCustomIdentity("a", 2)
+	waitClosed(t, p.start(identity, false), "failed download never finished")
+	if p.start(identity, true) != resolved || attempts.Load() != 1 {
+		t.Fatal("retried a failed download right away")
+	}
+	p.mu.Lock()
+	p.failed[prefetchKey(identity)] = time.Now().Add(-customPrefetchRetry)
+	p.mu.Unlock()
+	waitClosed(t, p.start(identity, true), "retry never finished")
+	if attempts.Load() != 2 {
+		t.Fatal("did not retry after the backoff", attempts.Load())
+	}
+}
+
+func TestCustomReportsTheGenerationAJobMounted(t *testing.T) {
+	var got map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"action":"keep"}`))
+	}))
+	defer server.Close()
+	c := &CustomVolumes{Root: t.TempDir(), URL: server.URL, HTTP: server.Client(), Node: "host", tokenValue: "token", tokenUntil: time.Now().Add(time.Hour)}
+	slot := cachevolumes.Slot{Identity: warmCustomIdentity("a", 3), PodUID: "pod", State: "sealed", MountedGeneration: 2}
+	if _, err := c.report(slot, true); err != nil {
+		t.Fatal(err)
+	}
+	if got["mounted_generation"] != float64(2) {
+		t.Fatal("mounted generation not reported", got)
+	}
+	slot.MountedGeneration = 0
+	if _, err := c.report(slot, true); err != nil {
+		t.Fatal(err)
+	}
+	if got["mounted_generation"] != nil {
+		t.Fatal("reported a mounted generation for a job that got its base", got)
+	}
+}
+
+func TestCustomMailboxQueuesTheHeadAfterAnOlderMount(t *testing.T) {
+	identity := warmCustomIdentity("a", 2)
+	c, _, pod, response := customMailbox(t, identity, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	fetched := make(chan bool, 1)
+	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, requested bool) error {
+		if slot.BaseGeneration == identity.BaseGeneration {
+			fetched <- requested
+		}
+		return nil
+	}, func(cachevolumes.Identity) bool { return false })
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	c.prefetch.Store(p)
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	if got := readCustomResponse(t, response); got["id"] != identity.ID {
+		t.Fatal(got)
+	}
+	select {
+	case requested := <-fetched:
+		if !requested {
+			t.Fatal("the HEAD a job asked for was queued as speculative")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the HEAD was not fetched after the job mounted without it")
 	}
 }

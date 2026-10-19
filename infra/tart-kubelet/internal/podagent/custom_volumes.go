@@ -137,6 +137,8 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	// A superseded master stays mountable until its successor is downloaded here.
+	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
 	c.Builtins.mu.Unlock()
@@ -307,7 +309,7 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	var result struct {
 		Action string `json:"action"`
 	}
-	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil}, &result)
+	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
 	return result.Action, err
 }
 
@@ -408,6 +410,8 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+				// A job that mounted an older generation leaves its HEAD to the background.
+				c.prefetch.Load().start(identity, true)
 			} else {
 				if errors.Is(err, context.DeadlineExceeded) {
 					c.prefetch.Load().start(identity, true)
@@ -465,4 +469,13 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+// mountedGeneration is the older generation a job mounted, or nil when it got
+// its base.
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
 }

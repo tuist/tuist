@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -83,9 +84,16 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			}
 			defer unlock()
 			master := b.master(slot)
+			mounted := slot.BaseGeneration
 			if _, err = os.Stat(master); os.IsNotExist(err) {
-				source = "remote"
-				err = b.restoreMaster(ctx, slot, master)
+				// An older master of the same uncleared lineage mounts instantly and the
+				// job's tools update its contents; the HEAD is fetched in the background.
+				if older, generation := b.olderMaster(slot); older != "" {
+					source, master, mounted, err = "older", older, generation, nil
+				} else {
+					source = "remote"
+					err = b.restoreMaster(ctx, slot, master)
+				}
 			}
 			if err != nil {
 				return err
@@ -95,6 +103,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			}
 			if err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
 				return err
+			}
+			if mounted != slot.BaseGeneration {
+				if err = os.WriteFile(image+".base", []byte(strconv.FormatInt(mounted, 10)), 0600); err != nil {
+					return err
+				}
 			}
 			_ = os.Chtimes(master, time.Now(), time.Now())
 		} else if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, int64(b.SizeGB)*1_000_000_000) }); err != nil {
@@ -238,7 +251,7 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 			return err
 		}
 	}
-	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics"} {
+	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -254,6 +267,20 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 	return root.RemoveAll(filepath.Base(path))
 }
 func (b *APFSImages) Keep(slot Slot, path string) error { return b.Delete(slot, path) }
+
+// MountedGeneration is the older generation a branch was cloned from when its
+// own base was not on this host, or 0 when it was cloned from its base.
+func (b *APFSImages) MountedGeneration(slot Slot) int64 {
+	data, err := os.ReadFile(b.image(slot) + ".base")
+	if err != nil {
+		return 0
+	}
+	generation, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil || generation <= 0 || generation >= slot.BaseGeneration {
+		return 0
+	}
+	return generation
+}
 
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserve)

@@ -76,6 +76,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   custom HEADs the server lists for the host class (free space only, no eviction).
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why.
+  A job whose base is not local mounts the newest older master of the same
+  lineage instead of an empty directory (reported as `mounted_generation`) and its
+  base is queued. A superseded master used in the last day stays until its
+  successor is downloaded through the queue (`LocalImages.Replace`).
   Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
   cold request has no archive to budget beside its image.
 - Expose mailboxes while the filesystem is mounted, independently of worker

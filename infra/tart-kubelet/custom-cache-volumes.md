@@ -214,6 +214,14 @@ reaches APFS creation/cloning, remote restore and admission waits; an expired
 response cannot trigger a guest mount. The unavailable response carries a bounded
 reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its warning.
 
+A job whose base master is not on the host mounts the newest older master of the
+same lineage, if any, instead of an empty directory, and its base is queued. The
+job's tools update the contents and it may still publish (last publication wins).
+The host reports the generation it mounted; the dashboard shows "Older copy".
+When the HEAD advances, a superseded master used in the last day is kept until
+its successor has been downloaded through the queue, so such a master usually
+exists while the new one arrives.
+
 One worker downloads masters in the background, each within five minutes and with a separate disk
 reservation for the archive and expanded image. Requests for the same master join.
 The converge worker also hands it the saved custom-volume HEADs the server lists
