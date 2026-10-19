@@ -200,6 +200,12 @@ jobs:
         run: tuist install --force-resolved-versions
       - name: Cache
         run: tuist cache
+      # The coverage variant of the binary cache, read by the runs that collect
+      # coverage: coverage.yml on main, and the unit tests above, which run with
+      # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
+      # with coverage counters; external packages are the plain warm's.
+      - name: Cache with coverage
+        run: tuist cache --coverage
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -246,8 +252,11 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      # The derived data path is where the coverage export finds the test
+      # products and the run's profile; cached binaries only show up in the
+      # coverage when it reads them, never in the result bundle's own report.
       - name: Run tests
-        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
