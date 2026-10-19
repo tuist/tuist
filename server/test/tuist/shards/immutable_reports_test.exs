@@ -69,6 +69,50 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert id == legacy.id
   end
 
+  test "actor attribution and filters follow the selected immutable execution", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+    actor_id = project.account_id
+
+    for {attempt, claim, status} <- [{0, "previous", "failure"}, {1, "current", "success"}] do
+      report(project, plan, 0,
+        shard_attempt: attempt,
+        actor_account_id: actor_id,
+        claimed_actor_id: claim,
+        submission_auth: "token",
+        status: status,
+        test_modules: [%{name: "Tests", status: status, test_cases: [%{name: "test_one", status: status, duration: 10}]}]
+      )
+    end
+
+    assert {:ok, run} = Tests.get_test(plan.id)
+    assert run.actor_account_id == actor_id
+    assert run.claimed_actor_id == "current"
+    assert run.submission_auth == "token"
+
+    for scope <- [:test_run_id, :shard_id] do
+      {cases, _} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: scope, op: :==, value: plan.id},
+            %{field: :verified_actor, op: :==, value: actor_id},
+            %{field: :claimed_actor_id, op: :==, value: "current"}
+          ]
+        })
+
+      assert [%{status: "success", actor_account_id: ^actor_id, claimed_actor_id: "current"}] = cases
+    end
+  end
+
+  test "a newer execution clears previous actor attribution instead of retaining sparse metadata", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+    report(project, plan, 0, actor_account_id: project.account_id, claimed_actor_id: "previous", submission_auth: "token")
+    report(project, plan, 0, shard_attempt: 1, actor_account_id: 0, claimed_actor_id: "", submission_auth: "token")
+    assert {:ok, run} = Tests.get_test(plan.id)
+    assert run.actor_account_id == 0
+    assert run.claimed_actor_id == ""
+    assert run.submission_auth == "token"
+  end
+
   test "build lookups are project-scoped and include derived immutable runs", %{project: project} do
     %{plan: plan} = plan(project, 1)
     build_id = UUIDv7.generate()

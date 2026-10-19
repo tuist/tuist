@@ -44,6 +44,8 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 
 `tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
 
+Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
+
 Open a build's **Cache** tab to see task hits, task misses, hit rate, and downloaded and uploaded bytes. The tab appears when the build reports cache data.
 
 - **Cacheable Tasks** shows which compiler and build-script tasks reused cached outputs. Search or filter the tasks, inspect cache read/write latency, and expand a row to see its outputs.

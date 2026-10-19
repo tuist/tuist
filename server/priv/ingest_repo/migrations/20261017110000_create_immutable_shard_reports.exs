@@ -17,6 +17,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
     git_commit_sha: "String",
     git_ref: "String",
     account_id: "Int64",
+    actor_account_id: "Int64",
+    claimed_actor_id: "String",
+    submission_auth: "LowCardinality(String)",
     ran_at: "DateTime64(6)",
     inserted_at: "DateTime64(6)",
     ci_run_id: "String",
@@ -63,6 +66,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
   ]
   @child_tables ~w(test_case_failures test_case_run_arguments test_case_run_repetitions test_case_run_attachments)
   @group_fields [:project_id, :ran_at, :id]
+  @actor_fields [:actor_account_id, :claimed_actor_id, :submission_auth]
   @stress_counts [:stress_new_count, :stress_stressed_count, :stress_excluded_count]
   @order "tuple(shard_attempt, report_phase, shard_report_revision, report_digest)"
 
@@ -108,6 +112,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
           cond do
             name in @group_fields -> to_string(name)
             name in [:inserted_at, :is_flaky] -> "max(#{name})"
+            name in @actor_fields -> "tupleElement(argMax(tuple(#{name}), #{@order}), 1)"
             true -> latest(name, type, @order)
           end
 
@@ -167,6 +172,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
 
             name == :status ->
               merged_status()
+
+            name in @actor_fields ->
+              "tupleElement(argMax(tuple(r.#{name}), r.report_order), 1)"
 
             name in [:duration, :inserted_at, :is_flaky, :git_dirty, :stress_known_count] ->
               "max(r.#{name})"

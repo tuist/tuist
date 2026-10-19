@@ -959,9 +959,8 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag
-  # (server-deployment.yml passes it via --set). The chart template
-  # constructs each pool's image as
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # (server-deployment.yml passes it, and each profile's digest in
+  # `runnerImageDigests`, via --set).
   runnerImageSemver: ""
   pools: []
 

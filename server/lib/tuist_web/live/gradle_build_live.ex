@@ -50,8 +50,8 @@ defmodule TuistWeb.GradleBuildLive do
         {:error, :not_found} -> nil
       end
 
-    build_started_at = Gradle.build_started_at(build.id)
-    aggregates = Gradle.task_cache_aggregates(build.id)
+    build_started_at = Gradle.build_started_at(build.id, build.project_id)
+    aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
 
     has_build_setup_data = has_build_setup_data?(build)
 
@@ -127,8 +127,8 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   defp has_build_setup_data?(build) do
-    build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id) or
-      Gradle.has_artifact_transforms?(build.id)
+    build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id, build.project_id) or
+      Gradle.has_artifact_transforms?(build.id, build.project_id)
   end
 
   def handle_event("search-tasks", %{"search" => search}, socket) do
@@ -214,7 +214,7 @@ defmodule TuistWeb.GradleBuildLive do
       order_directions: [String.to_atom(sort_order)]
     }
 
-    {tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+    {tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)
 
     socket
     |> assign(:tasks, tasks)
@@ -250,7 +250,7 @@ defmodule TuistWeb.GradleBuildLive do
       order_directions: [String.to_atom(sort_order)]
     }
 
-    {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+    {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)
 
     socket
     |> assign(:cacheable_tasks, cacheable_tasks)
@@ -268,8 +268,12 @@ defmodule TuistWeb.GradleBuildLive do
 
     socket =
       socket
-      |> assign_new(:configuration_operations, fn -> Gradle.list_configuration_operations(build_id) end)
-      |> assign_new(:artifact_transforms, fn -> Gradle.list_artifact_transforms(build_id) end)
+      |> assign_new(:configuration_operations, fn ->
+        Gradle.list_configuration_operations(build_id, 100, socket.assigns.selected_project.id)
+      end)
+      |> assign_new(:artifact_transforms, fn ->
+        Gradle.list_artifact_transforms(build_id, 100, socket.assigns.selected_project.id)
+      end)
 
     all_configuration_operations = socket.assigns.configuration_operations
     all_artifact_transforms = socket.assigns.artifact_transforms

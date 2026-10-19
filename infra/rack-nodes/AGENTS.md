@@ -593,7 +593,11 @@ takes the Kura region with it.
   cannot be used: it starts from the registry's repository listing, which
   ghcr.io refuses. The tags come from the same catalog values as the pools'
   images; the deploy passes `runnersFleet.runnerImageSemver` to this release
-  too.
+  too. Pools name each image by the digest of that tag, so a host's probe
+  asks the cache for the digest and gets the manifest the prewarm synced. An
+  Xcode outside `prewarm` is synced on demand by digest, which zot stores
+  untagged, so retention frees it at the next garbage collection: list every
+  Xcode the rack keeps warm in `prewarm`.
 - **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
   within `keepPulledWithin`, and deletes the rest; garbage collection then
   frees their blobs. A release's previous images go a day after the rack has
@@ -1022,9 +1026,10 @@ entry on a newer guest needs the hosts updated first.
 A rack host can run another env's runners while it stays in the rack's env:
 its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
 registers its Node in the other env's cluster, whose runner pools and server
-then drive its guests. Staging borrows production's this way, so staging jobs
-run on rack hardware. The borrowing env's chart issues the host a node
-identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
+then drive its guests. Staging borrows production's ber1-runner-b01 and canary
+its ber1-runner-b02 this way, so their jobs run on rack hardware. The
+borrowing env's chart issues the host a node identity
+(`rackFleet.joiningNodes`), and the lending env's RackHost points the
 host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
 kubeconfig, then revokes the host's identity in its own cluster, deletes its
 Node there, and pushes the other cluster's kubeconfig through the drift loop.
