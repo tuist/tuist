@@ -151,13 +151,13 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:38
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:41
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:44
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:132
+#: lib/tuist_web/controllers/integration_installation_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
 msgstr ""
@@ -653,7 +653,7 @@ msgstr ""
 msgid "Authentication"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:47
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:94
 #, elixir-autogen, elixir-format
 msgid "This GitHub app installation is already connected."
 msgstr ""
@@ -1272,7 +1272,7 @@ msgstr ""
 msgid "Could not complete the GitHub App registration."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:51
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:102
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server installations must go through the App registration flow first."
 msgstr ""
@@ -3071,7 +3071,7 @@ msgstr ""
 msgid "Start open source plan"
 msgstr ""
 
-#: lib/tuist_web/controllers/origin_app_setup_controller.ex:73
+#: lib/tuist_web/controllers/origin_app_setup_controller.ex:105
 #, elixir-autogen, elixir-format
 msgid "Invalid Origin installation request. Please try again."
 msgstr ""
@@ -3204,4 +3204,10 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:98
+#: lib/tuist_web/controllers/integration_installation_controller.ex:87
+#, elixir-autogen, elixir-format
+msgid "This account already has a GitHub App registered for a different GitHub host."
 msgstr ""

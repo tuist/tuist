@@ -162,7 +162,9 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
     end
 
     test "uses the API proxy for conversion and the internal host for browser setup and installation", %{conn: conn} do
-      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      account = user.account
+      conn = log_in_user(conn, user)
       client_url = "https://github.internal.example.com"
       api_url = "https://proxy.example.com/api/v3"
       state_token = VCS.generate_github_state_token(account.id, client_url, "ios", api_url)

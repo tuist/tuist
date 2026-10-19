@@ -4,6 +4,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 ## Responsibilities
 
+- `app/css/pages/auth.css` includes the shared integration organization chooser, reusing login's logo, dots, gradients and frame. Organization rows use Noora avatars, keyboard focus states, wrapping labels and a bounded scrolling list with inset padding to preserve row borders and shadows, with a Cancel action below. Keep both provider flows visually identical and support light/dark themes and narrow viewports.
+
 - `app/css/pages/build_entity.css` scopes the shared native task/action/module/file detail layout. Match test-case analytics spacing, wrap identity badges and controls, stack widgets on small screens, and let Noora tables own horizontal scrolling. Charts explicitly fill their section; table search/sort/filter controls and active chips use Test Case Runs spacing inside the same white card section as the table, never a separate bordered toolbar section. Header identity explanations use the shared regular small body font, secondary label color and zero paragraph margins; don't leave them as browser-default serif text. It is imported through `pages.css`.
 
 - Expanded Xcode cache task rows append CAS outputs with a Noora Load more button; the build-run stylesheet adds spacing around the control. Loading and pagination are managed by LiveView; output IDs are not embedded in the initial table.

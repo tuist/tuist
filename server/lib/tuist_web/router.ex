@@ -640,11 +640,20 @@ defmodule TuistWeb.Router do
   end
 
   scope "/integrations", TuistWeb do
-    pipe_through [:open_api, :browser_app]
+    pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/github/authorize", GitHubAppSetupController, :authorize
+    get "/installation", IntegrationInstallationController, :show
+    post "/installation", IntegrationInstallationController, :create
+    delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
+  end
+
+  scope "/integrations", TuistWeb do
+    pipe_through [:open_api, :browser_app]
+
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback

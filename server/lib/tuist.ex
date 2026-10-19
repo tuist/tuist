@@ -248,6 +248,8 @@ defmodule Tuist do
       Environment,
       FeatureFlags,
       Ecto.Utils,
+      GitHub.InstallationAuthorization,
+      GitHub.Installations,
       GitHub.Releases,
       Incidents,
       License,
