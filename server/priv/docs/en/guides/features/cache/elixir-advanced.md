@@ -142,8 +142,9 @@ enumeration value, the package retries the report once without these new reuse
 observations. Compilation details and other cache results are preserved; the
 new local reuse remains unavailable until the server is upgraded. Deploying the
 server first avoids this extra request. The contract version does not negotiate
-support, and authentication, transport and unrelated validation errors are not
-retried.
+support, and authentication failures, transport failures and other validation
+messages are not retried. Enumeration errors do not identify their field on older
+servers; a retained invalid field still fails on the single retry.
 
 ## Manual compile integration
 

@@ -268,6 +268,27 @@ defmodule TuistEx.Analytics.HTTPTest do
              AnalyticsHTTP.submit_mix_build(payload, mix_options())
   end
 
+  test "an enumeration error on a retained field is not masked by the fallback" do
+    {payload, legacy} = mix_payloads()
+    payload = Map.put(payload, :status, "invalid")
+    legacy = Map.put(legacy, :status, "invalid")
+    stub(Auth, :token, fn _ -> {:ok, "token"} end)
+    rejection = %{"message" => "Invalid value for enum"}
+
+    expect(HTTP, :request, fn :post, _url, body, _headers ->
+      assert body == payload
+      {:ok, 400, rejection}
+    end)
+
+    expect(HTTP, :request, fn :post, _url, body, _headers ->
+      assert body == legacy
+      {:ok, 400, rejection}
+    end)
+
+    assert {:error, {:http, 400, ^rejection}} =
+             AnalyticsHTTP.submit_mix_build(payload, mix_options())
+  end
+
   test "validation failures without current-hit observations are not retried" do
     {_payload, legacy} = mix_payloads()
     stub(Auth, :token, fn _ -> {:ok, "token"} end)
