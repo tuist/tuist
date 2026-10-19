@@ -51,7 +51,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
             try Task.checkCancellation()
             let relative = path.relative(to: target.project.sourceRootPath).pathString
             sources[relative] = try await contentHasher.hash(path: path)
-            sourcePaths[relative] = try await fileSystem.resolveSymbolicLink(path).pathString
+            sourcePaths[relative] = try await Self.canonicalSourcePath(path, fileSystem: fileSystem)
         }
         return Self(
             version: currentVersion,
@@ -65,11 +65,42 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
 
     /// Uses the paths actually present in DWARF, including scanner prefix maps and canonicalized roots.
     public func recording(debugSources: Set<String>, prefixMappings: [[String: String]] = []) throws -> Self {
+        try recording(debugSources: debugSources, prefixMappings: prefixMappings, resolvedDebugSources: [:])
+    }
+
+    public func recording(
+        debugSources: Set<String>,
+        prefixMappings: [[String: String]] = [],
+        fileSystem: FileSysteming
+    ) async throws -> Self {
+        try Task.checkCancellation()
+        let declaredPaths = Set(sourcePaths.values)
+        var resolvedDebugSources: [String: Set<String>] = [:]
+        for source in debugSources.sorted() {
+            try Task.checkCancellation()
+            guard let path = try? AbsolutePath(validating: source), try await fileSystem.exists(path) else { continue }
+            let canonical = try await Self.canonicalSourcePath(path, fileSystem: fileSystem)
+            guard declaredPaths.contains(canonical) else { continue }
+            resolvedDebugSources[canonical, default: []].insert(source)
+        }
+        return try recording(
+            debugSources: debugSources, prefixMappings: prefixMappings, resolvedDebugSources: resolvedDebugSources
+        )
+    }
+
+    private func recording(
+        debugSources: Set<String>,
+        prefixMappings: [[String: String]],
+        resolvedDebugSources: [String: Set<String>]
+    ) throws -> Self {
         var paths: [String: String] = [:]
         for relative in sources.keys.sorted() {
             let original = sourceRoot.appending(try RelativePath(validating: relative)).pathString
             var candidates: Set<String> = [original]
-            if let canonical = sourcePaths[relative] { candidates.insert(canonical) }
+            if let canonical = sourcePaths[relative] {
+                candidates.insert(canonical)
+                candidates.formUnion(resolvedDebugSources[canonical] ?? [])
+            }
             for mappings in prefixMappings {
                 for (alias, root) in mappings {
                     let root = try AbsolutePath(validating: root).pathString
@@ -142,6 +173,12 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
             }
         }
         return mappings.sorted { $0.original.pathString < $1.original.pathString }
+    }
+
+    private static func canonicalSourcePath(_ path: AbsolutePath, fileSystem: FileSysteming) async throws -> String {
+        // FileSystem resolves only the leaf; compiler paths can also preserve symlinks in parent directories.
+        let resolved = try await fileSystem.resolveSymbolicLink(path)
+        return resolved.url.resolvingSymlinksInPath().path
     }
 
     private static func metadataData(

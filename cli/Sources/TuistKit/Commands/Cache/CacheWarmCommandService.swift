@@ -866,7 +866,11 @@ import XcodeGraph
                         let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init)
                             .filter { $0.hasPrefix("/") })
                         try await fileSystem.writeAsJSON(
-                            metadata.recording(debugSources: debugSources, prefixMappings: prefixMappings),
+                            metadata.recording(
+                                debugSources: debugSources,
+                                prefixMappings: prefixMappings,
+                                fileSystem: fileSystem
+                            ),
                             at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
                         )
                     }

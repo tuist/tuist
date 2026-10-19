@@ -28,6 +28,41 @@ struct CachedModuleDebuggingMetadataTests {
         )])
     }
 
+    @Test(.inTemporaryDirectory, arguments: ["verified", "unrelated", "ambiguous"])
+    func verifiesObservedSymlinkAliasesBeforeRecordingThem(status: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let producer = try await target(at: root.appending(component: "producer"))
+        let consumer = try await target(at: root.appending(component: "consumer"))
+        let unrelated = try await target(at: root.appending(component: "unrelated"))
+        let aliasRoot = root.appending(component: "compiler-checkout")
+        try FileManager.default.createSymbolicLink(
+            at: aliasRoot.url,
+            withDestinationURL: (status == "unrelated" ? unrelated : producer).project.sourceRootPath.url
+        )
+        let debugPath = aliasRoot.appending(components: "Feature", "Feature.swift").pathString
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: producer)
+        var debugSources: Set<String> = [debugPath]
+        if status == "ambiguous" {
+            debugSources.insert(try #require(metadata.sourcePaths["Feature/Feature.swift"]))
+        }
+        if status != "verified" {
+            await #expect(throws: (any Error).self) {
+                try await metadata.recording(debugSources: debugSources, fileSystem: FileSystem())
+            }
+            return
+        }
+        #expect(throws: (any Error).self) { try metadata.recording(debugSources: debugSources) }
+        let recorded = try await metadata.recording(debugSources: debugSources, fileSystem: FileSystem())
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(aliasRoot)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumer) == [DebuggerSourceMapping(
+            original: try AbsolutePath(validating: debugPath),
+            current: consumer.project.sourceRootPath.appending(components: "Feature", "Feature.swift")
+        )])
+    }
+
     @Test(.inTemporaryDirectory)
     func rejectsChangedSources() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
