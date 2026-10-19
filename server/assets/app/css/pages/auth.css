@@ -304,8 +304,8 @@
   }
 
   & [data-part="organization-name"] {
-    overflow-wrap: anywhere;
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
   }
 
   & [data-part="organization-type"],
