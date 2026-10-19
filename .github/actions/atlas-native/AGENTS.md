@@ -29,8 +29,10 @@ directly in that same workflow. Keep permission decisions in the workflow:
   directory, credential directories, or debug keystore. Archive the CLI with tar
   so GitHub artifact extraction does not remove its executable permission.
 - `ios-device` builds `AtlasIOSDevice` with `aarch64-apple-ios` dependencies and
-  uploads a device ZIP without distribution credentials. The workflow's protected
-  main-branch publication job owns signing, not this shared PR/fork action.
+  uploads a device ZIP without distribution credentials. The workflow disables
+  shared-cache authentication for this platform, including on main, so signing
+  cannot consume shared outputs written by PRs. The protected main-branch
+  publication job owns signing, not this shared PR/fork action.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact
   name labeled with the build host OS and architecture.
 - Validate changes with `actionlint .github/workflows/atlas-mobile.yml` and the

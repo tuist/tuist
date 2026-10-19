@@ -221,8 +221,10 @@ mise run build:android
 - Retains the CLI tar archive, APK, simulator/device ZIPs and test reports as GitHub
   artifacts for 14 days. The CLI archive preserves executable permissions and
   its artifact name identifies the build host's OS and architecture.
-- Uses shared caching in trusted jobs when authentication succeeds. Forks build
-  with only the local cache and have no OIDC permission.
+- Uses shared caching in trusted jobs when authentication succeeds, except for
+  device builds. Device builds use only the local cache so distribution signing
+  never consumes outputs from the shared cache used by pull requests. Forks also
+  use only the local cache and have no OIDC permission.
 - Publishes the APK, simulator app and signed device IPA to Tuist's `nightly`
   preview track only after all main-branch build, test and lint jobs pass.
   A manual dispatch on `main` also publishes previews. Device signing requires

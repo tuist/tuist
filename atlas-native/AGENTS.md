@@ -133,7 +133,8 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   with the manifest, and smoke-test simulator installation after changes.
 - Mobile builds are arm64 Android debug APKs, arm64 iOS simulator apps and arm64
   iOS device apps. `AtlasIOSDevice` uses separate device Rust targets and shared
-  production Swift sources; do not ship screenshot fixtures. Main-branch delivery
+  production Swift sources; do not ship screenshot fixtures. CI device builds use
+  only the local cache, not the shared cache accessible to PRs. Main-branch delivery
   provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
   still requires app icons and store setup.
   The CLI builds for the host and is distributed as an executable tar archive;
@@ -149,5 +150,6 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   queue trigger because it cannot apply GitHub path filters.
 - Main-branch delivery uses the `nightly` Tuist preview track for APK, simulator
   app and signed device IPA, gated by all build, test and lint jobs. Only the
-  protected publication job receives 1Password access. Forks use local caching
+  protected publication job's signing step receives 1Password access; upload
+  steps do not. Forks use local caching
   and no OIDC; no PR publishes previews or receives distribution credentials.
