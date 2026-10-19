@@ -9,6 +9,8 @@ import Foundation
     import Darwin
 #elseif canImport(Glibc)
     import Glibc
+#elseif canImport(Musl)
+    import Musl
 #endif
 
 actor AsyncResourceLimiter {
@@ -109,6 +111,43 @@ func systemMaximumConcurrentProcesses() -> Int {
 }
 
 extension FileHandle {
+    func consumeOutput(
+        shouldStop: @escaping @Sendable (_ hasBufferedData: Bool) -> Bool,
+        _ receive: @escaping @Sendable (Data) -> Void
+    ) -> AsyncThrowingStream<Never, Error> {
+        AsyncThrowingStream { continuation in
+            let thread = Thread {
+                defer { try? self.close() }
+                do {
+                    try withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 64 * 1024) { buffer in
+                        let descriptor = FileDescriptor(rawValue: self.fileDescriptor)
+                        while true {
+                            #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+                                var events = pollfd(fd: self.fileDescriptor, events: Int16(POLLIN), revents: 0)
+                                let ready = poll(&events, 1, 50)
+                                if ready == 0 {
+                                    if shouldStop(false) { break }
+                                    continue
+                                }
+                                if ready < 0 {
+                                    if errno == EINTR { continue }
+                                    throw Errno(rawValue: errno)
+                                }
+                            #endif
+                            if shouldStop(true) { break }
+                            let count = try descriptor.read(into: UnsafeMutableRawBufferPointer(buffer), retryOnInterrupt: true)
+                            if count == 0 { break }
+                            receive(Data(bytes: buffer.baseAddress!, count: count))
+                        }
+                    }
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+            }
+            thread.name = "dev.tuist.process-output-handler"
+            thread.start()
+        }
+    }
+
     /// Streams the handle's contents until end of file, reading on a dedicated thread.
     ///
     /// This deliberately avoids `readabilityHandler`: on Linux, when a short-lived child writes its output and exits

@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import Subprocess
+import Synchronization
 #if os(macOS)
     import Darwin
 #endif
@@ -78,6 +79,66 @@ private actor StandardErrorCollector {
     }
 }
 
+private final class ProcessOutputDrain: Sendable {
+    private struct State {
+        var exited = false
+        var stopped = false
+        var incomplete = false
+        var activeHandlers = 0
+        var bytesAfterExit: [ProcessEvent.Pipeline: Int] = [:]
+        var lastActivity = ContinuousClock.now
+    }
+
+    private let state = Mutex(State())
+
+    func shouldStop(hasBufferedData: Bool, pipeline: ProcessEvent.Pipeline) -> Bool {
+        state.withLock { state in
+            if state.stopped { return true }
+            guard state.exited else { return false }
+            let exhausted = state.bytesAfterExit[pipeline, default: 0] >= 8_000_000
+            let idle = state.activeHandlers == 0 && !hasBufferedData
+                && state.lastActivity.duration(to: .now) >= .milliseconds(250)
+            guard exhausted || idle else { return false }
+            state.incomplete = true
+            return true
+        }
+    }
+
+    func forward(bytes: Int, pipeline: ProcessEvent.Pipeline, _ handler: () -> Void) {
+        state.withLock { $0.activeHandlers += 1 }
+        defer {
+            state.withLock { state in
+                state.activeHandlers -= 1
+                state.lastActivity = .now
+                if state.exited { state.bytesAfterExit[pipeline, default: 0] += bytes }
+            }
+        }
+        handler()
+    }
+
+    func wait(
+        stdout: AsyncThrowingStream<Never, Error>, stderr: AsyncThrowingStream<Never, Error>,
+        onIncompleteOutput: @escaping @Sendable () -> Void
+    ) async {
+        state.withLock { state in
+            state.exited = true
+            state.lastActivity = .now
+        }
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { for try await _ in stdout {} }
+                group.addTask { for try await _ in stderr {} }
+                try await group.waitForAll()
+            }
+        } catch { state.withLock { $0.incomplete = true } }
+        let incomplete = state.withLock { state in
+            state.stopped = true
+            return state.incomplete || Task.isCancelled
+        }
+        if incomplete { onIncompleteOutput() }
+    }
+}
+
 @Mockable
 public protocol CommandRunning: Sendable {
     func run(
@@ -85,6 +146,15 @@ public protocol CommandRunning: Sendable {
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error>
+
+    /// Backpressured output with a bounded post-exit drain; incomplete output must not be parsed.
+    func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput: @escaping @Sendable () -> Void,
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws
 
     /// Runs with inherited standard streams, preserving terminal detection and interactive behavior.
     func runInheritingOutput(
@@ -105,6 +175,18 @@ public protocol CommandRunning: Sendable {
 }
 
 extension CommandRunning {
+    public func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput _: @escaping @Sendable () -> Void = {},
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws {
+        for try await event in run(arguments: arguments, environment: environment, workingDirectory: workingDirectory) {
+            onOutput(event)
+        }
+    }
+
     public func runInheritingOutput(
         arguments: [String],
         environment: [String: String],
@@ -226,6 +308,75 @@ public struct CommandRunner: CommandRunning {
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error> {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: false)
+    }
+
+    public func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput: @escaping @Sendable () -> Void = {},
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws {
+        try await processLimiter.withPermit {
+            guard let name = arguments.first else { throw CommandError.executableNotFound("") }
+            var options = Self.platformOptions(environment: environment)
+            options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
+            let configuration = Configuration(
+                executable: name.contains("/") ? .path(FilePath(name)) : .name(name),
+                arguments: Arguments(Array(arguments.dropFirst())),
+                environment: .custom(Dictionary(uniqueKeysWithValues: environment.map { (
+                    Environment.Key(rawValue: $0.key)!,
+                    $0.value
+                ) })),
+                workingDirectory: workingDirectory.map { FilePath($0.pathString) }, platformOptions: options
+            )
+            let stdout = try FileDescriptor.pipe()
+            let stderr: (readEnd: FileDescriptor, writeEnd: FileDescriptor)
+            do { stderr = try FileDescriptor.pipe() } catch {
+                try? stdout.readEnd.close()
+                try? stdout.writeEnd.close()
+                throw error
+            }
+            let outputWriter = FileHandle(fileDescriptor: stdout.writeEnd.rawValue, closeOnDealloc: true)
+            let errorWriter = FileHandle(fileDescriptor: stderr.writeEnd.rawValue, closeOnDealloc: true)
+            defer {
+                try? outputWriter.close()
+                try? errorWriter.close()
+            }
+            let drain = ProcessOutputDrain()
+            let output = FileHandle(fileDescriptor: stdout.readEnd.rawValue, closeOnDealloc: true)
+                .consumeOutput(shouldStop: { drain.shouldStop(hasBufferedData: $0, pipeline: .standardOutput) }) { bytes in
+                    drain.forward(bytes: bytes.count, pipeline: .standardOutput) { onOutput(.standardOutput(Array(bytes))) }
+                }
+            let errors = FileHandle(fileDescriptor: stderr.readEnd.rawValue, closeOnDealloc: true)
+                .consumeOutput(shouldStop: { drain.shouldStop(hasBufferedData: $0, pipeline: .standardError) }) { bytes in
+                    drain.forward(bytes: bytes.count, pipeline: .standardError) { onOutput(.standardError(Array(bytes))) }
+                }
+            var executionError: Error?
+            do {
+                let result = try await Subprocess.run(
+                    configuration, input: .standardInput,
+                    output: .fileDescriptor(stdout.writeEnd, closeAfterSpawningProcess: false),
+                    error: .fileDescriptor(stderr.writeEnd, closeAfterSpawningProcess: false)
+                ) { _ in
+                    try? outputWriter.close()
+                    try? errorWriter.close()
+                    processStartedHook?()
+                }
+                if !result.terminationStatus.isSuccess {
+                    switch result.terminationStatus {
+                    case let .exited(code): throw CommandError.terminated(code, stderr: "", command: arguments)
+                    #if !os(Windows)
+                        case let .signaled(signal): throw CommandError.signalled(signal, command: arguments)
+                    #endif
+                    }
+                }
+            } catch { executionError = error }
+            try? outputWriter.close()
+            try? errorWriter.close()
+            await drain.wait(stdout: output, stderr: errors, onIncompleteOutput: onIncompleteOutput)
+            if let executionError { throw executionError }
+        }
     }
 
     public func runInheritingOutput(

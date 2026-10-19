@@ -230,6 +230,15 @@ jobs:
         uses: tuist/install@v1
         with:
           cache-key: cli-macos-workspace-${{ github.job }}-${{ hashFiles('.xcode-version', 'Package.swift') }}-v2
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open

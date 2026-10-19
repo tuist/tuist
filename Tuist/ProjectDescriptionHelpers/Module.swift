@@ -1789,6 +1789,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.testSupport.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),

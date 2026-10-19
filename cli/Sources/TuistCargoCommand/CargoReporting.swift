@@ -85,6 +85,23 @@ struct CargoReporting {
         await submit(payload, kind: "tests")
     }
 
+    func tests(report: CargoTestReport, metadata: [String: Any], failed: Bool) async {
+        var payload = metadata
+        let label = environment["TUIST_SCHEME"].flatMap { $0.isEmpty ? nil : $0 }
+        payload.merge(
+            [
+                "id": UUID().uuidString,
+                "build_system": "cargo",
+                "duration": report.duration,
+                "status": failed ? "failure" : "success",
+                "test_modules": report.modules,
+                "scheme": label.map { "cargo test · \($0)" } ?? "cargo test",
+            ],
+            uniquingKeysWith: { _, new in new }
+        )
+        await submit(payload, kind: "tests")
+    }
+
     private func submit(_ payload: [String: Any], kind: String) async {
         do {
             try await CargoReportService().submit(

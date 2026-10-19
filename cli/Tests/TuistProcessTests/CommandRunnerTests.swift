@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Synchronization
 import Testing
 @testable import TuistProcess
 
@@ -32,6 +33,112 @@ import Testing
             )
         }
     #endif
+
+    @Test func boundedOutputHandlerStreamsLargeFailuresWithoutRetainingStderr() async throws {
+        let counts = Mutex((stdout: 0, stderr: 0, maximumChunk: 0))
+        do {
+            try await CommandRunner().runWithOutputHandler(
+                arguments: [
+                    "/bin/sh",
+                    "-c",
+                    "/bin/dd if=/dev/zero bs=65536 count=900 2>/dev/null; /bin/dd if=/dev/zero bs=65536 count=900 >&2 2>/dev/null; exit 23",
+                ],
+                environment: [:], workingDirectory: nil
+            ) { event in
+                Thread.sleep(forTimeInterval: 0.0001)
+                counts.withLock { counts in
+                    switch event {
+                    case let .standardOutput(bytes):
+                        counts.stdout += bytes.count
+                        counts.maximumChunk = max(counts.maximumChunk, bytes.count)
+                    case let .standardError(bytes):
+                        counts.stderr += bytes.count
+                        counts.maximumChunk = max(counts.maximumChunk, bytes.count)
+                    }
+                }
+            }
+            Issue.record("Expected the child failure to be preserved")
+        } catch let CommandError.terminated(code, stderr, _) {
+            #expect(code == 23)
+            #expect(stderr.isEmpty)
+        }
+        let result = counts.withLock { $0 }
+        #expect(result.stdout == 65536 * 900)
+        #expect(result.stderr == 65536 * 900)
+        #expect(result.maximumChunk <= 65536)
+    }
+
+    @Test(.timeLimit(.minutes(1))) func boundsContinuouslyWritingDescendantsAfterPrimaryExit() async throws {
+        let count = Mutex(0)
+        let incomplete = Mutex(false)
+        let start = Date()
+        try await CommandRunner().runWithOutputHandler(
+            arguments: ["/bin/sh", "-c", "/usr/bin/yes x &"],
+            environment: [:], workingDirectory: nil,
+            onIncompleteOutput: { incomplete.withLock { $0 = true } }
+        ) { event in
+            if case let .standardOutput(bytes) = event { count.withLock { $0 += bytes.count } }
+        }
+        #expect(count.withLock { $0 } >= 8_000_000)
+        #expect(incomplete.withLock { $0 })
+        #expect(Date().timeIntervalSince(start) < 3)
+    }
+
+    @Test(.inTemporaryDirectory) func preservesBufferedTailWhenTheOutputHandlerIsStalled() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let marker = directory.appending(component: "handler-started")
+        let output = Mutex("")
+        let incomplete = Mutex(false)
+        do {
+            try await CommandRunner().runWithOutputHandler(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "printf begin; while ! test -e \"$1\"; do /bin/sleep 0.01; done; printf 'tail summary'; exit 23",
+                    "sh", marker.pathString,
+                ],
+                environment: [:], workingDirectory: nil,
+                onIncompleteOutput: { incomplete.withLock { $0 = true } }
+            ) { event in
+                if case let .standardOutput(bytes) = event {
+                    output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
+                    if !FileManager.default.fileExists(atPath: marker.pathString) {
+                        #expect(FileManager.default.createFile(atPath: marker.pathString, contents: Data()))
+                        Thread.sleep(forTimeInterval: 1)
+                    }
+                }
+            }
+            Issue.record("Expected the child failure")
+        } catch let CommandError.terminated(code, _, _) {
+            #expect(code == 23)
+        }
+        #expect(output.withLock { $0 } == "begintail summary")
+        #expect(!incomplete.withLock { $0 })
+    }
+
+    @Test(arguments: [0, 23]) func returnsAfterChildExitWhenDescendantsKeepPipesOpen(code: Int) async throws {
+        let incomplete = Mutex(false)
+        let output = Mutex("")
+        let start = Date()
+        do {
+            try await CommandRunner().runWithOutputHandler(
+                arguments: ["/bin/sh", "-c", "/bin/sleep 30 & printf '%s\\n' \"$!\"; exit \(code)"],
+                environment: [:], workingDirectory: nil,
+                onIncompleteOutput: { incomplete.withLock { $0 = true } }
+            ) { event in
+                if case let .standardOutput(bytes) = event {
+                    output.withLock { $0.append(String(decoding: bytes, as: UTF8.self)) }
+                }
+            }
+            #expect(code == 0)
+        } catch let CommandError.terminated(actual, _, _) {
+            #expect(actual == Int32(code))
+        }
+        let elapsed = Date().timeIntervalSince(start)
+        let pid = output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        try await CommandRunner().run(arguments: ["/bin/kill", "-TERM", pid]).awaitCompletion()
+        #expect(incomplete.withLock { $0 })
+        #expect(elapsed < 3)
+    }
 
     @Test func streamsStandardOutputAndStandardError() async throws {
         await expectCompletes {

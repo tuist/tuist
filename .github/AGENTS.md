@@ -251,6 +251,8 @@ CNPG restore drills resolve production to namespace `tuist`, not `tuist-producti
 
 ## CLI Cargo cache packaging
 
+The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-plugin/mise.toml` before running the real Cargo/libtest fixture. Do not assume Rust is preinstalled on the runner image or silently replace the fixture with nextest.
+
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
 ## CLI Linux builds
