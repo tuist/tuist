@@ -411,7 +411,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 await RunMetadataStorage.current.update(binaryCacheItems: CoverageInstrumentation.annotate(
                     binaryCacheItems,
                     graph: mapperEnvironment.initialGraphWithSources ?? mapperEnvironment.initialGraph ?? graph,
-                    generatedGraph: graph
+                    generatedGraph: graph,
+                    subhashes: await RunMetadataStorage.current.targetContentHashSubhashes
                 ))
             }
         }

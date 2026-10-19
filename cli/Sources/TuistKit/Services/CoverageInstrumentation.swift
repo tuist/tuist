@@ -1,4 +1,5 @@
 import Path
+import TuistCache
 import TuistCore
 import XcodeGraph
 
@@ -11,14 +12,18 @@ import XcodeGraph
 /// linked a plain one. The flag is read off the binaries themselves, so it holds whatever key the
 /// binary was cached under.
 enum CoverageInstrumentation {
-    /// `items` with every hit of the binary cache told whether its binary carries a coverage mapping.
+    /// `items` with every hit of the binary cache told whether its binary was built with coverage.
     /// `graph` still holds the replaced targets; `generatedGraph` links their xcframeworks instead.
-    /// A hit whose xcframework the graph doesn't link, or a miss, is left as it is.
+    /// A hit the generated graph doesn't link, such as a module only another platform's products
+    /// depend on, has no binary to read: it was built with coverage when it was looked up under
+    /// the coverage key (`subhashes`, by hash), which only a warm with coverage fills, and is left
+    /// as it is otherwise, as is a miss.
     static func annotate(
         _ items: [AbsolutePath: [String: CacheItem]],
         graph: Graph,
         generatedGraph: Graph,
-        carriesMapping: (String) -> Bool = CoverageMapping.carriesMapping(path:)
+        subhashes: [String: TargetContentHashSubhashes] = [:],
+        isInstrumented: (String) -> Bool = CoverageMapping.isInstrumented(path:)
     ) -> [AbsolutePath: [String: CacheItem]] {
         let xcframeworks = CoverageBuildTargets.xcframeworks(in: generatedGraph)
         return Dictionary(uniqueKeysWithValues: items.map { path, itemsByName in
@@ -26,9 +31,14 @@ enum CoverageInstrumentation {
                 guard item.source != .miss, item.cacheCategory == .binaries,
                       let target = graph.projects[path]?.targets[item.name]
                 else { return item }
-                let binaries = CoverageBuildTargets.binaries(of: xcframeworks[target.productName])
+                guard let xcframework = xcframeworks[target.productName] else {
+                    let keyedOnCoverage = subhashes[item.hash]?.additionalStrings
+                        .contains(CacheGraphContentHasher.coverageDimension) == true
+                    return keyedOnCoverage ? item.with(instrumented: true) : item
+                }
+                let binaries = CoverageBuildTargets.binaries(of: xcframework)
                 guard !binaries.isEmpty else { return item }
-                return item.with(instrumented: binaries.contains { carriesMapping($0.path) })
+                return item.with(instrumented: binaries.contains { isInstrumented($0.path) })
             })
         })
     }
