@@ -5,7 +5,8 @@ import Foundation
 /// toolchain it resolved with. It recomputes them on every resolution. The restoration path carries the recorded
 /// entries over instead, so it must drop the ones SwiftPM would no longer produce: modules built by another compiler
 /// or against another SDK cannot be imported (they ship without interfaces), a prebuilt for another version does not
-/// match the restored sources, and an entry whose directory is gone points the build at nothing.
+/// match the restored sources, and an entry whose directory is gone points the build at nothing. The entries it keeps
+/// are rebased onto the current scratch directory, since SwiftPM records absolute paths.
 ///
 /// A dropped entry is not replaced. The restoration path cannot fetch prebuilts, so those packages build from source
 /// until a native resolution records them again, as they do in a fresh scratch directory.
@@ -20,6 +21,7 @@ enum WorkspacePrebuilts {
     static func carriedOver(
         _ recorded: [[String: Any]],
         pins: [ResolvedPin],
+        scratchDir: URL,
         name: () async throws -> String?
     ) async throws -> [[String: Any]] {
         guard !recorded.isEmpty else { return [] }
@@ -31,25 +33,53 @@ enum WorkspacePrebuilts {
             )
         }
         var carriedOver: [[String: Any]] = []
-        for prebuilt in recorded where try await isApplicable(prebuilt, pins: pins, name: name) {
-            carriedOver.append(prebuilt)
+        var dropped: [String] = []
+        for prebuilt in recorded {
+            if let applicable = try await applicable(prebuilt, pins: pins, scratchDir: scratchDir, name: name) {
+                carriedOver.append(applicable)
+            } else {
+                dropped.append(
+                    ["identity", "version", "libraryName"].compactMap { prebuilt[$0] as? String }.joined(separator: " ")
+                )
+            }
+        }
+        if !dropped.isEmpty {
+            Environment.warningHandler?(
+                "dropped recorded prebuilts that the current toolchain or pins cannot use, so their packages build from "
+                    + "source until a native resolution records new ones: \(dropped.joined(separator: ", "))"
+            )
         }
         return carriedOver
     }
 
-    static func isApplicable(_ prebuilt: [String: Any], pins: [ResolvedPin], name: String?) async throws -> Bool {
-        if let identity = prebuilt["identity"] as? String, let version = prebuilt["version"] as? String,
-           !pins.contains(where: { $0.identity.lowercased() == identity.lowercased() && $0.state.version == version })
-        {
-            return false
-        }
-        guard let path = prebuilt["path"] as? String else { return true }
-        // `.build/prebuilts` can be cleared, or left out of a CI cache, while the workspace state survives.
-        guard try await fileSystem.exists(URL(fileURLWithPath: path).absolutePath) else { return false }
-        guard let name, let library = prebuilt["libraryName"] as? String else { return true }
+    /// The entry rebased onto `scratchDir`, or `nil` when SwiftPM would not produce it.
+    static func applicable(
+        _ prebuilt: [String: Any],
+        pins: [ResolvedPin],
+        scratchDir: URL,
+        name: String?
+    ) async throws -> [String: Any]? {
+        guard let identity = prebuilt["identity"] as? String,
+              let version = prebuilt["version"] as? String,
+              let library = prebuilt["libraryName"] as? String,
+              let path = prebuilt["path"] as? String,
+              pins.contains(where: { $0.identity.lowercased() == identity.lowercased() && $0.state.version == version })
+        else { return nil }
+        let directoryName = URL(fileURLWithPath: path).lastPathComponent
         // The whole name, not a prefix: a tag can be the start of another one (snapshot toolchains), and the same
         // compiler can have prebuilts for several SDKs.
-        return URL(fileURLWithPath: path).lastPathComponent == "\(name)-\(library)"
+        if let name, directoryName != "\(name)-\(library)" { return nil }
+        // A scratch directory restored to another location, from a CI cache for example, records the old one.
+        let extracted = scratchDir.appendingPathComponent("prebuilts")
+            .appendingPathComponent(identity)
+            .appendingPathComponent(version)
+            .appendingPathComponent(directoryName)
+        // `.build/prebuilts` can be cleared, or left out of a CI cache, while the workspace state survives.
+        guard try await fileSystem.exists(extracted.absolutePath) else { return nil }
+        var rebased = prebuilt
+        rebased["path"] = extracted.path
+        rebased["checkoutPath"] = scratchDir.appendingPathComponent("checkouts").appendingPathComponent(identity).path
+        return rebased
     }
 
     /// `<compiler tag>-<platform>`, the name SwiftPM gives the prebuilts of the toolchain that native resolution

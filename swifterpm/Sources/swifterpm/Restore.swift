@@ -1508,6 +1508,7 @@ enum WorkspaceRestorer {
                 "prebuilts": try await WorkspacePrebuilts.carriedOver(
                     existingWorkspacePrebuilts(scratchDir: scratchDir),
                     pins: resolved.pins,
+                    scratchDir: scratchDir,
                     name: { try await WorkspacePrebuilts.nameProbe(packageDir) }
                 ),
             ],

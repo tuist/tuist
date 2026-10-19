@@ -529,10 +529,11 @@ struct RestoreTests {
         case anotherSDK
         case anotherVersion
         case missingDirectory
+        case incompleteEntry
     }
 
     @Test(arguments: StalePrebuilt.allCases)
-    func writeWorkspaceStateDropsPrebuiltsSwiftPMWouldNotProduce(_ stale: StalePrebuilt) async throws {
+    func writeWorkspaceStateDropsPrebuiltsSwiftPMWouldNotProduceAndWarns(_ stale: StalePrebuilt) async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
             let scratch = root.appendingPathComponent("scratch")
@@ -541,26 +542,67 @@ struct RestoreTests {
                 emptyManifest(name: "SwiftSyntax"), packageDir: scratch.appendingPathComponent("checkouts/swift-syntax")
             )
             let current = "swiftlang-6.3.1.2.3-macosx26.0"
-            let recorded = switch stale {
+            var recorded = switch stale {
             case .anotherCompiler:
                 swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", name: "swiftlang-6.3.0.1.1-macosx26.0")
             case .anotherSDK:
                 swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", name: "swiftlang-6.3.1.2.3-macosx27.0")
             case .anotherVersion:
                 swiftSyntaxPrebuilt(scratchDir: scratch, version: "602.0.0", name: current)
-            case .missingDirectory:
+            case .missingDirectory, .incompleteEntry:
                 swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", name: current)
+            }
+            if stale == .incompleteEntry {
+                recorded["version"] = nil
             }
             try await writeWorkspaceState(prebuilts: [recorded], scratchDir: scratch)
             if stale == .missingDirectory {
                 try await fileSystem.removePath(scratch.appendingPathComponent("prebuilts"))
             }
+            let warnings = Recorded([String]())
+
+            try await Environment.$warningHandler.withValue({ message in warnings.value.withLock { $0.append(message) } }) {
+                try await rewriteWorkspaceState(
+                    prebuiltName: current, package: package, scratch: scratch, pins: [swiftSyntaxPin(version: "603.0.0")]
+                )
+            }
+
+            #expect(try await recordedPrebuiltPaths(scratchDir: scratch).isEmpty)
+            let warning = try #require(warnings.value.withLock { $0.count == 1 ? $0.first : nil })
+            #expect(warning.contains("swift-syntax"))
+        }
+    }
+
+    @Test
+    func writeWorkspaceStateRebasesPrebuiltsRecordedInAMovedScratchDirectory() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+            try await writeCachedManifest(
+                emptyManifest(name: "SwiftSyntax"), packageDir: scratch.appendingPathComponent("checkouts/swift-syntax")
+            )
+            let current = "swiftlang-6.3.1.2.3-macosx26.0"
+            try await writeWorkspaceState(
+                prebuilts: [swiftSyntaxPrebuilt(scratchDir: root.appendingPathComponent("moved"), version: "603.0.0", name: current)],
+                scratchDir: scratch
+            )
+            let extracted = swiftSyntaxPrebuilt(scratchDir: scratch, version: "603.0.0", name: current)
+            try await fileSystem.makeDirectory(
+                at: URL(fileURLWithPath: try #require(extracted["path"] as? String)).absolutePath,
+                options: [.createTargetParentDirectories]
+            )
 
             try await rewriteWorkspaceState(
                 prebuiltName: current, package: package, scratch: scratch, pins: [swiftSyntaxPin(version: "603.0.0")]
             )
 
-            #expect(try await recordedPrebuiltPaths(scratchDir: scratch).isEmpty)
+            let data = try await fileSystem.readFile(at: scratch.appendingPathComponent("workspace-state.json").absolutePath)
+            let state = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let prebuilt = try #require((object["prebuilts"] as? [[String: Any]])?.first)
+            #expect(prebuilt["path"] as? String == extracted["path"] as? String)
+            #expect(prebuilt["checkoutPath"] as? String == extracted["checkoutPath"] as? String)
         }
     }
 
@@ -590,7 +632,10 @@ struct RestoreTests {
             }
 
             #expect(try await recordedPrebuiltPaths(scratchDir: scratch) == [pinned["path"] as? String])
-            #expect(warnings.value.withLock { $0.count } == 1)
+            let recordedWarnings = warnings.value.withLock { $0 }
+            #expect(recordedWarnings.count == 2)
+            #expect(recordedWarnings.contains { $0.contains("could not determine which prebuilts") })
+            #expect(recordedWarnings.contains { $0.contains("swift-syntax 602.0.0 MacroSupport") })
         }
     }
 
