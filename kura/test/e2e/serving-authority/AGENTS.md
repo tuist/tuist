@@ -59,6 +59,10 @@ five-minute cutover deadline. Preparation completion never replaces frozen-corpu
 verification. Long preparation runs must establish and successfully exercise their
 stale-channel test sessions while still Serving immediately before Quiescing;
 keep those exact sessions through the transition and preserve aging failures.
+Add `KURA_E2E_LIVE_WRITE_CHURN=1` to the full-ring preparation workload to keep
+rewriting 2 MiB records until Quiescing rejects writes. Preserve the same source
+keys and bytes so the held-corpus check still verifies every retained body. A
+preparation success must not replace the final repair, hold or matching receipt.
 Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
 of old destination-only data. Assert it stays absent on the source, then require
 an eviction-triggered repair revisit and matching full-corpus receipts before

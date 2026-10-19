@@ -16,6 +16,11 @@ const fullRing = count === 2048;
 const repairOld = process.env.KURA_E2E_RETAINED_RECENCY === "1";
 const repairChurn = process.env.KURA_E2E_REPAIR_CHURN === "1";
 const prepare = process.env.KURA_E2E_LIVE_PREPARATION === "1";
+const liveChurn = process.env.KURA_E2E_LIVE_WRITE_CHURN === "1";
+assert(
+  !liveChurn || (fullRing && prepare),
+  "live churn requires full-ring preparation",
+);
 assert(
   !repairOld || fullRing,
   "recency repair requires the full-ring workload",
@@ -42,6 +47,33 @@ const preparationWrite = (i) =>
 const body = Buffer.alloc(2 * 1024 * 1024, 73);
 const url = (replica, index) =>
   `${f.urls[replica]}/api/cache/cas/retained-${index}?tenant_id=default&namespace_id=segmented-handover`;
+let churn;
+let churnError;
+let churning = true;
+async function writeDuringPreparation() {
+  for (let written = 0; churning; written++) {
+    const index = (written * 17) % count;
+    const bytes = Buffer.alloc(body.length, 73);
+    bytes.writeUInt32BE(index);
+    const response = await fetch(url(0, index), {
+      method: "POST",
+      body: bytes,
+      signal: AbortSignal.timeout(30000),
+    });
+    await response.arrayBuffer();
+    if (response.status === 503) {
+      const authority = (await f.report(0)).serving_authority;
+      assert(
+        ["Quiescing", "Revoking"].includes(authority.observed?.phase),
+        "live writes may stop only when cutover quiesces the source",
+      );
+      return;
+    }
+    assert.equal(response.status, 204);
+    result.liveBodyWrites = written + 1;
+    await sleep(50);
+  }
+}
 const samples = [];
 let collecting = true;
 let collectorError;
@@ -201,6 +233,11 @@ try {
     deadlineMs: 300000,
     prepare: prepare
       ? async () => {
+          if (liveChurn && !churn)
+            churn = writeDuringPreparation().catch((error) => {
+              churnError = error;
+            });
+          assert.equal(churnError, undefined);
           for (const replica of [0, 1]) {
             assert.equal(
               (await preparationWrite(replica)).status,
@@ -213,6 +250,8 @@ try {
       : undefined,
     beforePromotion: fullRing
       ? async (barrier) => {
+          if (churn) await churn;
+          assert.equal(churnError, undefined);
           for (let i = 0; i < count; i++) {
             const response = await fetch(url(0, i), {
               signal: AbortSignal.timeout(30000),
@@ -321,6 +360,8 @@ try {
   result.error = error.message;
   throw error;
 } finally {
+  churning = false;
+  if (churn) await churn;
   preparationSessions.forEach((session) => session.destroy());
   collecting = false;
   await collector;
