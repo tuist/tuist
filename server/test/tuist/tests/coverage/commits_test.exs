@@ -190,6 +190,73 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.status(summary) == :incomplete
   end
 
+  defp expected(scheme), do: %{test_run_id: UUIDv7.generate(), scheme: scheme}
+
+  test "a scheme none of whose registered runs reported leaves the figure a lower bound until one lands", %{
+    project: project,
+    account: account
+  } do
+    app = expected("App")
+    tests = expected("AppTests")
+    :ok = Commits.expect_runs(project, "abc123", [app, tests, tests])
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{id: app.test_run_id})
+
+    summary = Commits.signal_complete(project, "abc123")
+    assert {summary.missing_schemes, Commits.gap_reasons(summary)} == {["AppTests"], [:missing_scheme]}
+    assert Commits.status(summary) == :incomplete
+
+    # The run reports the test plan it ran rather than the scheme it was asked for.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      id: tests.test_run_id,
+      scheme: "AppTestPlan"
+    })
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.missing_schemes, Commits.gap_reasons(summary)} == {[], []}
+    assert Commits.status(summary) == :complete
+  end
+
+  test "a retried run of a scheme settles the attempt that never reported", %{project: project, account: account} do
+    failed = expected("App")
+    retried = expected("App")
+    :ok = Commits.expect_runs(project, "abc123", [failed, retried])
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{id: retried.test_run_id})
+
+    assert %{missing_schemes: []} = Commits.signal_complete(project, "abc123")
+  end
+
+  test "a registered run still being processed is missing", %{project: project, account: account} do
+    app = expected("App")
+    tests = expected("AppTests")
+    :ok = Commits.expect_runs(project, "abc123", [app, tests])
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{id: app.test_run_id})
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      id: tests.test_run_id,
+      scheme: "AppTests",
+      status: "processing"
+    })
+
+    assert %{missing_schemes: ["AppTests"]} = Commits.signal_complete(project, "abc123")
+  end
+
+  test "a run registered after the commit was published folds it again", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    Commits.signal_complete(project, "abc123")
+    Repo.delete_all(Oban.Job)
+
+    tests = expected("AppTests")
+    :ok = Commits.expect_runs(project, "abc123", [tests])
+    assert_enqueued(worker: CommitWorker, args: %{"project_id" => project.id, "git_commit_sha" => "abc123"})
+
+    assert %{missing_schemes: ["AppTests"]} = Commits.recompute(project, "abc123")
+
+    # Registering it again changes nothing and folds nothing.
+    Repo.delete_all(Oban.Job)
+    :ok = Commits.expect_runs(project, "abc123", [tests])
+    refute_enqueued(worker: CommitWorker)
+  end
+
   test "a local dirty run of a scheme CI never ran leaves a complete commit whole", %{
     project: project,
     account: account
@@ -378,6 +445,24 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
              |> Repo.all()
              |> Enum.sort() ==
                ["merged-into-main", "recent"]
+    end
+
+    test "drops the expected runs of a commit no run published, and keeps a published commit's", %{
+      project: project
+    } do
+      :ok = Commits.expect_runs(project, "unpublished", [expected("App")])
+      :ok = Commits.expect_runs(project, "kept", [expected("App")])
+      published(project, "kept", %{committed_at: days_ago(100)})
+
+      Repo.update_all(from(e in "coverage_commit_expected_runs", where: e.project_id == ^project.id),
+        set: [inserted_at: days_ago(91)]
+      )
+
+      Commits.prune(%{commits: 1095, pull_requests: 90})
+
+      assert Repo.all(
+               from(e in "coverage_commit_expected_runs", where: e.project_id == ^project.id, select: e.git_commit_sha)
+             ) == ["kept"]
     end
 
     test "drops a completion signal no run followed", %{project: project, account: account} do

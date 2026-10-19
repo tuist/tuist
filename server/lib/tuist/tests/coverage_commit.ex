@@ -9,7 +9,8 @@ defmodule Tuist.Tests.CoverageCommit do
   `complete` says the commit's coverage pipeline is known to have finished,
   and `completeness` how that was established: `signal` when the client said
   so (`Tuist.Tests.Coverage.Commits.signal_complete/2`), the only way so far.
-  `unmeasured_files_count`
+  `missing_schemes` are the schemes CI registered runs of when they started
+  (`Tuist.Tests.Coverage.Commits.expect_runs/3`) none of which reported. `unmeasured_files_count`
   is how many source files of the commit's listing no run measured.
   `gap_reasons` is why some of the reported figure is unknown, a bitmask of
   `Tuist.Tests.Coverage.GapReasons`.
@@ -42,6 +43,7 @@ defmodule Tuist.Tests.CoverageCommit do
     field :unmeasured_files_count, :integer, default: 0
     field :schemes, {:array, :string}, default: []
     field :partial_schemes, {:array, :string}, default: []
+    field :missing_schemes, {:array, :string}, default: []
     field :test_run_ids, {:array, Ecto.UUID}, default: []
     field :complete, :boolean, default: false
     field :completeness, :string, default: ""

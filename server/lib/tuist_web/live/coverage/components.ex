@@ -371,6 +371,15 @@ defmodule TuistWeb.Coverage.Components do
     reasons = Commits.gap_reasons(commit)
 
     cond do
+      :missing_scheme in reasons ->
+        dngettext(
+          "dashboard_tests",
+          "A run of %{schemes} started for this commit, but its results never reached Tuist, so the actual coverage may be higher.",
+          "Runs of %{schemes} started for this commit, but their results never reached Tuist, so the actual coverage may be higher.",
+          length(Map.get(commit, :missing_schemes, [])),
+          schemes: Enum.join(Map.get(commit, :missing_schemes, []), ", ")
+        )
+
       :dirty_run_excluded in reasons ->
         dgettext(
           "dashboard_tests",

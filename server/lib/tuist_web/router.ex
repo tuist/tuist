@@ -841,6 +841,7 @@ defmodule TuistWeb.Router do
             get "/settings", CoverageController, :settings
             post "/uploads", CoverageController, :create_upload
             post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+            post "/commits/:git_commit_sha/expected-runs", CoverageController, :expect_runs
           end
 
           scope "/git-history" do

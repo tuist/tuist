@@ -1137,6 +1137,44 @@ struct UploadResultBundleServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_createsTheRunWithTheIdRegisteredBeforeItBuilt() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .value("registered-id"), serverURL: .any)
+            .willReturn()
+        let runMetadataStorage = RunMetadataStorage()
+        await runMetadataStorage.update(expectedTestRunId: "registered-id")
+
+        _ = try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            try await subject.uploadResultBundle(
+                resultBundlePath: xcresultPath,
+                config: .test(fullHandle: "tuist/tuist"),
+                quarantinedTests: [],
+                shardPlanId: nil,
+                shardIndex: nil,
+                scheme: "App"
+            )
+        }
+
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any, serverURL: .any, id: .value("registered-id"),
+                testSummary: .any,
+                buildRunId: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+                gitRemoteURLOrigin: .any, isCI: .any, modelIdentifier: .any,
+                macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
+                ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
+                shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
+                stressNewTests: .any, gitHistory: .any, coverage: .any,
+                coverageEnabled: .any
+            )
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory)
     func rootSpellings_includeThePrefixTheCompilerRecorded() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

@@ -22,6 +22,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
     func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output
+    /// Register the runs a commit's coverage pipeline started.
+    ///
+    /// Called by a CI run that collects coverage before it builds (`tuist test`), while its credentials are fresh, with the id it will create the run with and the scheme it was asked for. A scheme none of whose registered runs reports (an upload failed, or it is still being processed) is listed in the commit's `missing_schemes`, and its figure is a lower bound instead of complete with what the other schemes measured. Registering a run again is a no-op.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)`.
+    func expectCommitCoverageRuns(_ input: Operations.expectCommitCoverageRuns.Input) async throws -> Operations.expectCommitCoverageRuns.Output
     /// Get account or volume storage, activity and trends for a time range.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.
@@ -630,7 +637,7 @@ public protocol APIProtocol: Sendable {
     func getShard(_ input: Operations.getShard.Input) async throws -> Operations.getShard.Output
     /// Signal that a commit's coverage pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. A scheme whose registered runs (`expectCommitCoverageRuns`) never reported is listed in `missing_schemes`, and the figure is then a lower bound. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -1136,6 +1143,23 @@ extension APIProtocol {
         body: Operations.createTestCaseRunAttachment.Input.Body? = nil
     ) async throws -> Operations.createTestCaseRunAttachment.Output {
         try await createTestCaseRunAttachment(Operations.createTestCaseRunAttachment.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Register the runs a commit's coverage pipeline started.
+    ///
+    /// Called by a CI run that collects coverage before it builds (`tuist test`), while its credentials are fresh, with the id it will create the run with and the scheme it was asked for. A scheme none of whose registered runs reports (an upload failed, or it is still being processed) is listed in the commit's `missing_schemes`, and its figure is a lower bound instead of complete with what the other schemes measured. Registering a run again is a no-op.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)`.
+    public func expectCommitCoverageRuns(
+        path: Operations.expectCommitCoverageRuns.Input.Path,
+        headers: Operations.expectCommitCoverageRuns.Input.Headers = .init(),
+        body: Operations.expectCommitCoverageRuns.Input.Body? = nil
+    ) async throws -> Operations.expectCommitCoverageRuns.Output {
+        try await expectCommitCoverageRuns(Operations.expectCommitCoverageRuns.Input(
             path: path,
             headers: headers,
             body: body
@@ -2667,7 +2691,7 @@ extension APIProtocol {
     }
     /// Signal that a commit's coverage pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. A scheme whose registered runs (`expectCommitCoverageRuns`) never reported is listed in `missing_schemes`, and the figure is then a lower bound. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -8679,6 +8703,33 @@ public enum Components {
                 case last_seen_at
                 case name
                 case observations
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CoverageExpectedRun`.
+        public struct CoverageExpectedRun: Codable, Hashable, Sendable {
+            /// The id the run will be created with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageExpectedRun/id`.
+            public var id: Swift.String
+            /// The scheme the run was asked to test.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageExpectedRun/scheme`.
+            public var scheme: Swift.String
+            /// Creates a new `CoverageExpectedRun`.
+            ///
+            /// - Parameters:
+            ///   - id: The id the run will be created with.
+            ///   - scheme: The scheme the run was asked to test.
+            public init(
+                id: Swift.String,
+                scheme: Swift.String
+            ) {
+                self.id = id
+                self.scheme = scheme
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case scheme
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends`.
@@ -15551,6 +15602,50 @@ public enum Components {
                 case status
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns`.
+        public struct CoverageExpectedRuns: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns/runsPayload`.
+            public struct runsPayloadPayload: Codable, Hashable, Sendable {
+                /// The id the run will be created with.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns/runsPayload/id`.
+                public var id: Swift.String
+                /// The scheme the run was asked to test.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns/runsPayload/scheme`.
+                public var scheme: Swift.String
+                /// Creates a new `runsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id: The id the run will be created with.
+                ///   - scheme: The scheme the run was asked to test.
+                public init(
+                    id: Swift.String,
+                    scheme: Swift.String
+                ) {
+                    self.id = id
+                    self.scheme = scheme
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case scheme
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns/runs`.
+            public typealias runsPayload = [Components.Schemas.CoverageExpectedRuns.runsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CoverageExpectedRuns/runs`.
+            public var runs: Components.Schemas.CoverageExpectedRuns.runsPayload
+            /// Creates a new `CoverageExpectedRuns`.
+            ///
+            /// - Parameters:
+            ///   - runs:
+            public init(runs: Components.Schemas.CoverageExpectedRuns.runsPayload) {
+                self.runs = runs
+            }
+            public enum CodingKeys: String, CodingKey {
+                case runs
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity`.
         public struct RunnerVolumeActivity: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/hit_rate`.
@@ -16816,6 +16911,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/measured_files_count`.
             public var measured_files_count: Swift.Int
+            /// The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommitCoverage/missing_schemes`.
+            public var missing_schemes: [Swift.String]?
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/partial`.
             public var partial: Swift.Bool
             /// The schemes only measured by runs that skipped tests on purpose.
@@ -16972,6 +17071,7 @@ public enum Components {
             ///   - git_commit_sha:
             ///   - measured_at:
             ///   - measured_files_count: Product files some run measured.
+            ///   - missing_schemes: The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
             ///   - partial:
             ///   - partial_schemes: The schemes only measured by runs that skipped tests on purpose.
             ///   - reported: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
@@ -16988,6 +17088,7 @@ public enum Components {
                 git_commit_sha: Swift.String,
                 measured_at: Foundation.Date? = nil,
                 measured_files_count: Swift.Int,
+                missing_schemes: [Swift.String]? = nil,
                 partial: Swift.Bool,
                 partial_schemes: [Swift.String],
                 reported: Components.Schemas.CommitCoverage.reportedPayload? = nil,
@@ -17004,6 +17105,7 @@ public enum Components {
                 self.git_commit_sha = git_commit_sha
                 self.measured_at = measured_at
                 self.measured_files_count = measured_files_count
+                self.missing_schemes = missing_schemes
                 self.partial = partial
                 self.partial_schemes = partial_schemes
                 self.reported = reported
@@ -17021,6 +17123,7 @@ public enum Components {
                 case git_commit_sha
                 case measured_at
                 case measured_files_count
+                case missing_schemes
                 case partial
                 case partial_schemes
                 case reported
@@ -21204,6 +21307,344 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Register the runs a commit's coverage pipeline started.
+    ///
+    /// Called by a CI run that collects coverage before it builds (`tuist test`), while its credentials are fresh, with the id it will create the run with and the scheme it was asked for. A scheme none of whose registered runs reports (an upload failed, or it is still being processed) is listed in the commit's `missing_schemes`, and its figure is a lower bound instead of complete with what the other schemes measured. Registering a run again is a no-op.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)`.
+    public enum expectCommitCoverageRuns {
+        public static let id: Swift.String = "expectCommitCoverageRuns"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The commit SHA.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/path/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - git_commit_sha: The commit SHA.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    git_commit_sha: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.git_commit_sha = git_commit_sha
+                }
+            }
+            public var path: Operations.expectCommitCoverageRuns.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.expectCommitCoverageRuns.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.expectCommitCoverageRuns.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.expectCommitCoverageRuns.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json/runsPayload`.
+                    public struct runsPayloadPayload: Codable, Hashable, Sendable {
+                        /// The id the run will be created with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json/runsPayload/id`.
+                        public var id: Swift.String
+                        /// The scheme the run was asked to test.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json/runsPayload/scheme`.
+                        public var scheme: Swift.String
+                        /// Creates a new `runsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id: The id the run will be created with.
+                        ///   - scheme: The scheme the run was asked to test.
+                        public init(
+                            id: Swift.String,
+                            scheme: Swift.String
+                        ) {
+                            self.id = id
+                            self.scheme = scheme
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                            case scheme
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json/runs`.
+                    public typealias runsPayload = [Operations.expectCommitCoverageRuns.Input.Body.jsonPayload.runsPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/json/runs`.
+                    public var runs: Operations.expectCommitCoverageRuns.Input.Body.jsonPayload.runsPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - runs:
+                    public init(runs: Operations.expectCommitCoverageRuns.Input.Body.jsonPayload.runsPayload) {
+                        self.runs = runs
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case runs
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/requestBody/content/application\/json`.
+                case json(Operations.expectCommitCoverageRuns.Input.Body.jsonPayload)
+            }
+            public var body: Operations.expectCommitCoverageRuns.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.expectCommitCoverageRuns.Input.Path,
+                headers: Operations.expectCommitCoverageRuns.Input.Headers = .init(),
+                body: Operations.expectCommitCoverageRuns.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The runs were registered
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.expectCommitCoverageRuns.Output.NoContent)
+            /// The runs were registered
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.expectCommitCoverageRuns.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.expectCommitCoverageRuns.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.expectCommitCoverageRuns.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.expectCommitCoverageRuns.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.expectCommitCoverageRuns.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.expectCommitCoverageRuns.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.expectCommitCoverageRuns.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.expectCommitCoverageRuns.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.expectCommitCoverageRuns.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.expectCommitCoverageRuns.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.expectCommitCoverageRuns.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/expected-runs/post(expectCommitCoverageRuns)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.expectCommitCoverageRuns.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.expectCommitCoverageRuns.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -71705,7 +72146,7 @@ public enum Operations {
     }
     /// Signal that a commit's coverage pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. A scheme whose registered runs (`expectCommitCoverageRuns`) never reported is listed in `missing_schemes`, and the figure is then a lower bound. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -71800,6 +72241,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/measured_files_count`.
                         public var measured_files_count: Swift.Int
+                        /// The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/missing_schemes`.
+                        public var missing_schemes: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/partial`.
                         public var partial: Swift.Bool
                         /// The schemes only measured by runs that skipped tests on purpose.
@@ -71956,6 +72401,7 @@ public enum Operations {
                         ///   - git_commit_sha:
                         ///   - measured_at:
                         ///   - measured_files_count: Product files some run measured.
+                        ///   - missing_schemes: The schemes CI registered runs of when they started (`expectCommitCoverageRuns`) none of which reported, so the figure is a lower bound.
                         ///   - partial:
                         ///   - partial_schemes: The schemes only measured by runs that skipped tests on purpose.
                         ///   - reported: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
@@ -71972,6 +72418,7 @@ public enum Operations {
                             git_commit_sha: Swift.String,
                             measured_at: Foundation.Date? = nil,
                             measured_files_count: Swift.Int,
+                            missing_schemes: [Swift.String]? = nil,
                             partial: Swift.Bool,
                             partial_schemes: [Swift.String],
                             reported: Operations.completeCommitCoverage.Output.Ok.Body.jsonPayload.reportedPayload? = nil,
@@ -71988,6 +72435,7 @@ public enum Operations {
                             self.git_commit_sha = git_commit_sha
                             self.measured_at = measured_at
                             self.measured_files_count = measured_files_count
+                            self.missing_schemes = missing_schemes
                             self.partial = partial
                             self.partial_schemes = partial_schemes
                             self.reported = reported
@@ -72005,6 +72453,7 @@ public enum Operations {
                             case git_commit_sha
                             case measured_at
                             case measured_files_count
+                            case missing_schemes
                             case partial
                             case partial_schemes
                             case reported

@@ -63,6 +63,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardService: MockShardServicing!
     private var xcActivityLogController: MockXCActivityLogControlling!
     private var uploadBuildRunService: MockUploadBuildRunServicing!
+    private var expectCommitCoverageRunsService: MockExpectCommitCoverageRunsServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -91,6 +92,7 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
+        expectCommitCoverageRunsService = .init()
 
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
@@ -223,7 +225,8 @@ final class TestServiceTests: TuistUnitTestCase {
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
             xcActivityLogController: xcActivityLogController,
-            uploadBuildRunService: uploadBuildRunService
+            uploadBuildRunService: uploadBuildRunService,
+            expectCommitCoverageRunsService: expectCommitCoverageRunsService
         )
 
         given(simulatorController)
@@ -679,6 +682,60 @@ final class TestServiceTests: TuistUnitTestCase {
                     )
                     .called(1)
             }
+        }
+    }
+
+    func test_run_registers_the_coverage_run_on_ci_before_building_and_creates_it_with_that_id() async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+            Environment.mocked?.variables["GITHUB_RUN_ID"] = "1"
+            // Given
+            gitController.reset()
+            given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+            given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(try temporaryPath())
+            given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(sha: "abc123"))
+            given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+            var registered: [ExpectedCoverageRun] = []
+            given(expectCommitCoverageRunsService)
+                .expectCommitCoverageRuns(fullHandle: .any, serverURL: .any, gitCommitSHA: .value("abc123"), runs: .any)
+                .willProduce { _, _, _, runs in registered = runs }
+            given(xcodebuildController)
+                .test(
+                    .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                    derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                    testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, _, _ in }
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+                }
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test(target: .test(destinations: [.mac])))
+
+            // When
+            try await testRun(
+                schemeName: "TestScheme",
+                path: try temporaryPath(),
+                passthroughXcodeBuildArguments: ["-enableCodeCoverage", "YES"]
+            )
+
+            // Then
+            XCTAssertEqual(registered.map(\.scheme), ["TestScheme"])
+            let expectedTestRunId = await runMetadataStorage.expectedTestRunId
+            XCTAssertEqual(expectedTestRunId, registered.first?.id)
         }
     }
 

@@ -97,6 +97,7 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
                     executableLines: coverage.executableLines,
                     schemes: coverage.schemes,
                     partialSchemes: coverage.partialSchemes,
+                    missingSchemes: coverage.missingSchemes,
                     complete: coverage.complete,
                     incomplete: coverage.incomplete
                 )
@@ -118,6 +119,13 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
                 "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%\(over)\(partial).\(incomplete)"
             )
         )
+        if !coverage.missingSchemes.isEmpty {
+            AlertController.current.warning(
+                .alert(
+                    "Runs of \(coverage.missingSchemes.joined(separator: ", ")) started for this commit, but none of them reported to Tuist. Check those jobs' logs for a failed upload."
+                )
+            )
+        }
     }
 }
 
@@ -140,6 +148,7 @@ private struct CoverageCompleteOutput: Codable {
     let executableLines: Int
     let schemes: [String]
     let partialSchemes: [String]
+    let missingSchemes: [String]
     let complete: Bool
     let incomplete: Bool
 
@@ -150,6 +159,7 @@ private struct CoverageCompleteOutput: Codable {
         case executableLines = "executable_lines"
         case schemes
         case partialSchemes = "partial_schemes"
+        case missingSchemes = "missing_schemes"
         case complete
         case incomplete
     }

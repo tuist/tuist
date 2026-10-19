@@ -108,6 +108,31 @@ struct CompleteCommitCoverageServiceTests {
         #expect(coverage.incomplete)
     }
 
+    @Test func listsTheSchemesWhoseRunsNeverReported() throws {
+        let response = Output.ok(.init(body: .json(.init(
+            complete: true,
+            completeness: "signal",
+            coverage: 50.0,
+            covered_lines: 1,
+            executable_lines: 2,
+            git_commit_sha: "abcdef1234567",
+            measured_files_count: 1,
+            missing_schemes: ["AppTests"],
+            partial: false,
+            partial_schemes: [],
+            schemes: ["App"],
+            targets: [],
+            test_run_ids: ["run-1"],
+            unmeasured_files_count: 0
+        ))))
+
+        guard case let .complete(coverage) = try CompleteCommitCoverageService.completion(from: response) else {
+            Issue.record("Expected a complete coverage")
+            return
+        }
+        #expect(coverage.missingSchemes == ["AppTests"])
+    }
+
     @Test func isPendingWhenTheServerKeptTheSignal() throws {
         let response = Output.accepted(.init(body: .json(.init(message: "No run has reported coverage yet."))))
 

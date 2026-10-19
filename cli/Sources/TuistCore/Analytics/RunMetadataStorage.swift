@@ -111,6 +111,13 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
+    /// The ID the test run of the scheme being tested is created with, registered with the server
+    /// before the scheme built, so a run whose report never arrives still shows as missing.
+    public private(set) var expectedTestRunId: String?
+    public func update(expectedTestRunId: String?) {
+        self.expectedTestRunId = expectedTestRunId
+    }
+
     /// The generate command event's id, minted client-side. `tuist generate` sends it as the command
     /// event id (so the server stores the graph under it) and persists it; a later local Xcode build
     /// references it so the build page can resolve the generation's graph for its Module Cache breakdown.
