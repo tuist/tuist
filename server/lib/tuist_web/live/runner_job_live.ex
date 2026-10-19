@@ -78,7 +78,12 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
-         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id,
+             include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(selected_account)
+           )
+         )
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
