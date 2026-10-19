@@ -165,7 +165,7 @@ struct DesktopPreviewsModelTests {
         try await subject.refresh()
         subject.trackFilter = .track("beta")
 
-        try await subject.loadMore()
+        await subject.loadMore()
 
         #expect(subject.availableTracks == ["beta", "nightly"])
         #expect(subject.trackFilter == .track("beta"))
@@ -211,10 +211,139 @@ struct DesktopPreviewsModelTests {
         stubPage([.test(id: "second")], page: 2)
         try await subject.refresh()
 
-        try await subject.loadMore()
+        await subject.loadMore()
 
         #expect(subject.previews.map(\.id) == ["first", "second"])
         #expect(!subject.hasMorePreviews)
+        #expect(!subject.isLoadingMore)
+    }
+
+    @Test func pagination_failure_is_inline_and_retry_keeps_existing_previews() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        given(listPreviewsService).listPreviews(
+            displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+            page: .value(2), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+        ).willThrow(URLError(.notConnectedToInternet))
+        try await subject.refresh()
+
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first"])
+        #expect(subject.paginationErrorMessage != nil)
+        #expect(subject.errorMessage == nil)
+        #expect(!subject.isLoadingMore)
+        #expect(subject.nextPage == 2)
+        stubPage([.test(id: "second")], page: 2)
+
+        await subject.loadMore()
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first", "second"])
+        #expect(subject.paginationErrorMessage == nil)
+        #expect(!subject.hasMorePreviews)
+    }
+
+    @Test func overlapping_pages_are_deduplicated() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        stubPage([.test(id: "first"), .test(id: "second"), .test(id: "second")], page: 2)
+        try await subject.refresh()
+
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first", "second"])
+        #expect(subject.paginationErrorMessage == nil)
+    }
+
+    @Test(arguments: [[], ["first"]])
+    func nonterminal_pages_must_make_progress(ids: [String]) async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        stubPage(ids.map { .test(id: $0) }, page: 2, hasNextPage: true)
+        try await subject.refresh()
+
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first"])
+        #expect(subject.paginationErrorMessage != nil)
+        #expect(subject.nextPage == 2)
+        #expect(!subject.isLoadingMore)
+    }
+
+    @Test func a_repeated_page_number_is_rejected() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        stubPage([.test(id: "second")], page: 2, reportedPage: 1)
+        try await subject.refresh()
+
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first"])
+        #expect(subject.paginationErrorMessage != nil)
+        #expect(subject.nextPage == 2)
+    }
+
+    @Test func older_pages_without_page_numbers_remain_supported() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        given(listPreviewsService).listPreviews(
+            displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+            page: .value(2), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+        ).willReturn(.test(
+            previews: [.test(id: "second")],
+            paginationMetadata: .test(hasNextPage: false, currentPage: nil)
+        ))
+        try await subject.refresh()
+
+        await subject.loadMore()
+
+        #expect(subject.previews.map(\.id) == ["first", "second"])
+        #expect(subject.nextPage == 3)
+        #expect(subject.paginationErrorMessage == nil)
+    }
+
+    @Test func overlapping_scroll_triggers_request_only_one_page() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        let pendingPage = PendingPage()
+        let subject = makeSuspendedSubject(pendingPage: pendingPage)
+        try await subject.refresh()
+        let loadingTask = Task { await subject.loadMore() }
+        await pendingPage.waitUntilRequested()
+
+        await subject.loadMore()
+        #expect(subject.isLoadingMore)
+        await pendingPage.resume(with: .test(
+            previews: [.test(id: "second")],
+            paginationMetadata: .test(hasNextPage: false, currentPage: 2)
+        ))
+        await loadingTask.value
+
+        #expect(subject.previews.map(\.id) == ["first", "second"])
+        #expect(!subject.isLoadingMore)
+    }
+
+    @Test func cancelling_scroll_loading_preserves_the_page_without_an_error() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first")], hasNextPage: true)
+        let pendingPage = PendingPage()
+        let subject = makeSuspendedSubject(pendingPage: pendingPage)
+        try await subject.refresh()
+        let loadingTask = Task { await subject.loadMore() }
+        await pendingPage.waitUntilRequested()
+
+        loadingTask.cancel()
+        await pendingPage.resume(with: .test(
+            previews: [.test(id: "second")],
+            paginationMetadata: .test(hasNextPage: false, currentPage: 2)
+        ))
+        await loadingTask.value
+
+        #expect(subject.previews.map(\.id) == ["first"])
+        #expect(subject.nextPage == 2)
+        #expect(subject.hasMorePreviews)
+        #expect(subject.paginationErrorMessage == nil)
         #expect(!subject.isLoadingMore)
     }
 
@@ -240,12 +369,12 @@ struct DesktopPreviewsModelTests {
             serverEnvironmentService: serverEnvironmentService
         )
         try await subject.refresh()
-        let loadingTask = Task { try await subject.loadMore() }
+        let loadingTask = Task { await subject.loadMore() }
         await pendingPage.waitUntilRequested()
 
         try await subject.selectProject("tuist/other")
         await pendingPage.resume(with: .test(previews: [.test(id: "stale")]))
-        try await loadingTask.value
+        await loadingTask.value
 
         #expect(subject.selectedProjectFullHandle == "tuist/other")
         #expect(subject.previews.map(\.id) == ["other"])
@@ -321,11 +450,20 @@ struct DesktopPreviewsModelTests {
         }
     }
 
+    private func makeSuspendedSubject(pendingPage: PendingPage) -> DesktopPreviewsModel {
+        DesktopPreviewsModel(
+            projectContext: subject.projectContext,
+            listPreviewsService: SuspendedPageService(base: listPreviewsService, pendingPage: pendingPage),
+            serverEnvironmentService: serverEnvironmentService
+        )
+    }
+
     private func stubPage(
         _ previews: [ServerPreview],
         fullHandle: String = "tuist/app",
         page: Int = 1,
-        hasNextPage: Bool = false
+        hasNextPage: Bool = false,
+        reportedPage: Int? = nil
     ) {
         given(listPreviewsService)
             .listPreviews(
@@ -333,7 +471,10 @@ struct DesktopPreviewsModelTests {
                 page: .value(page), pageSize: .any, distinctField: .any,
                 fullHandle: .value(fullHandle), serverURL: .any
             )
-            .willReturn(.test(previews: previews, paginationMetadata: .test(hasNextPage: hasNextPage, currentPage: page)))
+            .willReturn(.test(
+                previews: previews,
+                paginationMetadata: .test(hasNextPage: hasNextPage, currentPage: reportedPage ?? page)
+            ))
     }
 }
 

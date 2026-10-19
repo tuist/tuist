@@ -8,7 +8,7 @@ struct DesktopWorkspaceView: View {
     @Bindable var model: DesktopPreviewsModel
     @Binding var navigation: DesktopNavigation
     let refresh: () -> Void
-    let loadMore: () -> Void
+    let loadMore: () async -> Void
 
     private var selectedPreview: ServerPreview? {
         model.previews.first { $0.id == navigation.activePreviewID }
@@ -200,30 +200,55 @@ struct DesktopWorkspaceView: View {
             .controlSize(.small)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            if model.hasActiveFilters {
+                Text("\(model.filteredPreviews.count) of \(model.previews.count) loaded previews")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+            }
             Divider()
             List(selection: $navigation.selectedPreviewID) {
                 ForEach(model.filteredPreviews) { preview in
                     DesktopPreviewRow(preview: preview)
                         .tag(preview.id)
                 }
+                if model.hasMorePreviews, !model.isLoading {
+                    paginationRow(for: model.nextPage)
+                        .id(model.nextPage)
+                }
             }
             .listStyle(.inset)
             .overlay { emptyState }
-            Divider()
-            HStack {
-                Text("\(model.filteredPreviews.count) of \(model.previews.count) loaded")
+        }
+    }
+
+    private func paginationRow(for page: Int) -> some View {
+        VStack(spacing: 8) {
+            if let message = model.paginationErrorMessage {
+                Text(message)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
-                Spacer()
-                if model.isLoadingMore {
-                    ProgressView().controlSize(.small)
-                } else if model.hasMorePreviews {
-                    Button("Load More", action: loadMore)
-                        .accessibilityIdentifier("load-more-previews")
+                Button("Try Again") {
+                    Task { await loadMore() }
+                }
+            } else {
+                ProgressView("Loading more previews…")
+                    .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .listRowSeparator(.hidden)
+        .selectionDisabled()
+        .background {
+            DesktopPaginationVisibility {
+                Task {
+                    guard model.nextPage == page, model.paginationErrorMessage == nil else { return }
+                    await loadMore()
                 }
             }
-            .font(.caption)
-            .controlSize(.small)
-            .padding(12)
         }
     }
 
@@ -245,20 +270,88 @@ struct DesktopWorkspaceView: View {
                 systemImage: "folder",
                 description: Text("Projects you have access to will appear here.")
             )
-        } else if model.previews.isEmpty {
+        } else if model.previews.isEmpty, !model.hasMorePreviews {
             ContentUnavailableView(
                 "No Previews",
                 systemImage: "app.dashed",
                 description: Text("Share a preview with Tuist to see it here.")
             )
-        } else if navigation.section == .previews, model.filteredPreviews.isEmpty {
+        } else if navigation.section == .previews, model.filteredPreviews.isEmpty, !model.hasMorePreviews {
             ContentUnavailableView {
                 Label("No Matching Previews", systemImage: "line.3.horizontal.decrease.circle")
             } description: {
-                Text("Try another search or track, or load more previews.")
+                Text("Try another search or track.")
             } actions: {
                 Button("Clear Filters") { model.clearFilters() }
             }
+        }
+    }
+}
+
+/// List can instantiate offscreen rows for accessibility, so pagination must observe actual AppKit clipping.
+private struct DesktopPaginationVisibility: NSViewRepresentable {
+    let onVisible: () -> Void
+
+    func makeNSView(context _: Context) -> VisibilityView {
+        let view = VisibilityView()
+        view.setAccessibilityElement(false)
+        view.onVisible = onVisible
+        return view
+    }
+
+    func updateNSView(_ view: VisibilityView, context _: Context) {
+        view.onVisible = onVisible
+    }
+
+    final class VisibilityView: NSView {
+        var onVisible: (() -> Void)?
+        private var wasVisible = false
+
+        deinit { NotificationCenter.default.removeObserver(self) }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observeViewport()
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            observeViewport()
+        }
+
+        override func hitTest(_: NSPoint) -> NSView? { nil }
+
+        private func observeViewport() {
+            let center = NotificationCenter.default
+            center.removeObserver(self)
+            if let clip = enclosingScrollView?.contentView {
+                clip.postsBoundsChangedNotifications = true
+                center.addObserver(
+                    self,
+                    selector: #selector(checkVisibility),
+                    name: NSView.boundsDidChangeNotification,
+                    object: clip
+                )
+                var ancestor: NSView? = self
+                while let view = ancestor, view !== clip {
+                    view.postsFrameChangedNotifications = true
+                    center.addObserver(
+                        self,
+                        selector: #selector(checkVisibility),
+                        name: NSView.frameDidChangeNotification,
+                        object: view
+                    )
+                    ancestor = view.superview
+                }
+            }
+            checkVisibility()
+        }
+
+        @objc private func checkVisibility() {
+            let visible = window != nil && enclosingScrollView != nil && !isHiddenOrHasHiddenAncestor && !visibleRect.isEmpty
+            let becameVisible = visible && !wasVisible
+            wasVisible = visible
+            if becameVisible { onVisible?() }
         }
     }
 }

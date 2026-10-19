@@ -104,9 +104,9 @@ private struct SignedInDesktopView: View {
         }
     }
 
-    private func loadMore() {
-        applicationModel.errorHandling.fireAndHandleError {
-            try await model.loadMore()
+    private func loadMore() async {
+        await MacApplicationEnvironment.withValue {
+            await model.loadMore()
         }
     }
 }

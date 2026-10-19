@@ -27,6 +27,9 @@ final class DesktopPreviewsModel {
     private(set) var hasMorePreviews = false
     var errorMessage: String? { previewErrorMessage ?? projectContext.errorMessage }
     private var previewErrorMessage: String?
+    var paginationErrorMessage: String? { loadedFullHandle == selectedProjectFullHandle ? paginationError : nil }
+    private var paginationError: String?
+    var nextPage: Int { currentPage + 1 }
     var searchText = ""
     var trackFilter: PreviewTrackFilter = .all
 
@@ -121,20 +124,40 @@ final class DesktopPreviewsModel {
         }
     }
 
-    func loadMore() async throws {
+    func loadMore() async {
         guard !isLoading, !isLoadingMore, hasMorePreviews,
               let fullHandle = selectedProjectFullHandle, loadedFullHandle == fullHandle
         else { return }
         let request = requestID
+        let requestedPage = nextPage
         isLoadingMore = true
+        paginationError = nil
         defer {
             if requestID == request { isLoadingMore = false }
         }
-        let page = try await fetchPage(currentPage + 1, fullHandle: fullHandle)
-        guard isCurrent(request), selectedProjectFullHandle == fullHandle else { return }
-        items.append(contentsOf: page.previews)
-        currentPage = page.paginationMetadata.currentPage ?? currentPage + 1
-        hasMorePreviews = page.paginationMetadata.hasNextPage
+        do {
+            let page = try await fetchPage(requestedPage, fullHandle: fullHandle)
+            guard isCurrent(request), selectedProjectFullHandle == fullHandle else { return }
+            var knownIDs = Set(items.map(\.id))
+            let newPreviews = page.previews.filter { knownIDs.insert($0.id).inserted }
+            guard (page.paginationMetadata.currentPage ?? requestedPage) == requestedPage,
+                  !page.paginationMetadata.hasNextPage || !newPreviews.isEmpty
+            else { throw PaginationError.invalidPage }
+            items.append(contentsOf: newPreviews)
+            currentPage = requestedPage
+            hasMorePreviews = page.paginationMetadata.hasNextPage
+        } catch {
+            guard isCurrent(request), selectedProjectFullHandle == fullHandle, !(error is CancellationError) else { return }
+            paginationError = error.localizedDescription
+        }
+    }
+
+    private enum PaginationError: LocalizedError {
+        case invalidPage
+
+        var errorDescription: String? {
+            "The server returned an invalid preview page. Try refreshing previews."
+        }
     }
 
     private func beginRequest() -> UUID {
@@ -142,6 +165,7 @@ final class DesktopPreviewsModel {
         isLoading = true
         isLoadingMore = false
         previewErrorMessage = nil
+        paginationError = nil
         hasMorePreviews = false
         return requestID
     }
@@ -159,7 +183,7 @@ final class DesktopPreviewsModel {
         guard isCurrent(request), selectedProjectFullHandle == fullHandle else { return }
         items = page.previews
         loadedFullHandle = fullHandle
-        currentPage = page.paginationMetadata.currentPage ?? 1
+        currentPage = 1
         hasMorePreviews = page.paginationMetadata.hasNextPage
     }
 

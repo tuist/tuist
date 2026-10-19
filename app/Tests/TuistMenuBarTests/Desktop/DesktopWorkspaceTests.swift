@@ -113,7 +113,78 @@ struct DesktopWorkspaceTests {
         #expect(fixture.model.recentPreviews.count == 3)
     }
 
-    private func makeFixture() async throws -> Fixture {
+    @Test func scrolling_to_the_end_loads_the_next_page_without_a_load_more_button() async throws {
+        let fixture = try await makeFixture(previewCount: 20, hasNextPage: true)
+        given(fixture.previews).listPreviews(
+            displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+            page: .value(2), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+        ).willReturn(.test(
+            previews: (21 ... 40).map { .test(id: "preview-\($0)", displayName: "Sample App \($0)") },
+            paginationMetadata: .test(hasNextPage: true, currentPage: 2)
+        ))
+        given(fixture.previews).listPreviews(
+            displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+            page: .value(3), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+        ).willReturn(.test(
+            previews: [.test(id: "last-page", displayName: "Sample App 41")],
+            paginationMetadata: .test(hasNextPage: false, currentPage: 3)
+        ))
+        fixture.state.navigation.section = .previews
+        let window = makeWindow(fixture: fixture, width: 1280)
+        window.orderFront(nil)
+        defer { window.close() }
+        let tables = try await renderedTables(in: window, expectedCount: 2)
+        let browser = try #require(tables.first { $0.numberOfRows >= 20 })
+        #expect(fixture.model.previews.count == 20)
+
+        browser.scrollRowToVisible(browser.numberOfRows - 1)
+        for _ in 0 ..< 100 where fixture.model.previews.count == 20 {
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(fixture.model.previews.count == 40)
+        #expect(fixture.model.hasMorePreviews)
+        window.contentView?.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(fixture.model.previews.count == 40)
+
+        browser.scrollRowToVisible(browser.numberOfRows - 1)
+        for _ in 0 ..< 100 where fixture.model.previews.count == 40 {
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(fixture.model.previews.count == 41)
+        #expect(!fixture.model.hasMorePreviews)
+        #expect(fixture.model.paginationErrorMessage == nil)
+        #expect(descendants(of: NSButton.self, in: window.contentView!).allSatisfy { $0.title != "Load More" })
+    }
+
+    @Test func filters_with_no_loaded_matches_continue_to_the_next_page() async throws {
+        let fixture = try await makeFixture(previewCount: 20, hasNextPage: true)
+        given(fixture.previews).listPreviews(
+            displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+            page: .value(2), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+        ).willReturn(.test(
+            previews: [.test(id: "next-page", displayName: "Only on next page")],
+            paginationMetadata: .test(hasNextPage: false, currentPage: 2)
+        ))
+        fixture.state.navigation.section = .previews
+        fixture.model.searchText = "Only on next page"
+        let window = makeWindow(fixture: fixture, width: 1280)
+        defer { window.close() }
+        _ = try await renderedTables(in: window, expectedCount: 2)
+        for _ in 0 ..< 100 where fixture.model.filteredPreviews.isEmpty {
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(fixture.model.filteredPreviews.map(\.id) == ["next-page"])
+        #expect(fixture.model.recentPreviews.map(\.id) == ["preview-1", "preview-2", "preview-3"])
+        #expect(!fixture.model.hasMorePreviews)
+    }
+
+    private func makeFixture(previewCount: Int = 5, hasNextPage: Bool = false) async throws -> Fixture {
         let projects = MockListProjectsServicing()
         let previews = MockListPreviewsServicing()
         let environment = MockServerEnvironmentServicing()
@@ -127,7 +198,7 @@ struct DesktopWorkspaceTests {
         given(storage).get(.any as Parameter<RecentProjectsKey.Type>).willReturn([:])
         given(storage).set(.any as Parameter<RecentProjectsKey.Type>, value: .any).willReturn()
         var samplePreviews: [ServerPreview] = []
-        for index in 1 ... 5 {
+        for index in 1 ... previewCount {
             let branch = index == 1 ? "main" : "feature/native-desktop-overview"
             let track: String? = index == 1 ? "beta" : nil
             let insertedAt = Date().addingTimeInterval(-Double(index) * 3600)
@@ -141,9 +212,12 @@ struct DesktopWorkspaceTests {
         given(previews)
             .listPreviews(
                 displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
-                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+                page: .value(1), pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
             )
-            .willReturn(.test(previews: samplePreviews))
+            .willReturn(.test(
+                previews: samplePreviews,
+                paginationMetadata: .test(hasNextPage: hasNextPage, currentPage: 1)
+            ))
         let context = ProjectContext(
             scope: "workspace-test", listProjectsService: projects,
             serverEnvironmentService: environment, appStorage: storage
@@ -152,7 +226,7 @@ struct DesktopWorkspaceTests {
             projectContext: context, listPreviewsService: previews, serverEnvironmentService: environment
         )
         try await model.refresh()
-        return Fixture(model: model, state: WorkspaceState())
+        return Fixture(model: model, state: WorkspaceState(), previews: previews)
     }
 
     private func makeWindow(fixture: Fixture, width: Double) -> NSWindow {
@@ -165,7 +239,7 @@ struct DesktopWorkspaceTests {
         window.contentView = NSHostingView(rootView: DesktopWorkspaceView(
             accountHandle: "sample-user", model: fixture.model,
             navigation: Binding(get: { fixture.state.navigation }, set: { fixture.state.navigation = $0 }),
-            refresh: {}, loadMore: {}
+            refresh: {}, loadMore: { await fixture.model.loadMore() }
         )
         .environmentObject(DeviceService(taskStatusReporter: TaskStatusReporter(), appStorage: MockAppStoring()))
         .environmentObject(ErrorHandling())
@@ -206,6 +280,7 @@ struct DesktopWorkspaceTests {
     private struct Fixture {
         let model: DesktopPreviewsModel
         let state: WorkspaceState
+        let previews: MockListPreviewsServicing
     }
 }
 
