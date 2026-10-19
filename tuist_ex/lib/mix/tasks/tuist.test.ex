@@ -35,7 +35,10 @@ defmodule Mix.Tasks.Tuist.Test do
   Use `--prepare-only` to download a shard's build without starting the
   application or running tests. This lets database setup run in a separate
   process. Then use `--no-download` to run the shard against that prepared
-  build. Both options require a shard index.
+  build. Both options require a shard index. `--no-download` explicitly opts
+  out of the project's test preparation alias: run that preparation separately
+  with compilation disabled. Ordinary runs, including a shard that downloads
+  and runs in one command, preserve the project's alias behavior.
 
   On a shard that uses Mix's coverage tool (see "Coverage"), the tool exports
   the coverage (`--export-coverage shard-<index>`, unless one is given)
@@ -92,6 +95,7 @@ defmodule Mix.Tasks.Tuist.Test do
   @formatter ExUnitFormatter
   @preferred_cli_env :test
   @retry_results "TUIST_EX_RETRY_RESULTS"
+  @prepared_build "TUIST_EX_PREPARED_BUILD"
   @suite_failed "\"mix test\" failed"
 
   def run(args) do
@@ -130,7 +134,7 @@ defmodule Mix.Tasks.Tuist.Test do
                     run_deferred(options, test_args)
                   else
                     configure(options)
-                    run_test(test_args)
+                    run_test(test_args, options)
                   end
 
                 retries ->
@@ -146,8 +150,9 @@ defmodule Mix.Tasks.Tuist.Test do
       # what its parent selected: record what the tests did for the parent,
       # which reports the whole run.
       path ->
+        options = Keyword.put(options, :prepared_build, System.get_env(@prepared_build) == "1")
         configure(Keyword.put(options, :mode, {:collect, path}))
-        run_test(test_args)
+        run_test(test_args, options)
     end
   end
 
@@ -217,7 +222,11 @@ defmodule Mix.Tasks.Tuist.Test do
           )
 
           options =
-            Keyword.merge(options, shard_plan_id: shard["shard_plan_id"], shard_index: index)
+            Keyword.merge(options,
+              shard_plan_id: shard["shard_plan_id"],
+              shard_index: index,
+              prepared_build: options[:no_download] == true
+            )
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
         end
@@ -307,7 +316,25 @@ defmodule Mix.Tasks.Tuist.Test do
   defp shard_unwrap({:error, reason}) when is_binary(reason), do: Mix.raise(reason)
   defp shard_unwrap({:error, reason}), do: Mix.raise("Tuist sharding failed: #{inspect(reason)}")
 
-  defp run_test(args), do: Args.run_wrapped("test", Mix.Tasks.Test, args)
+  defp run_test(args, options) do
+    if options[:prepared_build] == true do
+      preparation =
+        Mix.Project.config()[:aliases][:test]
+        |> List.wrap()
+        |> Enum.reject(&(&1 in ["test", "tuist.test"]))
+
+      if preparation != [] do
+        Mix.shell().info(
+          "Tuist: --no-download skips the project's test preparation alias; " <>
+            "run its setup separately with compilation disabled."
+        )
+      end
+
+      Mix.Tasks.Test.run(args)
+    else
+      Args.run_wrapped("test", Mix.Tasks.Test, args)
+    end
+  end
 
   # Coverage is read when each suite finishes and sent with its run, and the
   # Git history goes with the run too, so the runs wait for the suite to end;
@@ -317,16 +344,24 @@ defmodule Mix.Tasks.Tuist.Test do
     history = collect_history(options)
 
     try do
-      run_test(test_args)
+      run_test(test_args, options)
     after
       submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), [], options, history)
     end
   end
 
   defp run_with_retries(options, test_args, retries) do
+    if options[:prepared_build] == true and
+         Enum.any?(test_args, &(&1 == "+" or String.ends_with?(&1, ","))) do
+      Mix.raise(
+        ~s(Prepared shard retries cannot forward "+" or arguments ending in ","; ) <>
+          "Mix treats them as command separators. Disable retries or change those arguments."
+      )
+    end
+
     configure(Keyword.put(options, :mode, {:defer, self()}))
     history = collect_history(options)
-    suite = run_suite(test_args)
+    suite = run_suite(test_args, options)
     # One per suite that ran: an umbrella runs one for each application. The
     # first run's coverage is the run's: retries never carry `--cover`.
     deferred = summarize_coverage(ExUnitFormatter.take_deferred())
@@ -338,7 +373,7 @@ defmodule Mix.Tasks.Tuist.Test do
       deferred != [] and not Enum.any?(deferred, fn {_payload, _opts, aborted?} -> aborted? end)
 
     {suite, attempts} =
-      if suite == :failed and complete?, do: retry(test_args, retries), else: {suite, []}
+      if suite == :failed and complete?, do: retry(test_args, retries, options), else: {suite, []}
 
     submit_runs(deferred, attempts, options, history)
 
@@ -435,15 +470,15 @@ defmodule Mix.Tasks.Tuist.Test do
   # With `--raise`, a failing suite raises instead of registering an exit
   # hook that cannot be withdrawn, which is what lets a successful retry turn
   # the run green. Anything else `mix test` raises is not ours to handle.
-  defp run_suite(test_args) do
-    run_test(if("--raise" in test_args, do: test_args, else: test_args ++ ["--raise"]))
+  defp run_suite(test_args, options) do
+    run_test(if("--raise" in test_args, do: test_args, else: test_args ++ ["--raise"]), options)
     :passed
   rescue
     error in Mix.Error ->
       if error.message == @suite_failed, do: :failed, else: reraise(error, __STACKTRACE__)
   end
 
-  defp retry(test_args, retries) do
+  defp retry(test_args, retries, options) do
     # The retries run in new processes that start the application again. This
     # one is done with it, and leaving it running would keep hold of whatever
     # it owns exclusively, such as a port a web server listens on.
@@ -452,7 +487,7 @@ defmodule Mix.Tasks.Tuist.Test do
     Enum.reduce_while(1..retries, {:failed, []}, fn attempt, {_suite, attempts} ->
       Mix.shell().info("\nRetrying the failed tests (attempt #{attempt} of #{retries})\n")
 
-      case retry_once(test_args) do
+      case retry_once(test_args, options) do
         {:ok, status, records} ->
           attempts = attempts ++ [records]
           if status == 0, do: {:halt, {:passed, attempts}}, else: {:cont, {:failed, attempts}}
@@ -485,15 +520,26 @@ defmodule Mix.Tasks.Tuist.Test do
   # A fresh process, like running `mix test --failed` by hand: the test
   # helper, the application and every module start clean, which rerunning in
   # this process cannot guarantee.
-  defp retry_once(test_args) do
-    TempDir.with_dir("tuist-ex-retry", &retry_once(test_args, Path.join(&1, "results")))
+  defp retry_once(test_args, options) do
+    TempDir.with_dir("tuist-ex-retry", &retry_once(test_args, Path.join(&1, "results"), options))
   end
 
-  defp retry_once(test_args, path) do
+  defp retry_once(test_args, path, options) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
         args = ["tuist.test", "--failed" | retry_args(test_args)]
-        status = Subprocess.run(mix, args, [{@retry_results, path}, {"MIX_ENV", "test"}])
+
+        args =
+          if options[:prepared_build] == true,
+            do: ["do", "deps.loadpaths", "--no-compile", "--no-deps-check", "+" | args],
+            else: args
+
+        status =
+          Subprocess.run(mix, args, [
+            {@retry_results, path},
+            {@prepared_build, if(options[:prepared_build] == true, do: "1", else: "0")},
+            {"MIX_ENV", "test"}
+          ])
 
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
