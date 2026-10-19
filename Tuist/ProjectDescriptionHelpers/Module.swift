@@ -1030,6 +1030,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.oidc.targetName, condition: .when([.macos])),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .target(name: Module.uniqueIDGenerator.targetName),

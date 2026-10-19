@@ -5,7 +5,7 @@ import Foundation
 import Mockable
 
 @Mockable
-protocol OIDCTokenFetching {
+protocol OIDCTokenFetching: Sendable {
     func fetchToken(requestURL: String, requestToken: String, audience: String) async throws -> String
 }
 

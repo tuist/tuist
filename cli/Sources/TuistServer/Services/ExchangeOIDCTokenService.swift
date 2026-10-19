@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIRuntime
 
 @Mockable
-public protocol ExchangeOIDCTokenServicing {
+public protocol ExchangeOIDCTokenServicing: Sendable {
     func exchangeOIDCToken(oidcToken: String, serverURL: URL) async throws -> String
 }
 

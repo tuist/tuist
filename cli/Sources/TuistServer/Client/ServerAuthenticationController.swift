@@ -65,7 +65,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     case project(String)
 
     /// The token represents an account session without a refresh token, typically obtained via OIDC
-    /// from a CI provider. These tokens cannot be refreshed and are valid until expiry.
+    /// from a CI provider. They are renewed by exchanging a new OIDC token when the CI provider can mint one.
     case account(JWT)
 
     /// It returns the value of the token
@@ -198,6 +198,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
+    private let oidcAccountTokenRefresher: OIDCAccountTokenRefreshing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
@@ -215,12 +216,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            oidcAccountTokenRefresher: OIDCAccountTokenRefreshing = OIDCAccountTokenRefresher(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.oidcAccountTokenRefresher = oidcAccountTokenRefresher
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -229,15 +232,21 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            oidcAccountTokenRefresher: OIDCAccountTokenRefreshing = OIDCAccountTokenRefresher(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.oidcAccountTokenRefresher = oidcAccountTokenRefresher
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
     #endif
+
+    /// How long before expiry an OIDC-exchanged account token is renewed, so that a request
+    /// doesn't start with a token that expires while it's in flight.
+    static let accountTokenRenewalMargin: TimeInterval = 300
 
     @discardableResult public func authenticationToken(serverURL: URL)
         async throws -> AuthenticationToken?
@@ -376,6 +385,18 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         #endif
 
+        let storedToken = try await fetchTokenFromStore(serverURL: serverURL)
+
+        // Renewing an account token mints an independent token instead of rotating a shared refresh
+        // token, so concurrent renewals are harmless and don't need the refresh locks below.
+        if case let .account(accessToken) = storedToken {
+            return try await accountTokenRenewingIfNeeded(
+                serverURL: serverURL,
+                accessToken: accessToken,
+                forceRefresh: forceRefresh
+            )
+        }
+
         if forceRefresh, locking {
             return try await cachedValueStore.getValue(
                 key: forceRefreshLockKey(serverURL: serverURL)
@@ -394,7 +415,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
 
         switch (
-            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh),
+            tokenStatus(token: storedToken, forceRefresh: forceRefresh),
             inBackground,
             locking
         ) {
@@ -461,6 +482,43 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             #endif
         case (.expired, true, false): // Background without locking
             throw ServerAuthenticationControllerError.cantRefreshWithLockingAndBackground
+        }
+    }
+
+    private func accountTokenRenewingIfNeeded(
+        serverURL: URL,
+        accessToken: JWT,
+        forceRefresh: Bool
+    ) async throws -> AuthenticationToken? {
+        let expiresIn = accessToken.expiryDate.timeIntervalSince(Date.now())
+        let isExpired = expiresIn < 30
+        guard forceRefresh || expiresIn < Self.accountTokenRenewalMargin,
+              oidcAccountTokenRefresher.canRefreshAccountToken()
+        else {
+            recordTokenStatus(isExpired ? "expired_account" : "valid_account", accessToken: accessToken)
+            return isExpired ? nil : .account(accessToken)
+        }
+
+        Logger.current.debug(
+            "Account token renewal through OIDC started \(expirationDescription(accessToken: accessToken, refreshToken: nil))"
+        )
+        do {
+            let newAccessToken = try await oidcAccountTokenRefresher.refreshAccountToken(serverURL: serverURL)
+            let token = try JWT.parse(newAccessToken)
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: newAccessToken),
+                serverURL: serverURL
+            )
+            Logger.current.debug(
+                "Account token renewal through OIDC succeeded \(expirationDescription(accessToken: token, refreshToken: nil))"
+            )
+            return .account(token)
+        } catch {
+            if isExpired { throw error }
+            Logger.current.warning(
+                "Renewing the account token through OIDC failed, using the current token until it expires: \(error.localizedDescription)"
+            )
+            return .account(accessToken)
         }
     }
 
@@ -551,7 +609,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #endif
 
     func tokenStatus(serverURL: URL, forceRefresh: Bool) async throws -> AuthenticationTokenStatus {
-        guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+        tokenStatus(token: try await fetchTokenFromStore(serverURL: serverURL), forceRefresh: forceRefresh)
+    }
+
+    private func tokenStatus(token: AuthenticationToken?, forceRefresh: Bool) -> AuthenticationTokenStatus {
+        guard let token else {
             recordTokenStatus("absent")
             return .absent
         }
