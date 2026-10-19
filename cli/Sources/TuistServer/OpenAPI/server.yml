@@ -71,6 +71,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        elixir_version:
+          description: Optional Mix client runtime metadata.
+          maxLength: 128
+          type: string
+          x-struct:
+          x-validate:
         execution_mode:
           description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
           enum:
@@ -132,6 +138,33 @@ components:
           description: The zero-based shard index for this test result.
           nullable: true
           type: integer
+          x-struct:
+          x-validate:
+        custom_metadata:
+          description: Optional client metadata accepted for wire compatibility; not persisted on test runs.
+          properties:
+            tags:
+              items:
+                maxLength: 50
+                pattern: ^[a-zA-Z0-9_-]+$
+                type: string
+                x-struct:
+                x-validate:
+              maxItems: 50
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                maxLength: 500
+                type: string
+                x-struct:
+                x-validate:
+              maxProperties: 20
+              type: object
+              x-struct:
+              x-validate:
+          type: object
           x-struct:
           x-validate:
         only_test_identifiers:
@@ -267,6 +300,12 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        otp_version:
+          description: Optional Mix client runtime metadata.
+          maxLength: 128
+          type: string
+          x-struct:
+          x-validate:
         history_source:
           description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
           enum:
@@ -335,6 +374,12 @@ components:
           x-validate:
         gradle_build_id:
           description: The UUID of an associated Gradle build.
+          type: string
+          x-struct:
+          x-validate:
+        mix_env:
+          description: Optional Mix client environment metadata.
+          maxLength: 128
           type: string
           x-struct:
           x-validate:
@@ -14616,6 +14661,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                elixir_version:
+                  description: Optional Mix client runtime metadata.
+                  maxLength: 128
+                  type: string
+                  x-struct:
+                  x-validate:
                 execution_mode:
                   description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                   enum:
@@ -14677,6 +14728,33 @@ paths:
                   description: The zero-based shard index for this test result.
                   nullable: true
                   type: integer
+                  x-struct:
+                  x-validate:
+                custom_metadata:
+                  description: Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                  properties:
+                    tags:
+                      items:
+                        maxLength: 50
+                        pattern: ^[a-zA-Z0-9_-]+$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxItems: 50
+                      type: array
+                      x-struct:
+                      x-validate:
+                    values:
+                      additionalProperties:
+                        maxLength: 500
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxProperties: 20
+                      type: object
+                      x-struct:
+                      x-validate:
+                  type: object
                   x-struct:
                   x-validate:
                 only_test_identifiers:
@@ -14812,6 +14890,12 @@ paths:
                   type: boolean
                   x-struct:
                   x-validate:
+                otp_version:
+                  description: Optional Mix client runtime metadata.
+                  maxLength: 128
+                  type: string
+                  x-struct:
+                  x-validate:
                 history_source:
                   description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                   enum:
@@ -14880,6 +14964,12 @@ paths:
                   x-validate:
                 gradle_build_id:
                   description: The UUID of an associated Gradle build.
+                  type: string
+                  x-struct:
+                  x-validate:
+                mix_env:
+                  description: Optional Mix client environment metadata.
+                  maxLength: 128
                   type: string
                   x-struct:
                   x-validate:

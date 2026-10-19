@@ -35,7 +35,8 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
 
   @test_fields ~w(id duration status is_ci model_identifier scheme ran_at macos_version xcode_version
                    git_branch git_commit_sha git_ref ci_provider ci_run_id ci_project_handle ci_host
-                   build_system test_modules execution_mode only_test_identifiers skip_test_identifiers)a
+                   build_system test_modules execution_mode only_test_identifiers skip_test_identifiers
+                   contract_version elixir_version otp_version mix_env custom_metadata)a
 
   def init(opts), do: opts
 

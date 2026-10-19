@@ -4058,6 +4058,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage_storage_key`.
             public var xcode_coverage_storage_key: Swift.String?
+            /// Optional Mix client runtime metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/elixir_version`.
+            public var elixir_version: Swift.String?
             /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
@@ -4122,6 +4126,53 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
             public var shard_index: Swift.Int?
+            /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/values`.
+                public var values: Components.Schemas.TestParams.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags:
+                ///   - values:
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.TestParams.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata`.
+            public var custom_metadata: Components.Schemas.TestParams.custom_metadataPayload?
             /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
@@ -4291,6 +4342,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_dirty`.
             public var git_dirty: Swift.Bool?
+            /// Optional Mix client runtime metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/otp_version`.
+            public var otp_version: Swift.String?
             /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
@@ -4355,6 +4410,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Optional Mix client environment metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/mix_env`.
+            public var mix_env: Swift.String?
             /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_enabled`.
@@ -4952,6 +5011,7 @@ public enum Components {
             /// - Parameters:
             ///   - git_branch: The git branch.
             ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+            ///   - elixir_version: Optional Mix client runtime metadata.
             ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
             ///   - git_object_format: The repository's Git object format.
             ///   - scheme: The scheme used for the test run.
@@ -4962,9 +5022,11 @@ public enum Components {
             ///   - is_pull_request: Whether the run was for a pull or merge request.
             ///   - status: The status of the test run.
             ///   - shard_index: The zero-based shard index for this test result.
+            ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
+            ///   - otp_version: Optional Mix client runtime metadata.
             ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
@@ -4977,6 +5039,7 @@ public enum Components {
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///   - pull_request_number: The pull or merge request number, when known.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - mix_env: Optional Mix client environment metadata.
             ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///   - stress_new_tests:
             ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -4995,6 +5058,7 @@ public enum Components {
             public init(
                 git_branch: Swift.String? = nil,
                 xcode_coverage_storage_key: Swift.String? = nil,
+                elixir_version: Swift.String? = nil,
                 execution_mode: Components.Schemas.TestParams.execution_modePayload? = nil,
                 git_object_format: Components.Schemas.TestParams.git_object_formatPayload? = nil,
                 scheme: Swift.String? = nil,
@@ -5005,9 +5069,11 @@ public enum Components {
                 is_pull_request: Swift.Bool? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 shard_index: Swift.Int? = nil,
+                custom_metadata: Components.Schemas.TestParams.custom_metadataPayload? = nil,
                 only_test_identifiers: [Swift.String]? = nil,
                 coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload? = nil,
                 git_dirty: Swift.Bool? = nil,
+                otp_version: Swift.String? = nil,
                 history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
                 coverage: Components.Schemas.Coverage? = nil,
                 build_run_id: Swift.String? = nil,
@@ -5020,6 +5086,7 @@ public enum Components {
                 ci_project_handle: Swift.String? = nil,
                 pull_request_number: Swift.Int? = nil,
                 gradle_build_id: Swift.String? = nil,
+                mix_env: Swift.String? = nil,
                 coverage_enabled: Swift.Bool? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 xcode_coverage_partial: Swift.Bool? = nil,
@@ -5038,6 +5105,7 @@ public enum Components {
             ) {
                 self.git_branch = git_branch
                 self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                self.elixir_version = elixir_version
                 self.execution_mode = execution_mode
                 self.git_object_format = git_object_format
                 self.scheme = scheme
@@ -5048,9 +5116,11 @@ public enum Components {
                 self.is_pull_request = is_pull_request
                 self.status = status
                 self.shard_index = shard_index
+                self.custom_metadata = custom_metadata
                 self.only_test_identifiers = only_test_identifiers
                 self.coverage_evidence = coverage_evidence
                 self.git_dirty = git_dirty
+                self.otp_version = otp_version
                 self.history_source = history_source
                 self.coverage = coverage
                 self.build_run_id = build_run_id
@@ -5063,6 +5133,7 @@ public enum Components {
                 self.ci_project_handle = ci_project_handle
                 self.pull_request_number = pull_request_number
                 self.gradle_build_id = gradle_build_id
+                self.mix_env = mix_env
                 self.coverage_enabled = coverage_enabled
                 self.stress_new_tests = stress_new_tests
                 self.xcode_coverage_partial = xcode_coverage_partial
@@ -5082,6 +5153,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case git_branch
                 case xcode_coverage_storage_key
+                case elixir_version
                 case execution_mode
                 case git_object_format
                 case scheme
@@ -5092,9 +5164,11 @@ public enum Components {
                 case is_pull_request
                 case status
                 case shard_index
+                case custom_metadata
                 case only_test_identifiers
                 case coverage_evidence
                 case git_dirty
+                case otp_version
                 case history_source
                 case coverage
                 case build_run_id
@@ -5107,6 +5181,7 @@ public enum Components {
                 case ci_project_handle
                 case pull_request_number
                 case gradle_build_id
+                case mix_env
                 case coverage_enabled
                 case stress_new_tests
                 case xcode_coverage_partial
@@ -30324,6 +30399,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage_storage_key`.
                     public var xcode_coverage_storage_key: Swift.String?
+                    /// Optional Mix client runtime metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/elixir_version`.
+                    public var elixir_version: Swift.String?
                     /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
@@ -30388,6 +30467,53 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
                     public var shard_index: Swift.Int?
+                    /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata`.
+                    public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/tags`.
+                        public var tags: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/values`.
+                        public struct valuesPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Swift.String]
+                            /// Creates a new `valuesPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Swift.String] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/values`.
+                        public var values: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                        /// Creates a new `custom_metadataPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tags:
+                        ///   - values:
+                        public init(
+                            tags: [Swift.String]? = nil,
+                            values: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                        ) {
+                            self.tags = tags
+                            self.values = values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case tags
+                            case values
+                        }
+                    }
+                    /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata`.
+                    public var custom_metadata: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload?
                     /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
@@ -30557,6 +30683,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_dirty`.
                     public var git_dirty: Swift.Bool?
+                    /// Optional Mix client runtime metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/otp_version`.
+                    public var otp_version: Swift.String?
                     /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
@@ -30621,6 +30751,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Optional Mix client environment metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/mix_env`.
+                    public var mix_env: Swift.String?
                     /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_enabled`.
@@ -31218,6 +31352,7 @@ public enum Operations {
                     /// - Parameters:
                     ///   - git_branch: The git branch.
                     ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+                    ///   - elixir_version: Optional Mix client runtime metadata.
                     ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                     ///   - git_object_format: The repository's Git object format.
                     ///   - scheme: The scheme used for the test run.
@@ -31228,9 +31363,11 @@ public enum Operations {
                     ///   - is_pull_request: Whether the run was for a pull or merge request.
                     ///   - status: The status of the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
+                    ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
+                    ///   - otp_version: Optional Mix client runtime metadata.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
@@ -31243,6 +31380,7 @@ public enum Operations {
                     ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///   - pull_request_number: The pull or merge request number, when known.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - mix_env: Optional Mix client environment metadata.
                     ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///   - stress_new_tests:
                     ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -31261,6 +31399,7 @@ public enum Operations {
                     public init(
                         git_branch: Swift.String? = nil,
                         xcode_coverage_storage_key: Swift.String? = nil,
+                        elixir_version: Swift.String? = nil,
                         execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload? = nil,
                         git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? = nil,
                         scheme: Swift.String? = nil,
@@ -31271,9 +31410,11 @@ public enum Operations {
                         is_pull_request: Swift.Bool? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         shard_index: Swift.Int? = nil,
+                        custom_metadata: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload? = nil,
                         only_test_identifiers: [Swift.String]? = nil,
                         coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? = nil,
                         git_dirty: Swift.Bool? = nil,
+                        otp_version: Swift.String? = nil,
                         history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
                         coverage: Components.Schemas.Coverage? = nil,
                         build_run_id: Swift.String? = nil,
@@ -31286,6 +31427,7 @@ public enum Operations {
                         ci_project_handle: Swift.String? = nil,
                         pull_request_number: Swift.Int? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        mix_env: Swift.String? = nil,
                         coverage_enabled: Swift.Bool? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         xcode_coverage_partial: Swift.Bool? = nil,
@@ -31304,6 +31446,7 @@ public enum Operations {
                     ) {
                         self.git_branch = git_branch
                         self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                        self.elixir_version = elixir_version
                         self.execution_mode = execution_mode
                         self.git_object_format = git_object_format
                         self.scheme = scheme
@@ -31314,9 +31457,11 @@ public enum Operations {
                         self.is_pull_request = is_pull_request
                         self.status = status
                         self.shard_index = shard_index
+                        self.custom_metadata = custom_metadata
                         self.only_test_identifiers = only_test_identifiers
                         self.coverage_evidence = coverage_evidence
                         self.git_dirty = git_dirty
+                        self.otp_version = otp_version
                         self.history_source = history_source
                         self.coverage = coverage
                         self.build_run_id = build_run_id
@@ -31329,6 +31474,7 @@ public enum Operations {
                         self.ci_project_handle = ci_project_handle
                         self.pull_request_number = pull_request_number
                         self.gradle_build_id = gradle_build_id
+                        self.mix_env = mix_env
                         self.coverage_enabled = coverage_enabled
                         self.stress_new_tests = stress_new_tests
                         self.xcode_coverage_partial = xcode_coverage_partial
@@ -31348,6 +31494,7 @@ public enum Operations {
                     public enum CodingKeys: String, CodingKey {
                         case git_branch
                         case xcode_coverage_storage_key
+                        case elixir_version
                         case execution_mode
                         case git_object_format
                         case scheme
@@ -31358,9 +31505,11 @@ public enum Operations {
                         case is_pull_request
                         case status
                         case shard_index
+                        case custom_metadata
                         case only_test_identifiers
                         case coverage_evidence
                         case git_dirty
+                        case otp_version
                         case history_source
                         case coverage
                         case build_run_id
@@ -31373,6 +31522,7 @@ public enum Operations {
                         case ci_project_handle
                         case pull_request_number
                         case gradle_build_id
+                        case mix_env
                         case coverage_enabled
                         case stress_new_tests
                         case xcode_coverage_partial
