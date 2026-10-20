@@ -377,6 +377,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
   promotion and publication.
+  Before any detach, after the drain and the teardown prune (both ask the
+  proxy), `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the
+  CLI installed during the job (the image's own agents are `dev.tuist.*`) and
+  waits up to 10 s for each process to exit, since `launchctl bootout` returns
+  first. These agents outlive the runner's process cleanup and restart on an
+  unsuccessful exit, so they are booted out, not killed. The proxy holds the
+  compilation-cache store open, and a Tuist installed onto a custom volume (for
+  example mise's install directory) runs from it; either keeps a volume busy, so its clean detach fails with
+  EBUSY.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what

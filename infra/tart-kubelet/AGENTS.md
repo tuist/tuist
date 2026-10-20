@@ -60,6 +60,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
+  `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
+  runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
   Admission, convergence and cache eviction also preserve the host's 15% physical
