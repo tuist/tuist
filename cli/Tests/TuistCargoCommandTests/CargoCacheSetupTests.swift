@@ -13,17 +13,13 @@ struct CargoCacheSetupTests {
     @Test(.inTemporaryDirectory) func preparesPrivateCredentialsAndUsesTheSharedCacheDirectory() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let setup = service(root)
-        let context = context(root, environment: [
-            "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push", "GITHUB_REF_TYPE": "branch",
-            "GITHUB_REF_PROTECTED": "true", "TUIST_CARGO_CACHE_STALE": "old",
-        ])
+        let context = context(root, environment: ["TUIST_CARGO_CACHE_STALE": "old"])
         let session = try #require(await setup.prepare(context, root: URL(fileURLWithPath: root.pathString)))
         defer { session.refresh?.cancel() }
         let path = try #require(session.environment["TUIST_CARGO_CACHE_DIR"])
         #expect(path.hasPrefix(root.appending(components: "cache", "Cargo").pathString + "/"))
         #expect(session.environment["TUIST_CARGO_CACHE_REMOTE_URL"] == "http://localhost:9000")
         #expect(session.environment["TUIST_CARGO_CACHE_NAMESPACE"] == "acme/app")
-        #expect(session.environment["TUIST_CARGO_CACHE_UPLOAD"] == "1")
         #expect(session.environment["TUIST_CARGO_CACHE_STALE"] == nil)
         let file = try #require(session.environment["TUIST_CARGO_CACHE_TOKEN_FILE"])
         #expect(try String(contentsOfFile: file, encoding: .utf8) == "fixture-token")
@@ -34,7 +30,7 @@ struct CargoCacheSetupTests {
         #expect(repeated.environment["TUIST_CARGO_CACHE_DIR"] == path)
     }
 
-    @Test(.inTemporaryDirectory) func doesNotInheritRemoteWritePermission() async throws {
+    @Test(.inTemporaryDirectory) func clearsTheObsoleteInheritedUploadFlag() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let session = try #require(await service(root).prepare(
             context(root, environment: ["TUIST_CARGO_CACHE_UPLOAD": "1"]), root: URL(fileURLWithPath: root.pathString)

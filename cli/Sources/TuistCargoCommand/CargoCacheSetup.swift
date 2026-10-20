@@ -60,11 +60,6 @@ struct CargoCacheSetup {
                 environment["TUIST_CARGO_CACHE_REMOTE_URL"] = endpoint.absoluteString
                 environment["TUIST_CARGO_CACHE_NAMESPACE"] = context.reporting.handle.lowercased()
                 environment["TUIST_CARGO_CACHE_TOKEN_FILE"] = file.path
-                if environment["GITHUB_ACTIONS"] == "true", environment["GITHUB_EVENT_NAME"] == "push",
-                   environment["GITHUB_REF_TYPE"] == "branch", environment["GITHUB_REF_PROTECTED"] == "true"
-                {
-                    environment["TUIST_CARGO_CACHE_UPLOAD"] = "1"
-                }
                 refresh = Task {
                     while !Task.isCancelled {
                         do {

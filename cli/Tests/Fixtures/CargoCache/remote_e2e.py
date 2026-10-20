@@ -101,10 +101,10 @@ def main():
     for key in ("RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER", "OUT_DIR",
                 "TUIST_CARGO_ACTIVE", "TUIST_CARGO_INNER_WRAPPER", "TUIST_SHARD_INDEX", "TUIST_SHARD_PLAN_ID"):
         environment.pop(key, None)
-    # Exercise write eligibility locally, without claiming this ran on GitHub or inventing a run URL.
-    environment.update(GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="push", GITHUB_REF_TYPE="branch",
-                       GITHUB_REF_PROTECTED="true", CARGO_INCREMENTAL="0", TUIST_DEBUG="1",
-                       XDG_CACHE_HOME=str(root / "cache-home"))
+    for key in tuple(environment):
+        if key.startswith(("GITHUB_", "TUIST_CARGO_CACHE_")):
+            environment.pop(key)
+    environment.update(CARGO_INCREMENTAL="0", TUIST_DEBUG="1", XDG_CACHE_HOME=str(root / "cache-home"))
     fixture, checkout = Path(__file__).resolve().parent, root / "checkout"
     checkout.mkdir()
     shutil.copytree(fixture / "src", checkout / "src")

@@ -288,6 +288,16 @@ struct CargoCompilationCacheTests {
         #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
     }
 
+    @Test(.inTemporaryDirectory) func deniedRemoteWritesPreserveLocalCaching() async throws {
+        let fixture = try await fixture()
+        let remote = CargoMemoryCache(denyWrites: true)
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
+        #expect(await remote.publications == 0)
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally())
+        #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
+    }
+
     @Test(.inTemporaryDirectory) func partialUploadsNeverPublishAnActionResult() async throws {
         let fixture = try await fixture()
         let remote = CargoMemoryCache(rejectUploads: true)
@@ -339,7 +349,7 @@ struct CargoCompilationCacheTests {
             "CARGO_HOME": root.appendingPathComponent("cargo").path, "CARGO_MANIFEST_DIR": package.path,
             "TUIST_CARGO_CACHE_DIR": root.appendingPathComponent("cache").path,
             "TUIST_CARGO_SESSION": root.appendingPathComponent("session").path,
-            "TUIST_CARGO_STARTED": String(Date().timeIntervalSince1970), "TUIST_CARGO_CACHE_UPLOAD": "1",
+            "TUIST_CARGO_STARTED": String(Date().timeIntervalSince1970),
         ]
         let arguments = [
             compiler.path,
@@ -400,11 +410,16 @@ private actor CargoMemoryCache: REAPICacheStoring {
     private var result: REAPI.ActionResult?
     private var blobs: [REAPI.Digest: Data] = [:]
     private let rejectUploads: Bool
+    private let denyWrites: Bool
     private var corrupt = false
     private(set) var publications = 0
     private(set) var reads = 0
 
-    init(rejectUploads: Bool = false) { self.rejectUploads = rejectUploads }
+    init(rejectUploads: Bool = false, denyWrites: Bool = false) {
+        self.rejectUploads = rejectUploads
+        self.denyWrites = denyWrites
+    }
+
     func actionResult(for _: REAPI.Digest) async throws -> REAPI.ActionResult? {
         reads += 1
         return result
@@ -418,6 +433,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
     }
 
     func uploadAvailableBlobs(_ files: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
+        if denyWrites { throw REAPICacheError.uploadFailed(reason: "Permission denied") }
         if rejectUploads { return REAPIBlobUpload(available: []) }
         for (digest, file) in files {
             blobs[digest] = try Data(contentsOf: file)

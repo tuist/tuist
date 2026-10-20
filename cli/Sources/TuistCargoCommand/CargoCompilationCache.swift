@@ -101,7 +101,7 @@ struct CargoCompilationCache {
         let localStarted = Date()
         try write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
-        guard let remote, invocation.environment["TUIST_CARGO_CACHE_UPLOAD"] == "1" else { return }
+        guard let remote else { return }
         let started = Date()
         do {
             for data in [command, action, Data()] {
