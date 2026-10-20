@@ -287,16 +287,26 @@ defmodule TuistEx.Analytics.Coverage do
         :ok
 
       modules ->
+        # Each module's counters are read right before its own swap: the
+        # application's processes keep calling it while the others swap.
         before =
-          for module <- modules,
-              :code.is_loaded(module) != false,
-              :code.get_coverage_mode(module) != :none,
-              {line, count} <- :code.get_coverage(:line, module),
-              count > 0,
-              do: {{module, line}, count}
+          Enum.flat_map(modules, fn module ->
+            counts = called_lines(module)
+            Mimic.calls(module, :module_info, 0)
+            counts
+          end)
 
         :persistent_term.put(@before_swap, before)
-        Enum.each(modules, &Mimic.calls(&1, :module_info, 0))
+    end
+  end
+
+  defp called_lines(module) do
+    if :code.is_loaded(module) != false and :code.get_coverage_mode(module) != :none do
+      for {line, count} <- :code.get_coverage(:line, module),
+          count > 0,
+          do: {{module, line}, count}
+    else
+      []
     end
   end
 
