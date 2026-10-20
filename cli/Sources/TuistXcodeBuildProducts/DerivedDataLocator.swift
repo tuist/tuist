@@ -65,13 +65,8 @@ public struct DerivedDataLocator: DerivedDataLocating {
     /// symlinks), so a workspace under `/private/tmp/x` gets the derived data folder of `/tmp/x`.
     private static func xcodeStandardizedPath(_ projectPath: AbsolutePath) -> String {
         let path = projectPath.pathString
-        for directory in ["tmp", "var", "etc"] {
-            let privatePrefix = "/private/\(directory)"
-            if path == privatePrefix || path.hasPrefix("\(privatePrefix)/") {
-                return String(path.dropFirst("/private".count))
-            }
-        }
-        return path
+        guard ["tmp", "var", "etc"].contains(where: { path.hasPrefix("/private/\($0)/") }) else { return path }
+        return String(path.dropFirst("/private".count))
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.
