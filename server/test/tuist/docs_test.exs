@@ -53,8 +53,8 @@ defmodule Tuist.DocsTest do
       end
     end
 
-    test "Rust guides document the supported boundaries and link every feature" do
-      for path <- ["build-insights", "test-insights", "test-insights/flaky-tests", "test-sharding"] do
+    test "Rust guides document plain Cargo reporting and supported boundaries" do
+      for path <- ["build-insights", "test-insights", "test-insights/flaky-tests"] do
         page = Docs.get_page("/en/guides/features/" <> path <> "/rust")
         assert page
         assert page.title =~ "Rust"
@@ -66,20 +66,19 @@ defmodule Tuist.DocsTest do
 
       getting_started = Docs.get_page("/en/guides/get-started/rust-project").markdown
       assert getting_started =~ "[!TIP] Coding agents"
-      assert getting_started =~ "[!NOTE] Why nextest?"
-      assert getting_started =~ "## Test sharding"
-      assert getting_started =~ "timing data from previous runs"
+      assert getting_started =~ "tuist cargo test --workspace"
+      assert getting_started =~ "tuist cargo test --doc"
+      refute getting_started =~ "## Test sharding"
+      refute getting_started =~ "test-build"
       refute getting_started =~ "## Coverage and selective testing"
       refute getting_started =~ "compiler-invocation timings"
       sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
-      assert sharding =~ "--shard-max-duration <MS>"
-      assert sharding =~ "milliseconds"
-      assert sharding =~ "longest binary"
-      assert sharding =~ "conservative summed estimates"
-      assert sharding =~ "without recompiling"
+      assert sharding =~ "does not shard plain `cargo test` runs"
+      assert sharding =~ "tuist cargo test --workspace"
+      refute sharding =~ "test-build"
+      assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
       tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
-      assert tests =~ "does not execute doctests"
-      assert tests =~ "does not replace it with nextest"
+      assert tests =~ "unit tests, integration tests, and doctests"
       assert tests =~ "tuist cargo test --doc"
       assert tests =~ "excluded from per-case duration histories"
       refute tests =~ "stale, or oversized report"
@@ -94,8 +93,20 @@ defmodule Tuist.DocsTest do
         assert flaky =~ "## #{heading}"
       end
 
+      assert flaky =~ "Cargo does not automatically retry failed tests"
+      assert flaky =~ "CI runs on the same commit"
       assert flaky =~ "does not apply quarantine yet"
       refute flaky =~ "Quarantine boundaries"
+    end
+
+    test "English documentation does not mention alternative Rust test runners" do
+      paths = :tuist |> Application.app_dir("priv/docs/en/**/*.md") |> Path.wildcard()
+      refute paths == []
+
+      for path <- paths do
+        refute Regex.match?(~r/nextest|nexttest|nexte\.st/i, File.read!(path)),
+               "unexpected test-runner mention in #{path}"
+      end
     end
 
     test "supports index aliases" do
