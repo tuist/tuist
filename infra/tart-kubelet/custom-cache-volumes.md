@@ -251,6 +251,9 @@ turn behind the masters queued meanwhile. Downloads land in `staging/` and
 only take the lineage's lock to install the finished master, and maintenance asks
 the server for a lineage's HEAD before taking that lock, so neither ever delays a
 job cloning the same lineage. Requests for the same master join.
+Each heartbeat also advertises one `tuist.dev/cache-volume-<scope prefix>` Node
+label per lineage with an installed master, read from the `masters/` directory,
+so the server can tell which custom volumes this host holds.
 The converge worker also hands it the saved custom-volume HEADs the server lists
 for the host class: dispatch cannot know which custom volumes a job attaches, so
 every host of the class warms them. These speculative downloads use free space

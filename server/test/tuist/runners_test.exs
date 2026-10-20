@@ -827,16 +827,40 @@ defmodule Tuist.RunnersTest do
 
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
-      stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
+      stub_dispatch_path(account, candidate, self(), node_name: "other-01")
 
-      # Linux runners hold no cache masters, so they are never scored and never
-      # read a Node — the plain oldest-queued head is dispatched.
-      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+      # A fleet of no runner platform holds no cache volume, so it is never
+      # scored and never reads a Node; the plain oldest-queued head is dispatched.
+      stub(Catalog, :fleet_platform, fn _ -> nil end)
       reject(&VolumeAffinities.select_candidate/3)
       reject(&K8sClient.get_node/1)
 
       assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       refute_receive {:affinity, _}, 50
+    end
+
+    test "scores a Linux fleet for the custom volumes its hosts hold" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_affinity(),
+          fn _name, _measurements, metadata, _ -> send(test_pid, {:affinity, metadata}) end,
+          nil
+        )
+
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
+
+      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+      stub(VolumeAffinities, :select_candidate, fn [c], "linux-01", _opts -> {c, :resident} end)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:affinity, %{outcome: "resident"}}, 500
     end
 
     test "registers the runner under the repo's GitHub org login, not the Tuist account handle" do

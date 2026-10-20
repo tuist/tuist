@@ -13,7 +13,11 @@ import java.io.InterruptedIOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URI
+import java.nio.file.AccessDeniedException
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.Base64
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -82,6 +86,65 @@ class TokenProviderTest {
     fun `an existing uninspectable credentials directory never becomes absence`() {
         File(tempDir, "credentials").writeText("not a directory")
         assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+    }
+
+    @Test
+    fun `inaccessible credential ancestors fail closed including legacy host aliases`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val ancestor = File(tempDir, "protected").apply { mkdirs() }
+        val directory = File(ancestor, "tuist/credentials").apply { mkdirs() }
+        val credentials = File(directory, "Tuist.Example..json").apply {
+            writeText("{\"accessToken\":\"existing-token\"}")
+        }
+        val originalPermissions = Files.getPosixFilePermissions(ancestor.toPath())
+        try {
+            Files.setPosixFilePermissions(ancestor.toPath(), emptySet())
+            assumeTrue(!Files.isExecutable(ancestor.toPath()), "Permission denial must be exercised by a non-root test process")
+            assertFailsWith<AccessDeniedException> {
+                Files.readAttributes(directory.toPath(), BasicFileAttributes::class.java)
+            }
+            for (url in listOf("https://tuist.example", "https://TUIST.EXAMPLE.")) {
+                val provider = TokenProvider(
+                    URI(url), credentialStore = CredentialStore(directory), envProvider = { null },
+                    tokenCacheFactory = { CachedValueStore() }
+                )
+                repeat(2) { assertFailsWith<IllegalStateException> { provider.getOptionalToken() } }
+                val config = ReportConfigurationProvider(
+                    "company/mobile", url, tempDir, TuistHttpClients(useEnvironmentProxy = false),
+                    allowNetworkTrustedPublishing = true, tokenProviderFactory = { provider },
+                    serverUrlResolver = { resolved, _ -> resolved }
+                )
+                assertFailsWith<IllegalStateException> { config.getConfiguration() }
+            }
+        } finally {
+            Files.setPosixFilePermissions(ancestor.toPath(), originalPermissions)
+        }
+        assertEquals("{\"accessToken\":\"existing-token\"}", credentials.readText())
+    }
+
+    @Test
+    fun `valid directory links and future credential metadata remain readable`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val target = File(tempDir, "real-credentials").apply { mkdirs() }
+        Files.createSymbolicLink(File(tempDir, "credentials").toPath(), target.toPath())
+        File(target, "Tuist.Dev..json").writeText(
+            "{\"accessToken\":\"${validJwt()}\",\"future_metadata\":{\"ignored\":true}}"
+        )
+        assertNotNull(createProvider().getOptionalToken())
+        assertNull(CredentialStore(File(tempDir, "fresh/nested/credentials")).readValidated(serverURL))
+    }
+
+    @Test
+    fun `broken credential directory links and credential file links are errors not absence`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val target = File(tempDir, "missing-target").toPath()
+        val directory = File(tempDir, "credentials")
+        Files.createSymbolicLink(directory.toPath(), target)
+        assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+        Files.delete(directory.toPath())
+        directory.mkdirs()
+        Files.createSymbolicLink(File(directory, "tuist.dev.json").toPath(), target)
+        repeat(2) { assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() } }
     }
 
     @Test

@@ -1013,6 +1013,7 @@ defmodule TuistWeb.API.BuildsController do
         |> json(%{
           type: "build",
           id: build.id,
+          actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
           status: build.status,
           duration: build.duration,
           project_id: build.project_id,

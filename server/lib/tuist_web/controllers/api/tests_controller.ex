@@ -246,6 +246,25 @@ defmodule TuistWeb.API.TestsController do
              description:
                "Version of the client-server analytics contract the caller was built against (e.g. \"0.1\"). Older clients may omit it; the server accepts unknown values."
            },
+           elixir_version: %Schema{type: :string, maxLength: 128, description: "Optional Mix client runtime metadata."},
+           otp_version: %Schema{type: :string, maxLength: 128, description: "Optional Mix client runtime metadata."},
+           mix_env: %Schema{type: :string, maxLength: 128, description: "Optional Mix client environment metadata."},
+           custom_metadata: %Schema{
+             type: :object,
+             description: "Optional client metadata accepted for wire compatibility; not persisted on test runs.",
+             properties: %{
+               tags: %Schema{
+                 type: :array,
+                 items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                 maxItems: 50
+               },
+               values: %Schema{
+                 type: :object,
+                 additionalProperties: %Schema{type: :string, maxLength: 500},
+                 maxProperties: 20
+               }
+             }
+           },
            ran_at: %Schema{
              type: :string,
              format: :"date-time",
@@ -818,11 +837,14 @@ defmodule TuistWeb.API.TestsController do
   end
 
   defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
+    actor = test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor()
+
     conn
     |> put_status(:ok)
     |> json(%{
       type: "test",
       id: test_run.id,
+      actor: actor,
       duration: test_run.duration,
       project_id: test_run.project_id,
       url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
@@ -830,6 +852,7 @@ defmodule TuistWeb.API.TestsController do
         Enum.map(test_run.test_case_runs, fn run ->
           result = %{
             id: run.id,
+            actor: actor,
             name: run.name,
             module_name: run.module_name,
             suite_name: run.suite_name
