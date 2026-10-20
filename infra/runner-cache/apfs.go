@@ -301,7 +301,7 @@ func (b *APFSImages) MountedGeneration(slot Slot) int64 {
 const PrefetchReservation = "prefetch"
 
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserve)
+	return b.prefetchWith(ctx, slot, b.reserveBytes)
 }
 
 // PrefetchSpare restores a master like Prefetch, but only into free space: it
@@ -311,11 +311,12 @@ func (b *APFSImages) PrefetchSpare(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserveSpare)
 }
 
-func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context) error) error {
+func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context, uint64) error) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
-	if err := reserve(ctx); err != nil {
+	// A download keeps its archive beside the restored image until it expands.
+	if err := reserve(ctx, 2*uint64(b.volumeBytes(slot))); err != nil {
 		return err
 	}
 	if b.Reserve != nil {

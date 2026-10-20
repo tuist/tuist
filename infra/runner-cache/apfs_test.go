@@ -414,6 +414,42 @@ func TestAPFSSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 	}
 }
 
+// A download keeps its archive beside the restored image, so a prefetch is
+// admitted with room for both at the volume's own size.
+func TestAPFSPrefetchAdmissionFollowsVolumeSize(t *testing.T) {
+	b, _ := newAPFS(t)
+	remote := &cancelTransfer{ready: true}
+	b.Transfer = remote
+	slot := func(generation, size int64) Slot {
+		s := Slot{Identity: identity(first)}
+		s.BaseGeneration = generation
+		s.VolumeBytes = size
+		s.ImageDigest = strings.Repeat("b", 40)
+		s.ContentDigest = strings.Repeat("c", 64)
+		return s
+	}
+	free := uint64(25_000_000_000)
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+	if err := b.PrefetchSpare(context.Background(), slot(1, 10_000_000_000)); err != nil {
+		t.Fatalf("a 10 GB volume's prefetch needs 20 GB, not a fixed 40 GB: %v", err)
+	}
+	free = 60_000_000_000
+	if err := b.PrefetchSpare(context.Background(), slot(2, 50_000_000_000)); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("a 50 GB volume's prefetch ignored its archive headroom: %v", err)
+	}
+	var reclaimed uint64
+	b.Reclaim = func(_ context.Context, minimum uint64) error {
+		reclaimed, free = minimum, minimum
+		return nil
+	}
+	if err := b.Prefetch(context.Background(), slot(2, 50_000_000_000)); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed != 100_000_000_000 || remote.downloads != 2 {
+		t.Fatalf("requested prefetch reclaimed %d bytes for a 50 GB volume", reclaimed)
+	}
+}
+
 func TestAPFSCheckoutSeedsFromTheHostMasterAndNeverFormats(t *testing.T) {
 	b, _ := newAPFS(t)
 	b.Create = func(context.Context, string, int64) error { t.Fatal("a checkout must never start empty"); return nil }

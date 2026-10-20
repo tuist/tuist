@@ -70,8 +70,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   masters/convergence staging under the shared lock; remeasure actual space after
   deletion because running CoW clones can pin blocks. Never reclaim live branches.
   A background prefetch the server listed for the host gives way first: built-in
-  and custom job admission cancel it and drop its 40 GB reservation before
-  evicting any master (`displaceSpareLocked`).
+  and custom job admission cancel it and drop its reservation (twice its volume
+  size) before evicting any master (`displaceSpareLocked`).
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
@@ -97,8 +97,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   until its successor is downloaded through the queue (`LocalImages.Replace`).
   Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
   server sends none, at most `MaxVolumeBytes`) for every attach and twice that
-  for prefetch, which also holds the
-  archive. Prefetch downloads into `staging/` without the lineage lock, and
+  for prefetch, which also holds the archive, in both the shared-filesystem
+  check (`reserveBytes`/`reserveSpare`) and the custom reservation
+  (`customAdmissionBytes`): if they disagree, the second rejects what the first
+  admitted. Prefetch downloads into `staging/` without the lineage lock, and
   maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.

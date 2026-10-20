@@ -209,7 +209,7 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 }
 
 // reserveSpare admits work only while free space already covers it.
-func (b *LocalImages) reserveSpare(ctx context.Context) error {
+func (b *LocalImages) reserveSpare(ctx context.Context, minimum uint64) error {
 	if err := b.admission.LockContext(ctx); err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (b *LocalImages) reserveSpare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if free < b.MinFreeBytes {
+	if free < minimum {
 		return ErrCapacity
 	}
 	return nil
