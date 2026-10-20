@@ -35,7 +35,7 @@ on:
     - cron: "23 * * * *"
   push:
     branches: [ci/runners-acceptance-gate]
-    paths: [.github/workflows/runners-acceptance.yml]
+    paths: [.github/workflows/runners-acceptance.yml, .github/scripts/runners-acceptance/**]
 
 permissions: {}
 
