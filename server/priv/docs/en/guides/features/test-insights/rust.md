@@ -13,9 +13,6 @@ Tuist reports individual test results from plain `cargo test`, including doctest
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link>.
 > - Install [cargo-nextest](https://nexte.st/docs/installation/) only if you want to use nextest.
 
-> [!IMPORTANT] Self-hosted server compatibility
-> Plain Cargo reporting requires the server changes in [#14383](https://github.com/tuist/tuist/pull/14383), including its ClickHouse migration. Upgrade your self-hosted server before upgrading the CLI to a release containing this feature. Older servers accept these reports but label them as nextest and incorrectly record unknown case timings as measured zeros. Keep your existing CLI version until the server is upgraded. Hosted Tuist deploys server support before releasing the CLI.
-
 ## Report your test runs {#report-your-test-runs}
 
 ```sh
