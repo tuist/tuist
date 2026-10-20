@@ -400,6 +400,8 @@ defmodule TuistWeb.RunnerVolumesLive do
   def display_name(%{builtin_name: name}) when is_binary(name),
     do: dgettext("dashboard_runners", "Xcode and module caches")
 
+  def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
+  def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
   def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
   def display_name(%{key: key}), do: key
 

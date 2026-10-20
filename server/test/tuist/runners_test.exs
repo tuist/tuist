@@ -529,6 +529,29 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
+    test "a job on managed cache volumes keeps its grant but never touches the built-in volume" do
+      account = account_fixture()
+      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", String.duplicate("a", 40), 0, "tuist-cache")
+      candidate = candidate_with_label(account, "tuist-default")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid)
+      stub(FeatureFlags, :runner_opt_in_caches_enabled?, fn _ -> true end)
+      stub(FeatureFlags, :runner_managed_cache_volumes_enabled?, fn _ -> true end)
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert result.cache_signing_grant == "signed-grant-token"
+      assert result.volume_head == nil
+      # The host neither materializes nor promotes the built-in volume for it.
+      assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
+    end
+
     test "includes the minted cache signing grant in the dispatch result" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
