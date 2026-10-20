@@ -311,7 +311,13 @@ short.
    `self-hosted,macos,bare-metal,macos-27`),
    and raise `replicas` by one. Only the new Machine picks either up. No
    workflow matches a runner without `vm-image-builder`, so it takes no
-   jobs yet.
+   jobs yet. A deploy can scale the MachineSet before it updates the
+   template, and the new Machine then clones the old template. Check
+   the new ScalewayAppleSiliconMachine's `spec.os` and
+   `spec.ghActionsRunner.ghRunnerLabels` right after the deploy; if they
+   are the old ones, delete that Machine while it is still `Pending`,
+   and the MachineSet recreates it from the updated template. Changing
+   the template in one deploy and `replicas` in the next avoids it.
 3. **Grant Local Network access** on the new host (see above) and run
    one bake against its own label to check it.
 4. **Promote it.** Add the `vm-image-builder` label to its runner in the
