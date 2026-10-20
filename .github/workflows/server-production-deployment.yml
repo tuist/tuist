@@ -101,9 +101,6 @@ env:
   # Used by the production deploy cascade's build job.
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
-  REGISTRY_IMAGE_NAME: tuist/registry
-  CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
-  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 jobs:
   check-releases:
@@ -1313,7 +1310,7 @@ jobs:
   # redeploys main's head.
   # --------------------------------------------------------------------------
   build:
-    name: Build deployment images
+    name: Build server image
     needs: [check-releases]
     if: >-
       always() &&
@@ -1408,36 +1405,72 @@ jobs:
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
-      - uses: docker/build-push-action@v6
-        name: Build and push codebase search image
+
+  # The deploy's other images, each in its own job beside `build` so none of
+  # them waits on the server image. Their tags match the server image's.
+  build-images:
+    name: Build ${{ matrix.name }} image
+    needs: [check-releases]
+    # Same gate as `build`: these images are deployed alongside the server image.
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    runs-on: tuist-linux-large
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: codebase search
+            image: tuist/codebase-search
+            context: ./codebase-search
+            file: ./codebase-search/Dockerfile
+            build-args: TUIST_REVISION=${{ github.sha }}
+            cache: tuist/codebase-search-buildcache:main
+          - name: Kura controller
+            image: tuist/kura-controller
+            context: .
+            file: ./infra/kura-controller/Dockerfile
+          - name: Swift registry
+            image: tuist/registry
+            context: .
+            file: ./registry/Dockerfile
+            build-args: MIX_ENV=prod
+    steps:
+      - uses: actions/checkout@v4
         with:
-          context: ./codebase-search
-          file: ./codebase-search/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            TUIST_REVISION=${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
-      - uses: docker/build-push-action@v6
-        name: Build and push Kura controller image
+          ref: ${{ github.sha }}
+          submodules: false
+      - id: tag
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          context: .
-          file: ./infra/kura-controller/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        name: Build and push Swift registry image
+        name: Build and push ${{ matrix.name }} image
         with:
-          context: .
-          file: ./registry/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            MIX_ENV=prod
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
 
   # Builds the macOS server release the xcresult processor boots and publishes
   # it to GHCR as an OCI artifact tagged like the server image. The processor's
@@ -1488,12 +1521,12 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -1764,6 +1797,7 @@ jobs:
       [
         check-releases,
         build,
+        build-images,
         build-xcresult-processor-release,
         canary,
         acceptance-tests,
@@ -1774,6 +1808,7 @@ jobs:
     if: >-
       always() &&
       needs.build.result == 'success' &&
+      needs.build-images.result == 'success' &&
       needs.build-xcresult-processor-release.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       needs.canary.result == 'success' &&
@@ -1804,8 +1839,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, build-xcresult-processor-release, tag-infra-releases, kura-release]
-    if: ${{ always() && needs.build.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
