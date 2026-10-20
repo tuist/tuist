@@ -152,6 +152,11 @@ rules:
     resources: [pods]
     verbs: [get, list, watch]
   - apiGroups: [""]
+    # A rack host's borrower lets go of the warm runner Pods its previous Node
+    # stranded, once the takeover's tart-kubelet has reaped their VMs.
+    resources: [pods]
+    verbs: [patch, delete]
+  - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
     #   - <machine>-bootstrap: per-machine sudo password +

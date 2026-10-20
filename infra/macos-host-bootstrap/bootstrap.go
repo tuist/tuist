@@ -193,12 +193,13 @@ type Config struct {
 	// canonical config, so it doesn't affect HostConfigHash.
 	SkipTailscaleInstall bool
 
-	// TailscaleForceReauth adds `--force-reauth` to `tailscale up`, so a host
-	// that is already logged in joins again with this config's credential and
-	// tags. It is how a lent rack host changes hands on the tailnet: a plain `up`
-	// keeps the tags the device already has. Per host, set only on the push that
-	// hands the host over.
-	TailscaleForceReauth bool
+	// TakeOver marks the push that takes a rack host's runtime over from
+	// another env. Tailscale logs in afresh (`--force-reauth`), so the device
+	// joins with this config's credential and tags rather than keeping the
+	// ones it has, and what the previous owner's server alone can answer is
+	// dropped: tart-kubelet's queued cache-volume usage reports (see
+	// dropPreviousOwnerState). Per host, set only on that one push.
+	TakeOver bool
 
 	// RuntimeOwner is the env whose operator pushes this config, checked
 	// against the host's RuntimeOwnerPath before anything changes (see
@@ -507,6 +508,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
 		return hk.Observed(), err
 	}
+	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
+		return hk.Observed(), err
+	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
 	}
@@ -669,6 +673,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
 		return hk.Observed(), err
 	}
+	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
+		return hk.Observed(), err
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
@@ -791,10 +798,10 @@ type PerHost struct {
 	// SkipTailscaleInstall is transport-only: it gates whether
 	// installTailscale runs and changes no rendered output.
 	SkipTailscaleInstall bool
-	// TailscaleForceReauth and RuntimeOwner belong to a handover and an owner,
-	// never to the fleet.
-	TailscaleForceReauth bool
-	RuntimeOwner         string
+	// TakeOver and RuntimeOwner belong to a handover and an owner, never to
+	// the fleet.
+	TakeOver     bool
+	RuntimeOwner string
 }
 
 // WithPerHost returns a copy of c with the per-host fields replaced by p.
@@ -818,7 +825,7 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC
 	c.SkipTailscaleInstall = p.SkipTailscaleInstall
-	c.TailscaleForceReauth = p.TailscaleForceReauth
+	c.TakeOver = p.TakeOver
 	c.RuntimeOwner = p.RuntimeOwner
 	return c
 }
@@ -2528,7 +2535,7 @@ func renderTailscaleScript(cfg Config) string {
 		ephemeral = "false"
 	}
 	reauthArg := ""
-	if cfg.TailscaleForceReauth {
+	if cfg.TakeOver {
 		reauthArg = " --force-reauth"
 	}
 

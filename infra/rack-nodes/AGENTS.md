@@ -1072,7 +1072,9 @@ is deleting the token Secret in the borrowing env (its next deploy makes a new
 one), storing the new kubeconfig under the same item, and waiting for ESO's
 five-minute refresh.
 
-**Lend a host** (remote):
+**Lend a host** (remote). Only a host production has bootstrapped: production
+does not bootstrap a host while it lends it, so a new one joins production
+first.
 
 1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
    deploy. A host not on that list is refused.
@@ -1086,9 +1088,11 @@ five-minute refresh.
 
 **Return it**: drop `lendTo` in production and deploy. The borrower drains its
 Node, so its running jobs finish, and releases the host; production then takes
-the runtime back and bootstraps its own (Returning, then Reclaimed). Remove the
-host from `rackFleet.borrow.hosts` afterwards. A borrower that is gone cannot
-release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+the runtime back and bootstraps its own (Returning, then Reclaimed). It also
+deletes the tailnet devices the host ran as; if its tailnet API cannot, a
+`TailnetCleanupFailed` event names them for the Tailscale admin console.
+Remove the host from `rackFleet.borrow.hosts` afterwards. A borrower that is
+gone cannot release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
 in production takes it back without it (whatever the borrower ran there is
 lost), and remove the annotation once the host is back.
 
