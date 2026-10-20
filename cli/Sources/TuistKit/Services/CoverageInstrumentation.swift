@@ -18,7 +18,7 @@ enum CoverageInstrumentation {
         _ items: [AbsolutePath: [String: CacheItem]],
         graph: Graph,
         generatedGraph: Graph,
-        carriesMapping: (String) -> Bool = CoverageMapping.carriesMapping(path:)
+        carriesMapping: (String) -> Bool = CoverageMapping.isInstrumented(path:)
     ) -> [AbsolutePath: [String: CacheItem]] {
         let xcframeworks = CoverageBuildTargets.xcframeworks(in: generatedGraph)
         return Dictionary(uniqueKeysWithValues: items.map { path, itemsByName in

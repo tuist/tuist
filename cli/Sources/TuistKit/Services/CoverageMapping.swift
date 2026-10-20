@@ -121,6 +121,19 @@ struct CoverageMapping {
         return !sections(of: data, named: ["__llvm_covmap"]).isEmpty
     }
 
+    /// Whether the product at `path` was built with coverage: it carries a coverage mapping, or, for code
+    /// the compiler has nothing to count in (only global initializers, say), it still references the
+    /// profile runtime (`___llvm_profile_runtime`), which only a coverage build pulls in.
+    static func isInstrumented(path: String) -> Bool {
+        if carriesMapping(path: path) { return true }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
+              data.count >= MemoryLayout<mach_header_64>.size
+        else { return false }
+        return data.range(of: profileRuntimeSymbol) != nil
+    }
+
+    private static let profileRuntimeSymbol = Data("___llvm_profile_runtime".utf8)
+
     // BSD `ar` (`ar.h`, which Swift does not import): `ARMAG`, `sizeof(struct ar_hdr)`, the
     // `ar_name` and `ar_size` fields, and `AR_EFMT1`, the prefix of a name carried in the member's data.
     private static let archiveMagic = Array("!<arch>\n".utf8)
