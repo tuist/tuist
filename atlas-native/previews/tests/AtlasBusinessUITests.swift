@@ -87,6 +87,11 @@ final class AtlasBusinessUITests: XCTestCase {
         finance.tap()
         XCTAssertTrue(app.staticTexts["Access required"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["business-create"].exists)
+        app.swipeUp()
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.isHittable)
+        XCTAssertGreaterThanOrEqual(retry.frame.height, 44)
+        XCTAssertLessThanOrEqual(retry.frame.maxY, app.tabBars.firstMatch.frame.minY)
         capture(app, "ios-finance-forbidden-large-dark")
     }
 
