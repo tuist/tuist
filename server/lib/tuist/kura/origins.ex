@@ -29,6 +29,8 @@ defmodule Tuist.Kura.Origins do
   alias Tuist.Environment
   alias Tuist.Kura.OriginMap
   alias Tuist.Kura.OriginRollup
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
 
@@ -110,6 +112,7 @@ defmodule Tuist.Kura.Origins do
       origin: rollup.origin,
       run_count: type(sum(rollup.run_count), :integer),
       demand_count: type(sum(rollup.demand_count), :integer),
+      hit_count: type(sum(rollup.hit_count), :integer),
       last_seen_on: max(rollup.date)
     })
     |> Repo.all()
@@ -195,14 +198,57 @@ defmodule Tuist.Kura.Origins do
     }
   end
 
-  defp upsert_all([]), do: {:ok, 0}
+  @doc """
+  Rewrites the hits public regions served each account's origins on `dates`,
+  from the usage the nodes reported. Replaces rather than adds, so refreshing a
+  day again converges on it, and leaves the run and resolution counts alone.
 
-  defp upsert_all(rows) do
+  Private runner-cache regions are left out: their traffic is the runner
+  site's, and placement reads these counts as evidence about public regions.
+  """
+  def refresh_hits([]), do: {:ok, 0}
+
+  def refresh_hits(dates) do
+    private_regions = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      dates
+      |> StorageTelemetry.origin_hit_day_aggregates(private_regions)
+      |> Enum.map(fn aggregate ->
+        %{
+          account_id: aggregate.account_id,
+          origin: aggregate.origin,
+          date: aggregate.date,
+          run_count: 0,
+          demand_count: 0,
+          hit_count: aggregate.hit_count,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    with_existing_accounts(rows, fn rows ->
+      {count, _} =
+        Repo.insert_all(OriginRollup, sort_by_conflict_key(rows),
+          conflict_target: [:account_id, :origin, :date],
+          on_conflict: {:replace, [:hit_count, :updated_at]}
+        )
+
+      count
+    end)
+  end
+
+  defp upsert_all(rows), do: with_existing_accounts(rows, &insert_rollups/1)
+
+  # A deletion can race the write after the account lookup, so the account
+  # keys are held until the rollups land and cannot invalidate the batch.
+  defp with_existing_accounts([], _write), do: {:ok, 0}
+
+  defp with_existing_accounts(rows, write) do
     Repo.transaction(fn ->
       account_ids = rows |> Enum.map(& &1.account_id) |> Enum.uniq()
 
-      # A deletion can race the flush after this lookup. Hold the account keys
-      # until the rollups land so it cannot invalidate the filtered batch.
       existing_account_ids =
         Account
         |> where([account], account.id in ^account_ids)
@@ -212,21 +258,24 @@ defmodule Tuist.Kura.Origins do
         |> Repo.all()
         |> MapSet.new()
 
-      rows
-      |> Enum.filter(&MapSet.member?(existing_account_ids, &1.account_id))
-      |> insert_rollups()
+      case Enum.filter(rows, &MapSet.member?(existing_account_ids, &1.account_id)) do
+        [] -> 0
+        rows -> write.(rows)
+      end
     end)
   end
 
-  defp insert_rollups([]), do: 0
+  # Overlapping batches must acquire conflict-key locks in the same order.
+  defp sort_by_conflict_key(rows) do
+    Enum.sort_by(rows, &{&1.account_id, &1.origin, Date.to_gregorian_days(&1.date)})
+  end
 
   defp insert_rollups(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    # Overlapping batches must acquire conflict-key locks in the same order.
     rows =
       rows
-      |> Enum.sort_by(&{&1.account_id, &1.origin, Date.to_gregorian_days(&1.date)})
+      |> sort_by_conflict_key()
       |> Enum.map(fn row ->
         row
         |> Map.put(:inserted_at, now)
