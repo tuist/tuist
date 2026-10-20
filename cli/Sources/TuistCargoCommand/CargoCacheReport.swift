@@ -54,7 +54,7 @@ enum CargoCacheReport {
             guard let data else { continue }
             remaining -= data.count
             guard data.count <= 512_000, data.count == size,
-                  let report = try? JSONDecoder().decode(Measurement.self, from: data), report.version == 1
+                  let report = try? JSONDecoder().decode(Measurement.self, from: data), [1, 5].contains(report.version)
             else { continue }
             reports += 1
             for (key, value) in report.values {

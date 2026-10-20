@@ -211,8 +211,21 @@ jobs:
           key: cli-linux-release-swiftpm
           path: ~/.cache/org.swift.swiftpm
 
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      - name: Install native build dependencies and caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy build-essential cmake pkg-config
+      - uses: ./.github/actions/mise
+        if: ${{ hashFiles('cli/native/cargo-cache/Cargo.toml') != '' }}
+        with:
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      - uses: ./.github/actions/mise
+        if: ${{ hashFiles('cli/native/cargo-cache/mise.toml') != '' }}
+        with:
+          install_args: zig cargo:cargo-zigbuild
+          working_directory: cli/native/cargo-cache
+          cache: "false"
+          env: "false"
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
       # (see #12229), and the registry answers 303 to storage over h2. Terminating
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect

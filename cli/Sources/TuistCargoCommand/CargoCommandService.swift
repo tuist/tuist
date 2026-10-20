@@ -140,10 +140,14 @@ public struct CargoCommandService {
                 executable: context.executable, directory: context.directory, arguments: context.arguments,
                 environment: environment, reporting: context.reporting
             )
-            let cache = await CargoCacheSetup().prepare(configured, root: root)
-            defer { cache?.refresh?.cancel() }
-            if let cache { environment = cache.environment }
-            if innerWrapper == nil {
+            let native = await CargoCacheRuntime(process: context.reporting.process).prepare(configured, root: root)
+            let cache = native == nil ? await CargoCacheSetup().prepare(configured, root: root) : nil
+            defer {
+                native?.cancel()
+                cache?.refresh?.cancel()
+            }
+            if let native { environment = native.environment } else if let cache { environment = cache.environment }
+            if native == nil, innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
                     .write(
@@ -156,7 +160,7 @@ public struct CargoCommandService {
                 environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
             let child = CargoExecutionContext(
-                executable: context.executable,
+                executable: native?.executable ?? context.executable,
                 directory: context.directory,
                 arguments: context.arguments,
                 environment: environment,

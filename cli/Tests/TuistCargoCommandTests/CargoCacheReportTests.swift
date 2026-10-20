@@ -17,7 +17,8 @@ struct CargoCacheReportTests {
         payload["hits"] = 12
         payload["downloaded_bytes"] = 42
         payload["compiler_arguments"] = ["must not be collected"]
-        for index in 0 ..< 2 {
+        for (index, version) in [1, 5].enumerated() {
+            payload["version"] = version
             try JSONSerialization.data(withJSONObject: payload).write(to: reports.appendingPathComponent("\(index).json"))
         }
         payload["version"] = 999

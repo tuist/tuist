@@ -41,7 +41,7 @@ Learn the cache workflow that matches your project or deployment model:
     title="Rust cache (experimental)"
     details="Reuse supported registry leaf-library outputs with Tuist's Swift compilation cache. Cross-worker and production qualification remain incomplete."
     supported_for="rust"
-    link="/guides/features/build-insights/rust#cache-measurements"
+    link="/guides/features/cache/rust"
 />
   <.home_card
     title="Self-hosting"

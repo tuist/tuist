@@ -42,7 +42,7 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 
 ## Read cache measurements {#cache-measurements}
 
-`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
+`tuist cargo` includes an experimental compilation cache. Official bundles include the native runtime; source builds without it retain the narrower Swift fallback. There is no separate tool to install; project and server settings come from `tuist.toml`. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for coverage, CI publication, and limitations. Unsupported compilations run normally.
 
 Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
 
@@ -56,7 +56,7 @@ Open a build's **Cache** tab to see task hits, task misses, hit rate, and downlo
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
 > [!WARNING] Experimental compilation cache
-> The first version caches only registry leaf libraries with verified inputs and outputs. Workspace crates, build scripts, procedural macros, dependencies on other crates, incremental compilation, native linking, and executables build normally. Cache keys retain absolute paths, so reuse across different checkout paths isn't supported yet.
+> Native executable/link restores remain disabled while a macOS verification divergence is investigated. Incremental compilation and unsupported inputs can bypass caching. The Swift fallback remains limited to registry leaf libraries with path-sensitive keys. Cross-worker and cross-toolchain reuse is not production-qualified.
 
 ### Builds that run tests {#builds-that-run-tests}
 

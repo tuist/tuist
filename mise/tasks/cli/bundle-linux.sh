@@ -32,7 +32,24 @@ if [ "$usage_linux_vm" = "true" ]; then
         --env MISE_PROJECT_ROOT=/package \
         --env TUIST_LINUX_ARCH="$ARCH" \
         swift:6.2 \
-        ./mise/tasks/cli/bundle-linux.sh
+        /bin/bash -lc '
+            set -euo pipefail
+            apt-get update -qq
+            apt-get install -y --no-install-recommends build-essential cmake pkg-config curl xz-utils
+            case "$(uname -m)" in
+                x86_64) mise_arch=x64 ;;
+                aarch64) mise_arch=arm64 ;;
+                *) exit 1 ;;
+            esac
+            mkdir -p "$HOME/.local"
+            curl --fail --location --silent --show-error \
+                "https://github.com/jdx/mise/releases/download/v2026.5.15/mise-v2026.5.15-linux-${mise_arch}.tar.gz" \
+                | tar -xz -C "$HOME/.local"
+            export PATH="$HOME/.local/mise/bin:$PATH"
+            export MISE_TRUSTED_CONFIG_PATHS=/package
+            mise install --cd /package/cas-plugin rust
+            mise exec --cd /package/cas-plugin -- /bin/bash -c "cd /package; exec /package/mise/tasks/cli/bundle-linux.sh"
+        '
 fi
 
 # Bundling logic (runs natively on Linux or inside container)
@@ -43,6 +60,11 @@ echo "==> Building Linux release into $BUILD_DIRECTORY"
 
 rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
+
+echo "==> Building the internal Cargo cache runtime"
+mkdir -p "$BUILD_PATH"
+bash "$PROJECT_ROOT/mise/utilities/build_cargo_cache_linux.sh" \
+    "$ARCH" "$(realpath "$BUILD_PATH")/cargo-cache" "$BUILD_DIRECTORY"
 
 SDK_TARGET=$("$PROJECT_ROOT/mise/utilities/install_static_linux_sdk.sh" "$ARCH")
 
@@ -76,8 +98,8 @@ echo "==> Bundling for $ARCH"
     cd $BUILD_DIRECTORY
 
     echo "==> Creating tuist-linux-${ARCH}.tar.gz"
-    tar -czvf "tuist-linux-${ARCH}.tar.gz" tuist
-    rm tuist
+    tar -czvf "tuist-linux-${ARCH}.tar.gz" tuist tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
+    rm tuist tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
 
     echo "==> Generating checksums"
     : > SHASUMS256.txt

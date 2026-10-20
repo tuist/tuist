@@ -26,6 +26,20 @@ struct SupportCachePrunerTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func prune_reclaimsIdleNativeProjectsButPreservesLiveSessionLocks() async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let idle = try await seed(.cargoNative, name: "idle", bytes: 1000, lastUsed: now.addingTimeInterval(-2 * hour), in: cache)
+        let active = try await seed(.cargoNative, name: "active", bytes: 1000, lastUsed: now, in: cache)
+        let lock = active.appending(components: "actions", "agent.lock")
+        try await fileSystem.makeDirectory(at: lock.parentDirectory)
+        FileManager.default.createFile(atPath: lock.pathString, contents: Data())
+        try await subject(cache).prune(maxBytes: 0, now: now)
+        #expect(try await !fileSystem.exists(idle))
+        #expect(try await fileSystem.exists(lock))
+    }
+
+    @Test(.inTemporaryDirectory)
     func prune_dropsEntriesPastTheirCategoryRetention() async throws {
         let cache = try #require(FileSystem.temporaryTestDirectory)
         let now = Date()
