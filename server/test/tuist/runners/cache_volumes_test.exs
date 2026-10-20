@@ -1591,6 +1591,28 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert [] = CacheVolumes.recent_macos_heads(["mac-node"], since, 8)
     end
 
+    test "follows the setting of the profile the job was dispatched to", %{account: account, job: job, params: params} do
+      profile =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          cached_checkouts: false
+        })
+
+      WorkflowJob
+      |> Repo.get!(job.workflow_job_id)
+      |> Ecto.Changeset.change(requested_dispatch_label: Profile.dispatch_label(profile))
+      |> Repo.update!()
+
+      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
+
+      profile |> Ecto.Changeset.change(cached_checkouts: true) |> Repo.update!()
+      assert {:ok, _} = CacheVolumes.allocate_checkout(params)
+    end
+
     test "is unavailable unless the account has cached checkouts", %{params: params} do
       stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
       assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)

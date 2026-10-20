@@ -144,3 +144,6 @@ these schemas persist volume identities and per-job uses.
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
   `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  A job also needs its runner profile's `cached_checkouts` (default true; a job on
+  a legacy label has it on); the profile modal shows the toggle on macOS
+  profiles only while the account has the flag.

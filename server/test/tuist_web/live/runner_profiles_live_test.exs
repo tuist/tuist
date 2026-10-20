@@ -5,7 +5,9 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -228,6 +230,68 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       assert %{cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
                Profiles.get_by_name(account, "ci")
+    end
+  end
+
+  describe "cached checkouts" do
+    setup %{account: account} do
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [%{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true, pool_dispatch_label: ""}]
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [%{xcode_version: "26.5", tag: "26-5", default?: true}] end)
+
+      profile =
+        Tuist.Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.5"
+        })
+
+      %{profile: profile}
+    end
+
+    test "a macOS profile turns them off while the account has the flag", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "Cached checkouts"
+
+      render_hook(lv, "toggle_cached_checkouts", %{})
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "mac").cached_checkouts
+    end
+
+    test "is hidden without the flag, and a save keeps the profile's setting", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
+      profile |> Ecto.Changeset.change(cached_checkouts: false) |> Tuist.Repo.update!()
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      refute html =~ "Cached checkouts"
+
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "mac").cached_checkouts
+    end
+
+    test "is not offered for Linux profiles", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      refute render_hook(lv, "open_create_modal", %{}) =~ "Cached checkouts"
     end
   end
 end

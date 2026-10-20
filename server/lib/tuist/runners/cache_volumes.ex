@@ -95,6 +95,7 @@ defmodule Tuist.Runners.CacheVolumes do
          {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
          {:ok, account} <- Accounts.get_account_by_id(job.account_id),
          true <- FeatureFlags.runner_cached_checkouts_enabled?(account),
+         true <- profile_cached_checkouts?(job),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
@@ -126,6 +127,14 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   def allocate_checkout(_), do: {:error, :unavailable}
+
+  # A job follows its profile's setting; one on a legacy label has checkouts on.
+  defp profile_cached_checkouts?(job) do
+    case Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label) do
+      %Profile{cached_checkouts: enabled} -> enabled
+      nil -> true
+    end
+  end
 
   # The session's executed binding is the proof that this runner runs the job.
   # The job row can still be `queued` or `claimed` by another Pod until the
@@ -765,14 +774,21 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  defp image_action(%Volume{key: @checkout_key} = volume, usage, %{
+         "operation" => operation,
+         "image_digest" => digest,
+         "content_digest" => content
+       })
+       when operation in ["upload", "publish"] do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+    checkout_publish(volume, usage, operation, digest, content)
+  end
+
   defp image_action(volume, usage, %{"operation" => operation, "image_digest" => digest, "content_digest" => content})
        when operation in ["upload", "publish"] do
     if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
 
     cond do
-      volume.key == @checkout_key ->
-        checkout_publish(volume, usage, operation, digest, content)
-
       retired_image?(volume, usage) ->
         Repo.rollback(:conflict)
 

@@ -34,6 +34,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:macos_catalog, Catalog.shapes(:macos))
      |> assign(:xcode_catalog, Catalog.xcode_versions())
+     |> assign(:cached_checkouts_enabled?, FeatureFlags.runner_cached_checkouts_enabled?(selected_account))
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -65,6 +66,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_xcode_version, profile.xcode_version)
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
+         |> assign(:form_cached_checkouts, profile.cached_checkouts)
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
@@ -131,6 +133,10 @@ defmodule TuistWeb.RunnerProfilesLive do
     {:noreply, update(socket, :form_cache_writer_default_branch, &(not &1))}
   end
 
+  def handle_event("toggle_cached_checkouts", _params, socket) do
+    {:noreply, update(socket, :form_cached_checkouts, &(not &1))}
+  end
+
   def handle_event("select_platform", params, socket) do
     case shape_key_from_params(params) do
       platform when platform in ["linux", "macos"] ->
@@ -187,6 +193,12 @@ defmodule TuistWeb.RunnerProfilesLive do
         "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
         _ -> attrs
       end
+
+    # Without the flag the setting is hidden, so a save keeps whatever the profile has.
+    attrs =
+      if assigns.cached_checkouts_enabled? and assigns.form_platform == "macos",
+        do: Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts),
+        else: attrs
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
@@ -304,6 +316,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_name, "")
     |> assign(:form_cache_writer_default_branch, true)
     |> assign(:form_cache_writer_branches, [])
+    |> assign(:form_cached_checkouts, true)
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)

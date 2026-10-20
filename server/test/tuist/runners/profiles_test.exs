@@ -207,6 +207,18 @@ defmodule Tuist.Runners.ProfilesTest do
     end
   end
 
+  describe "cached checkouts" do
+    test "are on by default and turned off without validating the shape again", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+
+      stub(Catalog, :shapes, fn _ -> [] end)
+      assert {:ok, %{cached_checkouts: false}} = Profiles.update(profile, %{"cached_checkouts" => false})
+      assert Profiles.get_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+      assert is_nil(Profiles.get_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+    end
+  end
+
   describe "lock_for_dispatch_label/2" do
     test "resolves profile labels and ignores legacy pool and other account labels", %{account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
