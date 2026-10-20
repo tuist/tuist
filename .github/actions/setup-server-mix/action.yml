@@ -11,7 +11,7 @@ inputs:
     required: false
     default: "true"
   mise-cache:
-    description: Restore and save mise-action's archive cache. Installing Erlang and Elixir from scratch is faster than restoring it.
+    description: Restore and save mise-action's tool archive cache. Disable only for jobs where installing their tools is measured to be faster.
     required: false
     default: "true"
   mix-os-deps-compile-partition-count:

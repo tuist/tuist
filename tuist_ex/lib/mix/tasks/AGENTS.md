@@ -5,6 +5,22 @@ Do not start the customer application just to perform setup or authentication.
 
 - `tuist.test` publishes authenticated CI/coverage commits and branch heads before submitting runs, and coverage-only file listings afterward. Credential-free reporting skips both collection and uploads, including deferred and retry paths. Exercise task-level isolation in a child VM so task configuration never mutates the test VM's shared application environment.
 
+## Prebuilt test execution
+
+Cold shard bootstrap must explicitly load SDK paths after OS-worker compilation
+before discovering its task. Only explicit `--no-download` execution invokes
+Mix's test task directly, not the project's `test` alias: Phoenix preparation
+can trigger an unflagged app.config and rebuild the artifact. Reuse the validated
+`:no_download` option and pass it to retries via `TUIST_EX_PREPARED_BUILD`; never infer
+it from generic forwarded flags. Prepared retries preload the SDK using `MIX_PATH`
+without a `mix do` command, then restore the original path before tests can spawn
+children. Forward arguments unchanged, including literal `+` and trailing commas.
+Warn once about skipped preparation. Run setup separately, with compile aliases
+guarding their bootstrap on `--no-compile`.
+Automatic download-and-run and nonsharded runs retain alias behavior.
+Fresh-process regressions live
+in `test/tuist_ex/dependency_cache_test.exs`.
+
 ## Project setup
 
 `mix tuist.setup --project account/project` delegates source editing to

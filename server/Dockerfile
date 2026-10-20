@@ -52,9 +52,10 @@ WORKDIR /app
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
-COPY noora /noora
+COPY noora/package.json noora/aube-lock.yaml /noora/
 WORKDIR /noora
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+COPY noora /noora
 RUN aube run build
 WORKDIR /app
 
@@ -92,10 +93,10 @@ COPY server/mix.exs server/mix.lock ./
 COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
-# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
-COPY tuist_common /tuist_common
-COPY tuist_ex /tuist_ex
-COPY noora /noora
+# Resolve and compile fetched dependencies independently of local source edits.
+COPY tuist_common/mix.exs /tuist_common/mix.exs
+COPY tuist_ex/mix.exs /tuist_ex/mix.exs
+COPY noora/mix.exs /noora/mix.exs
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -129,7 +130,7 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
-RUN mix deps.compile
+RUN mix deps.compile --skip-local-deps
 # Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
 # fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
 # via a BuildKit secret (never baked into a layer) to lift the unauthenticated
@@ -146,6 +147,9 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 # ========================================
 FROM deps-builder AS builder
 
+COPY tuist_common /tuist_common
+COPY tuist_ex /tuist_ex
+COPY noora /noora
 COPY server/priv priv
 COPY skills/skills priv/static/skills
 COPY server/assets assets
