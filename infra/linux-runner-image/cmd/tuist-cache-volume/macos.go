@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,8 +118,8 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	}
 	// Without a baseline the volume reports itself changed, so it is still saved.
 	_ = os.Remove(baselinePath(mountRoot, response.Directory))
-	if fingerprint, err := inventory(base); err == nil {
-		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(fingerprint), 0644)
+	if names, err := topLevelEntries(base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(names), 0644)
 	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
@@ -175,8 +173,7 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			if err != nil {
 				break
 			}
-			current, inventoryErr := inventory(base)
-			changed = len(baseline) == 0 || inventoryErr != nil || string(baseline) != current
+			changed = changed || changedSinceMount(base, baseline)
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
@@ -229,44 +226,61 @@ func linkMacDirectory(root, source, target string) error {
 	return os.Symlink(filepath.Join(root, source), target)
 }
 
-// baselinePath records a mounted volume's file inventory outside the volume.
+// baselinePath records a mounted volume's top-level entries outside the volume.
 func baselinePath(mountRoot, dir string) string {
 	return filepath.Join(mountRoot, "."+dir+".inventory")
 }
 
-// inventory fingerprints every entry's path, type, size and modification time.
-// Entries at the volume root that start with a dot belong to Tuist or macOS.
-func inventory(base string) (string, error) {
-	hash := sha256.New()
-	err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+// topLevelEntries lists the volume root. Entries that start with a dot belong
+// to Tuist or macOS, which creates some of them lazily.
+func topLevelEntries(base string) (string, error) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return "", err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			names = append(names, entry.Name())
+		}
+	}
+	return strings.Join(names, "\n"), nil
+}
+
+var errChangedSinceMount = errors.New("changed since mount")
+
+// changedSinceMount reports whether anything in the volume changed after it was
+// mounted. Writing, renaming, deleting or changing the metadata of an entry
+// updates its ctime or its parent's, which no tool can set back, so the walk
+// stops at the first entry newer than `.tuist-volume`, written at mount.
+func changedSinceMount(base string, baseline []byte) bool {
+	var mounted unix.Stat_t
+	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
+		return true
+	}
+	if names, err := topLevelEntries(base); err != nil || names != string(baseline) {
+		return true
+	}
+	return filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		relative, _ := filepath.Rel(base, path)
-		if relative == "." {
+		if path == base {
 			return nil
 		}
-		if !strings.ContainsRune(relative, filepath.Separator) && strings.HasPrefix(relative, ".") {
+		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") {
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		info, err := entry.Info()
-		if err != nil {
+		var stat unix.Stat_t
+		if err := unix.Lstat(path, &stat); err != nil {
 			return err
 		}
-		target := ""
-		if info.Mode()&fs.ModeSymlink != 0 {
-			if target, err = os.Readlink(path); err != nil {
-				return err
-			}
+		if stat.Ctim.Nano() > mounted.Ctim.Nano() {
+			return errChangedSinceMount
 		}
-		fmt.Fprintf(hash, "%q %s %d %d %q\n", relative, info.Mode().Type(), info.Size(), info.ModTime().UnixNano(), target)
 		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	}) != nil
 }

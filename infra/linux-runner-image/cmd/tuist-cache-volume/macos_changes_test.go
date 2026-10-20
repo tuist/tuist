@@ -25,6 +25,14 @@ func mountedVolume(t *testing.T, seed map[string]string) (share, mount, base str
 	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
+	// A job's writes come after the mount; make sure the test's do too.
+	mounted, err := os.Stat(filepath.Join(base, ".tuist-volume"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for !time.Now().After(mounted.ModTime()) {
+		time.Sleep(time.Millisecond)
+	}
 	return share, mount, base
 }
 
@@ -72,9 +80,15 @@ func TestMacReportsAnUntouchedVolumeAsUnchanged(t *testing.T) {
 
 func TestMacReportsChangesToTheVolume(t *testing.T) {
 	for name, change := range map[string]func(t *testing.T, base string){
-		"added file":   func(t *testing.T, base string) { writeVolumeFile(t, base, "data/new.jar", "new") },
-		"resized file": func(t *testing.T, base string) { writeVolumeFile(t, base, "data/dependency.jar", "saved and grown") },
-		"removed file": func(t *testing.T, base string) { _ = os.Remove(filepath.Join(base, "data", "dependency.jar")) },
+		"added file":      func(t *testing.T, base string) { writeVolumeFile(t, base, "data/new.jar", "new") },
+		"resized file":    func(t *testing.T, base string) { writeVolumeFile(t, base, "data/dependency.jar", "saved and grown") },
+		"removed file":    func(t *testing.T, base string) { _ = os.Remove(filepath.Join(base, "data", "dependency.jar")) },
+		"added directory": func(t *testing.T, base string) { writeVolumeFile(t, base, digest("second")+"/file", "new") },
+		"restored with old times": func(t *testing.T, base string) {
+			writeVolumeFile(t, base, "data/restored.jar", "restored")
+			earlier := time.Now().Add(-24 * time.Hour)
+			_ = os.Chtimes(filepath.Join(base, "data", "restored.jar"), earlier, earlier)
+		},
 		"rewritten file": func(t *testing.T, base string) {
 			path := filepath.Join(base, "data", "dependency.jar")
 			writeVolumeFile(t, base, "data/dependency.jar", "SAVED")

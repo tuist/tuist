@@ -227,9 +227,10 @@ reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its war
 A job whose base master is not on the host mounts the newest older master of the
 same lineage, if any, instead of an empty directory, and its base is queued. The
 job's tools update the contents and it may still publish (last publication wins).
-The guest fingerprints the paths, types, sizes and modification times of the
-volume's files when it mounts it and again when it detaches it, and reports
-`changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
+The guest records the volume's top-level entries when it mounts it. At detach,
+a volume changed if those entries differ or any entry's ctime is newer than
+`.tuist-volume`, written at mount; the walk stops at the first such entry and
+nothing is walked at mount. The guest reports `changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
 at least 99% full that may hold partial writes. Both are still measured, so the
 server's out-of-space reset sees a clone that filled its volume.
 The host reports the generation it mounted; the dashboard shows "Older copy".
