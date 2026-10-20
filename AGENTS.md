@@ -25,7 +25,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
 | [guild/](guild/AGENTS.md) | Tuist Guild, the Rust-core client built alongside the companion apps |
-| [noora/](noora/AGENTS.md) | Phoenix component library and Storybook |
+| [noora/](noora/AGENTS.md) | Phoenix component library and Storybook, documented at `tuist.dev/noora` |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
 | [kube-impersonator/](kube-impersonator/AGENTS.md) | Kubernetes access policy sidecar |

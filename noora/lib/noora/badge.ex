@@ -21,7 +21,7 @@ defmodule Noora.Badge do
     doc: "Controls whether the badge uses a solid or light fill."
   )
 
-  attr(:label, :string, required: true, doc: "The label of the badge")
+  attr(:label, :string, required: true, doc: "The text displayed in the badge.")
 
   attr(:color, :string,
     values: @badge_colors,
@@ -40,10 +40,7 @@ defmodule Noora.Badge do
     doc: "Uses the disabled presentation regardless of color."
   )
 
-  attr(:dot, :boolean,
-    default: false,
-    doc: "Displays a dot before the label when the icon slot is empty."
-  )
+  attr(:dot, :boolean, default: false, doc: "Displays a dot before the label when the icon slot is empty.")
 
   attr(:icon_only, :boolean,
     default: false,
@@ -57,7 +54,7 @@ defmodule Noora.Badge do
   def badge(assigns) do
     ~H"""
     <span
-      class="noora-badge"
+      class={badge_class()}
       data-style={@style}
       data-color={@color}
       data-size={@size}
@@ -160,4 +157,6 @@ defmodule Noora.Badge do
     </svg>
     """
   end
+
+  defp badge_class, do: "noora-badge"
 end

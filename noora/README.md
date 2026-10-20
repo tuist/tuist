@@ -4,9 +4,9 @@
 
 <!-- MDOC !-->
 
-Noora is a component library for building web applications with Phoenix LiveView. See all our components in our [Storybook](https://storybook.noora.tuist.dev).
+Noora is a component library for building web applications with Phoenix LiveView. Browse every component with live examples at [tuist.dev/noora](https://tuist.dev/noora).
 
-This is the web component library, part of the [tuist/tuist](https://github.com/tuist/tuist) monorepo. The CLI component library lives in [tuist/Noora](https://github.com/tuist/Noora).
+This is the web library, part of the [tuist/tuist](https://github.com/tuist/tuist) monorepo. The CLI component library lives in [tuist/Noora](https://github.com/tuist/Noora).
 
 ## Installation
 

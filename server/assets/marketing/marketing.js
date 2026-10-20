@@ -68,6 +68,14 @@ const hooks = {
   // Dashboard components embedded in the Bazel announcement post: the chart
   // bundles ECharts and the build timeline imports the full Noora runtime.
   NooraChart: lazyHook(() => import("noora/hooks/Chart.js")),
+  // Rendered only by the Noora documentation at /noora.
+  NooraAvatar: lazyHook(() => import("noora/hooks/Avatar.js")),
+  NooraCheckbox: lazyHook(() => import("noora/hooks/Checkbox.js")),
+  NooraDatePicker: lazyHook(() => import("noora/hooks/DatePicker/index.js")),
+  NooraDigitInput: lazyHook(() => import("noora/hooks/DigitInput.js")),
+  PlaceCursorAtEnd: lazyHook(() =>
+    import("noora/hooks/hooks.js").then(({ PlaceCursorAtEnd }) => ({ default: PlaceCursorAtEnd })),
+  ),
   BuildTimeline: lazyHook(() => import("../app/js/BuildTimeline.js")),
   ...colocatedHooks,
 };
