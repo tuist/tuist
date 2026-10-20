@@ -58,8 +58,8 @@ extension XcodeGraph.TestAction {
             targets = try manifest.targets
                 .map { try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
-            coverage = manifest.options.coverage ?? false
-            inheritsCoverage = manifest.options.coverage == nil
+            coverage = manifest.options.codeCoverage == .enabled
+            inheritsCoverage = manifest.options.codeCoverage == .inherit
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
                 XcodeGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),

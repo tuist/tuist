@@ -1,5 +1,16 @@
 /// The type `TestActionOptions` represents a set of options for a test action.
 public struct TestActionOptions: Equatable, Codable, Sendable {
+    /// Whether a test action gathers test coverage data.
+    public enum CoverageMode: Equatable, Sendable {
+        /// Follows `Tuist.swift`'s `coverage: .coverage(enabled:)` (and its `TUIST_COVERAGE_ENABLED` override): the
+        /// scheme gathers coverage when it's on and doesn't when it's off.
+        case inherit
+        /// Gathers coverage regardless of `Tuist.swift`.
+        case enabled
+        /// Doesn't gather coverage regardless of `Tuist.swift`.
+        case disabled
+    }
+
     /// Language used to run the tests.
     public var language: SchemeLanguage?
 
@@ -9,10 +20,16 @@ public struct TestActionOptions: Equatable, Codable, Sendable {
     /// Preferred screen capture format for UI tests results in Xcode 15+
     public var preferredScreenCaptureFormat: ScreenCaptureFormat?
 
-    /// Whether the scheme gathers test coverage data. `nil` follows `Tuist.swift`'s
-    /// `coverage: .coverage(enabled:)` (and its `TUIST_COVERAGE_ENABLED` override): the scheme gathers
-    /// coverage when it's on and doesn't when it's off. Set `true` or `false` to decide for this scheme regardless.
-    public var coverage: Bool?
+    /// Whether the scheme gathers test coverage data.
+    public var codeCoverage: CoverageMode
+
+    /// Whether the scheme gathers test coverage data. It reads `false` for a scheme that inherits `Tuist.swift`'s
+    /// coverage option, even when the option turns coverage on.
+    @available(*, deprecated, message: "Use codeCoverage, which tells apart a scheme that inherits Tuist.swift's coverage.")
+    public var coverage: Bool {
+        get { codeCoverage == .enabled }
+        set { codeCoverage = newValue ? .enabled : .disabled }
+    }
 
     /// A list of targets you want to gather the test coverage data for them, which are defined in the project.
     public var codeCoverageTargets: [TargetReference]
@@ -36,8 +53,42 @@ public struct TestActionOptions: Equatable, Codable, Sendable {
             language: language,
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
-            coverage: coverage,
+            codeCoverage: coverage.map { $0 ? .enabled : .disabled } ?? .inherit,
             codeCoverageTargets: codeCoverageTargets
         )
+    }
+}
+
+extension TestActionOptions {
+    /// `codeCoverage` is encoded as the optional Boolean `coverage` key, absent when the scheme inherits, so the
+    /// manifest JSON keeps the shape it had when `coverage` was a stored Boolean.
+    private enum CodingKeys: String, CodingKey {
+        case language, region, preferredScreenCaptureFormat, coverage, codeCoverageTargets
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        language = try container.decodeIfPresent(SchemeLanguage.self, forKey: .language)
+        region = try container.decodeIfPresent(String.self, forKey: .region)
+        preferredScreenCaptureFormat = try container.decodeIfPresent(
+            ScreenCaptureFormat.self,
+            forKey: .preferredScreenCaptureFormat
+        )
+        codeCoverage = try container.decodeIfPresent(Bool.self, forKey: .coverage).map { $0 ? .enabled : .disabled }
+            ?? .inherit
+        codeCoverageTargets = try container.decode([TargetReference].self, forKey: .codeCoverageTargets)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(language, forKey: .language)
+        try container.encodeIfPresent(region, forKey: .region)
+        try container.encodeIfPresent(preferredScreenCaptureFormat, forKey: .preferredScreenCaptureFormat)
+        switch codeCoverage {
+        case .inherit: break
+        case .enabled: try container.encode(true, forKey: .coverage)
+        case .disabled: try container.encode(false, forKey: .coverage)
+        }
+        try container.encode(codeCoverageTargets, forKey: .codeCoverageTargets)
     }
 }
