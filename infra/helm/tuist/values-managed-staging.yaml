@@ -852,6 +852,11 @@ macosFleet:
 # MachineDeployment stays at zero, so a host released from it goes back to
 # the `tuist-pool-` pool.
 runnersFleet:
+  # macOS custom cache volumes on the BER1 rack host production lends staging,
+  # as on canary. Its 240 GiB cache filesystem holds them beside the built-in
+  # images.
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 0
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the

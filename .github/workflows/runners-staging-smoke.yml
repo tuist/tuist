@@ -38,6 +38,32 @@ on:
         description: Run the candidate custom cache APFS tests inside a staging Mac VM
         type: boolean
         default: false
+      cache_volume_sizes:
+        description: Attach sized, multi-path custom cache volumes with this branch's client and action
+        type: boolean
+        default: false
+      cache_volume_platform:
+        description: Runner platform for the cache volume sizes smoke
+        type: choice
+        options: [macos, linux, both]
+        default: macos
+      cache_volume_phase:
+        description: "seed: cold volumes; verify: warm, retained and sized (raise the size to check growth); fail: discard a failed job's writes"
+        type: choice
+        options: [seed, verify, fail]
+        default: seed
+      cache_volume_key:
+        description: Key prefix of the sized volume; use a fresh one per seed
+        type: string
+        default: sizes-smoke-v1
+      cache_volume_size:
+        description: Size of the multi-path volume, from 1gb to 100gb
+        type: string
+        default: 50gb
+      cache_volume_fill_gb:
+        description: GB of incompressible data the seed writes across the volume's paths (more than 20 proves the larger size)
+        type: string
+        default: "0"
       vm_isolation:
         description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
         type: boolean
@@ -180,6 +206,124 @@ jobs:
           go-version-file: infra/tart-kubelet/go.mod
       - name: Exercise real APFS and custom cache lifecycle
         run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
+
+  # Sized, multi-path and keyless custom cache volumes, with this branch's
+  # client (built into the job, ahead of the image's on PATH) and this branch's
+  # action. The server must run the matching branch, and sizes above 20 GB need
+  # the account's `runner_custom_volume_sizes` flag. Run seed, then verify after
+  # the seed's publication; verify again with a larger size to check growth.
+  cache-volume-sizes:
+    if: github.repository == 'tuist/tuist' && inputs.cache_volume_sizes
+    name: cache volume sizes (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.cache_volume_platform == 'both' && '["macos", "linux"]' || format('["{0}"]', inputs.cache_volume_platform)) }}
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-${{ matrix.platform }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      PHASE: ${{ inputs.cache_volume_phase }}
+      SIZE: ${{ inputs.cache_volume_size }}
+      FILL_GB: ${{ inputs.cache_volume_fill_gb }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/go.mod
+          cache: false
+      - name: Put this branch's client first on PATH
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd infra/linux-runner-image && go build -o "$RUNNER_TEMP/bin/tuist-cache-volume" ./cmd/tuist-cache-volume)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/cache-volume
+        id: sized
+        with:
+          key: ${{ inputs.cache_volume_key }}-${{ matrix.platform }}
+          size: ${{ inputs.cache_volume_size }}
+          path: |
+            .tuist-sizes-smoke/one
+            .tuist-sizes-smoke/two
+            ~/.tuist-sizes-smoke
+      - uses: ./.github/actions/cache-volume
+        id: default
+        with:
+          size: 5gb
+          path: .tuist-sizes-smoke/default
+      - name: Verify sizes, paths and retained contents
+        env:
+          SIZED_HIT: ${{ steps.sized.outputs.cache-hit }}
+          DEFAULT_HIT: ${{ steps.default.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          test "$(command -v tuist-cache-volume)" = "$RUNNER_TEMP/bin/tuist-cache-volume"
+          requested=$(( ${SIZE%[gG][bB]} * 1000000000 ))
+          paths=(.tuist-sizes-smoke/one .tuist-sizes-smoke/two "$HOME/.tuist-sizes-smoke")
+          capacity() { df -Pk "$1/" | awk 'NR == 2 { print $2 * 1024 }'; }
+          sized=$(capacity "${paths[0]}")
+          default=$(capacity .tuist-sizes-smoke/default)
+          for path in "${paths[@]:1}"; do
+            test "$(capacity "$path")" = "$sized"
+          done
+          {
+            echo "### Cache volume sizes: $PHASE on $RUNNER_OS"
+            echo "- Sized volume: hit $SIZED_HIT, requested $SIZE, filesystem $((sized / 1000000)) MB"
+            echo "- Default volume: hit $DEFAULT_HIT, requested 5gb, filesystem $((default / 1000000)) MB"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$sized" -lt $(( requested * 9 / 10 )) ]; then
+            echo "::error::the sized volume holds $sized bytes for a $SIZE request; is runner_custom_volume_sizes on for the account and the server on this branch?"
+            exit 1
+          fi
+          if [ "$SIZED_HIT" = false ] && [ "$sized" -gt $(( requested * 102 / 100 )) ]; then
+            echo "::error::a new volume holds $sized bytes for a $SIZE request"
+            exit 1
+          fi
+          test "$default" -ge 4500000000
+          if [ "$RUNNER_OS" = macOS ]; then
+            root=$(dirname "$(cd -P "${paths[0]}" && pwd)")
+            test -s "$root/.tuist-paths"
+            # The manifest records paths as written, so `~` stays literal.
+            # shellcheck disable=SC2088
+            for spelling in .tuist-sizes-smoke/one .tuist-sizes-smoke/two '~/.tuist-sizes-smoke'; do
+              grep -qF "\"$spelling\"" "$root/.tuist-paths"
+            done
+          fi
+          case "$PHASE" in
+            seed)
+              test "$SIZED_HIT" = false
+              for path in "${paths[@]}"; do
+                test -z "$(ls -A "$path/")"
+                printf '%s' "$path" > "$path/sentinel"
+              done
+              printf 'retained' > .tuist-sizes-smoke/default/sentinel
+              for (( i = 1; i <= FILL_GB; i++ )); do
+                head -c 1000000000 /dev/urandom > "${paths[$(( i % 3 ))]}/fill-$i"
+              done
+              printf '%s' "$FILL_GB" > "${paths[0]}/fill-count"
+              ;;
+            verify|fail)
+              test "$SIZED_HIT" = true
+              test "$DEFAULT_HIT" = true
+              for path in "${paths[@]}"; do
+                test "$(cat "$path/sentinel")" = "$path"
+              done
+              test "$(cat .tuist-sizes-smoke/default/sentinel)" = retained
+              count=$(cat "${paths[0]}/fill-count")
+              for (( i = 1; i <= count; i++ )); do
+                test "$(wc -c < "${paths[$(( i % 3 ))]}/fill-$i" | tr -d ' ')" = 1000000000
+              done
+              echo "- Retained $count GB of fill and every sentinel" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+          esac
+          if [ "$PHASE" = fail ]; then
+            printf 'must-not-publish' > "${paths[0]}/sentinel"
+            sync
+            exit 1
+          fi
+          sync
 
   # A runner VM runs customer code, so it must reach the internet and its
   # cache carve-outs and nothing else: not the host's own listeners on any of
