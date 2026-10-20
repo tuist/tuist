@@ -265,6 +265,24 @@ job-local directories and reports `cache-hit=false`; it must never schedule a
 late bind mount after returning cold. The host has a shorter, cancellable restore
 budget. Mount errors after acquisition still fail visibly.
 
+`--key` defaults to `tuist-default`, which the server maps to the runner
+profile's default volume; the client accepts `tuist-` keys because Tuist's own
+steps use them, and only the wrappers reject them. `--size NGB` (1 to 100,
+decimal GB) and at most 16 `--path` values are validated before acquiring; the
+size travels as `requested_volume_bytes` in the Linux `/acquire` body and the
+macOS mailbox request, and only when given. `.tuist-paths` at the volume root
+maps each path spelling to its subdirectory (`manifest.go`): a mapped spelling
+keeps its subdirectory, others get `data` (single path) or the spelling's
+digest, and `data` never goes to a spelling other than the one the manifest
+records for it. Write it only when it changes, so unchanged jobs stay
+unchanged; the macOS change check counts it. On macOS the client attaches the
+image with
+`-nomount`, grows the APFS container with `diskutil apfs resizeContainer
+<container> 0` when the host enlarged the image, then mounts the volume with
+`diskutil mount nobrowse -mountPoint`. None of this needs root; a failed
+growth warns and mounts at the old size. Growing a mounted container makes
+Disk Arbitration remount it under `/Volumes`, so never grow after mounting.
+
 The static client is on PATH and copied to `externals/tuist-cache-volume` so
 container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
 endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their

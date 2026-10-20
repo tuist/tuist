@@ -39,16 +39,23 @@ func TestMacAttachAndDetach(t *testing.T) {
 	respondMac(t, share, data)
 	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
 	calls := 0
-	command := func(args ...string) error {
+	attachImage := func(image, mountPoint string) error {
 		calls++
-		if args[0] != "attach" && args[0] != "detach" {
-			t.Fatal(args)
+		if image != filepath.Join(share, response.Directory, "cache.sparseimage") || mountPoint != filepath.Join(mount, response.Directory) {
+			t.Fatal(image, mountPoint)
 		}
 		return nil
 	}
-	dir, id, warm, err := acquireMacAt(context.Background(), "key", share, mount, command)
+	dir, id, warm, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachImage)
 	if err != nil || dir != response.Directory || id != "lease" || !warm {
 		t.Fatal(dir, id, warm, err)
+	}
+	command := func(args ...string) error {
+		calls++
+		if args[0] != "detach" {
+			t.Fatal(args)
+		}
+		return nil
 	}
 	if err = detachMacAt(share, mount, command, fakeMacMeasure, func(string, bool) {}, func() {}); err != nil {
 		t.Fatal(err)
@@ -56,6 +63,110 @@ func TestMacAttachAndDetach(t *testing.T) {
 	marker, _ := os.ReadFile(filepath.Join(share, dir, ".detached"))
 	if string(marker) != "lease" || calls != 2 {
 		t.Fatal(string(marker), calls)
+	}
+}
+
+func TestMacRequestCarriesTheRequestedSizeOnlyWhenGiven(t *testing.T) {
+	for size, want := range map[int64]string{0: `{"key":"key","uid":UID}`, 50_000_000_000: `{"key":"key","requested_volume_bytes":50000000000,"uid":UID}`} {
+		share, mount := t.TempDir(), t.TempDir()
+		requests := make(chan string, 1)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				paths, _ := filepath.Glob(filepath.Join(share, "*.request"))
+				if len(paths) == 1 {
+					data, _ := os.ReadFile(paths[0])
+					requests <- string(data)
+					_ = os.WriteFile(paths[0]+".response", []byte(`{"error":"unavailable","reason":"capacity"}`), 0600)
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}()
+		if _, _, _, err := acquireMacAt(context.Background(), "key", size, share, mount, func(string, string) error { return nil }); err == nil {
+			t.Fatal("unavailable volume attached")
+		}
+		<-done
+		if got, want := <-requests, strings.ReplaceAll(want, "UID", fmt.Sprint(os.Getuid())); got != want {
+			t.Fatalf("request = %s, want %s", got, want)
+		}
+	}
+}
+
+// fakeMacTools answers hdiutil, diskutil and plutil like macOS does for a
+// sparse image whose disk the host grew from 20 to 50 GB.
+type fakeMacTools struct {
+	calls    []string
+	limits   string
+	failures map[string]error
+}
+
+func (f *fakeMacTools) run(_ context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
+	call := strings.Join(append([]string{name}, args...), " ")
+	if name == "plutil" {
+		return stdin, nil
+	}
+	f.calls = append(f.calls, call)
+	for prefix, err := range f.failures {
+		if strings.HasPrefix(call, prefix) {
+			return nil, err
+		}
+	}
+	switch {
+	case strings.HasPrefix(call, "hdiutil attach"):
+		return []byte(`{"system-entities":[{"dev-entry":"/dev/disk6","content-hint":"GUID_partition_scheme"},{"dev-entry":"/dev/disk6s1","content-hint":"EFI"},{"dev-entry":"/dev/disk6s2","content-hint":"Apple_APFS"},{"dev-entry":"/dev/disk7s1","content-hint":"41504653-0000-11AA-AA11-00306543ECAC","volume-kind":"apfs"},{"dev-entry":"/dev/disk7","content-hint":"EF57347C-0000-11AA-AA11-00306543ECAC"}]}`), nil
+	case strings.HasPrefix(call, "diskutil apfs resizeContainer disk7 limits"):
+		return []byte(f.limits), nil
+	}
+	return nil, nil
+}
+
+func TestMacAttachGrowsTheContainerBeforeMounting(t *testing.T) {
+	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":49999998976}`}
+	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"hdiutil attach cache.sparseimage -owners off -nobrowse -nomount -plist",
+		"diskutil apfs resizeContainer disk7 limits -plist",
+		"diskutil apfs resizeContainer disk7 0",
+		"diskutil mount nobrowse -mountPoint /mount /dev/disk7s1",
+	}
+	if fmt.Sprint(tools.calls) != fmt.Sprint(want) {
+		t.Fatalf("calls = %q", tools.calls)
+	}
+}
+
+func TestMacAttachLeavesAFullContainerAsItIs(t *testing.T) {
+	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":19999997952}`}
+	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range tools.calls {
+		if call == "diskutil apfs resizeContainer disk7 0" {
+			t.Fatal("resized a container that already fills its disk")
+		}
+	}
+}
+
+func TestMacAttachMountsAtTheOldSizeWhenGrowingFails(t *testing.T) {
+	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":49999998976}`, failures: map[string]error{"diskutil apfs resizeContainer disk7 0": errors.New("resize failed")}}
+	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+		t.Fatal(err)
+	}
+	if last := tools.calls[len(tools.calls)-1]; last != "diskutil mount nobrowse -mountPoint /mount /dev/disk7s1" {
+		t.Fatal(tools.calls)
+	}
+}
+
+func TestMacAttachDetachesTheImageWhenMountingFails(t *testing.T) {
+	tools := &fakeMacTools{limits: `{"CurrentSize":1,"MaximumSize":1}`, failures: map[string]error{"diskutil mount": errors.New("mount failed")}}
+	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err == nil {
+		t.Fatal("reported a failed mount as attached")
+	}
+	if last := tools.calls[len(tools.calls)-1]; last != "hdiutil detach /dev/disk6 -quiet" {
+		t.Fatal(tools.calls)
 	}
 }
 func TestMacFailedDetachWithholdsPublication(t *testing.T) {
@@ -78,7 +189,7 @@ func TestMacCancelledAcquisitionNeverMountsLateResponse(t *testing.T) {
 	cancel()
 	data, _ := json.Marshal(macResponse{Directory: digest("volume"), ID: "lease"})
 	_ = os.WriteFile(filepath.Join(share, digest("key")+".request.response"), data, 0600)
-	_, _, _, err := acquireMacAt(ctx, "key", share, mount, func(...string) error {
+	_, _, _, err := acquireMacAt(ctx, "key", 0, share, mount, func(string, string) error {
 		t.Fatal("mounted after cancellation")
 		return nil
 	})
@@ -130,7 +241,7 @@ func TestMacRetryIgnoresStaleResponseAndCleansMailbox(t *testing.T) {
 	respondMac(t, share, data)
 	for range 2 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, _, warm, err := acquireMacAt(ctx, "key", share, mount, func(...string) error { return nil })
+		_, _, warm, err := acquireMacAt(ctx, "key", 0, share, mount, func(string, string) error { return nil })
 		cancel()
 		if err != nil || !warm {
 			t.Fatal(warm, err)
@@ -187,7 +298,7 @@ func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
 		share, mount := t.TempDir(), t.TempDir()
 		data, _ := json.Marshal(macResponse{Error: "unavailable", Reason: reason})
 		respondMac(t, share, data)
-		_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error {
+		_, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, func(string, string) error {
 			t.Fatal("mounted an unavailable volume")
 			return nil
 		})

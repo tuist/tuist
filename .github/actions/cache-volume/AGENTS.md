@@ -14,11 +14,17 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
 - Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
 
 - Document ordinary bind-mounted directories and preserve the absent/empty target
-  contract. `key` stays single-line; `path` takes one path per line (blank lines
-  ignored, surrounding whitespace trimmed) and `attach.sh` passes one `--path`
-  per line from a Bash array. A single-line `path` behaves as one `--path`.
-  Keep the wrapper compatible with macOS `/bin/bash` 3.2. The installed
-  client and controller own mounting; never add workflow sudo or symlink helpers.
+  contract. `key` stays single-line and optional: empty attaches `tuist-default`,
+  which the server maps to the runner profile's default volume, and keys
+  starting with `tuist-` (any case) are rejected because Tuist reserves them.
+  `path` takes one path per line (blank lines ignored, surrounding whitespace
+  trimmed) and `attach.sh` passes one `--path` per line from a Bash array. A
+  single-line `path` behaves as one `--path`. `size` is passed as `--size` only
+  when the client's `-h` output lists `-size`; older clients attach without it
+  and the action warns. The client validates the size. Use only Bash builtins
+  in `attach.sh` (the test runs it with a minimal `PATH`) and keep it
+  compatible with macOS `/bin/bash` 3.2. The installed client and controller
+  own mounting; never add workflow sudo or symlink helpers.
 
 - macOS uses symlink targets and rejects node_modules; preserve its documented limitations.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the

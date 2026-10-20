@@ -28,7 +28,7 @@ func TestMacRealAttachAndCleanDetach(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mountRoot, command); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mount, "dependency"), []byte("retained"), 0644); err != nil {
@@ -67,7 +67,7 @@ func TestMacRealDetachEndsAProcessRunningFromTheVolume(t *testing.T) {
 	respondMac(t, share, data)
 	mount := filepath.Join(mountRoot, response.Directory)
 	t.Cleanup(func() { _ = command("detach", mount, "-force", "-quiet") })
-	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mountRoot, command); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mountRoot, realAttach); err != nil {
 		t.Fatal(err)
 	}
 	source := t.TempDir()
@@ -102,5 +102,54 @@ func TestMacRealDetachEndsAProcessRunningFromTheVolume(t *testing.T) {
 	proof, err := os.ReadFile(filepath.Join(shared, ".detached"))
 	if err != nil || string(proof) != response.ID {
 		t.Fatalf("missing clean detach proof: %v", err)
+	}
+}
+
+func realAttach(image, mountPoint string) error {
+	return attachMacImage(context.Background(), image, mountPoint, macRun)
+}
+
+func TestMacRealAttachGrowsTheContainerToTheEnlargedImage(t *testing.T) {
+	share, mountRoot := t.TempDir(), t.TempDir()
+	t.Setenv("RUNNER_TRACKING_ID", "tuist-cache-test-"+digest(share))
+	response := macResponse{Directory: digest("volume"), ID: "lease"}
+	shared := filepath.Join(share, response.Directory)
+	if err := os.Mkdir(shared, 0755); err != nil {
+		t.Fatal(err)
+	}
+	command := func(args ...string) error { return macCommandContext(context.Background(), args...) }
+	image := filepath.Join(shared, "cache.sparseimage")
+	if err := command("create", "-quiet", "-size", "100m", "-type", "SPARSE", "-fs", "APFS", "-volname", "TuistCacheTest", image); err != nil {
+		t.Fatal(err)
+	}
+	seed := t.TempDir()
+	if err := command("attach", image, "-quiet", "-nobrowse", "-mountpoint", seed); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(seed, "dependency"), []byte("retained"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := command("detach", seed, "-quiet"); err != nil {
+		t.Fatal(err)
+	}
+	if err := command("resize", "-size", "300m", "-imageonly", image); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(response)
+	respondMac(t, share, data)
+	mount := filepath.Join(mountRoot, response.Directory)
+	t.Cleanup(func() { _ = command("detach", mount, "-force", "-quiet") })
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 300_000_000, share, mountRoot, realAttach); err != nil {
+		t.Fatal(err)
+	}
+	if _, capacity, err := measureMac(mount); err != nil || capacity < 250_000_000 {
+		t.Fatalf("container did not grow: capacity %d, %v", capacity, err)
+	}
+	payload, err := os.ReadFile(filepath.Join(mount, "dependency"))
+	if err != nil || string(payload) != "retained" {
+		t.Fatalf("contents did not survive growth: %v", err)
+	}
+	if err := detachMacAt(share, mountRoot, command, measureMac, func(string, bool) {}, func() {}); err != nil {
+		t.Fatal(err)
 	}
 }

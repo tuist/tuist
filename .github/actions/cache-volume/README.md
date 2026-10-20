@@ -5,26 +5,37 @@ scoped to your account, repository, CPU architecture, and execution user. Jobs
 on different hosts can reuse the same cache. Concurrent jobs have isolated
 clones. No `id-token` permission or workflow credential is required.
 
-Attach after checkout and before Gradle populates its directories:
+Attach after checkout and before your tools populate the directories. List
+every directory to keep, one per line:
 
 ```yaml
 - uses: tuist/cache-volume@v1
   with:
-    key: gradle-caches
-    path: ~/.gradle/caches
+    path: |
+      ~/.gradle/caches
+      ~/.gradle/wrapper
+- run: ./gradlew test
+```
+
+Without a `key`, the action attaches the default volume of the job's runner
+profile and repository. Name a volume with `key` and set its capacity with
+`size`:
+
+```yaml
 - uses: tuist/cache-volume@v1
   with:
-    key: gradle-wrapper
-    path: ~/.gradle/wrapper
-- run: ./gradlew test
+    key: spm
+    size: 50gb
+    path: |
+      .build
+      ~/Library/Caches/org.swift.swiftpm
 ```
 
 Keep existing runner labels and container images. Native and container jobs use
 identical action inputs. Do not restore archive caches into these paths. If you
 set `GRADLE_USER_HOME`, use paths beneath that location. Paths must be absent or
-empty; the action never deletes existing content. The same key identifies the
-same data even if the mount path changes. Do not attach the same key twice in
-one job under different paths. Keep keys stable when
+empty; the action never deletes existing content. Do not attach the same key
+twice in one job. Keep keys stable when
 dependencies or tools change: each job starts from the latest saved contents and
 your tools update them, so a key that changes with a lockfile hash starts empty
 every time.
@@ -44,8 +55,9 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. |
-| `path` | Required. One or more absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
+| `key` | Optional stable name within the repository, architecture and execution user, such as `spm-checkouts`. Omit it to use the default volume of the runner profile and repository. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. Keys starting with `tuist-` are reserved. |
+| `path` | Required. Up to 16 absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
+| `size` | Optional volume capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 
 Use `id: dependencies` to access `${{ steps.dependencies.outputs.cache-hit }}`.
@@ -56,14 +68,14 @@ additional workflow permissions are required.
 
 A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
-fail without replacing their contents. The default volume capacity is 20 GB.
-When saved contents reach 80% of capacity and a job runs out of space on them,
-the next job starts empty.
+and invalid sizes fail without replacing their contents. When saved contents
+reach 80% of capacity and a job runs out of space on them, the next job starts
+empty.
 Linux and macOS fleets must have cache volumes enabled.
 
 ### Several directories in one volume
 
-List one path per line to keep several directories in the same volume:
+One key holds every directory you list:
 
 ```yaml
 - uses: tuist/cache-volume@v1
@@ -74,15 +86,38 @@ List one path per line to keep several directories in the same volume:
       ~/.cache/pre-commit
 ```
 
-- All paths share the volume's 20 GB capacity and are restored and saved together.
-- Group small, related directories. Give a large or fast-changing directory its
-  own volume.
+- All paths share the volume's capacity and are restored and saved together.
 - Paths in one volume must not contain each other.
-- Each path is stored in its own directory inside the volume, identified by how
-  the path is written. Switching between one path and several, or adding,
-  removing or rewriting a path, changes that layout: the first job after the
-  change starts cold for the affected paths. Content of paths that are no
-  longer listed stays in the volume until you clear it.
+- A single path keeps the volume's contents when it changes. With several
+  paths, each has its own directory inside the volume, identified by how the
+  path is written: adding a path, removing one or reordering the list keeps the
+  contents of the paths you keep, and a new path, or one written differently
+  (`~/.npm` instead of `/home/runner/.npm`), starts empty.
+- Contents of paths that are no longer listed stay in the volume and count
+  toward its capacity. Clear the volume after removing a path.
+
+### Default volume
+
+Without a `key`, the action attaches the default volume of the runner profile
+the job runs on and the repository. Jobs on another profile get their own
+default volume. Use a named `key` for directories that jobs on several profiles
+should share.
+
+Each saved copy replaces the whole volume, so the last saved copy wins. Give
+workflows that save at the same time separate keys, and keep each workflow's
+directories in one volume.
+
+### Volume size
+
+`size` sets the volume's total capacity, from `1gb` to `100gb`. Without it, a
+new volume starts at `20gb` and an existing volume keeps its capacity.
+
+- A larger size grows the volume, keeping its contents, from its next job.
+- A smaller size applies after the volume is next cleared or expires.
+- When workflows ask for different sizes of one key, the largest applies.
+  Declare each key's size in one place.
+- Sizes above `20gb` may not be enabled for every account yet. Runner images
+  without size support attach the volume at its current size and warn.
 
 ### Choosing which branches save
 

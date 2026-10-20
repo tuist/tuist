@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,29 +44,138 @@ func macUnavailable(reason string) error {
 	}
 }
 
-func acquireMac(key string) (string, string, bool, error) {
+func acquireMac(key string, size int64) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
+	return acquireMacAt(ctx, key, size, macShare, macMountRoot, func(image, mountPoint string) error {
+		return attachMacImage(ctx, image, mountPoint, macRun)
+	})
 }
-func macCommandContext(ctx context.Context, args ...string) error {
+
+// macRunner runs a macOS tool with optional standard input and returns its
+// standard output.
+type macRunner func(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error)
+
+func macRun(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	command := exec.CommandContext(ctx, "hdiutil", args...)
+	command := exec.CommandContext(ctx, name, args...)
 	// The image helper must survive job cleanup until dispatch performs a clean detach.
 	command.Env = slices.DeleteFunc(command.Environ(), func(variable string) bool {
 		return strings.HasPrefix(variable, "RUNNER_TRACKING_ID=")
 	})
-	if out, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("hdiutil: %w (%s)", err, out)
+	if stdin != nil {
+		command.Stdin = bytes.NewReader(stdin)
+	}
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	if err := command.Run(); err != nil {
+		return nil, fmt.Errorf("%s: %w (%s)", name, err, bytes.TrimSpace(append(stderr.Bytes(), stdout.Bytes()...)))
+	}
+	return stdout.Bytes(), nil
+}
+func macCommandContext(ctx context.Context, args ...string) error {
+	_, err := macRun(ctx, nil, "hdiutil", args...)
+	return err
+}
+
+// decodePlist converts a tool's property list output to JSON and decodes it.
+func decodePlist(ctx context.Context, run macRunner, data []byte, result any) error {
+	converted, err := run(ctx, data, "plutil", "-convert", "json", "-o", "-", "-")
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(converted, result)
+}
+
+// attachMacImage attaches the image without mounting it, grows its APFS
+// container to fill an image the host enlarged, and mounts its volume at
+// mountPoint. Growing first keeps Disk Arbitration from remounting the volume
+// under /Volumes. Neither step needs root: the attaching user owns the disks.
+func attachMacImage(ctx context.Context, image, mountPoint string, run macRunner) error {
+	out, err := run(ctx, nil, "hdiutil", "attach", image, "-owners", "off", "-nobrowse", "-nomount", "-plist")
+	if err != nil {
+		return err
+	}
+	var attached struct {
+		Entities []struct {
+			Device      string `json:"dev-entry"`
+			ContentHint string `json:"content-hint"`
+			VolumeKind  string `json:"volume-kind"`
+		} `json:"system-entities"`
+	}
+	if err := decodePlist(ctx, run, out, &attached); err != nil {
+		return err
+	}
+	var whole, volume string
+	for _, entity := range attached.Entities {
+		if whole == "" || entity.ContentHint == "GUID_partition_scheme" {
+			whole = entity.Device
+		}
+		if entity.VolumeKind == "apfs" && volume == "" {
+			volume = entity.Device
+		}
+	}
+	// The image is attached; finishing the mount must not depend on how long
+	// the host took to answer, and an interrupted resize is worse than a slow one.
+	finish, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	defer cancel()
+	container := apfsContainer(volume)
+	if container == "" {
+		if whole != "" {
+			_, _ = run(finish, nil, "hdiutil", "detach", whole, "-quiet")
+		}
+		return errors.New("hdiutil: the cache image has no APFS volume")
+	}
+	growMacContainer(finish, run, container)
+	if _, err := run(finish, nil, "diskutil", "mount", "nobrowse", "-mountPoint", mountPoint, volume); err != nil {
+		_, _ = run(finish, nil, "hdiutil", "detach", whole, "-quiet")
+		return err
 	}
 	return nil
 }
-func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
+
+var apfsVolumeDevice = regexp.MustCompile(`^/dev/(disk[0-9]+)s[0-9]+$`)
+
+func apfsContainer(volume string) string {
+	if match := apfsVolumeDevice.FindStringSubmatch(volume); match != nil {
+		return match[1]
+	}
+	return ""
+}
+
+// growMacContainer grows the container to fill its disk. A failure only warns:
+// the job keeps the previous capacity and the next allocation tries again.
+func growMacContainer(ctx context.Context, run macRunner, container string) {
+	out, err := run(ctx, nil, "diskutil", "apfs", "resizeContainer", container, "limits", "-plist")
+	var limits struct {
+		Current int64 `json:"CurrentSize"`
+		Maximum int64 `json:"MaximumSize"`
+	}
+	if err == nil {
+		err = decodePlist(ctx, run, out, &limits)
+	}
+	if err == nil && limits.Maximum-limits.Current < 1<<20 {
+		return
+	}
+	if err == nil {
+		_, err = run(ctx, nil, "diskutil", "apfs", "resizeContainer", container, "0")
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "::warning::Could not grow the cache volume to its new size; this job uses its previous size: %v\n", err)
+		return
+	}
+	fmt.Printf("Grew the cache volume from %.1f GB to %.1f GB\n", float64(limits.Current)/1e9, float64(limits.Maximum)/1e9)
+}
+func acquireMacAt(ctx context.Context, key string, size int64, share, mountRoot string, attachImage func(image, mountPoint string) error) (string, string, bool, error) {
 	if _, err := os.Stat(share); err != nil {
 		return "", "", false, err
 	}
-	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid()})
+	request := map[string]any{"key": key, "uid": os.Getuid()}
+	if size > 0 {
+		request["requested_volume_bytes"] = size
+	}
+	data, _ := json.Marshal(request)
 	temp, err := os.CreateTemp(share, ".request-")
 	if err != nil {
 		return "", "", false, err
@@ -111,7 +222,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.Remove(filepath.Join(shared, ".detached")); err != nil && !os.IsNotExist(err) {
 		return "", "", false, err
 	}
-	if err = command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", base); err != nil {
+	if err = attachImage(filepath.Join(shared, "cache.sparseimage"), base); err != nil {
 		return "", "", false, err
 	}
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
@@ -257,11 +368,11 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 	return errors.Join(failures...)
 }
 
-func attachMac(key string, targets []string, root string) error {
+func attachMac(key string, targets []string, root string, size int64) error {
 	if err := validateMacTargets(targets); err != nil {
 		return err
 	}
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key, size) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
 }
 func validateMacTargets(targets []string) error {
 	for _, target := range targets {
@@ -310,6 +421,7 @@ var errChangedSinceMount = errors.New("changed since mount")
 // mounted. Writing, renaming, deleting or changing the metadata of an entry
 // updates its ctime or its parent's, which no tool can set back, so the walk
 // stops at the first entry newer than `.tuist-volume`, written at mount.
+// The path manifest is the one dot entry at the root that counts.
 func changedSinceMount(base string, baseline []byte) bool {
 	var mounted unix.Stat_t
 	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
@@ -325,7 +437,7 @@ func changedSinceMount(base string, baseline []byte) bool {
 		if path == base {
 			return nil
 		}
-		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") {
+		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") && entry.Name() != manifestName {
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
