@@ -24,15 +24,15 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @sso_default_roles Accounts.organization_role_names() -- ["admin"]
 
   @impl true
+  def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
+    :ok = authorize_account_update!(socket)
+    {:ok, push_navigate(socket, to: ~p"/#{account.name}/settings/authentication/workload-identities")}
+  end
+
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise UnauthorizedError,
             dgettext("dashboard_account", "You are not authorized to perform this action.")
-    end
-
-    if is_nil(selected_account.organization_id) do
-      raise TuistWeb.Errors.NotFoundError,
-            dgettext("dashboard_account", "Authentication settings are only available for organizations.")
     end
 
     {:ok, organization} = Accounts.get_organization_by_id(selected_account.organization_id)

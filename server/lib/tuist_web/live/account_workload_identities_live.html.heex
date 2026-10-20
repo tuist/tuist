@@ -1,60 +1,38 @@
-<div id="project-authentication">
-  <h1 data-part="title">
-    {@selected_project.name}
-  </h1>
-
+<div id="account-workload-identities">
+  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
-      label={dgettext("dashboard_projects", "General")}
+      :if={@selected_account.organization_id}
+      label={dgettext("dashboard_account", "Single Sign-On")}
       selected={false}
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+      navigate={~p"/#{@selected_account.name}/settings/authentication"}
     />
     <.tab_menu_horizontal_item
-      label={dgettext("dashboard_projects", "Authentication")}
+      label={dgettext("dashboard_account", "Workload identities")}
       selected={true}
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/authentication"}
-    />
-    <.tab_menu_horizontal_item
-      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
-      label={dgettext("dashboard_projects", "Notifications")}
-      selected={false}
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
-    />
-    <.tab_menu_horizontal_item
-      :if={
-        Tuist.Projects.Project.xcode_project?(@selected_project) or
-          Tuist.Projects.Project.bazel_project?(@selected_project)
-      }
-      label={dgettext("dashboard_projects", "Automations")}
-      selected={false}
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
-    />
-    <.tab_menu_horizontal_item
-      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
-      label={dgettext("dashboard_projects", "Bundles")}
-      selected={false}
-      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+      navigate={~p"/#{@selected_account.name}/settings/authentication/workload-identities"}
     />
   </.tab_menu_horizontal>
 
-  <h2 data-part="subtitle">
-    {dgettext("dashboard_projects", "Workload identities")}
-  </h2>
-
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_projects", "OpenID Connect trust policies")}</span>
+      <span data-part="title">{dgettext("dashboard_account", "OpenID Connect trust policies")}</span>
       <span data-part="subtitle">
         {dgettext(
-          "dashboard_projects",
-          "Allow trusted workloads to access this project without long-lived tokens."
+          "dashboard_account",
+          "Allow trusted workloads to access selected projects without long-lived tokens."
         )}
       </span>
       <.link
         href="/en/docs/guides/server/authentication#workload-identity-trust-policies"
         data-part="documentation"
       >
-        {dgettext("dashboard_projects", "Learn about workload identities")}
+        {dgettext("dashboard_account", "Learn about workload identities")}
       </.link>
     </div>
     <div data-part="content">
@@ -67,20 +45,25 @@
           <span data-part="name">{policy.name}</span>
           <span data-part="issuer">{policy.issuer}</span>
           <span data-part="details">
-            {dgettext("dashboard_projects", "JWKS: %{url}", url: policy.jwks_url)}
+            {dgettext("dashboard_account", "JWKS: %{url}", url: policy.jwks_url)}
           </span>
           <span data-part="details">
-            {dgettext("dashboard_projects", "Audience: %{audience}", audience: policy.audience)}
+            {dgettext("dashboard_account", "Audience: %{audience}", audience: policy.audience)}
           </span>
           <span data-part="details">
-            {dgettext("dashboard_projects", "Claims: %{claims}",
+            {dgettext("dashboard_account", "Claims: %{claims}",
               claims: format_claims(policy.claims)
+            )}
+          </span>
+          <span data-part="details" data-scope="projects">
+            {dgettext("dashboard_account", "Projects: %{projects}",
+              projects: Enum.map_join(policy.projects, ", ", & &1.name)
             )}
           </span>
         </div>
         <.button
           variant="secondary"
-          label={dgettext("dashboard_projects", "Remove")}
+          label={dgettext("dashboard_account", "Remove")}
           phx-click="delete_oidc_trust_policy"
           phx-value-policy-id={policy.id}
         />
@@ -91,15 +74,18 @@
         status="information"
         type="secondary"
         size="large"
-        title={dgettext("dashboard_projects", "Authenticate your workload")}
+        title={dgettext("dashboard_account", "Authenticate your workload")}
       >
         <p>
           {dgettext(
-            "dashboard_projects",
+            "dashboard_account",
             "Provide a fresh provider token as TUIST_OIDC_TOKEN, then run:"
           )}
         </p>
-        <pre><code>{~s(export TUIST_OIDC_ACCOUNT="#{@selected_account.name}") <> "\n" <> if(@selected_project.build_system == :mix, do: "mix tuist.login", else: "tuist auth login")}</code></pre>
+        <pre><code>{~s(export TUIST_OIDC_ACCOUNT="#{@selected_account.name}") <> "\ntuist auth login"}</code></pre>
+        <p>
+          {dgettext("dashboard_account", "For Elixir projects, use mix tuist.login instead.")}
+        </p>
       </.alert>
       <.form
         for={@oidc_trust_policy_form}
@@ -116,29 +102,29 @@
           title={error}
         />
         <div id="oidc-template" data-part="template-picker">
-          <span data-part="template-label">{dgettext("dashboard_projects", "Template")}</span>
+          <span data-part="template-label">{dgettext("dashboard_account", "Template")}</span>
           <.select
             id={"oidc-template-select-#{@oidc_template}"}
             name="oidc_template"
-            label={dgettext("dashboard_projects", "Template")}
+            label={dgettext("dashboard_account", "Template")}
             value={@oidc_template}
             on_value_change="select_oidc_template"
           >
-            <:item value="custom" label={dgettext("dashboard_projects", "Custom provider")} />
+            <:item value="custom" label={dgettext("dashboard_account", "Custom provider")} />
             <:item value="fly" label="Fly.io Machines" />
           </.select>
         </div>
         <.text_input
-          label={dgettext("dashboard_projects", "Name")}
+          label={dgettext("dashboard_account", "Name")}
           field={@oidc_trust_policy_form[:name]}
           error={field_error(@oidc_trust_policy_form[:name])}
           type="basic"
-          placeholder={dgettext("dashboard_projects", "Production service")}
+          placeholder={dgettext("dashboard_account", "Production service")}
         />
         <div :if={@oidc_template == "fly"} id="oidc-fly-template" data-part="template-fields">
           <.text_input
             id="oidc-fly-organization-slug"
-            label={dgettext("dashboard_projects", "Organization slug")}
+            label={dgettext("dashboard_account", "Organization slug")}
             name="fly_template[organization_slug]"
             value={@fly_template["organization_slug"]}
             type="basic"
@@ -148,7 +134,7 @@
           <div data-part="template-ids">
             <.text_input
               id="oidc-fly-organization-id"
-              label={dgettext("dashboard_projects", "Organization ID")}
+              label={dgettext("dashboard_account", "Organization ID")}
               name="fly_template[organization_id]"
               value={@fly_template["organization_id"]}
               type="basic"
@@ -158,7 +144,7 @@
             />
             <.text_input
               id="oidc-fly-application-id"
-              label={dgettext("dashboard_projects", "Application ID")}
+              label={dgettext("dashboard_account", "Application ID")}
               name="fly_template[application_id]"
               value={@fly_template["application_id"]}
               type="basic"
@@ -169,12 +155,41 @@
           </div>
         </div>
         <.text_input
-          label={dgettext("dashboard_projects", "Audience")}
+          label={dgettext("dashboard_account", "Audience")}
           field={@oidc_trust_policy_form[:audience]}
           error={field_error(@oidc_trust_policy_form[:audience])}
           type="basic"
           placeholder="tuist"
         />
+        <fieldset id="oidc-projects" data-part="project-scope">
+          <legend>{dgettext("dashboard_account", "Projects")}</legend>
+          <p id="oidc-projects-hint">
+            {dgettext(
+              "dashboard_account",
+              "Select 1 to 100 projects. Unselected and future projects are not accessible."
+            )}
+          </p>
+          <input type="hidden" name="oidc_trust_policy[project_ids][]" value="" />
+          <div data-part="project-options">
+            <label :for={project <- @projects} data-part="project-option">
+              <input
+                id={"oidc-project-#{project.id}"}
+                type="checkbox"
+                name="oidc_trust_policy[project_ids][]"
+                value={project.id}
+                checked={project_selected?(@oidc_trust_policy_form, project.id)}
+                aria-describedby="oidc-projects-hint oidc-projects-error"
+              />
+              <span>{project.name}</span>
+            </label>
+          </div>
+          <p :if={@projects == []}>
+            {dgettext("dashboard_account", "Create a project before adding a workload identity.")}
+          </p>
+          <span id="oidc-projects-error" data-part="project-error">
+            {field_error(@oidc_trust_policy_form[:project_ids])}
+          </span>
+        </fieldset>
         <.alert
           :if={@oidc_template == "fly" and @identity_overridden?}
           id="oidc-template-overrides"
@@ -183,7 +198,7 @@
           size="small"
           title={
             dgettext(
-              "dashboard_projects",
+              "dashboard_account",
               "Your manual changes override this template. Review the advanced configuration."
             )
           }
@@ -198,13 +213,14 @@
           data-part="advanced"
           open={identity_errors?(@oidc_trust_policy_form) or @identity_overridden?}
         >
-          <summary>{dgettext("dashboard_projects", "Advanced configuration")}</summary>
+          <summary>{dgettext("dashboard_account", "Advanced configuration")}</summary>
           <.identity_fields form={@oidc_trust_policy_form} claims_input={@claims_input} />
         </details>
         <.button
           type="submit"
           variant="primary"
-          label={dgettext("dashboard_projects", "Add trust policy")}
+          label={dgettext("dashboard_account", "Add trust policy")}
+          disabled={@projects == []}
         />
       </.form>
     </div>

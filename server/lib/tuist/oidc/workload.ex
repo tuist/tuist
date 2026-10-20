@@ -1,11 +1,11 @@
 defmodule Tuist.OIDC.Workload do
   @moduledoc false
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.OIDC.JWKSCache
   alias Tuist.OIDC.JWKSClient
-  alias Tuist.Projects
-  alias Tuist.Projects.OIDCTrustPolicy
 
   @algorithms ~w(RS256 RS384 RS512 PS256 PS384 PS512 ES256 ES384 EdDSA)
   @maximum_response_bytes 65_536
@@ -14,7 +14,7 @@ defmodule Tuist.OIDC.Workload do
 
   def claims(token, issuer, account_handle) do
     with {:ok, header, hints} <- peek(token),
-         policies when length(policies) in 1..20 <- Projects.oidc_trust_candidates(issuer, account_handle, hints),
+         policies when length(policies) in 1..20 <- Accounts.oidc_trust_candidates(issuer, account_handle, hints),
          groups when map_size(groups) <= 2 <- Enum.group_by(policies, & &1.jwks_url) do
       grants =
         Enum.flat_map(groups, fn {url, policies} ->

@@ -1,32 +1,29 @@
-defmodule TuistWeb.ProjectAuthenticationLive do
+defmodule TuistWeb.AccountWorkloadIdentitiesLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.JSONInput
+
   alias Ecto.Changeset
+  alias Tuist.Accounts
+  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Projects.OIDCTrustPolicy
   alias TuistWeb.Errors.UnauthorizedError
-  alias TuistWeb.Helpers.OpenGraph
 
-  @policy_fields [:name, :issuer, :jwks_url, :audience, :claims]
+  @policy_fields [:name, :issuer, :jwks_url, :audience, :claims, :project_ids]
 
   @impl true
-  def mount(_params, _uri, %{assigns: %{selected_project: project, current_user: user}} = socket) do
-    authorize_project_update!(user, project)
+  def mount(_params, _uri, socket) do
+    account = authorize_account_update!(socket)
 
     socket =
       socket
-      |> assign(oidc_trust_policies: Projects.list_oidc_trust_policies(project))
+      |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
+      |> assign(projects: account |> Projects.list_accessible_projects(preload: []) |> Enum.sort_by(& &1.name))
       |> assign_empty_form()
-      |> assign(:head_title, "#{dgettext("dashboard_projects", "Authentication")} · #{project.name} · Tuist")
-      |> assign(
-        OpenGraph.project_image_assigns(project,
-          title: dgettext("dashboard_projects", "Authentication"),
-          fallback: "settings"
-        )
-      )
+      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")
 
     {:ok, socket}
   end
@@ -53,26 +50,26 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   end
 
   def handle_event("create_oidc_trust_policy", %{"oidc_trust_policy" => attrs} = params, socket) when is_map(attrs) do
-    project = authorize_project_update!(socket)
+    account = authorize_account_update!(socket)
     socket = update_policy_form(socket, attrs, params)
     attrs = socket.assigns.policy_params
     claims_input = Map.get(attrs, "claims", "")
 
     with :ok <- validate_template(socket),
          {:ok, claims} <- decode_claims(claims_input),
-         {:ok, _policy} <- Projects.create_oidc_trust_policy(project, Map.put(attrs, "claims", claims)) do
+         {:ok, _policy} <- Accounts.create_oidc_trust_policy(account, Map.put(attrs, "claims", claims)) do
       {:noreply,
        socket
-       |> assign(oidc_trust_policies: Projects.list_oidc_trust_policies(project))
+       |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
        |> assign_empty_form()
-       |> put_flash(:info, dgettext("dashboard_projects", "Trust policy added."))}
+       |> put_flash(:info, dgettext("dashboard_account", "Trust policy added."))}
     else
       {:error, :invalid_template} ->
         {:noreply,
          assign(socket,
            form_errors: [
              dgettext(
-               "dashboard_projects",
+               "dashboard_account",
                "Enter a valid Fly.io organization slug and numeric organization and application IDs."
              )
            ]
@@ -88,9 +85,6 @@ defmodule TuistWeb.ProjectAuthenticationLive do
 
         {:noreply, assign_form(socket, changeset, claims_input)}
 
-      # Errors added while rolling back a transaction, such as the policy
-      # limit, come back without an action, and forms hide errors until one
-      # is set.
       {:error, %Changeset{} = changeset} ->
         {:noreply, assign_form(socket, %{changeset | action: changeset.action || :insert}, claims_input)}
 
@@ -98,22 +92,22 @@ defmodule TuistWeb.ProjectAuthenticationLive do
         {:noreply,
          socket
          |> assign(claims_input: claims_input)
-         |> put_flash(:error, dgettext("dashboard_projects", "The trust policy could not be added."))}
+         |> put_flash(:error, dgettext("dashboard_account", "The trust policy could not be added."))}
     end
   end
 
   def handle_event("delete_oidc_trust_policy", %{"policy-id" => policy_id}, socket) do
-    project = authorize_project_update!(socket)
+    account = authorize_account_update!(socket)
 
     with {id, ""} <- Integer.parse(to_string(policy_id)),
-         {:ok, _policy} <- Projects.delete_oidc_trust_policy(project, id) do
+         {:ok, _policy} <- Accounts.delete_oidc_trust_policy(account, id) do
       {:noreply,
        socket
-       |> assign(oidc_trust_policies: Projects.list_oidc_trust_policies(project))
-       |> put_flash(:info, dgettext("dashboard_projects", "Trust policy removed."))}
+       |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
+       |> put_flash(:info, dgettext("dashboard_account", "Trust policy removed."))}
     else
       _ ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_projects", "Trust policy not found."))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_account", "Trust policy not found."))}
     end
   end
 
@@ -124,57 +118,52 @@ defmodule TuistWeb.ProjectAuthenticationLive do
     ~H"""
     <div data-part="identity-fields">
       <.text_input
-        label={dgettext("dashboard_projects", "Issuer URL")}
+        label={dgettext("dashboard_account", "Issuer URL")}
         field={@form[:issuer]}
         error={field_error(@form[:issuer])}
         type="basic"
         placeholder="https://identity.example.com"
       />
       <.text_input
-        label={dgettext("dashboard_projects", "JWKS URL")}
+        label={dgettext("dashboard_account", "JWKS URL")}
         field={@form[:jwks_url]}
         error={field_error(@form[:jwks_url])}
         type="basic"
         placeholder="https://identity.example.com/.well-known/jwks.json"
       />
-      <.text_area
+      <.json_input
         id="oidc-trust-policy-claims"
-        label={dgettext("dashboard_projects", "Claims")}
+        label={dgettext("dashboard_account", "Claims")}
         name={@form[:claims].name}
         value={@claims_input}
         error={field_error(@form[:claims])}
         hint={
           dgettext(
-            "dashboard_projects",
+            "dashboard_account",
             "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
           )
         }
         placeholder={~s({"sub": "service:production"})}
-        rows={4}
-        max_length={8192}
-        show_character_count={false}
       />
     </div>
     """
   end
 
-  # Claims are edited as a JSON object. Only the shape is checked here; the
-  # changeset owns the rules for keys, value types, and size.
   defp decode_claims(input) when is_binary(input) and byte_size(input) <= 8192 do
     case input |> String.trim() |> JSON.decode() do
       {:ok, claims} when is_map(claims) ->
         {:ok, claims}
 
       {:ok, _other} ->
-        {:error, :invalid_claims_json, dgettext("dashboard_projects", "Claims must be a JSON object.")}
+        {:error, :invalid_claims_json, dgettext("dashboard_account", "Claims must be a JSON object.")}
 
       {:error, _reason} ->
-        {:error, :invalid_claims_json, dgettext("dashboard_projects", "Claims must be valid JSON.")}
+        {:error, :invalid_claims_json, dgettext("dashboard_account", "Claims must be valid JSON.")}
     end
   end
 
   defp decode_claims(_input) do
-    {:error, :invalid_claims_json, dgettext("dashboard_projects", "Claims must be valid JSON of at most 8 KiB.")}
+    {:error, :invalid_claims_json, dgettext("dashboard_account", "Claims must be valid JSON of at most 8 KiB.")}
   end
 
   defp assign_empty_form(socket) do
@@ -192,6 +181,7 @@ defmodule TuistWeb.ProjectAuthenticationLive do
 
   defp update_policy_form(socket, attrs, params) do
     attrs = Map.take(attrs, Enum.map(@policy_fields, &Atom.to_string/1))
+    attrs = Map.update(attrs, "project_ids", [], &normalize_project_ids/1)
     fly = normalize_fly_template(Map.get(params, "fly_template", socket.assigns.fly_template))
     helper_changed? = fly != socket.assigns.fly_template
     edited = socket.assigns.edited_fields
@@ -218,6 +208,9 @@ defmodule TuistWeb.ProjectAuthenticationLive do
       assign_form(socket, OIDCTrustPolicy.changeset(Map.delete(attrs, "claims")), Map.get(attrs, "claims", ""))
     end
   end
+
+  defp normalize_project_ids(ids) when is_list(ids), do: Enum.reject(ids, &(&1 == ""))
+  defp normalize_project_ids(ids), do: ids
 
   defp normalize_fly_template(params) when is_map(params) do
     Map.new(empty_fly_template(), fn {key, _} ->
@@ -247,8 +240,7 @@ defmodule TuistWeb.ProjectAuthenticationLive do
       "claims" => claims
     }
 
-    # Track edits explicitly: queued helper events may contain stale generated
-    # values from the browser, which must not be mistaken for manual edits.
+    # Queued helper events may contain stale generated browser values.
     params =
       Enum.reduce(values, params, fn {key, value}, params ->
         if MapSet.member?(socket.assigns.edited_fields, key), do: params, else: Map.put(params, key, value)
@@ -272,15 +264,16 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   defp valid_fly_id?(value), do: byte_size(value) in 1..64 and Regex.match?(~r/\A[0-9]+\z/, value)
 
   defp assign_form(socket, changeset, claims_input) do
+    defaults = %{"name" => "", "issuer" => "", "jwks_url" => "", "audience" => "tuist", "project_ids" => []}
+    params = defaults |> Map.merge(changeset.params || %{}) |> Map.put("claims", claims_input)
+
     socket
     |> assign(oidc_trust_policy_form: to_form(changeset, as: :oidc_trust_policy))
     |> assign(claims_input: claims_input)
-    |> assign(policy_params: Map.put(Map.put_new(changeset.params || %{}, "audience", "tuist"), "claims", claims_input))
+    |> assign(policy_params: params)
     |> assign(form_errors: unrendered_errors(changeset))
   end
 
-  # Errors that don't belong to an editable field would otherwise be invisible
-  # in the form.
   defp unrendered_errors(%Changeset{action: nil}), do: []
 
   defp unrendered_errors(%Changeset{errors: errors}) do
@@ -288,9 +281,15 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   end
 
   defp identity_errors?(form), do: Enum.any?([:issuer, :jwks_url, :claims], &(form[&1].errors != []))
-
   defp field_error(%Phoenix.HTML.FormField{errors: [error | _]}), do: translate_error(error)
   defp field_error(_field), do: nil
+
+  defp project_selected?(form, id) do
+    case form[:project_ids].value do
+      ids when is_list(ids) -> Enum.any?(ids, &(&1 == id or &1 == Integer.to_string(id)))
+      _ -> false
+    end
+  end
 
   defp format_claims(claims) when is_map(claims) do
     claims
@@ -298,18 +297,14 @@ defmodule TuistWeb.ProjectAuthenticationLive do
     |> Enum.map_join(", ", fn {key, value} -> "#{key} = #{JSON.encode!(value)}" end)
   end
 
-  defp format_claims(_claims), do: ""
+  defp authorize_account_update!(socket) do
+    {:ok, account} = Accounts.get_account_by_id(socket.assigns.selected_account.id)
 
-  defp authorize_project_update!(socket) do
-    project = Projects.get_project_by_id(socket.assigns.selected_project.id)
-    authorize_project_update!(socket.assigns.current_user, project)
-    project
-  end
-
-  defp authorize_project_update!(user, project) do
-    if Authorization.authorize(:project_update, user, project) != :ok do
+    if Authorization.authorize(:account_update, socket.assigns.current_user, account) != :ok do
       raise UnauthorizedError,
-            dgettext("dashboard_projects", "You are not authorized to perform this action.")
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
+
+    account
   end
 end

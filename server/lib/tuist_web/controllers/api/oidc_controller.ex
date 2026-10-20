@@ -3,7 +3,7 @@ defmodule TuistWeb.API.OIDCController do
   Controller for OIDC token exchange.
 
   This controller handles the exchange of CI and workload OIDC tokens for
-  short-lived Tuist access tokens. Supports built-in CI providers and project-configured workload identities.
+  short-lived Tuist access tokens. Supports built-in CI providers and account-configured workload identities with explicit project grants.
   """
 
   use OpenApiSpex.ControllerSpecs
@@ -28,7 +28,7 @@ defmodule TuistWeb.API.OIDCController do
   operation(:exchange_token,
     summary: "Exchange an OIDC identity token for a Tuist access token.",
     description: """
-    Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
+    Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     for a short-lived Tuist access token.
     """,
     operation_id: "exchangeOIDCToken",

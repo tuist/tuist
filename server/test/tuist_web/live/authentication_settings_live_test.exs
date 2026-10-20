@@ -84,10 +84,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert html =~ "/scim/v2"
   end
 
-  test "raises NotFoundError for personal accounts", %{conn: conn, user: user} do
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/settings/authentication")
-    end
+  test "redirects personal accounts to workload identities", %{conn: conn, user: user} do
+    assert {:error, {:live_redirect, %{to: destination}}} =
+             live(conn, ~p"/#{user.account.name}/settings/authentication")
+
+    assert destination == ~p"/#{user.account.name}/settings/authentication/workload-identities"
   end
 
   test "raises UnauthorizedError when user is not an admin", %{conn: conn} do

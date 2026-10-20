@@ -2,6 +2,8 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.Environment
   alias Tuist.Guardian
   alias Tuist.KeyValueStore
@@ -22,13 +24,23 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     claims: %{"sub" => "service:production"}
   }
 
+  # Seed directly so verification bounds also cover rows beyond creation limits.
+  defp create_policy(project, attrs) do
+    attrs = attrs |> Map.put(:project_ids, [project.id]) |> Map.update!(:name, &"#{&1} #{project.id}")
+
+    %OIDCTrustPolicy{account_id: project.account_id}
+    |> OIDCTrustPolicy.changeset(attrs)
+    |> Ecto.Changeset.put_assoc(:projects, [project])
+    |> Repo.insert()
+  end
+
   setup_all do
     %{key: JOSE.JWK.generate_key({:rsa, 2048}), other_key: JOSE.JWK.generate_key({:rsa, 2048})}
   end
 
   setup %{key: key} do
     project = ProjectsFixtures.project_fixture(preload: [:account])
-    {:ok, policy} = Projects.create_oidc_trust_policy(project, @attrs)
+    {:ok, policy} = create_policy(project, @attrs)
     stub(KeyValueStore, :get_or_update, fn _, _, fetch -> fetch.() end)
     stub(SSRFGuard, :pin, fn url -> {:ok, url, "keys.example"} end)
     parent = self()
@@ -48,7 +60,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     account: account
   } do
     second = ProjectsFixtures.project_fixture(account: project.account)
-    {:ok, _} = Projects.create_oidc_trust_policy(second, @attrs)
+    {:ok, _} = create_policy(second, @attrs)
     ProjectsFixtures.project_fixture(account: project.account, vcs_connection: [repository_full_handle: "tuist/tuist"])
     response = conn |> exchange(sign(key), String.upcase(account)) |> json_response(:ok)
     assert response["expires_in"] == 3600
@@ -64,6 +76,28 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert opts[:connect_options][:timeout] == 5_000
     assert opts[:connect_options][:hostname] == "keys.example"
     refute_receive {:jwks_fetch, _, _}
+  end
+
+  test "one account identity grants only its explicitly selected projects", %{
+    conn: conn,
+    key: key,
+    project: project,
+    policy: policy,
+    account: account
+  } do
+    second = ProjectsFixtures.project_fixture(account: project.account)
+    ProjectsFixtures.project_fixture(account: project.account)
+
+    policy
+    |> Repo.preload(:projects)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:projects, [project, second])
+    |> Repo.update!()
+
+    ProjectsFixtures.project_fixture(account: project.account)
+    response = conn |> exchange(sign(key), account) |> json_response(:ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert Enum.sort(claims["project_ids"]) == Enum.sort([project.id, second.id])
   end
 
   test "requires an account before any policy or network lookup", %{conn: conn, key: key} do
@@ -82,7 +116,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   } do
     first = conn |> exchange(sign(key), "unknown-account") |> json_response(:unauthorized)
     second = conn |> exchange(sign(key, %{"sub" => "other"}), account) |> json_response(:unauthorized)
-    {:ok, _} = Projects.delete_oidc_trust_policy(project, policy.id)
+    {:ok, _} = Accounts.delete_oidc_trust_policy(project.account, policy.id)
     third = conn |> exchange(sign(key), account) |> json_response(:unauthorized)
     assert first == second and second == third
     assert first["message"] == "OIDC token signature verification failed"
@@ -107,7 +141,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     foreign = ProjectsFixtures.project_fixture(preload: [:account])
-    {:ok, _} = Projects.create_oidc_trust_policy(foreign, %{@attrs | jwks_url: "https://attacker.example/keys"})
+    {:ok, _} = create_policy(foreign, %{@attrs | jwks_url: "https://attacker.example/keys"})
     parent = self()
 
     stub(JWKSClient, :get, fn url, _ ->
@@ -132,7 +166,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     sibling = ProjectsFixtures.project_fixture(account: project.account)
-    {:ok, _} = Projects.create_oidc_trust_policy(sibling, %{@attrs | jwks_url: "https://other.example/keys"})
+    {:ok, _} = create_policy(sibling, %{@attrs | jwks_url: "https://other.example/keys"})
 
     stub(JWKSClient, :get, fn url, _ ->
       {:ok, %{status: 200, body: jwks(if(url == @attrs.jwks_url, do: key, else: other))}}
@@ -185,7 +219,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     {:ok, _} =
-      Projects.create_oidc_trust_policy(project, %{
+      create_policy(project, %{
         @attrs
         | name: "Fly.io",
           issuer: "https://oidc.fly.io/my-org",
@@ -209,7 +243,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     {:ok, _} =
-      Projects.create_oidc_trust_policy(project, %{@attrs | name: "Typed", claims: %{"id" => 123, "protected" => true}})
+      create_policy(project, %{@attrs | name: "Typed", claims: %{"id" => 123, "protected" => true}})
 
     for value <- ["123", 123.0, [123]] do
       assert conn
@@ -231,7 +265,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert {:ok, identity} = OIDC.claims(sign(key), account)
     Repo.update!(Ecto.Changeset.change(policy, jwks_url: "https://different.example/keys"))
     assert [] == Projects.projects_by_oidc_grants(identity)
-    {:ok, _} = Projects.delete_oidc_trust_policy(project, policy.id)
+    {:ok, _} = Accounts.delete_oidc_trust_policy(project.account, policy.id)
     assert [] == Projects.projects_by_oidc_grants(identity)
   end
 
@@ -243,7 +277,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   } do
     for i <- 1..2 do
       {:ok, _} =
-        Projects.create_oidc_trust_policy(project, %{
+        create_policy(project, %{
           @attrs
           | name: "Other audience #{i}",
             audience: "other-#{i}",
@@ -266,11 +300,11 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     for i <- 1..19 do
-      {:ok, _} = Projects.create_oidc_trust_policy(project, %{@attrs | name: "Other #{i}", audience: "other"})
+      {:ok, _} = create_policy(project, %{@attrs | name: "Other #{i}", audience: "other"})
     end
 
     sibling = ProjectsFixtures.project_fixture(account: project.account)
-    {:ok, _} = Projects.create_oidc_trust_policy(sibling, %{@attrs | audience: "other"})
+    {:ok, _} = create_policy(sibling, %{@attrs | audience: "other"})
     response = conn |> exchange(sign(key, %{"aud" => ["tuist", "another"]}), account) |> json_response(:ok)
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
     assert claims["project_ids"] == [project.id]
@@ -282,7 +316,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   test "bounds distinct JWKS URLs before any fetch", %{conn: conn, key: key, account: account, project: project} do
     for i <- 1..2 do
       {:ok, _} =
-        Projects.create_oidc_trust_policy(project, %{
+        create_policy(project, %{
           @attrs
           | name: "Policy #{i}",
             jwks_url: "https://keys#{i}.example/jwks"
@@ -300,11 +334,11 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     project: project
   } do
     for i <- 1..19 do
-      {:ok, _} = Projects.create_oidc_trust_policy(project, %{@attrs | name: "Policy #{i}"})
+      {:ok, _} = create_policy(project, %{@attrs | name: "Policy #{i}"})
     end
 
     sibling = ProjectsFixtures.project_fixture(account: project.account)
-    {:ok, _} = Projects.create_oidc_trust_policy(sibling, @attrs)
+    {:ok, _} = create_policy(sibling, @attrs)
     assert conn |> exchange(sign(key), account) |> json_response(:unauthorized)
     refute_receive {:jwks_fetch, _, _}
   end
@@ -390,7 +424,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert_receive :successful_fetch
     assert conn |> exchange(token, account) |> json_response(:ok)
     refute_receive :successful_fetch
-    {:ok, _} = Projects.delete_oidc_trust_policy(project, policy.id)
+    {:ok, _} = Accounts.delete_oidc_trust_policy(project.account, policy.id)
     assert conn |> exchange(token, account) |> json_response(:unauthorized)
     refute_receive :successful_fetch
   end

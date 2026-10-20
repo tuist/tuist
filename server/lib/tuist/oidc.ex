@@ -9,9 +9,9 @@ defmodule Tuist.OIDC do
   - Configured workload identity providers
   """
 
+  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
-  alias Tuist.Projects.OIDCTrustPolicy
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)

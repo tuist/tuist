@@ -14,6 +14,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.OIDCTrustPolicies
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.SSOLoginDomainRecheck
@@ -64,6 +65,11 @@ defmodule Tuist.Accounts do
     :oauth2_token_url,
     :oauth2_user_info_url
   ]
+
+  defdelegate list_oidc_trust_policies(account), to: OIDCTrustPolicies, as: :list
+  defdelegate create_oidc_trust_policy(account, attrs), to: OIDCTrustPolicies, as: :create
+  defdelegate delete_oidc_trust_policy(account, policy_id), to: OIDCTrustPolicies, as: :delete
+  defdelegate oidc_trust_candidates(issuer, account_handle, claims), to: OIDCTrustPolicies, as: :candidates
 
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.

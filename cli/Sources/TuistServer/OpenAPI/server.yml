@@ -21398,7 +21398,7 @@ paths:
     post:
       callbacks: {}
       description: |
-        Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
+        Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
         for a short-lived Tuist access token.
       operationId: exchangeOIDCToken
       parameters: []
@@ -24092,7 +24092,7 @@ paths:
                   x-struct:
                   x-validate:
                 dependency_cache:
-                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  description: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                   items:
                     properties:
                       dependency:
@@ -24102,12 +24102,14 @@ paths:
                         x-struct:
                         x-validate:
                       duration_ms:
+                        description: Lookup/compilation duration, or validation time for up-to-date local reuse.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
                         x-struct:
                         x-validate:
                       key:
+                        description: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         pattern: ^([a-f0-9]{64})?$
                         type: string
                         x-struct:
@@ -24155,6 +24157,7 @@ paths:
                           - unmodeled_input
                           - inputs_changed
                           - store_failed
+                          - up_to_date
                         type: string
                         x-struct:
                         x-validate:

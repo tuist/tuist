@@ -3,6 +3,7 @@
 This context owns business logic and data related to accounts, users, organizations, roles, and auth tokens.
 
 ## Responsibilities
+- `OIDCTrustPolicy` and `OIDCTrustPolicies` own reusable account-level workload identities. Require 1–100 explicitly selected projects from that account; never default to all/current/future projects. Scope names and CRUD to the account, ignore submitted account IDs, and lock the account row to enforce 20 policies. Project deletion removes its join-table grants, not the identity; account/policy deletion cascades grants. Candidate lookup uses indexed `citext` account equality and audience prefiltering, returning each policy once regardless of project count. Fresh issuance must recheck policy content and each selected project's current account ownership. See `../oidc/AGENTS.md`.
 - Manage accounts and organizations, including billing metadata and SSO credentials.
 - Sign-up reporting queries use explicit inclusive-start/exclusive-end creation periods and deterministic ordering, so adjacent hourly reports do not overlap.
 - Issue and validate account/user tokens, device codes, and invitations.

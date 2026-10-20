@@ -8,6 +8,19 @@
     current_user={@current_user}
   />
 
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_account", "Single Sign-On")}
+      selected={true}
+      navigate={~p"/#{@selected_account.name}/settings/authentication"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_account", "Workload identities")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/settings/authentication/workload-identities"}
+    />
+  </.tab_menu_horizontal>
+
   <.alert
     :if={@flash_message}
     status={elem(@flash_message, 0)}

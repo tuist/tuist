@@ -23,10 +23,9 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     assert html =~ "Project logo"
     refute has_element?(lv, "#oidc-trust-policies")
 
-    assert has_element?(
+    refute has_element?(
              lv,
-             ~s(a[href="/#{organization.account.name}/#{project.name}/settings/authentication"]),
-             "Authentication"
+             ~s(a[href="/#{organization.account.name}/#{project.name}/settings/authentication"])
            )
   end
 
