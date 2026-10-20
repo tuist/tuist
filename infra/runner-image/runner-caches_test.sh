@@ -7,7 +7,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 eq() { [ "$1" = "$2" ] || fail "expected [$1], got [$2]"; }
 
-eval "$(awk '/^(stage_runner_caches|runner_caches_used|cache_passed|report_cache_dirty)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
+eval "$(awk '/^(stage_runner_caches|stage_managed_cache_volumes|cas_store_root|cas_spool_dirs|cas_store_dirs|runner_caches_used|cache_passed|report_cache_dirty)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
 declare -F stage_runner_caches >/dev/null || fail 'stage_runner_caches missing'
 declare -F runner_caches_used >/dev/null || fail 'runner_caches_used missing'
 base=$(mktemp -d)
@@ -16,6 +16,8 @@ trap 'rm -rf "$base"' EXIT
 setup() {
   work=$(mktemp -d "$base/test.XXXXXX")
   RUNNER_CACHES_DIR="$work/caches"
+  MANAGED_CACHE_VOLUMES=0
+  CAS_STORE_ROOT=""
   STATUS_SHARE="$work/status"
   mkdir -p "$STATUS_SHARE"
   printf '{}' >"$STATUS_SHARE/cache-usage.json"
@@ -145,6 +147,78 @@ test_other_runners_are_left_alone() {
   status=0
   activate gradle >/dev/null 2>&1 || status=$?
   eq 2 "$status"
+}
+
+managed_setup() {
+  setup
+  AUTOMATIC_CACHES=0
+  MANAGED_CACHE_VOLUMES=1
+  CACHE_MOUNT=""
+  MANAGED_XCODE_CACHE="$work/xcode-cache"
+  MANAGED_MODULE_CACHE="$work/module-cache"
+  MANAGED_XCCONFIG="$work/managed.xcconfig"
+  MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+  MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
+  # A stand-in for the volume client: records each attach and creates the path.
+  mkdir -p "$work/bin"
+  cat >"$work/bin/tuist-cache-volume" <<EOF
+#!/bin/bash
+echo "\$*" >>"$work/attached"
+[ "\$4" = "$work/broken" ] && exit 1
+mkdir -p "\$4"
+EOF
+  chmod +x "$work/bin/tuist-cache-volume"
+}
+
+test_managed_caches_stage_their_volumes() {
+  managed_setup
+  stage_runner_caches >/dev/null
+  eq opt-in "$(cat "$RUNNER_CACHES_DIR/mode")"
+  eq "tuist-xcode"$'\t'"$MANAGED_XCODE_CACHE" "$(cat "$RUNNER_CACHES_DIR/xcode.volume")"
+  eq "tuist-module"$'\t'"$MANAGED_MODULE_CACHE" "$(cat "$RUNNER_CACHES_DIR/module.volume")"
+  eq "TUIST_XDG_CACHE_HOME=$MANAGED_MODULE_CACHE"$'\n'"TUIST_CACHE_MAX_BYTES=16000000000" "$(cat "$RUNNER_CACHES_DIR/module.env")"
+  grep -qx "XCODE_XCCONFIG_FILE=$MANAGED_XCCONFIG" "$RUNNER_CACHES_DIR/xcode.env" || fail 'managed xcconfig not staged'
+  grep -qx "TUIST_COMPILATION_CACHE_CAS_PATH=$MANAGED_XCODE_CACHE" "$RUNNER_CACHES_DIR/xcode.env" || fail 'store not staged'
+  grep -qx "TUIST_CAS_DRAINED_STORE=$MANAGED_XCODE_CACHE" "$RUNNER_CACHES_DIR/xcode.env" || fail 'drained store not staged'
+  grep -qx "COMPILATION_CACHE_CAS_PATH = $MANAGED_XCODE_CACHE" "$MANAGED_XCCONFIG" || fail 'xcconfig does not point at the volume'
+  grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 24000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig does not bound the store'
+  for name in TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE; do
+    [ -z "${!name:-}" ] || fail "$name still reaches the runner"
+  done
+  [ ! -e "$STATUS_SHARE/cache-usage.json" ] || fail 'a managed job reported built-in volume usage'
+}
+
+test_managed_activation_attaches_the_volume_once() {
+  managed_setup
+  stage_runner_caches >/dev/null
+  out=$(PATH="$work/bin:$PATH" activate xcode 2>/dev/null) || fail 'managed xcode activation failed'
+  PATH="$work/bin:$PATH" activate xcode >/dev/null 2>&1 || fail 'repeated managed activation failed'
+  eq "$(cat "$RUNNER_CACHES_DIR/xcode.env")" "$out"
+  eq "--key tuist-xcode --path $MANAGED_XCODE_CACHE" "$(cat "$work/attached")"
+  [ -d "$MANAGED_XCODE_CACHE" ] || fail 'volume not attached at the store path'
+  [ -e "$RUNNER_CACHES_DIR/xcode.used" ] || fail 'managed activation not recorded'
+}
+
+test_managed_activation_exports_nothing_when_the_volume_cannot_attach() {
+  managed_setup
+  MANAGED_MODULE_CACHE="$work/broken"
+  stage_runner_caches >/dev/null
+  status=0
+  out=$(PATH="$work/bin:$PATH" activate module 2>"$work/err") || status=$?
+  eq 3 "$status"
+  eq '' "$out"
+  grep -q 'empty cache' "$work/err" || fail 'no explanation when the volume cannot attach'
+}
+
+test_compilation_cache_stores_follow_the_managed_store_root() {
+  managed_setup
+  mkdir -p "$work/volume/data/plugin/v1.1" "$work/volume/data/plugin/tuist-spool"
+  ln -s "$work/volume/data" "$MANAGED_XCODE_CACHE"
+  CAS_STORE_ROOT="$MANAGED_XCODE_CACHE"
+  eq "$MANAGED_XCODE_CACHE/plugin/tuist-spool" "$(cas_spool_dirs)"
+  eq "$MANAGED_XCODE_CACHE/plugin" "$(cas_store_dirs)"
+  CAS_STORE_ROOT=""
+  eq '' "$(cas_spool_dirs)"
 }
 
 for test in $(declare -F | awk '{print $3}' | grep '^test_'); do
