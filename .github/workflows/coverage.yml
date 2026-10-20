@@ -123,6 +123,8 @@ jobs:
         with:
           ref: ${{ needs.commit.outputs.sha }}
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
@@ -192,6 +194,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |
@@ -243,6 +247,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |

@@ -28,6 +28,7 @@ func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var errInvalidPath = errors.New("invalid cache path")
+var errExecutionPending = errors.New("GitHub had not yet reported which job this runner is running, so the Tuist server could not authorize a volume in time")
 var hexComponent = regexp.MustCompile(`^[0-9a-f]{8,}$`)
 
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
@@ -238,6 +239,9 @@ func requestJSON(client *http.Client, req *http.Request, result any) error {
 		return err
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusTooEarly {
+		return errExecutionPending
+	}
 	if response.StatusCode != 200 {
 		return fmt.Errorf("cache service returned %d", response.StatusCode)
 	}

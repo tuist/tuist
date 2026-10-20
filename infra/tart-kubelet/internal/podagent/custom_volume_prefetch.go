@@ -13,6 +13,7 @@ const (
 	// customAcquireBudget bounds how long a job waits for its volume. A master
 	// that does not arrive in time is downloaded in the background instead.
 	customAcquireBudget  = 25 * time.Second
+	customAuthorizeRetry = time.Second
 	customPrefetchBudget = 5 * time.Minute
 	customPrefetchQueue  = 16
 	// customPrefetchRetry spaces out attempts at a master whose download failed.

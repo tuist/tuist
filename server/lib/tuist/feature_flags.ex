@@ -57,9 +57,11 @@ defmodule Tuist.FeatureFlags do
   job queued while the site is down moves to the rented fleet
   (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
   node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  Staging and canary run their macOS jobs at a site, so it is on for every
+  account there.
   """
   def runner_site_enabled?(account) do
-    FunWithFlags.enabled?(:runner_site, for: account)
+    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
   end
 
   @doc """

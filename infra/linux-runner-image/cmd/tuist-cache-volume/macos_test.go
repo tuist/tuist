@@ -177,10 +177,11 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 
 func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
 	for reason, want := range map[string]string{
-		"timeout":  "still downloading",
-		"capacity": "no room",
-		"denied":   "did not authorize",
-		"":         "cache unavailable",
+		"timeout":           "still downloading",
+		"capacity":          "no room",
+		"denied":            "did not authorize",
+		"execution_pending": "not yet reported which job",
+		"":                  "cache unavailable",
 	} {
 		share, mount := t.TempDir(), t.TempDir()
 		data, _ := json.Marshal(macResponse{Error: "unavailable", Reason: reason})

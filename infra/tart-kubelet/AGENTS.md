@@ -82,7 +82,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   masters a job asked for but did not get within its 25 seconds first, then the
   custom HEADs the server lists for the host class (free space only, no eviction).
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
-  carry a bounded `reason` and the host logs why.
+  carry a bounded `reason` and the host logs why; a 425 retried until the
+  deadline is `execution_pending`, not `denied`.
   A job whose base is not local mounts the newest older master of the same
   lineage instead of an empty directory (reported as `mounted_generation`) and its
   base is queued. A superseded master used in the last day stays until its
@@ -106,3 +107,35 @@ workflow code runs in the guest. Never expose host credentials or masters.
   seeds from the Pod's published readiness for the same VM so a tart-kubelet
   restart does not flap Ready. A wrong probe stalls rollouts and PDBs, so
   probes stay opt-in per PodSpec.
+
+## Tart versions
+
+The operator installs Tart in place (see
+[`macos-host-bootstrap/AGENTS.md`](../macos-host-bootstrap/AGENTS.md)), so a host
+runs VMs started by the previous version beside new invocations of the current
+one, and a fleet runs mixed versions while a release rolls. tart-kubelet must
+work against every release the operator image carries (`TART_RELEASES` in
+`cluster-api-provider-tuist/Dockerfile`).
+
+What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
+
+- VM directories: a standalone VM is `config.json`, `disk.img` and `nvram.bin`
+  in both, and running is a `fcntl` lock on `config.json` in both. Existing
+  goldens, clones and OCI cache entries are reused after an upgrade, not
+  re-pulled, and `tart stop`/`delete` from either version manage the other's
+  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`) that only
+  `clone --stacked` creates; nothing here creates one yet, and 2.32 cannot read
+  one, so rolling back below 2.36 is only safe while no host holds one.
+- `tart run` stays a foreground process for the life of the VM, so the
+  `Setsid` launch and the `pgrep` liveness check are unchanged.
+- JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON
+  keeps `Size` numeric in `list` and a quoted decimal in `get`, and `Disk` may
+  be `null` (2.39). `VM` decodes all of them (`TestVMUnmarshalAcrossTartVersions`).
+- `clone` refuses an existing destination without `--overwrite` from 2.40.1,
+  even one too incomplete for `tart delete` to remove, and older releases reject
+  the flag. `CloneFrom` retries with it only after that refusal.
+- `pull --insecure` and image references naming a `host:port` registry, which
+  the rack's image cache needs, behave the same.
+
+The Node reports the Tart the host runs as its container runtime version
+(`tart://2.41.1`, the CONTAINER-RUNTIME column of `kubectl get nodes -o wide`).

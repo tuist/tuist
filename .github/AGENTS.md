@@ -159,11 +159,12 @@ scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
 use its automatic GitHub archive/copy backend. Do not add a second cache step.
 The macOS native SwiftPM resolve/build commands use the same
 `--cache-path "$PWD/.build/dependency-cache"`. The released CLI must include #14304
-so internal manifest dumps honor that path too. Keep the existing v2 workspace
-keys through the action's `cache-key` input: they include job, Xcode version and
-`Package.swift`, not the lockfile. The fork acceptance job uses the acceptance-build
-key so default-branch runs can seed it. Preserve fork guards for Tuist login,
-setup, and enterprise sources; installation itself remains unconditional.
+so internal manifest dumps honor that path too. Use stable per-job workspace
+keys through the action's `cache-key` input (`cli-macos-workspace-${{ github.job }}`),
+without Xcode-version, manifest, or lockfile hashes. The fork acceptance job uses
+the stable acceptance-build key so default-branch runs can seed it. Preserve
+fork guards for Tuist login, setup, and enterprise sources; installation itself
+remains unconditional.
 Keep configuration, security, and authentication outside the cache. Mise's
 postinstall hook skips dependency installation on CI so it does not populate the
 volume target before the action runs.

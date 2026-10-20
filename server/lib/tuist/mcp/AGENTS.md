@@ -48,6 +48,23 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.
 
+- Cargo build, Mix build and Once run tools share `Cargo.Query`, `Mix.Query` and
+  `OnceEvents.Query` with their REST endpoints, so both return the same shapes.
+  Their IDs are client-chosen and project-scoped: the get tools take
+  `account_handle`, `project_handle` and the ID and authorize project build-read.
+  Never add an ID-only lookup for them.
+- `connect_project_repository` and `disconnect_project_repository` share
+  `VCS.connect_github_repository/3`, `VCS.disconnect_github_repository/1`
+  and `VCS.connect_github_repository_error/2` with the REST endpoint. They
+  authorize project `:update`, and linking only accepts repositories in the
+  account's GitHub App installation list, never a repository an installation
+  token merely can read.
+- Code coverage tools (`get_coverage`, `list_coverage_files`,
+  `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
+  derive their output schemas from `Tests.Coverage.Schemas` through
+  `Tool.json_schema/1`. They require test-read, then
+  `FeatureFlags.xcode_coverage_enabled?/1` for the project's account.
+
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when

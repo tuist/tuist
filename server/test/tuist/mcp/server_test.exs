@@ -71,6 +71,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_invocation_log" in tool_names
       assert "list_bazel_cache_events" in tool_names
       assert "get_bazel_cache_event" in tool_names
+      assert "list_cargo_builds" in tool_names
+      assert "get_cargo_build" in tool_names
+      assert "list_mix_builds" in tool_names
+      assert "get_mix_build" in tool_names
+      assert "list_once_runs" in tool_names
+      assert "get_once_run" in tool_names
       assert "list_test_runs" in tool_names
       assert "list_test_module_runs" in tool_names
       assert "list_test_suite_runs" in tool_names
@@ -79,6 +85,9 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_test_case" in tool_names
       assert "get_test_run" in tool_names
       assert "get_test_case_run" in tool_names
+      assert "get_coverage" in tool_names
+      assert "list_coverage_files" in tool_names
+      assert "get_coverage_file" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
       assert "get_bundle_artifact_tree" in tool_names
@@ -94,11 +103,13 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
       assert "get_project" in tool_names
+      assert "connect_project_repository" in tool_names
+      assert "disconnect_project_repository" in tool_names
       assert "list_project_tokens" in tool_names
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.38.0"
+      assert server.version == "1.39.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."

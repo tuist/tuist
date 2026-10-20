@@ -386,3 +386,55 @@ func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
 		t.Fatalf("merged labels = %v; want %v", labels, want)
 	}
 }
+
+func TestRefreshPublishesTheTartVersion(t *testing.T) {
+	c := newNodeFakeClient()
+	version, versionErr := "2.32.1", error(nil)
+	m := &Maintainer{
+		Client: c, NodeName: "mac-1", Heartbeat: time.Second,
+		RuntimeVersion: func(context.Context) (string, error) { return version, versionErr },
+	}
+	runtime := func() string {
+		t.Helper()
+		node := &corev1.Node{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, node); err != nil {
+			t.Fatal(err)
+		}
+		return node.Status.NodeInfo.ContainerRuntimeVersion
+	}
+
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.32.1" {
+		t.Fatalf("runtime = %q, want tart://2.32.1", got)
+	}
+
+	version = "2.41.1"
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after an in-place upgrade = %q, want tart://2.41.1", got)
+	}
+
+	versionErr = errors.New("tart: exec format error")
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after a failed read = %q, want the last version read", got)
+	}
+}
+
+func TestConfigureNodeKeepsBareRuntimeWithoutAVersion(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-1"}
+	node := &corev1.Node{}
+	m.configureNode(node, nil)
+	if got := node.Status.NodeInfo.ContainerRuntimeVersion; got != "tart" {
+		t.Fatalf("runtime = %q, want tart", got)
+	}
+}

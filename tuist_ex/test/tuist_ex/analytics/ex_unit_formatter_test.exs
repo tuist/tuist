@@ -249,6 +249,41 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     end
   end
 
+  test "tells the caller when every failed test timed out" do
+    timeout = {:error, %ExUnit.TimeoutError{timeout: 60_000, type: "test"}, []}
+    assertion = {:error, %ExUnit.AssertionError{message: "nope"}, []}
+    passed = new_test(name: :"test passes")
+    timed_out = new_test(name: :"test hangs", state: {:failed, [timeout]})
+    failed = new_test(name: :"test fails", state: {:failed, [assertion]})
+    invalid = new_test(name: :"test set up", state: {:invalid, SomeModuleTest})
+
+    for {tests, timed_out?} <- [
+          {[passed, timed_out, timed_out], true},
+          {[passed, timed_out, failed], false},
+          {[timed_out, invalid], false},
+          {[new_test(name: :"test hangs", state: {:failed, [timeout, assertion]})], false},
+          {[passed], false}
+        ] do
+      {:ok, pid} =
+        GenServer.start_link(ExUnitFormatter,
+          environment: &environment/1,
+          submit: fn _payload, _opts -> :ok end,
+          mode: {:defer, self()}
+        )
+
+      send_lifecycle(
+        pid,
+        [{:suite_started, []}] ++
+          Enum.map(tests, &{:test_finished, &1}) ++ [{:suite_finished, %{run: 1_000}}]
+      )
+
+      :ok = GenServer.stop(pid)
+
+      assert [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+      assert Map.get(payload, :timed_out, false) == timed_out?
+    end
+  end
+
   test "keeps the run for the caller in defer mode and writes outcomes to a file in collect mode" do
     parent = self()
     submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end

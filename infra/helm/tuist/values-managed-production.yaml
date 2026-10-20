@@ -1388,6 +1388,14 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "2"
+      # Lent to canary: its Node registers in the canary cluster, where
+      # canary's rack pools run its guests, including the deploy cascade's
+      # runners acceptance gate (rackFleet.joiningNodes in
+      # values-managed-canary.yaml).
+      nodeFleet: tuist-canary-rack-fleet
+      nodeCluster:
+        kubeconfigItem: BER1_RUNNER_B02_CANARY_KUBECONFIG
+        cacheVolumesURL: https://canary.tuist.dev/api/internal/runners/cache-volumes
     - name: ber1-runner-b03
       serial: JC332QMX73
       address: 10.10.0.103
