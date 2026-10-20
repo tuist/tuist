@@ -17,6 +17,33 @@ steps:
     command: ./gradlew test
 ```
 
+Set `path` to a list to keep several directories in the same volume:
+
+```yaml
+steps:
+  - label: Lint
+    agents:
+      queue: tuist-linux
+    plugins:
+      - tuist/cache-volume#v1:
+          volumes:
+            - key: python-tools
+              path:
+                - ~/.cache/pip
+                - ~/.cache/pre-commit
+    command: pre-commit run --all-files
+```
+
+- All paths share the volume's 20 GB capacity and are restored and saved together.
+- Group small, related directories. Give a large or fast-changing directory its
+  own volume.
+- Paths in one volume must not contain each other.
+- Each path is stored in its own directory inside the volume, identified by how
+  the path is written. Switching between one path and several, or adding,
+  removing or rewriting a path, changes that layout: the first job after the
+  change starts cold for the affected paths. Content of paths that are no
+  longer listed stays in the volume until you clear it.
+
 This plugin's distribution repository is `tuist/cache-volume-buildkite-plugin`.
 Relevant changes merged to the monorepo’s `main` automatically publish it
 alongside the GitHub action and GitLab template, using a shared semantic version.
@@ -65,8 +92,8 @@ or `~/.gradle/caches`; `node_modules` is rejected on macOS because npm replaces 
 Other tools that replace their cache directory are also incompatible on macOS.
 For a macOS
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+not `.gradle/`, in `.gitignore`). Each path must be a single line without control
+characters; list several paths as a YAML list instead of `path: |`.
 
 On macOS, use a macOS runner profile. Native jobs are supported; Linux container
 examples do not apply to macOS. Volumes mount in the macOS guest, so a separate

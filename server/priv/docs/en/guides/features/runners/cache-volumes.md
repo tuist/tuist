@@ -183,8 +183,9 @@ test:
 
 Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
-artifact restore that writes to the same directory. Use a different key for
-each directory.
+artifact restore that writes to the same directory. To keep several directories
+in one volume, see
+[Several directories in one volume](#several-directories-in-one-volume).
 
 ::: code-group
 
@@ -228,6 +229,71 @@ test:
 ```
 <!-- -->
 :::
+
+### Several directories in one volume {#several-directories-in-one-volume}
+
+A volume can hold several directories. In GitHub Actions, list one path per
+line; in Buildkite, set `path` to a list; in GitLab CI, pass `--path` once per
+directory. Blank lines and surrounding whitespace are ignored.
+
+::: code-group
+
+```yaml [GitHub Actions]
+jobs:
+  lint:
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: python-tools
+          path: |
+            ~/.cache/pip
+            ~/.cache/pre-commit
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files
+```
+
+```yaml [Buildkite]
+steps:
+  - label: Lint
+    agents:
+      queue: tuist-linux
+    plugins:
+      - tuist/cache-volume#v1:
+          volumes:
+            - key: python-tools
+              path:
+                - ~/.cache/pip
+                - ~/.cache/pre-commit
+    command: |
+      pip install pre-commit
+      pre-commit run --all-files
+```
+
+```yaml [GitLab CI]
+lint:
+  tags: [tuist-linux]
+  before_script:
+    - tuist-cache-volume --key python-tools --path ~/.cache/pip --path ~/.cache/pre-commit
+  script:
+    - pip install pre-commit
+    - pre-commit run --all-files
+```
+<!-- -->
+:::
+
+- **Shared capacity.** All paths share the volume's 20 GB capacity and are
+  restored and saved together.
+- **Group small, related directories.** Give a large or fast-changing directory
+  its own volume.
+- **No nesting.** Paths in one volume must not contain each other.
+- **Changing the list starts cold.** Each path is stored in its own directory
+  inside the volume, identified by how the path is written. Switching between
+  one path and several, or adding, removing or rewriting a path, changes that
+  layout: the first job after the change starts cold for the affected paths.
+  Content of paths that are no longer listed stays in the volume until you
+  clear it.
 
 ### How keys work {#how-keys-work}
 
