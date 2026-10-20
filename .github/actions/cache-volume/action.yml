@@ -8,7 +8,7 @@ inputs:
     description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes.
     required: true
   path:
-    description: Directory to retain. Supports absolute paths, workspace-relative paths, and ~/.
+    description: Directories to retain, one per line. Supports absolute paths, workspace-relative paths, and ~/. Several paths share one volume.
     required: true
 outputs:
   cache-hit:

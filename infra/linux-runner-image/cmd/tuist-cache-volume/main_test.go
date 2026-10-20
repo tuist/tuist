@@ -116,6 +116,51 @@ func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 		t.Fatal("writes do not reach volume")
 	}
 }
+func TestMultiplePathsShareOneVolumeInSeparateDirectories(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	cache := filepath.Join(root, "cache")
+	scope := digest("scope")
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(cache, scope), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cache, scope, ".tuist-volume"), []byte("lease"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(workspace)
+	acquisitions := 0
+	sources := map[string]string{}
+	err := attachUsing("dependencies", []string{"./.npm/", ".cache/pip"}, cache, func() (string, string, bool, error) {
+		acquisitions++
+		return scope, "lease", true, nil
+	}, func(socket, source, target string) error {
+		sources[target] = source
+		return os.Symlink(filepath.Join(cache, source), filepath.Join(target, "mounted"))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acquisitions != 1 {
+		t.Fatalf("acquired %d volumes, want 1", acquisitions)
+	}
+	npm := sources[filepath.Join(workspace, ".npm")]
+	pip := sources[filepath.Join(workspace, ".cache/pip")]
+	if npm != filepath.Join(scope, digest(".npm")) || pip != filepath.Join(scope, digest(".cache/pip")) {
+		t.Fatalf("unexpected sources: %v", sources)
+	}
+	if err := os.WriteFile(".npm/mounted/package", []byte("npm"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(".cache/pip/mounted/package"); !os.IsNotExist(err) {
+		t.Fatalf("paths sharing a volume see each other's content: %v", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(cache, npm, "package")); err != nil || string(data) != "npm" {
+		t.Fatalf("write did not reach the volume: %s %v", data, err)
+	}
+}
 func TestRejectOverlappingTargetsBeforeAttaching(t *testing.T) {
 	root := t.TempDir()
 	cache := filepath.Join(root, "cache")

@@ -13,8 +13,11 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
   move forward. Wrapper releases and live storage fleet enablement are separate.
 - Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
 
-- Document ordinary bind-mounted directories and one key per path. Keep workflow
-  inputs single-line and preserve the absent/empty target contract. The installed
+- Document ordinary bind-mounted directories and preserve the absent/empty target
+  contract. `key` stays single-line; `path` takes one path per line (blank lines
+  ignored, surrounding whitespace trimmed) and `attach.sh` passes one `--path`
+  per line from a Bash array. A single-line `path` behaves as one `--path`.
+  Keep the wrapper compatible with macOS `/bin/bash` 3.2. The installed
   client and controller own mounting; never add workflow sudo or symlink helpers.
 
 - macOS uses symlink targets and rejects node_modules; preserve its documented limitations.
