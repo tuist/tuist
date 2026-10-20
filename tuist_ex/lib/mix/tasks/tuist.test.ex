@@ -66,7 +66,8 @@ defmodule Mix.Tasks.Tuist.Test do
   same as one that is broken. With retries enabled, the tests that failed are
   run again with `mix test --failed`, up to the given number of times. A test
   that passes on a retry is reported to Tuist as flaky, and the task succeeds
-  if every failed test eventually passes.
+  if every failed test eventually passes. A run whose failed tests all timed
+  out is not retried.
 
   Retries are off unless set, in order, by:
 
@@ -330,7 +331,7 @@ defmodule Mix.Tasks.Tuist.Test do
     suite = run_suite(test_args)
     # One per suite that ran: an umbrella runs one for each application. The
     # first run's coverage is the run's: retries never carry `--cover`.
-    deferred = summarize_coverage(ExUnitFormatter.take_deferred())
+    {timed_out?, deferred} = pop_timed_out(summarize_coverage(ExUnitFormatter.take_deferred()))
 
     # A suite cut short by `--max-failures` left tests unrun. Retrying the
     # failures it did reach could pass and hide the ones it never got to, so
@@ -339,7 +340,23 @@ defmodule Mix.Tasks.Tuist.Test do
       deferred != [] and not Enum.any?(deferred, fn {_payload, _opts, aborted?} -> aborted? end)
 
     {suite, attempts} =
-      if suite == :failed and complete?, do: retry(test_args, retries), else: {suite, []}
+      cond do
+        suite != :failed or not complete? ->
+          {suite, []}
+
+        # Tests that all ran out of time point at what they wait on, such as
+        # an unreachable service, and every retry would wait out each
+        # timeout again.
+        timed_out? ->
+          Mix.shell().info(
+            "warning: Tuist does not retry failed tests when every one of them timed out."
+          )
+
+          {suite, []}
+
+        true ->
+          retry(test_args, retries)
+      end
 
     submit_runs(deferred, attempts, options, history)
 
@@ -356,6 +373,16 @@ defmodule Mix.Tasks.Tuist.Test do
       if lines, do: CoverageSummary.report(lines, opts[:coverage_summary])
       {payload, opts, aborted?}
     end)
+  end
+
+  defp pop_timed_out(deferred) do
+    deferred =
+      Enum.map(deferred, fn {payload, opts, aborted?} ->
+        {timed_out, payload} = Map.pop(payload, :timed_out, false)
+        {timed_out, {payload, opts, aborted?}}
+      end)
+
+    {deferred != [] and Enum.all?(deferred, &elem(&1, 0)), Enum.map(deferred, &elem(&1, 1))}
   end
 
   # The commits and branch heads go up before the runs, whose ingestion reads

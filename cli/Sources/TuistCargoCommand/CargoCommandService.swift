@@ -179,6 +179,7 @@ public struct CargoCommandService {
         let invocation = CargoInvocation(context.arguments)
         var executionError: Error?
         var nextest: CargoNextestRun?
+        var cargoTests: CargoTestReport?
         do {
             if invocation.command == "test-build" {
                 try await CargoShardService(runner: runner).plan(
@@ -195,12 +196,16 @@ public struct CargoCommandService {
                 } else if context.environment["TUIST_SHARD_INDEX"] != nil {
                     throw CargoReportError(message: "Rust shards require 'tuist cargo nextest run'.")
                 }
-                try await context.reporting.process.execute(
-                    context.executable,
-                    arguments: nextest?.arguments ?? context.arguments,
-                    environment: context.environment,
-                    directory: context.directory
-                )
+                if CargoTestService.observes(invocation, environment: context.environment) {
+                    try await CargoTestService(runner: runner).execute(context) { cargoTests = $0 }
+                } else {
+                    try await context.reporting.process.execute(
+                        context.executable,
+                        arguments: nextest?.arguments ?? context.arguments,
+                        environment: context.environment,
+                        directory: context.directory
+                    )
+                }
             }
         } catch { executionError = error }
         if invocation.reportsBuild {
@@ -213,6 +218,7 @@ public struct CargoCommandService {
             )
         }
         if let nextest { await context.reporting.tests(run: nextest, metadata: metadata, failed: executionError != nil) }
+        if let cargoTests { await context.reporting.tests(report: cargoTests, metadata: metadata, failed: executionError != nil) }
         if let executionError { throw executionError }
     }
 

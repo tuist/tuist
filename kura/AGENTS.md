@@ -21,7 +21,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   A preparation-capable destination may first reconcile under the exact Serving
   intent while the source continues writing. Keep its fixed deadline, source
   epoch/incarnation binding, normal background bandwidth admission and shared
-  preparation mutex. It takes no hold and grants no receipt or serving rights.
+  preparation mutex. Complete one retained walk without waiting for an eviction-free
+  window while the source is mutable. The final Quiescing repair still repeats on
+  eviction before atomically acquiring its hold. Live preparation takes no hold
+  and grants no receipt or serving rights.
   Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
   expired grants, epoch/identity changes and drain must stop blocked peer I/O.
   A named destination reconciles the source’s complete retained index before

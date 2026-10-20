@@ -65,6 +65,8 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked tuist git-cliff 1password-cli jq"

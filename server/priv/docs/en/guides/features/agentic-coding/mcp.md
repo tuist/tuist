@@ -241,6 +241,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
+| `connect_project_repository` | Link a project to a GitHub repository that the account's GitHub App installation can access. The project adopts the repository's default branch. Requires project administrator permission. | `account_handle`, `project_handle`, `repository_full_handle` |
+| `disconnect_project_repository` | Remove a project's link to its GitHub repository. Requires project administrator permission. | `account_handle`, `project_handle` |
 
 #### Account tokens
 
@@ -345,6 +347,29 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Cargo builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Individual test runs are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
+| `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
+
+#### Mix builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_mix_builds` | List Mix (Elixir) compile builds for a project, newest first, including custom metadata. Filter by `git_branch`, `status`, `is_ci`, or `mix_env`. | `account_handle`, `project_handle` |
+| `get_mix_build` | Get build metadata, diagnostics counts, and the dependency cache summary. | `account_handle`, `project_handle`, `build_id` |
+
+#### Once runs
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_once_runs` | List Once runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
+| `get_once_run` | Get a run with its action totals, cache summary, and, for test runs, test totals. | `account_handle`, `project_handle`, `run_id` |
+
+Cargo build, Mix build, and Once run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
+
 #### Tasks, actions, modules and files
 
 These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
@@ -389,6 +414,11 @@ New observations are indexed after deployment; this feature does not backfill ex
 | `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
 | `update_test_case` | Update a test case's state or flaky classification. A change can dispatch an event to configured webhook endpoints, including external services. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
+| `get_coverage` | Get a project's code coverage with its targets, at a commit or at a branch's latest complete commit. Without `git_commit_sha` or `branch`, it reads the default branch. | `account_handle`, `project_handle` |
+| `list_coverage_files` | List the files a commit's code coverage measured, with their line coverage, at a commit or at a branch's latest complete commit. Supports `search`, sorting, and pagination. | `account_handle`, `project_handle` |
+| `get_coverage_file` | Get a file's code coverage and its functions at a commit or at a branch's latest complete commit. Set `include_lines` to get each line's execution count. | `account_handle`, `project_handle`, `path` |
+
+The code coverage tools are available to accounts with code coverage enabled.
 
 #### Bundles
 

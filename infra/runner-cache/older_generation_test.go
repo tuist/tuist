@@ -41,7 +41,7 @@ func TestAPFSMountsAnOlderGenerationWhenItsBaseIsNotLocal(t *testing.T) {
 	}
 }
 
-func TestAPFSRestoresWhenNoOlderGenerationIsLocal(t *testing.T) {
+func TestAPFSStartsEmptyWhenOnlyAnotherLineageIsLocal(t *testing.T) {
 	b, _ := newAPFS(t)
 	remote := &headTransfer{heads: map[string]Identity{}, errs: map[string]error{}}
 	b.Transfer = remote
@@ -52,8 +52,8 @@ func TestAPFSRestoresWhenNoOlderGenerationIsLocal(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err != nil {
 		t.Fatal(err)
 	}
-	if len(remote.downloads()) != 1 || b.MountedGeneration(slot) != 0 {
-		t.Fatal("another lineage's master was mounted", remote.downloads(), b.MountedGeneration(slot))
+	if len(remote.downloads()) != 0 || b.MountedGeneration(slot) != 0 || !b.Cold(slot) {
+		t.Fatal("did not start empty", remote.downloads(), b.MountedGeneration(slot))
 	}
 }
 

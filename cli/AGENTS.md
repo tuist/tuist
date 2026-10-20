@@ -12,6 +12,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Cargo decoration, compiler observation, and nextest test/shard integration: `cli/Sources/TuistCargoCommand/AGENTS.md`
 - Bundled Mr. Boxington-derived Cargo cache model and REAPI adapter: `cli/native/cargo-cache/AGENTS.md`
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
+- Real stable Cargo/libtest and doctest reporting: `cli/Tests/Fixtures/CargoTestReporting/AGENTS.md`
 - Real Cargo archive/shard/reporting pipeline: `cli/Tests/Fixtures/CargoSharding/AGENTS.md`
 - Swift fallback compiler-cache cold/warm/corrupt-entry smoke: `cli/Tests/Fixtures/CargoCache/AGENTS.md`
 - Per-test coverage evidence is recorded by the TestCoverageAttribution package test targets link (https://github.com/tuist/TestCoverageAttribution); the CLI only tells the test processes where to write and reduces it: `cli/Sources/TuistXCResultService/AGENTS.md`. Tuist's own unit test targets and the app's tests link it too (0.1.x from GitHub, as dynamic frameworks in `Package.swift`'s `PackageSettings` so the observer loads in bundles that reference nothing in it), for `.github/workflows/coverage.yml`, which sets `TUIST_COVERAGE_EVIDENCE` and ends with a guarded `tuist coverage complete`; dispatched with a `sha`, it collects an earlier commit on main with main's tools instead

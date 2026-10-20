@@ -1700,7 +1700,7 @@ mod tests {
             assert!(
                 events
                     .iter()
-                    .all(|event| !event["submission_auth"].is_null() == network)
+                    .all(|event| event["submission_auth"].is_null() != network)
             );
         }
     }
