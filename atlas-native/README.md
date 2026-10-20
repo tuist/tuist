@@ -233,7 +233,11 @@ mise run build:android
   the one-time profile setup above and fails visibly if credentials are missing.
   Signing completes before any previews are uploaded, so signing failures do not
   publish a simulator-only nightly. Credential-free keychain and icon-packaging
-  tests also gate publication.
+  tests also gate publication. Each publication attempt assigns both iOS previews
+  the same fresh Unix-timestamp build version, so reusing a cached binary or
+  rerunning delivery does not collide with an existing preview. Version stamping
+  modifies only delivery copies, before signing; the simulator copy is re-signed
+  ad-hoc with its existing entitlements before installation and upload.
 - Never publishes from pull requests. Cache authentication failure can fall back
   to a local build; delivery failures remain visible.
 

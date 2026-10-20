@@ -183,16 +183,21 @@ jobs:
   test-distribution:
     name: Test preview packaging
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-24.04
+    runs-on: tuist-macos-27-0
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - name: Test signing keychain lifecycle
         run: python3 ios/distribution/keychain_test.py
       - name: Check launcher icon packaging
         run: python3 resources/app_icons_test.py
+      - name: Test iOS preview versioning and signatures
+        run: python3 ios/distribution/version_test.py
       - name: Check signing script syntax
-        run: for script in ios/distribution/{bundle,keychain}.sh; do bash -n "$script"; done
+        run: for script in ios/distribution/*.sh; do bash -n "$script"; done
 
   previews:
     name: Publish internal previews
@@ -231,6 +236,8 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login
+      - name: Set iOS preview build version
+        run: echo "ATLAS_BUILD_VERSION=$(date +%s)" >> "$GITHUB_ENV"
       - name: Sign iOS device preview
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -245,6 +252,7 @@ jobs:
       - name: Publish iOS simulator preview
         run: |
           ditto -x -k delivery/ios/Atlas-ios-simulator.zip delivery/ios
+          bash ios/distribution/simulator.sh delivery/ios/Atlas.app
           device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable)][0].udid')
           xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
           xcrun simctl bootstatus "$device" -b

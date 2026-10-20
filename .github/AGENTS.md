@@ -65,7 +65,12 @@ bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
 simulator app in a separate step without the 1Password token. Signing runs before
 any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
-keychain-lifecycle and launcher-packaging tests also gate publication.
+keychain-lifecycle and launcher-packaging tests also gate publication. Each
+publication attempt selects a fresh Unix-timestamp build version shared by the
+simulator app and device IPA. Stamp only delivery copies, never cached outputs;
+re-sign the simulator app ad-hoc with its entitlements before installation/upload.
+Packaging tests run on macOS with Python 3.13 to verify version stamping and real
+ad-hoc signature preservation as well as the existing portable checks.
 PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.

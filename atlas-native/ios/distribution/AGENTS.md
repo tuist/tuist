@@ -14,7 +14,15 @@ profile-validation framework.
   certificate. Use the profile's entitlements with Atlas-only Keychain access.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
-- Validate with `python3 ios/distribution/keychain_test.py`, `bash -n`, ShellCheck
-  and an actual signing run. The credential-free tests cover ordered search-list
-  restoration, paths with spaces, an empty list, and setup/import failures.
+- `version.sh` stamps only delivery copies with `ATLAS_BUILD_VERSION`, defaulting
+  to the current Unix timestamp for local packaging. CI selects one fresh version
+  per publication attempt for both iOS platforms, even when Once reuses a binary.
+  `simulator.sh` stamps the extracted simulator delivery bundle and re-signs it
+  ad-hoc, preserving its Keychain entitlement, before installation and upload.
+  Device packaging stamps its temporary copy before distribution signing.
+- Validate on macOS with `python3 ios/distribution/keychain_test.py`,
+  `python3 ios/distribution/version_test.py`, `bash -n`, ShellCheck and an actual
+  distribution-signing run. The credential-free tests cover ordered search-list
+  restoration, paths with spaces, an empty list, setup/import failures, version
+  stamping without cache mutation, and real ad-hoc signature/entitlement preservation.
   Signature verification does not establish installation on a registered physical device.
