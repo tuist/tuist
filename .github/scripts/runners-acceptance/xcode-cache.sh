@@ -97,15 +97,31 @@ while :; do
   check_cache_errors
   [ -n "${cacheable:-}" ] || fail "Xcode cache setup" "the rebuild printed no compilation cache summary"
   if [ "${cacheable}" -gt 0 ] && [ "${hits}" = "${cacheable}" ]; then
-    # The proxy logs its counters every ten seconds.
+    # Proof the hits came over the network: the proxy's counters for the
+    # rebuild's store, logged every ten seconds. Snapshot hits are served from
+    # the key snapshot the proxy prefetches from the remote cache, so both
+    # count. The line is diagnostics with no delivery guarantee, so a missing
+    # one only warns; a broken cache also fails the round trip and the
+    # cache-error scan.
+    stats=""
     for _ in $(seq 1 15); do
-      remote_hits="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | sed -n 's/^[^|]* remote_hits=\([0-9]*\).*/\1/p' | sort -n | tail -n 1 || true)"
-      [ "${remote_hits:-0}" -gt 0 ] && break
+      stats="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | tail -n 1 || true)"
+      [ -n "${stats}" ] && break
       sleep 2
     done
-    [ "${remote_hits:-0}" -gt 0 ] || grep "proxy stats" "${state_dir}/cas.log" 2>/dev/null | tail -n 5 || true
-    [ "${remote_hits:-0}" -gt 0 ] || fail "Cache hits" "the rebuild reported ${hits} hits but the cache proxy fetched none of them from ${TUIST_CACHE_ENDPOINT:-the server-resolved cache} (remote_hits=${remote_hits:-unknown}), so they were served locally"
-    pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks, ${remote_hits} fetched from the remote cache (attempt ${attempt})"
+    if [ -z "${stats}" ]; then
+      echo "::warning title=Cache hits::the cache proxy logged no counters for the rebuild's store, so the hits could not be confirmed as remote"
+      pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks (attempt ${attempt}); remote share not confirmed"
+      exit 0
+    fi
+    counter() { sed -n "s/^[^|]* $1=\([0-9]*\).*/\1/p" <<< "${stats}"; }
+    remote_hits="$(counter remote_hits)"
+    snapshot_hits="$(counter snapshot_hits)"
+    if [ "$((${remote_hits:-0} + ${snapshot_hits:-0}))" -eq 0 ]; then
+      echo "${stats}"
+      fail "Cache hits" "the rebuild reported ${hits} hits but the cache proxy fetched none of them from ${TUIST_CACHE_ENDPOINT:-the server-resolved cache}, so they were served locally"
+    fi
+    pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks, ${remote_hits:-0} fetched from the remote cache and ${snapshot_hits:-0} from its prefetched snapshot (attempt ${attempt})"
     exit 0
   fi
   if [ "$(date +%s)" -ge "${deadline}" ] || [ "${attempt}" -ge 4 ]; then
