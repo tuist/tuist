@@ -1090,17 +1090,19 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
-  # historical pool name: live KuraInstances, local PVs and gateways still
-  # select it. All Dedibox hosts have been retired.
+  # Public EU West runs on these six OVH nodes in Gravelines: five Advance-1
+  # 2024 (EPYC 4244P) and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
+  # The offer matches both ranges. Keep the historical pool name: live
+  # KuraInstances, local PVs and gateways still select it. All Dedibox hosts
+  # have been retired.
   eu-west:
     enabled: true
-    replicas: 5
+    replicas: 6
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
-      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      offer: advance-1
       datacenter: gra
       os: ubuntu_24.04
       egressBudgetMbps: 3000
