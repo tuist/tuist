@@ -221,12 +221,14 @@ jobs:
           # Fresh checkouts need whole-target discovery; retain failures while collecting evidence.
           once_status=0
           ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
+          cp -R .once/out/AtlasSettingsUITests/test ui-evidence/once-test
           xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/task-crud.mov" &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
           xcodebuild test-without-building \
             -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
             -destination "id=$device" \
+            -collect-test-diagnostics never \
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult"
           kill -INT "$recording"
@@ -235,6 +237,7 @@ jobs:
           xcodebuild test-without-building \
             -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
             -destination "id=$device" \
+            -collect-test-diagnostics never \
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
             -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \

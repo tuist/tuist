@@ -111,6 +111,7 @@ struct AtlasSettingsView: View {
             .padding(.vertical, 5)
             .accessibilityElement(children: .combine)
         }
+        .accessibilityIdentifier("ai-account-\(service.rawValue)")
     }
 
     private func status(_ provider: String) -> String {

@@ -12,7 +12,8 @@ final class AtlasWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
         attach(app, "ios-workspace-accounts")
         app.tabBars.buttons["Finance"].tap()
-        XCTAssertTrue(app.staticTexts["Monthly invoice totals"].waitForExistence(timeout: 5))
+        let chartHeading = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Monthly invoice totals")).firstMatch
+        XCTAssertTrue(chartHeading.waitForExistence(timeout: 5))
         attach(app, "ios-workspace-finance")
         app.tabBars.buttons["Browse"].tap()
         XCTAssertTrue(app.navigationBars["Browse"].exists)
@@ -25,13 +26,13 @@ final class AtlasWorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Link preview"].exists)
         app.tabBars.buttons["Profile"].tap()
         XCTAssertTrue(app.staticTexts["Taylor Morgan"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["0.7.2"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "0.7.2")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts["https://atlas.example.org"].exists)
         attach(app, "ios-workspace-profile")
-        try tap("Claude", in: app)
+        try tap("ai-account-claude", in: app)
         XCTAssertTrue(app.secureTextFields["claude-token"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        try tap("ChatGPT", in: app)
+        try tap("ai-account-chatgpt", in: app)
         XCTAssertTrue(app.buttons["Sign in with ChatGPT"].waitForExistence(timeout: 5))
     }
 

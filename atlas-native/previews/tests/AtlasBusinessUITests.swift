@@ -81,7 +81,10 @@ final class AtlasBusinessUITests: XCTestCase {
         capture(app, "ios-task-failed-save-large-dark")
         app.buttons["Cancel"].tap()
         app.buttons["Discard changes"].tap()
-        app.tabBars.buttons["Finance"].tap()
+        let finance = app.tabBars.buttons["Finance"]
+        let available = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: finance)
+        wait(for: [available], timeout: 5)
+        finance.tap()
         XCTAssertTrue(app.staticTexts["Access required"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["business-create"].exists)
         capture(app, "ios-finance-forbidden-large-dark")
