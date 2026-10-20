@@ -97,11 +97,9 @@ jobs:
         run: bash Tests/ProcessHost/test.sh
   gettext:
     name: Gettext
-    # tuist-linux-large: mix gettext.extract compiles the full project
-    # (every dgettext/3 call needs to be reachable for the extractor) and
-    # OOMs the 2 vCPU / 8 GB default shape — same Elixir-compile-OOM
-    # pattern as `setup-server-mix` callers.
-    runs-on: tuist-linux-large
+    # The throttled compile below uses a single scheduler, so this job
+    # cannot use a larger shape's extra vCPUs and fits the default memory.
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
