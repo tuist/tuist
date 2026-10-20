@@ -51,10 +51,8 @@ on:
       - infra/k8s/clusters/**
       - infra/k8s/mgmt/**
       - .github/workflows/mgmt-cluster-apply.yml
-      # Documentation and release-workflow-only edits do not change a
-      # deployable server artifact.
+      # Documentation edits do not change a deployable server artifact.
       - infra/helm/k8s-monitoring/**/*.md
-      - .github/workflows/server-production-deployment.yml
   # Dispatched by runner-image-release.yml once it tags a runner image, so
   # the fleet rolls onto it through the canary cascade.
   workflow_dispatch:
