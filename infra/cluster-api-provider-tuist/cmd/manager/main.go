@@ -378,6 +378,28 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
 		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
 			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	var rackEnv string
+	flag.StringVar(&rackEnv, "rack-env", "",
+		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
+			"and the lender a RackHostLease it writes names. Empty claims and lends nothing.")
+	rackLeaseBorrowers := map[string]string{}
+	flag.Func("rack-lease-borrower",
+		"<env>=<secret>: an env RackHost.spec.lendTo may name, and the Secret in --secrets-namespace holding the kubeconfig "+
+			"(`kubeconfig`) and namespace (`namespace`) of that env's RackHostLeases. Repeatable.",
+		func(v string) error {
+			env, secret, ok := strings.Cut(v, "=")
+			if !ok || env == "" || secret == "" {
+				return fmt.Errorf("want <env>=<secret>, got %q", v)
+			}
+			rackLeaseBorrowers[env] = secret
+			return nil
+		})
+	var rackLeaseFleetName, rackLeaseHostsRaw string
+	flag.StringVar(&rackLeaseFleetName, "rack-lease-fleet-name", "",
+		"The fleet rack hosts lent to this env join: the prefix of their Nodes' names and their tuist.dev/fleet label. "+
+			"Empty turns the borrowing side (RackHostLease) off.")
+	flag.StringVar(&rackLeaseHostsRaw, "rack-lease-hosts", "",
+		"Comma-separated RackHost names this env runs when another env lends them. A RackHostLease for any other host is refused.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -804,6 +826,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// A rack host this operator lends reaches the borrowing env's cluster
+	// through the kubeconfig Secret its --rack-lease-borrower names.
+	var rackBorrowers macos.BorrowerClients
+	if len(rackLeaseBorrowers) > 0 {
+		rackBorrowers = &macos.SecretBorrowerClients{
+			Reader:    mgr.GetClient(),
+			Namespace: secretsNamespace,
+			Secrets:   rackLeaseBorrowers,
+			Scheme:    mgr.GetScheme(),
+		}
+	}
+
 	if err := (&macos.RackAppleSiliconMachineReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
@@ -830,9 +864,44 @@ func main() {
 		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
 		Power:                         powerRegistry,
 		SecretsNamespace:              secretsNamespace,
+		Env:                           rackEnv,
+		Borrowers:                     rackBorrowers,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
+	}
+
+	// Rack hosts another env lends this one: the borrowing side, which runs
+	// their runner runtime from this operator's fleet config.
+	if rackLeaseFleetName != "" {
+		if rackEnv == "" {
+			setupLog.Error(fmt.Errorf("--rack-env is empty"), "--rack-lease-fleet-name needs --rack-env, the runtime owner its pushes claim")
+			os.Exit(1)
+		}
+		if err := (&macos.RackHostLeaseReconciler{
+			Client:                        mgr.GetClient(),
+			Scheme:                        mgr.GetScheme(),
+			Recorder:                      mgr.GetEventRecorderFor("rackhostlease-controller"),
+			CredentialsManager:            credsManager,
+			Kubeconfig:                    kubeconfigBuilder,
+			Env:                           rackEnv,
+			FleetName:                     rackLeaseFleetName,
+			Hosts:                         parseCommaList(rackLeaseHostsRaw),
+			FleetConfig:                   fleetConfig,
+			TartReleases:                  tartReleases,
+			VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+			ImageMirrors:                  rackHostImageMirrors,
+			DefaultGuestCapacity:          tartKubeletGuestCapacity,
+			TartKubeletBinarySHA:          binarySHA,
+			TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+			TartKubeletTerminalRetryAfter: terminalRetryAfter,
+			EgressNamespace:               egressNamespace,
+			EgressProxyGroup:              egressProxyGroup,
+			EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup RackHostLeaseReconciler")
+			os.Exit(1)
+		}
 	}
 
 	var rackTailnet linux.TailnetAPI

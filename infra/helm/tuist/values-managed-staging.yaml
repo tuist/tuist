@@ -1002,20 +1002,30 @@ runnersFleetLinux:
     - { vcpus: 16, memoryGb: 32 }
 
 # BER1 rack hosts production lends staging: production keeps them in its
-# inventory (rackFleet.hosts there, with nodeCluster set), and their Nodes
-# register here, so staging jobs run on rack hardware. They are staging's only
-# macOS runners: every staging account runs its macOS profiles on the rack
-# catalog's pools (`runner_site` is on for everyone here), and a job waits
-# while the host is down or cordoned. Staging has no ber1-runners cache region,
-# so their jobs use the public cache.
+# inventory (rackFleet.hosts there, with `lendTo: staging`), and staging's
+# operator runs their runtime and registers their Nodes here, so staging jobs
+# run on rack hardware. They are staging's only macOS runners: every staging
+# account runs its macOS profiles on the rack catalog's pools (`runner_site`
+# is on for everyone here), and a job waits while the host is down or
+# cordoned. Staging has no ber1-runners cache region, so their jobs use the
+# public cache.
 rackFleet:
   enabled: false
   name: tuist-staging-rack-fleet
   site: ber1
-  # ber1-runner-b01 joins with the identity staging's operator minted for it
-  # while the rack was here (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01),
-  # which has the names and binding this list would render. List it here once
-  # that leftover is deleted (step 17 of the move in infra/rack-nodes/AGENTS.md).
+  env: staging
+  # Rack hosts production lends staging with `lendTo: staging` (see "A host
+  # lent to another env" in infra/cluster-api-provider-tuist/AGENTS.md).
+  # Staging's operator runs their runtime and rolls it with staging's deploys,
+  # so a rack runtime change reaches a rack host here first.
+  borrow:
+    enabled: true
+    hosts:
+      - ber1-runner-b01
+  # Until staging takes ber1-runner-b01 over, it runs under the identity
+  # staging's operator minted for it while the rack was here
+  # (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01), which is not this
+  # chart's. Delete that identity once the lease is Active.
   joiningNodes: []
   runners:
     enabled: true

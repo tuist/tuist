@@ -193,6 +193,18 @@ type Config struct {
 	// canonical config, so it doesn't affect HostConfigHash.
 	SkipTailscaleInstall bool
 
+	// TailscaleForceReauth adds `--force-reauth` to `tailscale up`, so a host
+	// that is already logged in joins again with this config's credential and
+	// tags. It is how a lent rack host changes hands on the tailnet: a plain `up`
+	// keeps the tags the device already has. Per host, set only on the push that
+	// hands the host over.
+	TailscaleForceReauth bool
+
+	// RuntimeOwner is the env whose operator pushes this config, checked
+	// against the host's RuntimeOwnerPath before anything changes (see
+	// claimRuntime). Empty on rented hosts, which have one owner for life.
+	RuntimeOwner string
+
 	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
@@ -487,9 +499,13 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := verifyHostSerial(ctx, client, cfg.ExpectedSerial); err != nil {
 		return "", err
 	}
-
 	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
+	}
+	// After passwordless sudo, which the claim needs; before anything of the
+	// runtime.
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
 	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
@@ -655,6 +671,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
 	defer stop()
 
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
@@ -780,6 +799,10 @@ type PerHost struct {
 	// SkipTailscaleInstall is transport-only: it gates whether
 	// installTailscale runs and changes no rendered output.
 	SkipTailscaleInstall bool
+	// TailscaleForceReauth and RuntimeOwner belong to a handover and an owner,
+	// never to the fleet.
+	TailscaleForceReauth bool
+	RuntimeOwner         string
 }
 
 // WithPerHost returns a copy of c with the per-host fields replaced by p.
@@ -803,6 +826,8 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC
 	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	c.TailscaleForceReauth = p.TailscaleForceReauth
+	c.RuntimeOwner = p.RuntimeOwner
 	return c
 }
 
@@ -2540,6 +2565,10 @@ func renderTailscaleScript(cfg Config) string {
 	if cfg.TailscalePersistentDevice {
 		ephemeral = "false"
 	}
+	reauthArg := ""
+	if cfg.TailscaleForceReauth {
+		reauthArg = " --force-reauth"
+	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
 	//
@@ -2682,7 +2711,7 @@ trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
     --authkey="$TS_AUTH_KEY" \
     --reset \
-    --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
+    --ssh=false%[1]s%[2]s%[3]s%[5]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
   sudo cat "$TS_UP_LOG" >&2
   exit 1
@@ -2701,7 +2730,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral)
+`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral, reauthArg)
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
