@@ -199,6 +199,99 @@ struct CargoCompilationCacheTests {
         #expect(try fixture.invocation.fingerprint() != original)
     }
 
+    @Test(.inTemporaryDirectory) func credentialsAndCIRunMetadataDoNotInvalidateTheKey() async throws {
+        let fixture = try await fixture()
+        for variable in [
+            "TUIST_TOKEN", "TUIST_DEBUG", "TUIST_CACHE_ENDPOINT", "GITHUB_RUN_ID", "GITLAB_USER_ID",
+            "CI_JOB_ID", "CI", "BUILDKITE_BUILD_ID", "CIRCLE_WORKFLOW_ID", "RUNNER_TRACKING_ID", "ACTIONS_RUNTIME_TOKEN",
+            "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
+        ] {
+            var environment = fixture.invocation.environment
+            environment[variable] = "another-invocation"
+            #expect(try await fixture.prepare(environment: environment)?.key == fixture.invocation.key)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func neverCachesCratesThatReadExcludedCredentialsOrCIMetadata() async throws {
+        let fixture = try await fixture()
+        for variable in ["TUIST_TOKEN", "TUIST_DEBUG", "GITHUB_RUN_ID", "CI_JOB_ID", "CI", "RUNNER_TRACKING_ID", "SHLVL"] {
+            for value in ["", "=observed-value"] {
+                try "artifact: \(fixture.source.path)\n# env-dep:\(variable)\(value)\n".write(
+                    to: fixture.output.appendingPathComponent(fixture.invocation.files[2]),
+                    atomically: true, encoding: .utf8
+                )
+                await #expect(throws: CargoCacheInvocation.CacheError.self) {
+                    try await fixture.cache().store(stdout: Data(), stderr: Data())
+                }
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func terminalPresentationDoesNotInvalidateDiagnosticFreeEntries() async throws {
+        let fixture = try await fixture()
+        for options in [
+            ["--diagnostic-width=80"],
+            ["--diagnostic-width", "140"],
+        ] {
+            let invocation = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + options))
+            #expect(invocation.key == fixture.invocation.key)
+        }
+        for options in [
+            ["--diagnostic-width", "invalid"], ["--diagnostic-width=-0"], ["--color=invalid"], ["--color"],
+            ["--diagnostic-width=80", "--diagnostic-width=140"],
+        ] {
+            let invocation = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + options))
+            #expect(invocation.key != fixture.invocation.key)
+        }
+        let artifacts = Data(#"{"$message_type":"artifact","artifact":"libtiny.rlib","emit":"link"}"#.utf8)
+        try await fixture.cache().store(stdout: Data(), stderr: artifacts)
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally())
+    }
+
+    @Test(.inTemporaryDirectory) func renderedDiagnosticsAndUnexpectedStreamsAreNeverCached() async throws {
+        let fixture = try await fixture()
+        for diagnostic in [
+            Data("warning: terminal-specific rendering".utf8),
+            Data(#"{"$message_type":"diagnostic","rendered":"warning: narrow terminal"}"#.utf8),
+        ] {
+            try await fixture.cache().store(stdout: Data(), stderr: diagnostic)
+            #expect(try await fixture.cache().restoreLocally() == false)
+        }
+        try await fixture.cache().store(stdout: Data("unexpected compiler output".utf8), stderr: Data())
+        #expect(try await fixture.cache().restoreLocally() == false)
+    }
+
+    @Test(.inTemporaryDirectory) func neverReplaysTerminalSpecificRemoteCompilerStreams() async throws {
+        let fixture = try await fixture()
+        let remote = CargoMemoryCache()
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        for (stdout, stderr) in [
+            (Data(), Data(#"{"$message_type":"diagnostic","rendered":"terminal-specific warning"}"#.utf8)),
+            (Data("unexpected output".utf8), Data()),
+        ] {
+            await remote.setCompilerStreams(stdout: stdout, stderr: stderr)
+            #expect(try await fixture.cache(remote: remote, directory: "consumer").restore() == false)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func readOnlyGrantHintSkipsUploadsWithoutDisablingLocalCaching() async throws {
+        let fixture = try await fixture()
+        let marker = try #require(CargoCacheSetup.readOnlyMarker(environment: fixture.invocation.environment))
+        try Data().write(to: marker)
+        let remote = CargoMemoryCache()
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
+        #expect(await remote.uploadAttempts == 0)
+        #expect(await remote.publications == 0)
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally())
+        try FileManager.default.removeItem(at: marker)
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
+        #expect(await remote.uploadAttempts == 1)
+        #expect(await remote.publications == 1)
+    }
+
     @Test(.inTemporaryDirectory) func neverPublishesOutputsIfInputsChangedDuringCompilation() async throws {
         let fixture = try await fixture()
         try Data("pub fn changed() {}".utf8).write(to: fixture.source)
@@ -348,6 +441,7 @@ struct CargoCompilationCacheTests {
         let environment = [
             "CARGO_HOME": root.appendingPathComponent("cargo").path, "CARGO_MANIFEST_DIR": package.path,
             "TUIST_CARGO_CACHE_DIR": root.appendingPathComponent("cache").path,
+            "TUIST_CARGO_CACHE_TOKEN_FILE": root.appendingPathComponent("cache-token").path,
             "TUIST_CARGO_SESSION": root.appendingPathComponent("session").path,
             "TUIST_CARGO_STARTED": String(Date().timeIntervalSince1970),
         ]
@@ -412,6 +506,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
     private let rejectUploads: Bool
     private let denyWrites: Bool
     private var corrupt = false
+    private(set) var uploadAttempts = 0
     private(set) var publications = 0
     private(set) var reads = 0
 
@@ -433,6 +528,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
     }
 
     func uploadAvailableBlobs(_ files: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
+        uploadAttempts += 1
         if denyWrites { throw REAPICacheError.uploadFailed(reason: "Permission denied") }
         if rejectUploads { return REAPIBlobUpload(available: []) }
         for (digest, file) in files {
@@ -446,6 +542,11 @@ private actor CargoMemoryCache: REAPICacheStoring {
         reads += 1
         let data = try #require(blobs[digest])
         try (corrupt ? Data("corrupt".utf8) : data).write(to: path)
+    }
+
+    func setCompilerStreams(stdout: Data, stderr: Data) {
+        result?.stdoutRaw = stdout
+        result?.stderrRaw = stderr
     }
 
     func corruptDownloads() { corrupt = true }

@@ -91,7 +91,7 @@ def main():
     for key in ("TUIST_URL", "TUIST_CACHE_ENDPOINT", "TUIST_CARGO_E2E_CLICKHOUSE_URL"):
         endpoint = urllib.parse.urlsplit(os.environ[key])
         if endpoint.scheme not in ("http", "https") or endpoint.hostname not in ("localhost", "127.0.0.1", "::1"):
-            parser.error(f"{key} must point to an isolated loopback fixture; protected-push simulation must not target production")
+            parser.error(f"{key} must point to an isolated loopback fixture; do not target production")
     database = os.environ["TUIST_CARGO_E2E_CLICKHOUSE_DB"]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", database):
         parser.error("Invalid ClickHouse database identifier")
@@ -121,6 +121,8 @@ def main():
     cargo_arguments = ["build", "--locked", "--offline", "--release", "-j", "4", "--target-dir", str(root / "target")]
     timings = {}
     phases = ["native-1", "native-2", "native-3", "cold", "remote", "local-1", "local-2", "local-3", "corrupt", "unavailable", "recovered"]
+    if environment.get("TUIST_CARGO_E2E_READER_TOKEN"):
+        phases += ["reader-miss", "reader-local"]
     for phase in phases:
         command(["cargo", "clean", "--target-dir", str(root / "target")], checkout, environment)
         if phase == "remote":
@@ -130,6 +132,13 @@ def main():
             blob = next((cache / "blobs").iterdir())
             blob.write_bytes(b"corrupt fixture artifact")
         current = dict(environment)
+        current["CI_JOB_ID"] = "fixture-" + uuid.uuid4().hex
+        current["GITHUB_RUN_ID"] = "fixture-" + uuid.uuid4().hex
+        if (phase in ("remote", "corrupt", "recovered") or phase.startswith("reader")) and environment.get("TUIST_CARGO_E2E_READER_TOKEN"):
+            current["TUIST_TOKEN"] = environment["TUIST_CARGO_E2E_READER_TOKEN"]
+        if phase.startswith("reader"):
+            current.pop("CARGO_ENCODED_RUSTFLAGS", None)
+            current["RUSTFLAGS"] = "-C opt-level=1"
         reserved = None
         if phase in ("unavailable", "recovered"):
             shutil.rmtree(cache)
@@ -169,7 +178,7 @@ def main():
     compiler_names = {row["build_id"]: row["names"] for row in observations}
     for phase, row in zip(expected_phases, rows):
         metrics = json.loads(row["cache_metrics"])
-        miss = phase in ("cold", "unavailable")
+        miss = phase in ("cold", "unavailable", "reader-miss")
         assert (metrics["hits"], metrics["misses"]) == ((0, 1) if miss else (1, 0)), (phase, metrics)
         names = compiler_names[row["id"]]
         assert len(names) == (2 if miss else 1) and ((library in names) == miss), (phase, names)
@@ -183,8 +192,10 @@ def main():
             assert metrics["remote_failures"] > 0, metrics
         else:
             assert metrics["remote_failures"] == metrics["background_upload_failures"] == 0, (phase, metrics)
-        if phase.startswith("local"):
+        if phase.startswith("local") or phase == "reader-local":
             assert metrics["downloaded_bytes"] == 0, metrics
+        if phase.startswith("reader"):
+            assert metrics["uploaded_bytes"] == metrics["background_upload_failures"] == 0, metrics
         assert not metrics["details"]["truncated"], metrics
         print(f"PASS {phase}: hits={metrics['hits']} misses={metrics['misses']} compiler executions={len(names)} "
               f"downloaded={metrics['downloaded_bytes']} uploaded={metrics['uploaded_bytes']}")

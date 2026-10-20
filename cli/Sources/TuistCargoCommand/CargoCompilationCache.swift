@@ -29,7 +29,7 @@ struct CargoCompilationCache {
         self.measurement = measurement
         self.fileSystem = fileSystem
         command = try REAPI.Command.with {
-            $0.arguments = ["tuist-swift-cargo-cache-v1", invocation.key.hash, String(invocation.key.sizeBytes)]
+            $0.arguments = [CargoCacheInvocation.keyVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
         }.serializedData()
         let commandDigest = REAPI.digest(command)
         action = try REAPI.Action.with {
@@ -76,7 +76,7 @@ struct CargoCompilationCache {
 
     func store(stdout: Data, stderr: Data) async throws {
         try Task.checkCancellation()
-        guard stdout.count + stderr.count <= 1_000_000 else { return }
+        guard stdout.isEmpty, stderr.count <= 1_000_000, Self.hasOnlyArtifactMessages(stderr) else { return }
         try invocation.validateDependencies()
         guard try invocation.fingerprint() == invocation.key else { return }
         var result = REAPI.ActionResult()
@@ -102,6 +102,8 @@ struct CargoCompilationCache {
         try write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
         guard let remote else { return }
+        if let marker = CargoCacheSetup.readOnlyMarker(environment: invocation.environment),
+           FileManager.default.fileExists(atPath: marker.path) { return }
         let started = Date()
         do {
             for data in [command, action, Data()] {
@@ -138,6 +140,13 @@ struct CargoCompilationCache {
         }
     }
 
+    private static func hasOnlyArtifactMessages(_ data: Data) -> Bool {
+        data.split(separator: 10).allSatisfy { line in
+            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { return false }
+            return message["$message_type"] as? String == "artifact"
+        }
+    }
+
     private func debug(_ error: any Error) {
         if invocation.environment["TUIST_DEBUG"] == "1" {
             FileHandle.standardError.write(Data("Tuist Cargo cache: \(REAPI.describe(error))\n".utf8))
@@ -148,7 +157,7 @@ struct CargoCompilationCache {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
-              result.stdoutRaw.count + result.stderrRaw.count <= 1_000_000,
+              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, Self.hasOnlyArtifactMessages(result.stderrRaw),
               result.outputFiles.count <= 128,
               Set(result.outputFiles.map(\.path)).count == result.outputFiles.count,
               Set(invocation.files).isSubset(of: Set(result.outputFiles.map(\.path))),
