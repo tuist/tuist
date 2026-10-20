@@ -62,6 +62,16 @@ func TestHTTPFailureDoesNotDecodeOrRedirect(t *testing.T) {
 	}
 }
 
+func TestPendingAuthorizationExplainsTheMissingJobReport(t *testing.T) {
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "execution pending", http.StatusTooEarly) }))
+	defer agent.Close()
+	req, _ := http.NewRequest("POST", agent.URL, nil)
+	var result any
+	if err := requestJSON(agent.Client(), req, &result); !errors.Is(err, errExecutionPending) {
+		t.Fatal(err)
+	}
+}
+
 func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "__w/repo/repo")
@@ -231,5 +241,22 @@ func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
 	data, err := os.ReadFile(output)
 	if err != nil || string(data) != "cache-hit=false\n" {
 		t.Fatal(string(data), err)
+	}
+}
+
+func TestContentHashedKeyFlagsLockfileAndCommitHashes(t *testing.T) {
+	for key, want := range map[string]bool{
+		"deps-xcode-27-tuist-4-212-0-pkg-0fade95e":                                true,
+		"gradle-3f2a9c1e7b4d5a6c8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d": true,
+		"spm/1A2B3C4D5E":   true,
+		"spm-checkouts":    false,
+		"gradle-caches":    false,
+		"node-18.20.4":     false,
+		"nightly-20261019": false,
+		"deadbeef-cache":   false,
+	} {
+		if got := contentHashedKey(key); got != want {
+			t.Errorf("contentHashedKey(%q) = %t, want %t", key, got, want)
+		}
 	}
 }

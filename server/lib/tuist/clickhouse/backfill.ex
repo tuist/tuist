@@ -53,8 +53,8 @@ defmodule Tuist.ClickHouse.Backfill do
   wrong. It also removes the need to reason about the dual write's boundary
   separately: a row the mirror already delivered is one the copy skips.
 
-  See `identity_columns/1` and `lacking/3` for what the destination "lacking"
-  a row means.
+  See `identity_columns/1`, `lacking/3` and `missing_copies/5` for what the
+  destination "lacking" a row means.
 
   ## Where the copy stops
 
@@ -567,14 +567,23 @@ defmodule Tuist.ClickHouse.Backfill do
       destination_rows ->
         Logger.info("#{table} #{inspect(chunk)}: destination already holds rows here, copying only what it lacks")
         shape = shape(target, table)
-        where = lacking(identity_columns(shape), destination, chunk)
+        identity = identity_columns(shape)
 
-        if not Tables.collapsing?(shape.engine) do
-          %{rows: [[lacking_rows]]} = run!(target, "SELECT count() FROM #{from} WHERE #{where}", params)
+        if Tables.collapsing?(shape.engine) do
+          run!(
+            target,
+            "INSERT INTO #{destination} SELECT * FROM #{from} WHERE #{lacking(identity, destination, chunk)}",
+            params
+          )
+        else
+          columns = for {name, kind} <- shape.columns, kind in ["", "DEFAULT"], do: name
+          rows = missing_copies(identity, columns, from, destination, chunk)
+
+          %{rows: [[lacking_rows]]} = run!(target, "SELECT count() FROM (#{rows})", params)
           refuse_duplicates!(lacking_rows, count(source, table, chunk) - destination_rows)
-        end
 
-        run!(target, "INSERT INTO #{destination} SELECT * FROM #{from} WHERE #{where}", params)
+          run!(target, "INSERT INTO #{destination} (#{Enum.map_join(columns, ", ", &quote_ident/1)}) #{rows}", params)
+        end
     end
   end
 
@@ -647,6 +656,64 @@ defmodule Tuist.ClickHouse.Backfill do
   end
 
   @doc """
+  A `SELECT` of the rows of a chunk to copy into a plain `MergeTree`: for each
+  identity the source holds more copies of than the destination, as many of
+  its rows as the destination is short.
+
+  `lacking/3` asks whether the destination holds an identity at all, which is
+  the question for a collapsing engine, where one identity is one row. On a
+  plain `MergeTree` an identity can legitimately repeat: `shard_runs` records a
+  shard's status again when it is retried, and the two rows differ only in
+  columns with a default, which identity leaves out. When the mirror lost one
+  of the two, the destination still held the identity, so every repair skipped
+  the row and the chunk stayed one short for good.
+
+  Which of the copies is selected matters only for the columns identity leaves
+  out. The ones the destination holds row for row are ranked first, so the
+  rows selected are the ones it does not have whenever the columns agree,
+  which they do for every row the writer supplied in full.
+
+  The identities are narrowed on the source, through `GLOBAL IN`, before any
+  row is read across, so a chunk the destination is missing a few rows of
+  transfers those rows rather than the whole chunk, as `lacking/3` does.
+
+  Public for the same reason as `predicate/1`: when it is wrong, rows go
+  missing without any error.
+  """
+  def missing_copies(identity, columns, source, destination, chunk) do
+    where = predicate(chunk)
+    identity_hash = "cityHash64(tuple(#{Enum.map_join(identity, ", ", &quote_ident/1)}))"
+    row_hash = "cityHash64(tuple(#{Enum.map_join(columns, ", ", &quote_ident/1)}))"
+    selected = Enum.map_join(columns, ", ", &quote_ident/1)
+
+    held =
+      "SELECT #{identity_hash} AS __identity, count() AS __held FROM #{destination} WHERE #{where} GROUP BY __identity"
+
+    short = """
+    SELECT __identity FROM (SELECT #{identity_hash} AS __identity, count() AS __copies FROM #{source} WHERE #{where} GROUP BY __identity) AS source_copies
+    LEFT ANY JOIN (#{held}) AS destination_copies USING (__identity)
+    WHERE __copies > ifNull(__held, 0)
+    """
+
+    """
+    SELECT #{selected} FROM (
+      SELECT #{selected}, __held,
+        row_number() OVER (PARTITION BY __identity ORDER BY __present DESC, __row) AS __rank
+      FROM (
+        SELECT candidates.*, ifNull(destination_copies.__held, 0) AS __held,
+          candidates.__row GLOBAL IN (SELECT #{row_hash} FROM #{destination} WHERE #{where}) AS __present
+        FROM (
+          SELECT #{selected}, #{identity_hash} AS __identity, #{row_hash} AS __row FROM #{source}
+          WHERE #{where} AND #{identity_hash} GLOBAL IN (#{short})
+        ) AS candidates
+        LEFT ANY JOIN (#{held}) AS destination_copies USING (__identity)
+      )
+    )
+    WHERE __rank > __held
+    """
+  end
+
+  @doc """
   What makes a row the same row, for deciding which ones the destination is
   missing, given a table's engine, sorting key and columns.
 
@@ -658,11 +725,11 @@ defmodule Tuist.ClickHouse.Backfill do
   copied.
 
   On a plain `MergeTree` nothing is unique, because duplicate rows are legal
-  and meaningful, so identity is every column the writer supplies. The cost is
-  that two genuinely identical rows are treated as one and only one is copied.
-  That is a narrower failure than the alternative: `build_files` sorts by
-  project, so a sorting-key identity would make most missing rows look present
-  and they would never be copied at all.
+  and meaningful, so identity is every column the writer supplies, and
+  `missing_copies/5` compares how many copies of each identity the two servers
+  hold rather than whether the destination holds it. A sorting-key identity
+  would not do: `build_files` sorts by project, so most missing rows would look
+  present and never be copied at all.
 
   Columns with a default are left out of that. When a write omits one, each
   server fills it in for itself and the two need not agree, as

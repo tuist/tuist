@@ -275,6 +275,13 @@ defmodule Tuist.Environment do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
+  def network_trusted_report_publishing_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_report_publishing, false)
+      ) do
+    not hosted and enabled == true
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
@@ -2054,6 +2061,15 @@ defmodule Tuist.Environment do
     "TUIST_RUNNERS_SITE_POOLS"
     |> System.get_env("")
     |> parse_runners_site_pools()
+  end
+
+  @doc """
+  Whether the env rents a macOS fleet to back its sites' pools with. Helm sets
+  `TUIST_RUNNERS_RENTED_MACOS_FLEET=false` when the env racks its macOS pools
+  at a site and rents no hosts, so dispatch keeps those pools' jobs at the site.
+  """
+  def runners_rented_macos_fleet?(environment \\ System.get_env()) do
+    Map.get(environment, "TUIST_RUNNERS_RENTED_MACOS_FLEET") != "false"
   end
 
   @doc false

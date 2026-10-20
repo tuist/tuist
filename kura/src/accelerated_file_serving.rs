@@ -465,6 +465,8 @@ struct AcceleratedCandidate {
     transfer: AcceleratedTransferMetadata,
     file: AcceleratedArtifactFile,
     range: ServedRange,
+    /// Where the credential that authorized the request was issued.
+    origin: Option<Arc<str>>,
 }
 
 struct AcceleratedTransferMetadata {
@@ -601,6 +603,7 @@ async fn open_and_authorize(
             return ClassifiedRequest::Fallback;
         }
     };
+    let mut origin = None;
     if let Some(auth) = state.auth.as_ref() {
         let mut access_context = request_context(state, &parsed, &artifact);
         state.canonicalize_auth_context(&mut access_context);
@@ -621,6 +624,10 @@ async fn open_and_authorize(
         match access {
             AccessDecision::Allow => {
                 access_span.record("kura.auth.result", "allow");
+                origin = access_context
+                    .authorization
+                    .as_deref()
+                    .and_then(|authorization| auth.origin(authorization));
             }
             AccessDecision::Deny(deny) => {
                 access_span.record("kura.auth.result", "deny");
@@ -680,6 +687,7 @@ async fn open_and_authorize(
         transfer: artifact.into(),
         file,
         range,
+        origin,
     })
 }
 
@@ -767,6 +775,7 @@ async fn serve_accelerated(
         transfer,
         file,
         range,
+        origin,
         ..
     } = candidate;
     let AcceleratedTransferMetadata {
@@ -979,6 +988,7 @@ async fn serve_accelerated(
                 producer,
                 tenant_id,
                 &namespace_id,
+                origin.as_ref(),
                 bytes,
             );
             record_analytics(
@@ -1200,6 +1210,7 @@ fn record_usage(
     producer: ArtifactProducer,
     tenant_id: &str,
     namespace_id: &str,
+    origin: Option<&Arc<str>>,
     bytes: u64,
 ) {
     let Some(usage) = usage else {
@@ -1208,6 +1219,7 @@ fn record_usage(
     usage.record_public_download(
         tenant_id,
         namespace_id,
+        origin,
         artifact_kind_for_usage(producer),
         bytes,
     );
@@ -2029,6 +2041,7 @@ mod tests {
             .into(),
             file,
             range: ServedRange::full(size),
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -2233,6 +2246,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -2338,6 +2352,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -2424,6 +2439,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

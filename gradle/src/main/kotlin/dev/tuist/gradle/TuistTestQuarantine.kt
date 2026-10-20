@@ -103,6 +103,7 @@ class TuistTestQuarantineService(
 
     private fun fetchQuarantinedTests(): QuarantinedTests {
         return httpClient.execute { config ->
+            if (config.token.isBlank()) return@execute QuarantinedTests.EMPTY
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/test-cases?quarantined=true&page_size=500"
             )
@@ -175,6 +176,7 @@ abstract class TuistTestQuarantineBuildService :
         val tuistProject: Property<String>
         val useEnvironmentProxy: Property<Boolean>
         val projectDir: DirectoryProperty
+        val networkTrustedPublishing: Property<Boolean>
     }
 
     @Volatile
@@ -193,11 +195,12 @@ abstract class TuistTestQuarantineBuildService :
     private fun createDelegate(): TuistTestQuarantineService {
         val serverUrl = parameters.serverUrl.get()
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
-        val configProvider = DefaultConfigurationProvider(
+        val configProvider = ReportConfigurationProvider(
             project = parameters.tuistProject.orNull,
             serverUrl = serverUrl,
             projectDir = parameters.projectDir.asFile.get(),
-            httpClients = httpClients
+            httpClients = httpClients,
+            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
         )
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,

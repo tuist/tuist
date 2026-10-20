@@ -5,6 +5,35 @@ import TuistREAPI
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
+    @Test func network_reports_quote_actor_overrides_and_preserve_explicit_suppression() {
+        let endpoint = GRPCEndpoint(host: "bes.example", explicitPort: nil, isTLS: true)
+        let contents = BazelrcFile.renderNetworkTrustedReports(
+            endpoint: endpoint,
+            accountHandle: "acme",
+            projectHandle: "app",
+            actorOverride: "employee-123"
+        )
+        #expect(contents.contains("build --build_metadata=\"TUIST_ACTOR_ID=employee-123\""))
+        #expect(!contents.contains("publish_all_actions"))
+        #expect(!contents.contains("remote_cache"))
+        for invalid in ["", "has spaces", "line\nbreak", String(repeating: "a", count: 129)] {
+            let contents = BazelrcFile.renderNetworkTrustedReports(
+                endpoint: endpoint,
+                accountHandle: "acme",
+                projectHandle: "app",
+                actorOverride: invalid
+            )
+            #expect(contents.contains("build --build_metadata=\"TUIST_ACTOR_ID=\""))
+        }
+        let quoted = BazelrcFile.renderNetworkTrustedReports(
+            endpoint: endpoint,
+            accountHandle: "acme",
+            projectHandle: "app",
+            actorOverride: "employee\"id"
+        )
+        #expect(quoted.contains("TUIST_ACTOR_ID=employee\\\"id"))
+    }
+
     @Test func enables_remote_asset_downloads_with_local_fallback_by_default() throws {
         let contents = BazelrcFile.render(
             endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),

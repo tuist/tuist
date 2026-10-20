@@ -1,0 +1,17 @@
+name: Tuist Gradle cache
+description: Keep Gradle's dependency and wrapper caches across jobs on Tuist Linux and macOS runners.
+branding:
+  icon: package
+  color: purple
+outputs:
+  cache-hit:
+    description: Whether the job attached a previously saved cache.
+    value: ${{ steps.setup.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - id: setup
+      shell: bash
+      env:
+        TUIST_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_ACTION_PATH/setup.sh"

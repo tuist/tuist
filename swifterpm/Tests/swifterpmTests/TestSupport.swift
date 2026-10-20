@@ -156,3 +156,52 @@ func writeMirrorsConfiguration(_ mirrors: [String: String], to path: URL) async 
     )
     try await fileSystem.atomicWrite(data, to: path)
 }
+
+/// Writes a `workspace-state.json` that only records `prebuilts`, as a previous native resolution would, and
+/// creates the directories they were extracted to.
+func writeWorkspaceState(prebuilts: [[String: Any]], scratchDir: URL) async throws {
+    try await fileSystem.makeDirectory(at: scratchDir.absolutePath, options: [.createTargetParentDirectories])
+    for case let path as String in prebuilts.map({ $0["path"] }) {
+        try await fileSystem.makeDirectory(
+            at: URL(fileURLWithPath: path).absolutePath, options: [.createTargetParentDirectories]
+        )
+    }
+    try await fileSystem.atomicWrite(
+        JSONFormatter.prettyData([
+            "object": ["artifacts": [], "dependencies": [], "prebuilts": prebuilts],
+            "version": 7,
+        ]),
+        to: scratchDir.appendingPathComponent("workspace-state.json")
+    )
+}
+
+func recordedPrebuiltPaths(scratchDir: URL) async throws -> [String?] {
+    let data = try await fileSystem.readFile(at: scratchDir.appendingPathComponent("workspace-state.json").absolutePath)
+    let state = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    let object = state?["object"] as? [String: Any]
+    return (object?["prebuilts"] as? [[String: Any]] ?? []).map { $0["path"] as? String }
+}
+
+/// A swift-syntax prebuilt entry laid out the way SwiftPM extracts it, for a prebuilt `name` of
+/// `<compiler tag>-<platform>`.
+func swiftSyntaxPrebuilt(scratchDir: URL, version: String, name: String) -> [String: Any] {
+    [
+        "identity": "swift-syntax",
+        "version": version,
+        "libraryName": "MacroSupport",
+        "path": scratchDir.appendingPathComponent("prebuilts/swift-syntax/\(version)/\(name)-MacroSupport").path,
+        "checkoutPath": scratchDir.appendingPathComponent("checkouts/swift-syntax").path,
+        "products": ["SwiftSyntax"],
+        "includePath": ["Sources/_SwiftSyntaxCShims/include"],
+        "cModules": [],
+    ]
+}
+
+func swiftSyntaxPin(version: String) -> ResolvedPin {
+    ResolvedPin(
+        identity: "swift-syntax",
+        kind: "remoteSourceControl",
+        location: "https://github.com/swiftlang/swift-syntax.git",
+        state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: version)
+    )
+}

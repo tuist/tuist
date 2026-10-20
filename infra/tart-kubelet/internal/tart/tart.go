@@ -31,7 +31,7 @@ type Client struct {
 	// Binary is the path to the `tart` CLI on this Mac mini.
 	// Defaults to /usr/local/bin/tart, the wrapper script the
 	// CAPI provider's bootstrap step writes around the pinned
-	// tart.app bundle at /usr/local/lib/tart.app.
+	// tart.app bundle at /usr/local/lib/tart/<version>.
 	Binary string
 
 	// UserDataDir is the host directory where per-VM env files live.
@@ -144,10 +144,21 @@ func (c *Client) Clone(ctx context.Context, source, name string) error {
 // CloneFrom is Clone with `--insecure` when insecure is set, for a source
 // pulled over plain HTTP: should the local copy be gone, Tart pulls it again
 // from the registry the reference names.
+//
+// Callers clone only once they have found no usable VM under name, so a
+// directory still there is a leftover and is replaced, as every Tart before
+// 2.40.1 did. From 2.40.1 Tart refuses to clone over any existing directory
+// without `--overwrite`, including one too incomplete for `tart delete` to
+// recognize, which would wedge that name for good. The flag is passed only
+// after that refusal because older Tart rejects it. Tart still refuses to
+// replace a running VM, with or without it.
 func (c *Client) CloneFrom(ctx context.Context, source, name string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, cloneTimeout)
 	defer cancel()
 	_, err := c.run(ctx, c.Binary, withInsecure([]string{"clone"}, insecure, source, name)...)
+	if isAlreadyExists(err) {
+		_, err = c.run(ctx, c.Binary, withInsecure([]string{"clone", "--overwrite"}, insecure, source, name)...)
+	}
 	return err
 }
 
@@ -339,7 +350,7 @@ type RunOptions struct {
 // process that drops, say, 30s in surfaces as a Pod failure rather
 // than stranding helm on an IP poll that will never succeed.
 //
-// Tart 2.32 quirks accommodated here:
+// Tart quirks accommodated here:
 //   - `tart run` is foreground-only. We start it directly from Go with
 //     `Setsid: true` so it gets its own session and process group.
 //     Earlier we wrapped it in `sh -c 'tart … &'` — that left tart
@@ -808,6 +819,23 @@ func isNotFound(err error) bool {
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "not found")
+}
+
+// isAlreadyExists recognizes Tart's refusal to clone over an existing
+// directory: `VM "x" already exists, use --overwrite to replace it`.
+func isAlreadyExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already exists, use --overwrite")
+}
+
+// Version returns the version `tart --version` prints.
+func (c *Client) Version(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.run(ctx, c.Binary, "--version")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func shellJoin(parts []string) string {

@@ -94,6 +94,26 @@ defmodule Tuist.Runners.CacheVolumes.BuiltinTest do
     assert {:ok, 0} = CacheVolumes.expire_inactive(DateTime.add(DateTime.utc_now(), 30, :day))
   end
 
+  test "dashboards that exclude built-in volumes see none of their rows, uses or storage", %{
+    account: account,
+    job: job,
+    name: name,
+    params: params
+  } do
+    assert {:ok, 1} = VolumeHeads.bump_head(account.id, "mac-node", "digest", 0, name)
+    assert {:ok, %{id: id}} = Builtin.report("mac-node", params)
+    period = {DateTime.add(DateTime.utc_now(), -120), DateTime.utc_now()}
+
+    assert %{volumes: [], more?: false} = CacheVolumes.list(account.id, "", 1, include_builtin: false)
+    assert CacheVolumes.count(account.id, "", include_builtin: false) == 0
+    assert [] = CacheVolumes.for_job(account.id, job.workflow_run_id, job.workflow_job_id, include_builtin: false)
+    assert %{uses: 0, hit_rate: nil} = CacheVolumes.usage_analytics(account.id, nil, period, include_builtin: false)
+    assert [] = CacheVolumes.storage_history(account.id, period, nil, include_builtin: false)
+
+    assert %{volumes: [%{id: ^id}]} = CacheVolumes.list(account.id)
+    assert [%{volume_id: ^id}] = CacheVolumes.for_job(account.id, job.workflow_run_id, job.workflow_job_id)
+  end
+
   test "node and repository scope are taken from execution, not body", %{account: account, params: params} do
     assert {:error, :pending} = Builtin.report("other-node", params)
     assert {:error, :invalid_report} = Builtin.report("mac-node", %{params | "volume_name" => "repo-0000000000000000"})
