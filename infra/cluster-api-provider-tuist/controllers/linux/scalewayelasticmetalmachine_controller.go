@@ -494,13 +494,13 @@ func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Con
 }
 
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {
-	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	running, err := shared.HoldReleaseForRunnerJobs(ctx, r.Client, machine.Name)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if len(running) > 0 {
-		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
-		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+		r.event(machine, "WaitingForRunnerJobs", "%s", shared.ReleaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: shared.RunnerJobsRecheckInterval}, nil
 	}
 	if machine.Status.ServerID != "" {
 		zone, err := scw.ParseZone(firstNonEmpty(machine.Spec.Zone, r.DefaultZone))

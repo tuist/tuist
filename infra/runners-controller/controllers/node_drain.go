@@ -18,7 +18,7 @@ import (
 // that is on its way out, and is one half of making a node replacement
 // safe for customer jobs. The other half waits for runner Pods to finish
 // instead of evicting them: the release wait in cluster-api-provider-tuist
-// (`holdReleaseForRunnerJobs`) for the in-cluster bare-metal fleets, and
+// (`HoldReleaseForRunnerJobs`) for the in-cluster Linux and macOS fleets, and
 // the `WaitCompleted` `MachineDrainRule` in
 // `infra/k8s/clusters/machinedrainrules.yaml` for Machines Cluster API
 // drains on the management cluster.

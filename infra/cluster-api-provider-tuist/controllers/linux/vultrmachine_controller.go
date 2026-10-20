@@ -503,13 +503,13 @@ func (r *VultrMachineReconciler) reconcileDelete(ctx context.Context, machine *i
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
-	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	running, err := shared.HoldReleaseForRunnerJobs(ctx, r.Client, machine.Name)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if len(running) > 0 {
-		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
-		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+		r.event(machine, "WaitingForRunnerJobs", "%s", shared.ReleaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: shared.RunnerJobsRecheckInterval}, nil
 	}
 
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {

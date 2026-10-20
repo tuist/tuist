@@ -410,8 +410,11 @@ keeps the check off it.
 external, so CAPI core's Machine deletion skips both (its log reads `Skipping
 deletion of Kubernetes Node associated with Machine as it is not allowed`,
 `cause="no control plane members"`). The RackAppleSiliconMachine's delete path
-deletes the Node, without a drain: cordon and drain a host's Node before
-parking or retiring the host.
+does both instead: it cordons the Node, waits until no runner Pod on it is still
+running a job, and only then revokes the identity and deletes the Node (see
+"Release waits for runner jobs" under Operating). Parking, retiring and
+remediating a host all go through it, so none of them kills a CI job. No other
+Pod is waited on. A lent host has no Node here, so its delete does not wait.
 
 ### A host lent to another cluster
 
@@ -1216,7 +1219,8 @@ Inventory is chart-rendered from `rackFleet.hosts` in the env's values, so
 adding a mini is a reviewed values PR rather than a `kubectl apply` in someone's
 history. Helm keeps RackHosts (`helm.sh/resource-policy: keep`), so retiring
 one is removing it from the values and deleting it, which deletes its Machine
-and its Node through the Machine's owner reference.
+through the Machine's owner reference, and its Node once the runner jobs on
+it have finished.
 
 ```bash
 kubectl get rh                      # address, machine, power, quarantined, parked
@@ -1228,9 +1232,12 @@ kubectl delete rh <name>            # retire a host the values no longer declare
 **Take a box out of service** without deleting its inventory record (bench
 work, an RMA, a box that is off) with `parked: true` on its `rackFleet.hosts`
 entry, or `kubectl patch rh <name> --type merge -p '{"spec":{"parked":true}}'`
-until the next deploy. The controller deletes the host's Machine, and with it
-the Node, undrained: cordon and drain the Node first. Unparking makes a new
-Machine, which bootstraps the host again.
+until the next deploy. The controller deletes the host's Machine, whose delete
+cordons the Node and waits for the runner jobs on it to finish before it deletes
+the Node, so a box running a long job stays `Deleting` until that job ends. The
+machine's `WaitingForRunnerJobs` events name the Pods it is waiting for, and
+deleting them releases it sooner. Unparking makes a new Machine once the old one
+is gone, which bootstraps the host again.
 
 **Force a re-join** by deleting the host's Machine
 (`kubectl delete machine <status.machine>`); the controller makes it again.
@@ -2083,8 +2090,10 @@ infra/cluster-api-provider-tuist/
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
 │   │                                # failure rules, sizing overlay, egress Service
+│   ├── shared/     # what the macOS and Linux kinds share
+│   │   ├── tuistcluster_controller.go
+│   │   └── runner_jobs.go           # a Machine's delete cordons its Node and waits for its runner jobs
 │   ├── scalewayapplesiliconmachine_controller.go
-│   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
 │   ├── orphan_reclaimer.go
 │   └── linux/      # the Linux fleet kinds (OVH / Elastic Metal / Vultr / rack)
@@ -2632,13 +2641,15 @@ these clusters. The `Cluster` has no control plane Machines, so Machine deletion
 skips the drain, and with it every `MachineDrainRule`, and goes straight to the
 infrastructure Machine (the CAPI controller logs `Skipping deletion of Kubernetes
 Node ... cause="no control plane members"`). The OVH, Vultr and Elastic Metal
-releases therefore start by cordoning the box's Node and requeue every 30s, with
-a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
-`tuist-runners` on it has not finished (`holdReleaseForRunnerJobs` in
-`controllers/linux/runner_jobs.go`). The runners-controller retires idle runner
-Pods on a cordoned Node, so only Pods running a job hold the release, and a
-terminating Pod on an unreachable Node does not. No other Pod is waited on. See
-"Replacing a runner box without killing CI jobs" in
+releases, and the `ScalewayAppleSiliconMachine` and `RackAppleSiliconMachine`
+deletes, therefore start by cordoning the host's Node and requeue every 30s,
+with a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
+`tuist-runners` on it has not finished (`HoldReleaseForRunnerJobs` in
+`controllers/shared/runner_jobs.go`). Nothing is released, reinstalled or
+revoked while it holds. The runners-controller retires idle runner Pods on a
+cordoned Node, so only Pods running a job hold the release, and a terminating
+Pod on an unreachable Node does not. No other Pod is waited on. See "Replacing
+a runner box without killing CI jobs" in
 [runners-controller](../runners-controller/AGENTS.md).
 
 **A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
@@ -2884,8 +2895,10 @@ gets its own Machine-object label but shares the fleet's Node label.
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
-CAPI core picks the most-recently-created Machines for deletion. The
-controller renames the host back into the pool namespace
+CAPI core picks the most-recently-created Machines for deletion. Each
+one's delete first cordons its Node and waits for the CI jobs on it (see
+"Release waits for runner jobs"). The
+controller then renames the host back into the pool namespace
 (`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall onto the
 Machine's own `spec.os`; the host stays alive, returns to
 factory-default state, and becomes eligible for the next adoption
@@ -2961,7 +2974,10 @@ kubectl delete machine <machine-name>
 ```
 The MachineSet immediately creates a replacement; the old Mac mini
 is renamed back into the pool, reinstalled, and re-eligible for the
-next adoption. The replacement Machine will adopt either this host
+next adoption once the runner jobs still running on it have finished.
+A job Pod wedged in `Running` holds the release: its
+`WaitingForRunnerJobs` event names it, and deleting it releases the
+host. The replacement Machine will adopt either this host
 (post-reinstall) or any other available pool host, whichever
 Scaleway returns to `Ready` first.
 
@@ -3116,8 +3132,8 @@ kubectl -n "$NS" patch scalewayapplesiliconmachine "$NAME" \
 
 # 3. Delete the parent Machine. The pause annotation only latches
 #    reconcileNormal — reconcileDelete still runs on
-#    DeletionTimestamp regardless, observes the empty serverID,
-#    and skips the Scaleway release.
+#    DeletionTimestamp regardless, waits for the runner jobs on the
+#    Node, observes the empty serverID, and skips the Scaleway release.
 kubectl -n "$NS" delete machine "$NAME"
 ```
 

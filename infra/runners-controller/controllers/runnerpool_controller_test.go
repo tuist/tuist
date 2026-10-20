@@ -209,6 +209,14 @@ func TestIsIdle(t *testing.T) {
 		}
 		return p
 	}
+	withHeartbeat := func(name, state string) *corev1.Pod {
+		p := newRunnerPod(name, "img", corev1.PodRunning, "p")
+		p.Annotations = map[string]string{
+			guestHeartbeatStateAnnotation: state,
+			guestHeartbeatAtAnnotation:    time.Now().Format(time.RFC3339),
+		}
+		return p
+	}
 	owner := newRunnerPod("p-owner", "img", corev1.PodPending, "p")
 	owner.Labels["tuist.dev/runner-pool-owner"] = "acme"
 
@@ -224,6 +232,10 @@ func TestIsIdle(t *testing.T) {
 		// best-effort owner label.
 		{"poller terminated, no label", withPoller("p-claimed", corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}), false},
 		{"poller still running, no label", withPoller("p-polling", corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}), true},
+		// A macOS guest has no poller init container. It beats `claimed` the
+		// moment it takes a job, so that beat is its label-independent signal.
+		{"guest heartbeat claimed, no label", withHeartbeat("p-guest-claimed", guestHeartbeatStateClaimed), false},
+		{"guest heartbeat polling, no label", withHeartbeat("p-guest-polling", guestHeartbeatStatePolling), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

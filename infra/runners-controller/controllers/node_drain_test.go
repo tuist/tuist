@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 )
 
 func cordonedNode(name string) *corev1.Node {
@@ -138,6 +140,44 @@ func TestReconcile_KeepsPollerClaimedPodOnCordonedNodeWithoutOwnerLabel(t *testi
 	got := &corev1.Pod{}
 	if err := c.Get(context.Background(), nn(busy.Namespace, busy.Name), got); err != nil {
 		t.Fatalf("Pod claimed via poller exit (no owner label) must survive the cordon: %v", err)
+	}
+}
+
+// TestReconcile_KeepsHeartbeatClaimedTartPodOnCordonedNodeWithoutOwnerLabel
+// is the macOS form of the case above. A Tart guest has no poller init
+// container, so the label-independent signal is the `claimed` beat the guest
+// writes when it takes a job. Every macOS Machine deletion cordons the Node,
+// so a label-only test would reap the job here.
+func TestReconcile_KeepsHeartbeatClaimedTartPodOnCordonedNodeWithoutOwnerLabel(t *testing.T) {
+	metrics.ClearRunnerPool("p")
+	t.Cleanup(func() { metrics.ClearRunnerPool("p") })
+
+	scheme := mustScheme(t)
+	pool := newPool("p", "img", 1)
+	pool.Spec.OS = "darwin"
+	busy := podOnNode(newRunnerPod("p-runner-unlabeled", "img", corev1.PodRunning, "p"), "mac-a")
+	delete(busy.Labels, "tuist.dev/runner-pool-owner")
+	busy.Annotations = map[string]string{
+		guestHeartbeatStateAnnotation: guestHeartbeatStateClaimed,
+		guestHeartbeatAtAnnotation:    time.Now().Add(-time.Hour).Format(time.RFC3339),
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, busy, cordonedNode("mac-a")).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	got := &corev1.Pod{}
+	if err := c.Get(context.Background(), nn(busy.Namespace, busy.Name), got); err != nil {
+		t.Fatalf("Tart Pod claimed via the guest heartbeat (no owner label) must survive the cordon: %v", err)
 	}
 }
 

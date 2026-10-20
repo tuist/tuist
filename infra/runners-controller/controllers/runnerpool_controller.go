@@ -58,10 +58,12 @@ const (
 	guestHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
 
 	// guestHeartbeatStatePolling is the state a guest reports while it is
-	// in its warm-standby loop. The other state a guest publishes,
-	// `claimed`, needs no constant here: everything that is not polling
-	// is not warm capacity.
+	// in its warm-standby loop.
 	guestHeartbeatStatePolling = "polling"
+
+	// guestHeartbeatStateClaimed is the state a guest reports once it has
+	// taken a job, and keeps until the VM halts.
+	guestHeartbeatStateClaimed = "claimed"
 )
 
 // guestHeartbeatStaleAfter is how long a `polling` beat stays good.
@@ -953,13 +955,19 @@ func isAlive(pod *corev1.Pod) bool {
 //     stamp landed. This closes the window where a just-claimed Pod
 //     is briefly Pending while the runner container starts and an
 //     unlucky reconcile would otherwise see it as idle and reap it.
+//   - On macOS there is no poller init container. The guest instead
+//     beats `claimed` as it takes a job, and tart-kubelet publishes the
+//     beat on the Pod, so a `claimed` beat is the same label-independent
+//     signal. Hosts without a status share publish no beat, and there
+//     the label is the only signal.
 //
-// macOS Pods have no poller init container, so they fall back to the
-// label signal alone (their single Tart-VM container never produces
-// this transition). Scale-down, drain, and the stale-Pending reap
-// all key off this so we never kill a runner mid-job.
+// Scale-down, drain, and the stale-Pending reap all key off this so we
+// never kill a runner mid-job.
 func isIdle(pod *corev1.Pod) bool {
 	if v, ok := pod.Labels["tuist.dev/runner-pool-owner"]; ok && v != "" {
+		return false
+	}
+	if pod.Annotations[guestHeartbeatStateAnnotation] == guestHeartbeatStateClaimed {
 		return false
 	}
 	return !pollerTerminated(pod)

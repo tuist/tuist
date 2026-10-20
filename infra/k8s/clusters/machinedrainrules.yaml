@@ -38,8 +38,9 @@
 # `org-tuist` on the management cluster. The in-cluster fleets (the OVH
 # Linux runner boxes, the macOS hosts) are not there: their Machines live
 # in each workload cluster's release namespace, where Cluster API never
-# drains a Machine, and the Linux runner boxes get the same wait from
-# `holdReleaseForRunnerJobs` in cluster-api-provider-tuist instead.
+# drains a Machine, and the Linux runner boxes and the macOS hosts get the
+# same wait from `HoldReleaseForRunnerJobs` in cluster-api-provider-tuist
+# instead.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: MachineDrainRule
 metadata:

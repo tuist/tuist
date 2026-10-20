@@ -762,6 +762,22 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 	// deliberate physical act and not something a Machine deletion should ever
 	// trigger.
 
+	// Stage 0: wait for the CI jobs running on the host. Cluster API never
+	// drains this cluster's Machines, so the release cordons the Node and
+	// holds until no runner Pod on it is still running a job. Revoking the
+	// identity below would leave tart-kubelet unable to report those jobs, and
+	// deleting the Node would leave their Pods to be garbage collected
+	// mid-job. A lent host has no Node here, so its delete never waits.
+	running, err := shared.HoldReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "WaitingForRunnerJobs", "%s",
+			shared.ReleaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: shared.RunnerJobsRecheckInterval}, nil
+	}
+
 	// Stage 1: drop the per-machine kubelet identity. The token is long-lived
 	// and bound to a ClusterRole that reads Secrets and ConfigMaps
 	// cluster-wide; leaving it behind orphans a valid privileged credential on

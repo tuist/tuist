@@ -87,9 +87,9 @@ type RackHostSpec struct {
 	Machine RackHostMachine `json:"machine,omitempty"`
 
 	// Parked keeps the host declared with no Machine: bench work, an RMA, a
-	// box that is off. Parking a host deletes its Machine and its Node without
-	// draining it, so drain the Node first; unparking it makes a new Machine,
-	// which bootstraps the host again.
+	// box that is off. Parking a host deletes its Machine, which cordons the
+	// Node and deletes it once the runner jobs on it have finished; unparking
+	// it makes a new Machine, which bootstraps the host again.
 	// +optional
 	Parked bool `json:"parked,omitempty"`
 
