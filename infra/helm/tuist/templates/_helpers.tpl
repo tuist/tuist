@@ -1297,7 +1297,7 @@ names. `templates/runner-pool.yaml` renders exactly these, and the server
 learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
 profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
 does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
-another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
+another env (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
@@ -1319,6 +1319,21 @@ another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
 {{- end -}}
 {{- end -}}
 {{- $pools | toJson -}}
+{{- end -}}
+
+{{/*
+The Secret holding the credential this env's operator reaches a borrowing
+env's RackHostLeases with: `rackFleet.borrowers.<env>`.
+*/}}
+{{- define "tuist.rackBorrowerSecret" -}}
+{{- printf "%s-%s" (include "tuist.componentName" (dict "root" .root "component" "rack-borrower")) .env | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+The identity a lending env's operator writes this env's RackHostLeases with.
+*/}}
+{{- define "tuist.rackLenderName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "rack-lender") -}}
 {{- end -}}
 
 {{/*
