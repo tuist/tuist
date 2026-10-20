@@ -3,6 +3,7 @@ defmodule TuistEx.Analytics.HTTP do
 
   alias TuistEx.Analytics.Actor
   alias TuistEx.Analytics.Config
+  alias TuistEx.Analytics.Report
   alias TuistEx.Auth
   alias TuistEx.HTTP
 
@@ -15,9 +16,50 @@ defmodule TuistEx.Analytics.HTTP do
   def submit_test_run(payload, options \\ []), do: post_analytics(payload, "/tests", options)
 
   # Sends a compile-run payload to
-  # `POST /api/projects/:account/:project/mix/builds`.
-  def submit_mix_build(payload, options \\ []),
-    do: post_analytics(payload, "/mix/builds", options)
+  # `POST /api/projects/:account/:project/mix/builds`. Older schema/context
+  # validators reject up_to_date observations; retry once without those only.
+  def submit_mix_build(payload, options \\ []) do
+    case post_analytics(payload, "/mix/builds", options) do
+      {:error, {:http, 400, %{"message" => message}}} = error when is_binary(message) ->
+        legacy = without_current_hits(payload)
+
+        if legacy != payload and
+             (message == "The dependency cache data is invalid." or
+                "Invalid value for enum" in String.split(message, "\n")) do
+          Report.debug(
+            "tuist analytics: retrying compile report without up-to-date cache observations"
+          )
+
+          post_analytics(legacy, "/mix/builds", options)
+        else
+          error
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp without_current_hits(payload) when is_map(payload) do
+    Enum.reduce([:dependency_cache, "dependency_cache"], payload, fn key, payload ->
+      case Map.get(payload, key) do
+        events when is_list(events) ->
+          Map.put(payload, key, Enum.reject(events, &current_hit?/1))
+
+        _ ->
+          payload
+      end
+    end)
+  end
+
+  defp without_current_hits(payload), do: payload
+
+  defp current_hit?(event) when is_map(event) do
+    Map.get(event, :reason, Map.get(event, "reason")) == "up_to_date" and
+      Map.get(event, :outcome, Map.get(event, "outcome")) == "local_hit"
+  end
+
+  defp current_hit?(_event), do: false
 
   @doc """
   Calls a project endpoint, `/api/projects/:account/:project` followed by
