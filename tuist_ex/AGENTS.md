@@ -98,13 +98,17 @@ umbrella's root, a runtime without the JIT, and a project that sets its own
 `test_coverage` tool (excoveralls) keep Mix's tool and read `cover`'s
 counters; a shard doing so exports instead of meeting the threshold. The
 formatter's `init`, which runs after the test helper and before any test,
-cover compiles only the modules Mimic marked to copy (`Mimic.Coordinator` on
-Mimic 2.4+, `Mimic.Server` before) and has Mimic swap them right away
-(`Mimic.calls(module, :module_info, 0)`), as `Mimic.copy` does for a module
-Mix's tool already compiled: at a later first stub, Mimic would export the
-calls made before it until after the suite (Mimic carries a cover compiled
-module's counts across its swaps, while a reload resets native counters), and the snapshot merges `cover`'s counts with the native ones of
-every other module of the build, loading those the run never did. Paths are relative to the Git root, a build compiled elsewhere is
+has Mimic swap the modules it marked to copy (`Mimic.Coordinator` on
+Mimic 2.4+, `Mimic.Server` before) right away
+(`Mimic.calls(module, :module_info, 0)`), without `cover`: Mimic compiles
+each original under `<Module>.Mimic.Original.Module` with the module's own
+options, which carry the native counters, and the snapshot maps those back
+to the original. A swap replaces the code that counted the calls made while
+the application started, so their counters are read first and added to the
+copy's. Mimic swaps the modules back only after the suite, once the
+formatter has read the counters at `suite_finished`. The snapshot reads the
+native counters of every module of the build, loading those the run never
+did, and leaves out Mimic's proxies. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
 test paths are test code. A line belongs to the function whose clause head
 starts closest above it. Generated functions (`__*`, `module_info`), such as

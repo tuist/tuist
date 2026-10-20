@@ -54,8 +54,8 @@ defmodule Mix.Tasks.Tuist.Test do
   run with the runtime's native line counters (a build
   `mix tuist.test.build --cover` made needs none), switches the counters on
   and counts with them. Mix's coverage tool, which would compile every module
-  for `cover` again, is left out; only the modules Mimic copies are cover
-  compiled. Its summary and threshold are kept: the task prints each
+  for `cover` again, is left out, also for the modules Mimic copies. Its
+  summary and threshold are kept: the task prints each
   module's coverage once the suite finishes and fails the run (exit status 3)
   below `test_coverage: [summary: [threshold: N]]`, 90 unless set
   (`summary: false` turns both off). A shard is never held to the threshold.
