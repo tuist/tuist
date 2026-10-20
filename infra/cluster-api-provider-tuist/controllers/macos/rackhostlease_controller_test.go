@@ -443,3 +443,154 @@ func TestBorrowerRetriesAnUnreachableHost(t *testing.T) {
 		t.Fatalf("state = %s after the host came back, want Active", lease.Status.State)
 	}
 }
+
+// activeLease is a lease this env took the host over under, with its Node.
+func activeLease(t *testing.T, objs ...runtime.Object) (*RackHostLeaseReconciler, *pushes) {
+	t.Helper()
+	r, p := newLeaseReconciler(t, append([]runtime.Object{
+		offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(),
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: borrowedNode}},
+	}, objs...)...)
+	grant(t, r, reconcileLease(t, r))
+	if lease := reconcileLease(t, r); lease.Status.State != infrav1.LeaseActive {
+		t.Fatalf("state = %s, want Active", lease.Status.State)
+	}
+	return r, p
+}
+
+func annotateLease(t *testing.T, r *RackHostLeaseReconciler, key, value string) {
+	t.Helper()
+	lease := &infrav1.RackHostLease{}
+	if err := r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: "mini-01"}, lease); err != nil {
+		t.Fatal(err)
+	}
+	metav1.SetMetaDataAnnotation(&lease.ObjectMeta, key, value)
+	if err := r.Update(context.Background(), lease); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// answer does what the lender does when it has served the request.
+func answer(t *testing.T, r *RackHostLeaseReconciler, res infrav1.RackHostLeaseSiteResult) {
+	t.Helper()
+	lease := &infrav1.RackHostLease{}
+	if err := r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: "mini-01"}, lease); err != nil {
+		t.Fatal(err)
+	}
+	if res.ID == "" {
+		res.ID = lease.Status.SiteRequest.ID
+	}
+	lease.Spec.SiteRequestResult = &res
+	if err := r.Update(context.Background(), lease); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func borrowedNodeCordoned(t *testing.T, r *RackHostLeaseReconciler) bool {
+	t.Helper()
+	node := &corev1.Node{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: borrowedNode}, node); err != nil {
+		t.Fatal(err)
+	}
+	return node.Spec.Unschedulable
+}
+
+// A wedged host is the lender's to power-cycle: the borrower asks, holds its
+// pushes while the lender acts, and closes the request on the answer.
+func TestBorrowerAsksTheLenderForAPowerCycle(t *testing.T) {
+	r, p := activeLease(t)
+	annotateLease(t, r, PowerCycleAnnotation, "wedged")
+
+	lease := reconcileLease(t, r)
+	req := lease.Status.SiteRequest
+	if req == nil || req.Action != infrav1.SiteRequestPowerCycle || req.ID == "" {
+		t.Fatalf("site request = %+v, want a PowerCycle", req)
+	}
+	r.FleetConfig.TartVersion = "2.42.0"
+	reconcileLease(t, r)
+	if len(p.configs) != 1 {
+		t.Fatal("pushed while the lender was cycling the host")
+	}
+
+	answer(t, r, infrav1.RackHostLeaseSiteResult{Phase: infrav1.SiteRequestSucceeded, ReturnToService: true})
+	lease = reconcileLease(t, r)
+	if lease.Status.SiteRequest != nil {
+		t.Fatalf("request %+v outlived its answer", lease.Status.SiteRequest)
+	}
+	if _, set := lease.Annotations[PowerCycleAnnotation]; set {
+		t.Fatal("the annotation outlived the request, which would ask again")
+	}
+	if len(p.configs) != 2 {
+		t.Fatal("the drift held back during the request did not roll after it")
+	}
+}
+
+// An update drains this env's jobs before the lender may start it, and the
+// runtime is pushed again after it, since the installer resets files the host
+// config owns.
+func TestBorrowerDrainsForAnUpdateAndPushesAfterIt(t *testing.T) {
+	job := runnerPodOn("job-1", borrowedNode)
+	r, p := activeLease(t, job)
+	annotateLease(t, r, OSUpdateAnnotation, "26.7")
+
+	lease := reconcileLease(t, r)
+	req := lease.Status.SiteRequest
+	if req == nil || req.Action != infrav1.SiteRequestOSUpdate || req.Target != "26.7" || req.Drained {
+		t.Fatalf("site request = %+v, want an undrained OSUpdate to 26.7", req)
+	}
+	if !borrowedNodeCordoned(t, r) {
+		t.Fatal("the Node was not cordoned for the update")
+	}
+
+	if err := r.Delete(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	if lease := reconcileLease(t, r); !lease.Status.SiteRequest.Drained {
+		t.Fatal("not drained with no job left")
+	}
+
+	answer(t, r, infrav1.RackHostLeaseSiteResult{Phase: infrav1.SiteRequestSucceeded, ReturnToService: true})
+	lease = reconcileLease(t, r)
+	if len(p.configs) != 2 {
+		t.Fatalf("pushes = %d, want the runtime pushed again after the update", len(p.configs))
+	}
+	if borrowedNodeCordoned(t, r) || lease.Status.SiteRequest != nil {
+		t.Fatalf("after the update: cordoned=%v request=%+v", borrowedNodeCordoned(t, r), lease.Status.SiteRequest)
+	}
+	if _, set := lease.Annotations[OSUpdateAnnotation]; set {
+		t.Fatal("the annotation outlived the update")
+	}
+}
+
+// An update that failed after it changed the host leaves the Node cordoned,
+// as the lender's own update does.
+func TestBorrowerKeepsTheNodeCordonedAfterAFailedUpdate(t *testing.T) {
+	r, _ := activeLease(t)
+	annotateLease(t, r, OSUpdateAnnotation, "26.7")
+	reconcileLease(t, r)
+	reconcileLease(t, r)
+
+	answer(t, r, infrav1.RackHostLeaseSiteResult{Phase: infrav1.SiteRequestFailed, Message: "VersionMismatch"})
+	lease := reconcileLease(t, r)
+	if !borrowedNodeCordoned(t, r) {
+		t.Fatal("uncordoned a host the failed update changed")
+	}
+	if lease.Status.SiteRequest != nil {
+		t.Fatal("the failed request stayed open")
+	}
+}
+
+// A reinstall wipes what the lender's handover put on the host; it is the
+// lender's, after the host is returned.
+func TestBorrowerRefusesToAskForAReinstall(t *testing.T) {
+	r, _ := activeLease(t)
+	annotateLease(t, r, OSReinstallAnnotation, "27.0")
+
+	lease := reconcileLease(t, r)
+	if lease.Status.SiteRequest != nil {
+		t.Fatalf("asked for a reinstall: %+v", lease.Status.SiteRequest)
+	}
+	if _, set := lease.Annotations[OSReinstallAnnotation]; set {
+		t.Fatal("the refused annotation was left in place")
+	}
+}

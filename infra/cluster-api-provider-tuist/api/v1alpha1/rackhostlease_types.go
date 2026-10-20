@@ -34,6 +34,23 @@ const (
 	LeaseReleased = "Released"
 )
 
+// The site actions a borrower can ask the lender for: what the env that owns
+// the site does to a host, which the borrower has no credential for.
+const (
+	// SiteRequestPowerCycle: cycle the host's PDU outlet.
+	SiteRequestPowerCycle = "PowerCycle"
+	// SiteRequestOSUpdate: update the host's macOS in place, once the
+	// borrower has drained its Node.
+	SiteRequestOSUpdate = "OSUpdate"
+)
+
+// The phases of the lender's answer to a site request.
+const (
+	SiteRequestRunning   = "Running"
+	SiteRequestSucceeded = "Succeeded"
+	SiteRequestFailed    = "Failed"
+)
+
 // RackHostLeaseSpec is written by the operator of the env that owns the
 // host's site. It lives in the borrowing cluster, named after the host.
 type RackHostLeaseSpec struct {
@@ -60,6 +77,11 @@ type RackHostLeaseSpec struct {
 	// deletes it after.
 	// +optional
 	PreviousNodeName string `json:"previousNodeName,omitempty"`
+
+	// SiteRequestResult is the lender's answer to the borrower's
+	// status.siteRequest with the same ID.
+	// +optional
+	SiteRequestResult *RackHostLeaseSiteResult `json:"siteRequestResult,omitempty"`
 }
 
 // RackHostLeaseHost carries the physical facts of a lent host. None of it is a
@@ -121,6 +143,12 @@ type RackHostLeaseStatus struct {
 	// +optional
 	NodeReady bool `json:"nodeReady,omitempty"`
 
+	// SiteRequest is a site action the borrower asks the lender for, from the
+	// lease's `tuist.dev/power-cycle` or `tuist.dev/os-update` annotation. One
+	// at a time; the borrower pushes nothing to the host while it is open.
+	// +optional
+	SiteRequest *RackHostLeaseSiteRequest `json:"siteRequest,omitempty"`
+
 	// Conditions are CAPI-style condition entries (Bootstrapped).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
@@ -175,4 +203,52 @@ func (l *RackHostLease) GetConditions() clusterv1.Conditions {
 
 func (l *RackHostLease) SetConditions(c clusterv1.Conditions) {
 	l.Status.Conditions = c
+}
+
+// RackHostLeaseSiteRequest is a site action the borrower asks for.
+type RackHostLeaseSiteRequest struct {
+	// ID tells this request's answer from an earlier one's.
+	ID string `json:"id"`
+
+	// Action is PowerCycle or OSUpdate.
+	// +kubebuilder:validation:Enum=PowerCycle;OSUpdate
+	Action string `json:"action"`
+
+	// Target is the macOS version an OSUpdate asks for, e.g. "26.7".
+	// +optional
+	Target string `json:"target,omitempty"`
+
+	// Drained is set once the borrower's Node is cordoned and its jobs have
+	// finished. The lender starts an OSUpdate only then.
+	// +optional
+	Drained bool `json:"drained,omitempty"`
+
+	// +optional
+	RequestedAt *metav1.Time `json:"requestedAt,omitempty"`
+}
+
+// RackHostLeaseSiteResult is the lender's answer to a site request.
+type RackHostLeaseSiteResult struct {
+	// ID is the request's.
+	ID string `json:"id"`
+
+	// Phase is Running, Succeeded or Failed.
+	Phase string `json:"phase"`
+
+	// Message says what the lender is doing or what it did.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// ReturnToService is set on an answer after which the borrower may put
+	// its Node back in service: the action succeeded, or failed before it
+	// changed the host.
+	// +optional
+	ReturnToService bool `json:"returnToService,omitempty"`
+
+	// OSUpdateID is the lender's update that serves an OSUpdate request.
+	// +optional
+	OSUpdateID string `json:"osUpdateID,omitempty"`
+
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 }

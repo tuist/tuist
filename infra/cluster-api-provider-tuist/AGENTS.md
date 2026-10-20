@@ -73,7 +73,7 @@ private-network guide above.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked, the env it is lent to (`lendTo`). Status carries its outlet's state and draw, and how far a lend has got (`lease`). Its controller keeps the host's Machine. Nothing running on the host reads it. |
-| `RackHostLease` | A rack host another env lends this cluster, in the borrowing cluster and named after the host. The lending operator writes the spec (the phase it asks for, the host's address, pinned host key and sizing, the key it authorized); this cluster's operator writes the status (its key, its Node, the drift bookkeeping for the runtime it pushes). See "A host lent to another env". |
+| `RackHostLease` | A rack host another env lends this cluster, in the borrowing cluster and named after the host. The lending operator writes the spec (the phase it asks for, the host's address, pinned host key and sizing, the key it authorized, its answer to a site request); this cluster's operator writes the status (its key, its Node, the drift bookkeeping for the runtime it pushes, the power cycle or macOS update it asks the lender for). See "A host lent to another env". |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. Status carries every outlet's state and meter reading. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
 | `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`. See "RackSite" below. |
@@ -483,8 +483,8 @@ the first push, which is how the fleet gets one. A bootstrap the fence refuses
 escalated to a power cycle or a quarantine, since another env may be running
 jobs on it: set `lendTo` back, or take it back with
 `tuist.dev/reclaim-runtime=true`. While a host is lent the
-lender pushes nothing to it but the lease key, refuses its OS updates (return
-it first), and keeps the fleet's MachineHealthCheck off its Machine
+lender pushes nothing to it but the lease key and what the borrower asks for
+(below), and keeps the fleet's MachineHealthCheck off its Machine
 (`cluster.x-k8s.io/skip-remediation`, marked `tuist.dev/lent-skip-remediation`).
 
 **Credentials.** One per borrowing env, and no private material ever crosses
@@ -516,11 +516,26 @@ with the borrower's tags, the borrower reaches tart-kubelet, node_exporter and
 the VNC relay over its per-machine egress Service, and the host ships its logs
 to the borrower's Alloy, as for any of its minis.
 
-**What the borrower does not do** is anything the site owns: no power cycles,
-no quarantine, no OS updates, no reinstall. A takeover or a push that fails is
-retried, and the drift loop's terminal-failure rules are the shared ones
-(`hostagent.go`). A lent host that stops answering is the lender's to recover:
-return it.
+**Site requests.** The borrower holds no site credential, so it asks the
+lender for what needs one (`rack_lease_site.go`). A person annotates the
+borrower's RackHostLease with `tuist.dev/power-cycle=<why>` or
+`tuist.dev/os-update=<version>`; the borrower turns it into `status.siteRequest`
+and pushes nothing to the host while it is open. A power cycle is asked for at
+once. An update first drains the borrower's Node (`drained`), then the lender
+runs its own in-place update flow on the host (`osUpdateContext.lent`: no local
+cordon, no local converge, done once the host restarted on the target with its
+console session) and answers in `spec.siteRequestResult`, tied to its update by
+`osUpdateID`. On the answer the borrower pushes its runtime again (the installer
+resets files the host config owns) and puts its Node back in service, unless the
+update failed after it changed the host (`returnToService` unset), which leaves
+the Node cordoned as the lender's own update does. A reinstall is refused on both
+sides: it wipes the borrower's runtime and the lease key, so the host is
+returned, reinstalled, and lent again. The lender also refuses an update a
+person sets on the lent host's Machine (`OSUpdateWhileLent`).
+
+The borrower does nothing else the site owns: no quarantine and no recovery of
+its own. A takeover or a push that fails is retried, and the drift loop's
+terminal-failure rules are the shared ones (`hostagent.go`).
 
 `spec.nodeCluster` and `spec.nodeFleet` are the manual lend this replaced, where
 the lender pushed its own runtime with a kubeconfig the borrowing cluster
@@ -2182,6 +2197,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackhostlease_controller.go  # borrowing a host: accept, take over, drift, release
 │   │   ├── rack_lease_clients.go    # the borrowing clusters' clients, from their kubeconfig Secrets
 │   │   ├── rack_lease_drain.go      # a lease's cordon and the jobs it waits for
+│   │   ├── rack_lease_site.go       # site requests: power cycles and macOS updates a borrower asks for
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
 │   │                                # failure rules, sizing overlay, egress Service

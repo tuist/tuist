@@ -53,13 +53,8 @@ const (
 	lendingDrainRequeue = 30 * time.Second
 )
 
-func (r *RackAppleSiliconMachineReconciler) reconcileLending(
-	ctx context.Context,
-	machine *infrav1.RackAppleSiliconMachine,
-	host *infrav1.RackHost,
-	sshKey []byte,
-	knownFingerprint string,
-) (lendingGate, error) {
+func (r *RackAppleSiliconMachineReconciler) reconcileLending(ctx context.Context, oc *osUpdateContext) (lendingGate, error) {
+	machine, host, sshKey, knownFingerprint := oc.machine, oc.host, oc.sshKey, oc.knownFingerprint
 	want := host.Spec.LendTo
 	rec := host.Status.Lease
 
@@ -135,7 +130,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileLending(
 	case infrav1.LendingDraining:
 		return r.handOverToBorrower(ctx, borrower, machine, host, lease, sshKey, knownFingerprint)
 	default:
-		return r.keepLent(ctx, borrower, machine, host, lease, sshKey, knownFingerprint)
+		return r.keepLent(ctx, borrower, oc, lease)
 	}
 }
 
@@ -195,12 +190,10 @@ func (r *RackAppleSiliconMachineReconciler) handOverToBorrower(
 func (r *RackAppleSiliconMachineReconciler) keepLent(
 	ctx context.Context,
 	borrower client.Client,
-	machine *infrav1.RackAppleSiliconMachine,
-	host *infrav1.RackHost,
+	oc *osUpdateContext,
 	lease *infrav1.RackHostLease,
-	sshKey []byte,
-	knownFingerprint string,
 ) (lendingGate, error) {
+	machine, host, sshKey, knownFingerprint := oc.machine, oc.host, oc.sshKey, oc.knownFingerprint
 	rec := host.Status.Lease
 	if lease.Status.State == infrav1.LeaseReleased || lease.Status.State == infrav1.LeaseRefused {
 		return r.reclaim(ctx, borrower, machine, host, sshKey, knownFingerprint, lease)
@@ -220,7 +213,13 @@ func (r *RackAppleSiliconMachineReconciler) keepLent(
 		}
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "LeaseKeyRotated", "Authorized %s's new key on %s", rec.Borrower, host.Name)
 	}
-	return r.holdLent(machine, host.Status.Lease), nil
+	gate := r.holdLent(machine, host.Status.Lease)
+	if result, err := r.serveSiteRequest(ctx, borrower, oc, lease); err != nil {
+		return lendingGate{}, err
+	} else if result.RequeueAfter > 0 && result.RequeueAfter < gate.result.RequeueAfter {
+		gate.result = result
+	}
+	return gate, nil
 }
 
 // returnLentHost asks the borrower for the host back and, once it has drained

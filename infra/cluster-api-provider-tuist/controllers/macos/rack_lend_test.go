@@ -130,7 +130,9 @@ func setLeaseStatus(t *testing.T, c client.Client, name string, mutate func(*inf
 func lend(t *testing.T, r *RackAppleSiliconMachineReconciler, machine *infrav1.RackAppleSiliconMachine) lendingGate {
 	t.Helper()
 	host := getHost(t, r, machine.Spec.Host)
-	gate, err := r.reconcileLending(context.Background(), machine, host, []byte("PRIVATE KEY"), "SHA256:pinned")
+	gate, err := r.reconcileLending(context.Background(), &osUpdateContext{
+		machine: machine, host: host, sshKey: []byte("PRIVATE KEY"), sudoPassword: "hunter2", knownFingerprint: "SHA256:pinned",
+	})
 	if err != nil {
 		t.Fatalf("reconcileLending: %v", err)
 	}
@@ -523,5 +525,111 @@ func TestReclaimAnnotationTakesBackAHostOwnedElsewhere(t *testing.T) {
 	gate := lend(t, r, machine)
 	if !gate.forceReauth || len(h.calls) != 1 || h.calls[0].owner != "production" || h.calls[0].key != "" {
 		t.Fatalf("gate = %+v, handovers = %+v, want the runtime taken back", gate, h.calls)
+	}
+}
+
+// lentHost is a host lent to staging, with the lease it was lent under.
+func lentHost(t *testing.T) (*RackAppleSiliconMachineReconciler, client.Client, *infrav1.RackAppleSiliconMachine) {
+	t.Helper()
+	borrower := newBorrowerCluster(t)
+	host := lendingHost(func(h *infrav1.RackHost) {
+		h.Status.Lease = &infrav1.RackHostLending{Borrower: "staging", State: infrav1.LendingLent}
+	})
+	machine := bootstrappedMachine("ber1-0")
+	r, _ := newLendingReconciler(t, borrower, host, machine)
+	lend(t, r, machine)
+	return r, borrower, machine
+}
+
+func askSite(t *testing.T, c client.Client, req infrav1.RackHostLeaseSiteRequest) {
+	t.Helper()
+	setLeaseStatus(t, c, "mini-01", func(s *infrav1.RackHostLeaseStatus) { s.SiteRequest = &req })
+}
+
+func siteResult(t *testing.T, c client.Client) *infrav1.RackHostLeaseSiteResult {
+	t.Helper()
+	return getLease(t, c, "mini-01").Spec.SiteRequestResult
+}
+
+// The borrower cannot reach the PDU; the lender cycles the outlet for it,
+// once per request.
+func TestLentHostIsPowerCycledOnTheBorrowersRequest(t *testing.T) {
+	r, borrower, machine := lentHost(t)
+	driver := &stubPowerDriver{on: true}
+	r.Power = registryWithShelly(driver)
+	askSite(t, borrower, infrav1.RackHostLeaseSiteRequest{ID: "r1", Action: infrav1.SiteRequestPowerCycle})
+
+	lend(t, r, machine)
+	if got := driver.recorded(); len(got) != 2 || got[0] != "set=false" || got[1] != "set=true" {
+		t.Fatalf("outlet calls = %v, want an off then an on", got)
+	}
+	res := siteResult(t, borrower)
+	if res == nil || res.ID != "r1" || res.Phase != infrav1.SiteRequestSucceeded || !res.ReturnToService {
+		t.Fatalf("result = %+v, want r1 Succeeded", res)
+	}
+
+	lend(t, r, machine)
+	if got := driver.recorded(); len(got) != 2 {
+		t.Fatalf("cycled again for an answered request: %v", got)
+	}
+}
+
+// An update waits for the borrower to drain its Node; then it runs through the
+// lender's own update flow, which reports back to the lease, and ends once the
+// host restarted on the target with its console session. Converging the
+// runtime is the borrower's.
+func TestLentHostIsUpdatedOnTheBorrowersRequest(t *testing.T) {
+	r, borrower, machine := lentHost(t)
+	fake := newFakeOSUpdateHost()
+	r.osUpdateDial = func(string, string, []byte, string) (osUpdateHost, error) { return fake, nil }
+	askSite(t, borrower, infrav1.RackHostLeaseSiteRequest{ID: "r1", Action: infrav1.SiteRequestOSUpdate, Target: "26.7"})
+
+	lend(t, r, machine)
+	if res := siteResult(t, borrower); res == nil || res.Phase != infrav1.SiteRequestRunning || machine.Status.OSUpdate != nil {
+		t.Fatalf("result = %+v, update = %+v; want it waiting for the drain", res, machine.Status.OSUpdate)
+	}
+
+	askSite(t, borrower, infrav1.RackHostLeaseSiteRequest{ID: "r1", Action: infrav1.SiteRequestOSUpdate, Target: "26.7", Drained: true})
+	for range 3 {
+		lend(t, r, machine)
+	}
+	if len(fake.downloads) != 1 {
+		t.Fatalf("downloads = %v, want the update downloading", fake.downloads)
+	}
+	if res := siteResult(t, borrower); res.Phase != infrav1.SiteRequestRunning || res.OSUpdateID == "" || res.OSUpdateID != machine.Status.OSUpdate.ID {
+		t.Fatalf("result = %+v, want it tied to the running update", res)
+	}
+
+	fake.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	for range 3 {
+		lend(t, r, machine)
+	}
+	if len(fake.installs) != 1 {
+		t.Fatalf("installs = %v", fake.installs)
+	}
+	fake.bootTime, fake.version = 200, "26.7"
+	lend(t, r, machine)
+	res := siteResult(t, borrower)
+	if res.Phase != infrav1.SiteRequestSucceeded || !res.ReturnToService {
+		t.Fatalf("result = %+v, want Succeeded", res)
+	}
+	if _, set := machine.Annotations[OSUpdateAnnotation]; set {
+		t.Fatal("the update's annotation outlived it")
+	}
+}
+
+// An update that fails before it changed the host hands the Node back; the
+// borrower learns which.
+func TestLentHostUpdateNotOfferedReturnsTheNode(t *testing.T) {
+	r, borrower, machine := lentHost(t)
+	fake := newFakeOSUpdateHost()
+	r.osUpdateDial = func(string, string, []byte, string) (osUpdateHost, error) { return fake, nil }
+	askSite(t, borrower, infrav1.RackHostLeaseSiteRequest{ID: "r1", Action: infrav1.SiteRequestOSUpdate, Target: "26.9", Drained: true})
+
+	lend(t, r, machine)
+	lend(t, r, machine)
+	res := siteResult(t, borrower)
+	if res.Phase != infrav1.SiteRequestFailed || !res.ReturnToService || !strings.Contains(res.Message, "NotOffered") {
+		t.Fatalf("result = %+v, want a NotOffered failure that returns the Node", res)
 	}
 }

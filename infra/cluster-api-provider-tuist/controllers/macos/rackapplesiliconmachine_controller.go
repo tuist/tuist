@@ -317,20 +317,6 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		knownFingerprint = bootstrapCreds.HostFingerprint
 	}
 
-	// A host lent to another env runs that env's runtime, and this reconcile
-	// pushes nothing to it; see rack_lend.go.
-	gate, err := r.reconcileLending(ctx, machine, host, sshKey, knownFingerprint)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if gate.stop {
-		if osUpdateRunsFirst(machine) || osUpdatePending(machine) {
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "OSUpdateWhileLent",
-				"Not updating %s's macOS while it is lent: return it first (drop lendTo)", host.Name)
-		}
-		return gate.result, nil
-	}
-
 	osUpdate := &osUpdateContext{
 		machine:          machine,
 		host:             host,
@@ -338,6 +324,21 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		sudoPassword:     sudoPassword,
 		knownFingerprint: knownFingerprint,
 	}
+
+	// A host lent to another env runs that env's runtime, and this reconcile
+	// pushes nothing to it but what the borrower asks for; see rack_lend.go.
+	gate, err := r.reconcileLending(ctx, osUpdate)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if gate.stop {
+		if _, byLease := machine.Annotations[leaseOSUpdateAnnotation]; !byLease && osUpdatePending(machine) {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "OSUpdateWhileLent",
+				"Not updating %s's macOS while it is lent: the borrower asks for it with %s on its RackHostLease", host.Name, OSUpdateAnnotation)
+		}
+		return gate.result, nil
+	}
+
 	if osUpdateRunsFirst(machine) {
 		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
 			return result, updateErr

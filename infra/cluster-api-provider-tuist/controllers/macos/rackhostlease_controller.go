@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -131,6 +133,11 @@ func (r *RackHostLeaseReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	// While the lender acts on the host for this env, nothing is pushed to it.
+	if result, held, err := r.reconcileSiteRequest(ctx, lease, node); err != nil || held {
+		return result, err
 	}
 
 	if !conditions.IsTrue(lease, BootstrappedCondition) {
@@ -470,4 +477,87 @@ func (r *RackHostLeaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.RackHostLease{}).
 		Complete(r)
+}
+
+// reconcileSiteRequest asks the lender for what the lease's annotations name
+// and holds this env's pushes until it has answered: a power cycle at once,
+// an update once this env's jobs on the host have finished. After an update
+// the runtime is pushed again, since the installer resets files the host
+// config owns, and the Node goes back in service unless the update changed
+// the host and failed. held is set while the request is open.
+func (r *RackHostLeaseReconciler) reconcileSiteRequest(ctx context.Context, lease *infrav1.RackHostLease, node string) (ctrl.Result, bool, error) {
+	if target, asked := lease.Annotations[OSReinstallAnnotation]; asked {
+		delete(lease.Annotations, OSReinstallAnnotation)
+		r.Recorder.Eventf(lease, corev1.EventTypeWarning, "ReinstallRefused",
+			"Not asking %s to reinstall %s on macOS %s: it wipes this env's runtime and the lease key. Ask %s to return the host and reinstall it.",
+			lease.Spec.Lender, lease.Name, target, lease.Spec.Lender)
+	}
+	req := lease.Status.SiteRequest
+	if req == nil {
+		if req = siteRequestFromAnnotations(lease); req == nil {
+			return ctrl.Result{}, false, nil
+		}
+		lease.Status.SiteRequest = req
+		r.Recorder.Eventf(lease, corev1.EventTypeNormal, "SiteRequested", "Asked %s for %s %s", lease.Spec.Lender, req.Action, req.Target)
+	}
+	if req.Action == infrav1.SiteRequestOSUpdate && !req.Drained {
+		active, err := drainNodeForLease(ctx, r.Client, node, lease.Spec.Lender)
+		if err != nil {
+			return ctrl.Result{}, true, err
+		}
+		if len(active) > 0 {
+			conditions.MarkFalse(lease, SiteRequestCondition, "Draining", clusterv1.ConditionSeverityInfo,
+				"waiting for %d job(s) to finish before %s updates the host: %v", len(active), lease.Spec.Lender, active)
+			return ctrl.Result{RequeueAfter: lendingDrainRequeue}, true, nil
+		}
+		req.Drained = true
+	}
+
+	res := lease.Spec.SiteRequestResult
+	if res == nil || res.ID != req.ID || !siteRequestAnswered(res.Phase) {
+		message := fmt.Sprintf("waiting for %s", lease.Spec.Lender)
+		if res != nil && res.ID == req.ID && res.Message != "" {
+			message = res.Message
+		}
+		conditions.MarkFalse(lease, SiteRequestCondition, "InProgress", clusterv1.ConditionSeverityInfo, "%s %s: %s", req.Action, req.Target, message)
+		return ctrl.Result{RequeueAfter: lendingDrainRequeue}, true, nil
+	}
+
+	if req.Action == infrav1.SiteRequestOSUpdate {
+		if res.Phase == infrav1.SiteRequestSucceeded {
+			lease.Status.HostConfigHash = ""
+		}
+		if res.ReturnToService {
+			if err := uncordonNodeAfterLease(ctx, r.Client, node); err != nil {
+				return ctrl.Result{}, true, err
+			}
+		}
+		delete(lease.Annotations, OSUpdateAnnotation)
+	} else {
+		delete(lease.Annotations, PowerCycleAnnotation)
+	}
+	eventType := corev1.EventTypeNormal
+	if res.Phase == infrav1.SiteRequestFailed {
+		eventType = corev1.EventTypeWarning
+		conditions.MarkFalse(lease, SiteRequestCondition, "Failed", clusterv1.ConditionSeverityWarning, "%s %s: %s", req.Action, req.Target, res.Message)
+	} else {
+		conditions.MarkTrue(lease, SiteRequestCondition)
+	}
+	r.Recorder.Eventf(lease, eventType, "SiteRequest"+res.Phase, "%s %s: %s", req.Action, req.Target, res.Message)
+	lease.Status.SiteRequest = nil
+	return ctrl.Result{}, false, nil
+}
+
+// SiteRequestCondition reports the borrower's last site request.
+const SiteRequestCondition clusterv1.ConditionType = "SiteRequest"
+
+func siteRequestFromAnnotations(lease *infrav1.RackHostLease) *infrav1.RackHostLeaseSiteRequest {
+	now := metav1.Now()
+	if _, asked := lease.Annotations[PowerCycleAnnotation]; asked {
+		return &infrav1.RackHostLeaseSiteRequest{ID: string(uuid.NewUUID()), Action: infrav1.SiteRequestPowerCycle, RequestedAt: &now}
+	}
+	if target, asked := lease.Annotations[OSUpdateAnnotation]; asked {
+		return &infrav1.RackHostLeaseSiteRequest{ID: string(uuid.NewUUID()), Action: infrav1.SiteRequestOSUpdate, Target: strings.TrimSpace(target), RequestedAt: &now}
+	}
+	return nil
 }

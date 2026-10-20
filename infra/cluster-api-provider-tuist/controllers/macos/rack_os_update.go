@@ -113,6 +113,11 @@ type osUpdateContext struct {
 	sshKey           []byte
 	sudoPassword     string
 	knownFingerprint string
+	// lent is an update a borrower asked for (rack_lease_site.go). Its Node
+	// is in the borrowing cluster, which drained it before asking and
+	// converges the runtime after, so the update ends once the host restarted
+	// on the target with its console session.
+	lent bool
 }
 
 // osUpdateRunsFirst reports whether the update has to run before the rest of
@@ -247,7 +252,11 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "InvalidTarget",
 			fmt.Sprintf("%q is not a macOS version such as 26.7", target), false)
 	}
-	if !conditions.IsTrue(machine, BootstrappedCondition) || machine.Status.FailureReason != nil {
+	if oc.lent && reinstall {
+		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "Lent",
+			"a reinstall wipes the borrower's runtime and the lease key; return the host first", false)
+	}
+	if !oc.lent && (!conditions.IsTrue(machine, BootstrappedCondition) || machine.Status.FailureReason != nil) {
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "HostNotReady",
 			"the host must be bootstrapped with its host config converged before it can be updated", false)
 	}
@@ -270,6 +279,8 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 
 	if !reinstall {
 		switch cmp := compareMacOSVersions(target, current); {
+		case cmp == 0 && oc.lent:
+			return r.finishOSUpdate(ctx, oc, OSUpdatePhaseSucceeded, "", "already on macOS "+current, false)
 		case cmp == 0:
 			recovering, err := r.nodeCordonedByOSUpdate(ctx, machine.Name)
 			if err != nil {
@@ -317,11 +328,14 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 			fmt.Sprintf("macOS %s is not %s (offered: %s)", target, what, strings.Join(offered, ", ")), false)
 	}
 
-	if err := r.cordonNodeForOSUpdate(ctx, machine.Name, target); err != nil {
+	drained := "cordoned; waiting for running pods to finish"
+	if oc.lent {
+		drained = "the borrower drained its Node"
+	} else if err := r.cordonNodeForOSUpdate(ctx, machine.Name, target); err != nil {
 		return osUpdateWait(st, "could not cordon Node %s: %v", machine.Name, err)
 	}
 	st.Label = label
-	r.setOSUpdatePhase(machine, OSUpdatePhaseDraining, "cordoned; waiting for running pods to finish")
+	r.setOSUpdatePhase(machine, OSUpdatePhaseDraining, drained)
 	// The update's ID reaches the status before any job starts on the host.
 	return ctrl.Result{Requeue: true}, nil
 }
@@ -475,6 +489,17 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateAwaitingInstall(ctx context.
 		if compareMacOSVersions(version, st.Target) != 0 {
 			return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "VersionMismatch",
 				fmt.Sprintf("the host restarted on macOS %s, not %s; the Node stays cordoned", version, st.Target), false)
+		}
+		if oc.lent {
+			console, err := host.ConsoleUser(ctx)
+			if err != nil {
+				return osUpdateWait(st, "could not read the console session: %v", err)
+			}
+			if console != oc.host.Spec.SSHUser {
+				return osUpdateWait(st, "restarted; waiting for %s to log in at the console, which belongs to %q", oc.host.Spec.SSHUser, console)
+			}
+			return r.finishOSUpdate(ctx, oc, OSUpdatePhaseSucceeded, "",
+				fmt.Sprintf("updated from macOS %s to %s; the borrower converges the runtime", st.FromVersion, st.Target), false)
 		}
 		r.setOSUpdatePhase(oc.machine, OSUpdatePhaseConverging,
 			fmt.Sprintf("restarted on macOS %s; pushing the host config again", version))

@@ -162,6 +162,36 @@ spec:
                     with a kubeconfig. The borrower drains it before taking the host over and
                     deletes it after.
                   type: string
+                siteRequestResult:
+                  description: |-
+                    SiteRequestResult is the lender's answer to the borrower's
+                    status.siteRequest with the same ID.
+                  properties:
+                    completedAt:
+                      format: date-time
+                      type: string
+                    id:
+                      description: ID is the request's.
+                      type: string
+                    message:
+                      description: Message says what the lender is doing or what it did.
+                      type: string
+                    osUpdateID:
+                      description: OSUpdateID is the lender's update that serves an OSUpdate request.
+                      type: string
+                    phase:
+                      description: Phase is Running, Succeeded or Failed.
+                      type: string
+                    returnToService:
+                      description: |-
+                        ReturnToService is set on an answer after which the borrower may put
+                        its Node back in service: the action succeeded, or failed before it
+                        changed the host.
+                      type: boolean
+                  required:
+                    - id
+                    - phase
+                  type: object
               required:
                 - host
                 - lender
@@ -292,6 +322,36 @@ spec:
                     Conditions instead; this is the human-readable summary and the series
                     the stuck-Failed alert keys on.
                   type: string
+                siteRequest:
+                  description: |-
+                    SiteRequest is a site action the borrower asks the lender for, from the
+                    lease's `tuist.dev/power-cycle` or `tuist.dev/os-update` annotation. One
+                    at a time; the borrower pushes nothing to the host while it is open.
+                  properties:
+                    action:
+                      description: Action is PowerCycle or OSUpdate.
+                      enum:
+                        - PowerCycle
+                        - OSUpdate
+                      type: string
+                    drained:
+                      description: |-
+                        Drained is set once the borrower's Node is cordoned and its jobs have
+                        finished. The lender starts an OSUpdate only then.
+                      type: boolean
+                    id:
+                      description: ID tells this request's answer from an earlier one's.
+                      type: string
+                    requestedAt:
+                      format: date-time
+                      type: string
+                    target:
+                      description: Target is the macOS version an OSUpdate asks for, e.g. "26.7".
+                      type: string
+                  required:
+                    - action
+                    - id
+                  type: object
                 sshPublicKey:
                   description: |-
                     SSHPublicKey is the key the borrower dials the host with, one

@@ -1091,8 +1091,19 @@ lost), and remove the annotation once the host is back.
 env. Its operator mints a new key and waits for production to authorize it,
 which takes a minute; the host keeps running meanwhile.
 
-**Update a lent host's macOS**: return it first. Production refuses an OS
-update on a host it has lent (an `OSUpdateWhileLent` event).
+**Power-cycle or update a lent host** from the borrowing env, which holds no
+credential for either: annotate its lease, and production does it.
+
+```
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/power-cycle=wedged
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/os-update=26.7
+```
+
+An update drains the borrower's Node first, so its jobs finish, and the
+borrower pushes its runtime again afterwards. Follow it in the lease's
+`SiteRequest` condition, `status.siteRequest` and `spec.siteRequestResult`. A
+reinstall is not a site request: return the host, reinstall it in production,
+and lend it again.
 
 #### Moving ber1-runner-b01 and b02 off the manual lend
 
