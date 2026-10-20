@@ -413,3 +413,81 @@ func TestAPFSSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 		t.Fatal("speculative prefetch did not install beside the resident master")
 	}
 }
+
+func TestAPFSCheckoutSeedsFromTheHostMasterAndNeverFormats(t *testing.T) {
+	b, _ := newAPFS(t)
+	b.Create = func(context.Context, string, int64) error { t.Fatal("a checkout must never start empty"); return nil }
+	b.Seed = func(_ context.Context, slot Slot, dst string) error {
+		if slot.Kind != KindCheckout || slot.Generation != 3 {
+			t.Fatalf("unexpected seed request %+v", slot.Identity)
+		}
+		return os.WriteFile(dst, []byte("checkout"), 0600)
+	}
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Kind, slot.Generation = KindCheckout, 3
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(path, "cache.sparseimage")); err != nil || string(data) != "checkout" {
+		t.Fatalf("exposed %q, %v", data, err)
+	}
+}
+
+func TestAPFSCheckoutWithoutSeedFailsInsteadOfFormatting(t *testing.T) {
+	b, _ := newAPFS(t)
+	b.Create = func(context.Context, string, int64) error { t.Fatal("a checkout must never start empty"); return nil }
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Kind = KindCheckout
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err == nil {
+		t.Fatal("expected an error without a seed")
+	}
+}
+
+func TestCheckoutIdentitiesNeverPublishOrCarryHeads(t *testing.T) {
+	checkout := identity(first)
+	checkout.Kind, checkout.CanPublish = KindCheckout, false
+	if !valid(checkout, "pod", "uid") {
+		t.Fatal("a checkout identity is valid")
+	}
+	publishing := checkout
+	publishing.CanPublish = true
+	headed := checkout
+	headed.BaseGeneration, headed.ImageDigest, headed.ContentDigest = 1, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	unknown := identity(first)
+	unknown.Kind = "other"
+	custom := identity(first)
+	custom.Generation = 2
+	for _, invalid := range []Identity{publishing, headed, unknown, custom} {
+		if valid(invalid, "pod", "uid") {
+			t.Fatalf("accepted %+v", invalid)
+		}
+	}
+}
+
+func TestAPFSCheckoutCloneAdmitsOnItsGrowthBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		free         uint64
+		wantCapacity bool
+	}{
+		{name: "growth budget fits", free: CheckoutGrowthBytes},
+		{name: "growth budget does not fit", free: CheckoutGrowthBytes - 1, wantCapacity: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := newAPFS(t)
+			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
+			b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, []byte("checkout"), 0600) }
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			slot.Kind, slot.Generation = KindCheckout, 3
+			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
+			if tc.wantCapacity {
+				if !errors.Is(err, ErrCapacity) {
+					t.Fatalf("expected capacity rejection, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

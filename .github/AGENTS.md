@@ -9,6 +9,9 @@ start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
 latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
+The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
+check all managed environment cookie references and Secret ownership without
+reading 1Password or logging rendered cookie values.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -35,6 +38,16 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Server production deployment
+
+`workflows/server-production-deployment.yml` decides whether a push deploys by
+diffing the deployable paths from the commit production last deployed, not from
+the push's `before`. Queued runs collapse, so a deployable commit whose run was
+replaced by a non-deployable push must still deploy. That commit is the newest
+run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
+job. Do not use the deployments API: other workflows record deployments to the
+same environment. When the base cannot be resolved, the push deploys.
+
 ## Atlas native
 
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
@@ -53,13 +66,20 @@ Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in a separate step without the 1Password token. PR/fork builds never receive distribution secrets. These are not
+simulator app in a separate step without the 1Password token. Signing runs before
+any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
+keychain-lifecycle and launcher-packaging tests also gate publication.
+PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
 The publication job installs its own Java runtime and Android build-tools, even
 though it only consumes prebuilt APKs: Tuist needs `aapt2` for metadata inspection.
 SDK setup from Android build jobs does not carry across to the macOS publisher.
+Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION` with a fresh Unix timestamp
+so cached binaries do not collide with existing previews. This overrides upload
+metadata without mutating or re-signing the bundle; device packaging already
+stamps its delivery copy before distribution signing.
 
 ## Community notifications
 
@@ -187,6 +207,20 @@ fallback. Retaining only an external source/native-manifest cache is possible,
 but rebuilds workspace state and manifest JSON; benchmark it separately before
 changing the retained layout.
 
+## Server deploy cascade volumes
+
+The production cascade's acceptance job keeps mise's data directory, `~/.rustup`
+and `~/.cargo/bin` on one `server-deploy-acceptance-tools` volume: mise records
+an installed Rust as a link to `~/.cargo/bin`, so splitting them across volumes
+can restore a toolchain mise believes is installed but cannot run. It installs
+only `tuist` and `rust`, prunes superseded Tuist releases from the volume, and
+installs dependencies through `tuist/install@v1`. `Swatinem/rust-cache` keeps the
+target and registry with `cache-bin: false`; never restore an archive into a
+volume path. Jobs that install part of the toolset run tasks with
+`mise run --skip-tools`, otherwise mise first installs every missing root tool
+(about 17 seconds on Linux). The platform chart job installs Helm and kubectl
+from `infra/` for the same reason, which also keeps infra's Helm pin.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
@@ -195,8 +229,12 @@ attaches that directory with the released action. Keep Tuist remote cache setup
 in trusted jobs. Idle disk-cache GC has a 12 GiB target and seven-day age limit;
 this is a soft cleanup target within the 20 GB volume, not a build-time quota.
 
-Mix jobs attach their ordinary `deps` and `_build` directories with separate
-readable project/job keys. Mix owns compiler and dependency invalidation; do not
+`mise-install` installs Node in the same phase as npm-backed tools, not the later
+locked-tool phase: cold runners have no npm until Node is installed.
+
+Mix jobs attach their ordinary `deps` and `_build` directories together on one
+volume with a readable project/job key (`ci-<project>-<job>-mix-v1`, listing
+both paths), so they are restored and saved as one snapshot. Mix owns compiler and dependency invalidation; do not
 add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
@@ -213,20 +251,33 @@ run on the default `tuist-linux` shape. Run `mix compile --warnings-as-errors`
 through the server's bootstrap-aware compile alias before discovering
 `tuist.test.build`: discovering an unloaded SDK task on a cold checkout lets
 Mix compile all dependencies before Tuist can restore or observe the cache.
-Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then download with `mix tuist.test --prepare-only`; include children for coverage completion as well so cold jobs have gRPC/Protobuf available.
+Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then explicitly run `deps.loadpaths --no-compile --no-deps-check` in the same `mix do` chain before `tuist.test --prepare-only` or `tuist.coverage.complete`. OS compilation workers do not load the SDK in the parent; discovering its task without loading those paths compiles every remaining dependency.
 `tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
-login step. Run `db:reset`
-in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
-so migration regression tests do not redefine modules already loaded by setup.
-Date the shard's checkout to the commit time before `db:reset`: a checkout newer
-than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
-recompile the app.
-The build job and shards attach only the `deps` volume (`restore-mix-cache: deps`):
-the build job compiles from an empty `_build` and the shards download theirs. They
-also pass `mise-cache: "false"`: installing Erlang and Elixir from scratch is
-faster than restoring mise-action's archive. Postgres service health checks poll
+login step. Run `db:reset -- --no-compile --no-deps-check`
+in a separate process before
+`mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --warnings-as-errors`,
+so setup cannot rebuild the downloaded artifact and migration regression tests
+do not redefine modules already loaded by setup. Load paths again before final
+task discovery; forwarded flags arrive too late to prevent discovery-time
+compilation. Different scheduler-dependent pool sizes can invalidate the build;
+do not hide runtime configuration differences by dating source files. Explicit `--no-download` test execution bypasses the
+project's preparation alias too, or ecto.create starts compilation again. The
+server's project-local compile function must guard the bootstrap on
+`--no-compile`; list aliases pass flags only to their final action.
+The build, format and seed jobs retain both `deps` and `_build` through the normal
+setup action. Shards attach only `deps` and download the exact build. Always
+resolve dependencies and compile the builder on cache hits. On push, instrument
+only the current shards' downloaded builds for coverage; those builds are not
+retained in cache volumes. The builder always archives plain outputs, keeping
+its ordinary `_build` volume reusable by both main and PRs without copying.
+This trades one instrumentation pass in the builder for a pass in each coverage shard.
+The _build volume owns CLDR downloads; do not restore an archive inside it.
+Keep mise archive caching enabled by default for jobs with additional tools;
+only the measured builder/shard/coverage-completion jobs opt out. Postgres service health checks poll
 every second as the `postgres` role; probing as `root` logs a FATAL on every check.
 In CI, `db:reset` creates, migrates and lists migrations in one Mix process.
+`bash .github/scripts/server-db.test.sh` checks argument forwarding and keeps
+missing status output, pending migrations and failed Mix commands fatal.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
@@ -237,9 +288,9 @@ Gradle fork fallbacks. The explicitly named unsharded fallback also runs both va
 On push to main, the current ClickHouse shards also run with `--cover`,
 reporting the server's coverage to `tuist/server`,
 and `coverage-complete` then runs `mix tuist.coverage.complete`. The build
-job plans them with `mix tuist.test.build --cover`, which instruments the
-build for native coverage, so the shards count without compiling every
-module for `cover`. Keep coverage
+job plans them without `--cover`; `mix tuist.test --no-download --cover`
+instruments each disposable downloaded build using native line counters.
+Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
 whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
@@ -321,6 +372,50 @@ recompiles every first-party module; the volume only spares the pinned
 third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
+
+## Runners acceptance
+
+`workflows/runners-acceptance.yml` runs a job on each Tuist Runners fleet of an
+environment and fails, naming the layer, when dispatch, the server's OIDC token,
+Kura reachability, Kura auth, the Kura data path, Xcode cache setup or remote
+cache hits break. Its scripts and fixture live in `scripts/runners-acceptance/`.
+The deploy cascade's `runners-acceptance` job runs it against canary through
+`gate.sh` and gates `production` on it; the hourly schedule runs it against
+production's rented fleet, the BER1 rack and the Linux pool.
+Canary's macOS probe runs on ber1-runner-b02, which production lends canary
+(see "Lending a host to another env" in `infra/rack-nodes/AGENTS.md`); its
+jobs take canary's public cache, so the rack-local cache on ber1-store-a is
+covered only by the production schedule.
+
+- A job no runner picks up stays queued for a day and `timeout-minutes` ignores
+  that wait, so the in-run dispatch watchdog fails and cancels the run past the
+  pickup bound. That is why the gate dispatches a separate run instead of
+  calling the workflow: cancelling it must not cancel the cascade.
+- Health checks are not enough: a Kura that cannot reach the server's token
+  introspection answers `/up` and degrades every lookup into a slow miss. Keep
+  the authenticated blob round trip and the rebuild from an empty local CAS,
+  which must be fully served remotely, and fail on any cache error the builds
+  or the proxy log.
+- The fixture is salted per run so the rebuild can only hit what that run
+  published. Keep probe job names starting with `macOS ` or `Linux `; the
+  watchdog finds the jobs it bounds by name.
+- Runner images export `XCODE_XCCONFIG_FILE`, pointing the compilation cache
+  store at the job's cache volume and outranking a command-line
+  `COMPILATION_CACHE_CAS_PATH`, so the probe unsets it and also requires the
+  cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
+  project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
+  `Fixture`, which matches case-insensitively on macOS.
+- On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
+  custom cache volume: the probe job seeds it with its run id through
+  `tuist/cache-volume`, and `macos-volume` attaches it after
+  `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
+  overlapping probe runs share the volume. Canary has one rack host, so
+  verify lands where seed published; production's multi-host fleets would make
+  it depend on convergence. Both jobs require a real APFS mount, because an
+  unavailable volume falls back to a job-local directory and still succeeds.
+- To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
+  wrong URL; it skips the expected-host check and overrides what dispatch hands
+  each job.
 
 ## Generated-project dependency installation
 

@@ -57,6 +57,10 @@ Run `mise reshim` after adding the wrapper. You can then use `cargo build`, `car
 > [!TIP] Coding agents
 > This is useful when working with coding agents: they can keep running `cargo build` and `cargo test` without being reminded to add the `tuist` prefix.
 
+## Compilation cache
+
+`tuist cargo build` automatically caches eligible registry leaf libraries, locally and through Kura's remote cache. No additional tool or cache configuration is needed. The cache is experimental and doesn't yet cover all compilations or reuse across different checkout paths. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for supported compilations, authentication, and how to verify reuse.
+
 ## Build insights
 
 Open **Builds** in the dashboard to see how long your builds take and compare local builds with CI. Select a build to find the crates that took longest to compile and inspect its warnings and errors.

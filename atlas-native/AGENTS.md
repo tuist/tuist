@@ -30,8 +30,9 @@ may require a separate browser sign-in. Personal settings are native and use the
   `ios/distribution/AGENTS.md`. Reuse the Tuist distribution certificate with an
   Atlas-specific profile; device enrollment and 1Password setup are in the README.
 - `previews/`: isolated native Settings screenshot harnesses and UI tests; see `previews/AGENTS.md`.
-- `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
-  light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
+- `resources/`: shared login/launcher-asset generation and packaging checks; see
+  `resources/AGENTS.md`. Checked-in backgrounds, marks and launcher icons feed
+  the iOS asset catalog and Android resources.
 - `mise.toml` / `mise.lock`: pinned Once, Rust, Kotlin and ktlint toolchains.
   ktlint uses an explicit GitHub backend and locked archive, compatible with the
   repository's pinned CI Mise version. Do not rely on a backend name that only
@@ -136,7 +137,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   production Swift sources; do not ship screenshot fixtures. CI device builds use
   only the local cache, not the shared cache accessible to PRs. Main-branch delivery
   provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
-  still requires app icons and store setup.
+  still requires store setup.
   The CLI builds for the host and is distributed as an executable tar archive;
   it must not be sent to Tuist's mobile preview endpoints.
 - GitHub CI uses the existing private Once project. Its repository connection to
@@ -151,5 +152,10 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - Main-branch delivery uses the `nightly` Tuist preview track for APK, simulator
   app and signed device IPA, gated by all build, test and lint jobs. Only the
   protected publication job's signing step receives 1Password access; upload
-  steps do not. Forks use local caching
+  steps do not. Sign the device IPA before uploading any platform, so a signing
+  failure cannot publish a simulator-only nightly. Simulator uploads set
+  `TUIST_PREVIEW_BUILD_VERSION` to a fresh Unix timestamp, avoiding duplicate
+  previews without modifying the bundle or Once's cache. Device packaging already
+  stamps its temporary copy before distribution signing. Credential-free packaging
+  tests gate publication alongside the build, test and lint jobs. Forks use local caching
   and no OIDC; no PR publishes previews or receives distribution credentials.

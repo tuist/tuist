@@ -95,7 +95,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   empty image marked `.cold` that reports a miss and is withheld from publication;
   either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
-  Reserve 20 GB for every attach and 40 GB for prefetch, which also holds the
+  Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
+  server sends none, at most `MaxVolumeBytes`) for every attach and twice that
+  for prefetch, which also holds the
   archive. Prefetch downloads into `staging/` without the lineage lock, and
   maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
@@ -115,6 +117,49 @@ workflow code runs in the guest. Never expose host credentials or masters.
   seeds from the Pod's published readiness for the same VM so a tart-kubelet
   restart does not flap Ready. A wrong probe stalls rollouts and PDBs, so
   probes stay opt-in per PodSpec.
+
+- Cached checkouts (spec #99) are custom volumes with the reserved key
+  `checkout`, written only by the host. `checkout_volumes.go` (the populator)
+  keeps one master per (scope, clear generation) under `<custom root>/checkouts`
+  with real git and a pinned, checksum-verified git-lfs it installs into
+  `checkouts/.bin`; the host needs the Command Line Tools (bootstrap installs
+  them) and otherwise leaves checkouts off. The host never fetches from GitHub.
+  After the job the guest writes `checkout-export/` (pack, head, shallow, LFS
+  objects) into its share; `collectCheckout` moves it to `checkouts/.incoming/`
+  when the pod's share is cleaned, only for a pod the host granted a checkout,
+  and only a real directory. Never mount guest APFS for this. Everything in an
+  export is untrusted (`checkout_export.go`): read through `os.Root` without
+  following links and bounded, the pack goes through `git index-pack --strict`
+  after the shallow boundary is recorded, LFS objects are hashed against their
+  names, and the host writes the working tree and the index itself. Only LFS
+  objects the exported commit references are kept, an export is capped at half
+  an image (and 200,000 LFS entries), and a build reserves twice its size. A
+  master only starts from, and its tip only moves to, a default-branch job's
+  commit (`default_branch_job` is the server's verified `trusted`, never the
+  branch name) whose LFS objects are all present: its tree is handed to every
+  later job, and a pointer left in it would be served as the file. Branches stay
+  `refs/remotes/origin/*` (actions/checkout deletes local branches before
+  fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
+  smudged files' mtimes before the final `update-index --really-refresh`: racily
+  clean LFS entries turn back into pointers in a guest that has not configured
+  the LFS filter.
+- A master that moved to a default-branch commit is published under the job's
+  use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
+  one); a cold host with a HEAD restores it in the background instead. A cold
+  answer journals no branch and reports the use deleted at once. A host without
+  working git answers `denied`, so guests do not export. `Track` maps the
+  server's stable `volume_key` to the current scope and drops the previous
+  scope's copies after a clear. Custom-volume admission evicts idle checkout
+  copies before refusing.
+- A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
+  allocates through `/checkout`, marks the identity `Kind: checkout` itself,
+  strips the HEAD fields (the branch is a clone of this host's master) and seeds
+  the branch from the master (`APFSImages.Seed`), never an empty image.
+  Checkout branches are never publishable. Builds reserve disk through the
+  custom admission (`checkoutReserved`) and evict LRU checkout masters only when
+  that can make the room; a build refused for room is retried every reconcile
+  for an hour.
+  Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test ./internal/podagent -run CheckoutMasterEndToEnd`.
 
 ## Tart versions
 

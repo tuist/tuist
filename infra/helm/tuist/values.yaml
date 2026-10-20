@@ -848,6 +848,21 @@ server:
   cluster:
     enabled: false
     applicationName: tuist
+    distributionPort: 9100
+    # Shared across replicas and image versions. When empty, the chart creates
+    # a Secret and preserves its cookie with lookup during upgrades.
+    cookieExistingSecret: ""
+    cookieExistingSecretKey: release-cookie
+    # Optional ESO-owned cookie Secret. Requires cookieExistingSecret and an
+    # existing SecretStore. No ESO dependency for ordinary self-hosted installs.
+    externalSecret:
+      enabled: false
+      # Sync only on ExternalSecret metadata/spec changes, never on a timer.
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: SERVER_CLUSTER_COOKIE
+      field: password
   serviceAccount:
     # Workload identity / Kubernetes API identity for server pods and the migration job.
     # Set annotations when integrating with a cloud IAM system or custom RBAC.
@@ -1327,12 +1342,19 @@ xcresultProcessor:
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
   image:
-    # Built by .github/workflows/xcresult-processor-image.yml — Tart
-    # VM image with the Tuist server release and the macOS-only
-    # xcresult NIF baked in.
+    # Tart VM image with macOS, Xcode and the boot scripts, released by the
+    # production cascade from infra/xcresult-processor-image. It carries no
+    # server release: the guest downloads `release` below at boot.
     repository: ghcr.io/tuist/tuist-xcresult-processor
     tag: ""  # Set by CI to the commit SHA.
     pullPolicy: IfNotPresent
+  # The macOS server release the guest boots: the single `release.tar.gz`
+  # layer of an OCI artifact in `repository`, pulled anonymously and pinned
+  # by its layer digest. The deploy sets the digest to the release built for
+  # the server image it ships, so a new digest rolls the Pods.
+  release:
+    repository: ghcr.io/tuist/tuist-xcresult-processor-release
+    digest: ""
   # When the chart's `processor.managedSecrets` is true (managed cloud)
   # the build processor's ExternalSecret already syncs the
   # tuist_processor role's DATABASE_URL into a Secret — we reuse that

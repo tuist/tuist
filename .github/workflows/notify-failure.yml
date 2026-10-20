@@ -25,6 +25,7 @@ on:
       - Noora Storybook Deployment
       - Processor
       - Processor Deploy
+      - Runners Acceptance
       - Secret Scanning
       - Skills Release
       - Slack
@@ -45,12 +46,17 @@ jobs:
   notify:
     # The weekly CLI releases also alert when cancelled: they share the cli-publish
     # concurrency group with canaries, and a newer queued run cancels a pending one.
+    # Scheduled Runners Acceptance runs alert when cancelled too: its dispatch
+    # watchdog cancels the run when no runner picks a probe up.
     if: >-
       github.repository == 'tuist/tuist' &&
       (github.event.workflow_run.conclusion == 'failure' ||
       (github.event.workflow_run.event != 'workflow_dispatch' &&
       contains(fromJSON('["CLI Promote to Stable", "CLI Release Candidate"]'), github.event.workflow_run.name) &&
-      contains(fromJSON('["cancelled", "timed_out"]'), github.event.workflow_run.conclusion)))
+      contains(fromJSON('["cancelled", "timed_out"]'), github.event.workflow_run.conclusion)) ||
+      (github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.name == 'Runners Acceptance' &&
+      github.event.workflow_run.conclusion == 'cancelled'))
     runs-on: ubuntu-latest
     steps:
       - uses: 1password/install-cli-action@v2

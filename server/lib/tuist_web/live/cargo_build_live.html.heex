@@ -315,19 +315,22 @@
                 icon="history"
               />
             </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="versions"
+                title={dgettext("dashboard_builds", "No compiler jobs found")}
+                subtitle={
+                  if result.rows == [],
+                    do:
+                      dgettext(
+                        "dashboard_builds",
+                        "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
+                      ),
+                    else: dgettext("dashboard_builds", "Try updating your search")
+                }
+              />
+            </:empty_state>
           </.table>
-          <.alert
-            :if={page.rows == []}
-            status="information"
-            type="secondary"
-            title={dgettext("dashboard_builds", "No compiler jobs found")}
-            description={
-              dgettext(
-                "dashboard_builds",
-                "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
-              )
-            }
-          />
           <.pagination_group
             :if={page.pages > 1}
             current_page={page.page}

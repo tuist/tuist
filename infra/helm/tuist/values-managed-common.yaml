@@ -203,6 +203,13 @@ server:
     # env vars will be emitted by the chart.
     enabled: false
     applicationName: tuist
+    # Each environment's onepassword store reads its own tuist-k8s-<env>
+    # vault. Keep the durable cookie outside the disposable workload cluster.
+    cookieExistingSecret: tuist-server-cluster-cookie
+    externalSecret:
+      enabled: true
+      item: SERVER_CLUSTER_COOKIE
+      field: password
 
   strategy:
     type: RollingUpdate

@@ -180,9 +180,23 @@ jobs:
           platform: ${{ matrix.platform }}
           operation: test
 
+  test-distribution:
+    name: Test preview packaging
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test signing keychain lifecycle
+        run: python3 ios/distribution/keychain_test.py
+      - name: Check launcher icon packaging
+        run: python3 resources/app_icons_test.py
+      - name: Check signing script syntax
+        run: for script in ios/distribution/{bundle,keychain}.sh; do bash -n "$script"; done
+
   previews:
     name: Publish internal previews
-    needs: [build, test, lint-rust, lint-swift, lint-kotlin]
+    needs: [build, test, test-distribution, lint-rust, lint-swift, lint-kotlin]
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: tuist-macos-27-0
     timeout-minutes: 20
@@ -217,6 +231,13 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login
+      - name: Sign iOS device preview
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p .once/out/AtlasIOSDevice
+          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
+          mise run bundle:ios
       - name: Publish Android preview
         run: |
           mise exec -- tuist share delivery/android/AtlasAndroid.apk --track nightly
@@ -229,15 +250,8 @@ jobs:
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" delivery/ios/Atlas.app
           xcrun simctl launch "$device" dev.tuist.atlas
-          mise exec -- tuist share delivery/ios/Atlas.app --track nightly
+          TUIST_PREVIEW_BUILD_VERSION=$(date +%s) mise exec -- tuist share delivery/ios/Atlas.app --track nightly
           mise exec -- tuist inspect bundle delivery/ios/Atlas.app
-      - name: Sign iOS device preview
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mkdir -p .once/out/AtlasIOSDevice
-          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
-          mise run bundle:ios
       - name: Publish iOS device preview
         run: |
           mise exec -- tuist share delivery/ios-device/Atlas.ipa --track nightly

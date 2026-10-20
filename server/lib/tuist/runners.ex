@@ -192,16 +192,33 @@ defmodule Tuist.Runners do
     )
   end
 
-  # Volume affinity is a macOS-only concern: only the Mac fleet keeps per-account
-  # cache masters on its hosts. Gating on platform keeps the Linux fleet (and any
-  # other volumeless fleet) out of affinity recording and queue reordering, so a
-  # host that holds no volume never has its queue scored for one. The macOS host
-  # capability itself is the runner-cache volume; the server can't see a host's
-  # per-host `gib`, so platform is only a coarse proxy. The residency bound is
-  # what makes it safe: a `gib:0` macOS fleet leaves it at 0, so such a host
-  # records affinity that is never read and its queue is never reordered.
-  defp volume_affinity_enabled?(fleet_name) do
+  # Only the Mac fleet keeps the account's built-in cache volume on its hosts.
+  # The server can't see a host's per-host `gib`, so platform is only a coarse
+  # proxy; a `gib:0` macOS fleet advertises no masters, so its queue is never
+  # reordered for one.
+  defp builtin_volumes?(fleet_name) do
     Catalog.fleet_platform(fleet_name) == :macos
+  end
+
+  @doc """
+  Whether the account's macOS jobs keep the Xcode and module caches on their own
+  custom volumes, which their CI integrations attach, instead of the built-in
+  volume.
+  """
+  def managed_cache_volumes?(account) do
+    FeatureFlags.runner_opt_in_caches_enabled?(account) and
+      FeatureFlags.runner_managed_cache_volumes_enabled?(account)
+  end
+
+  defp managed_cache_volumes?(fleet_name, account) do
+    builtin_volumes?(fleet_name) and managed_cache_volumes?(account)
+  end
+
+  # Both fleets keep custom cache volume masters on their hosts and advertise
+  # them. A fleet of another platform holds no volume, so its queue is never
+  # scored for one.
+  defp volume_affinity_enabled?(fleet_name) do
+    Catalog.fleet_platform(fleet_name) in [:macos, :linux]
   end
 
   # Presigned-URL lifetime for the cache-volume master archive. Comfortably
@@ -1231,7 +1248,11 @@ defmodule Tuist.Runners do
           # would let a failed dispatch strand a stale account on a Pod that later
           # runs a different one. The volume and untrusted labels ride the same
           # patch so the host sees them atomically. See stamp_account_label/5.
-          stamp_account_label(namespace, pod_name, account, volume_name, trusted)
+          #
+          # A job on managed cache volumes keeps its caches on custom volumes, so the
+          # host neither materializes nor promotes the built-in one for it.
+          builtin_volume? = trusted and not managed_cache_volumes?(fleet_name, account)
+          stamp_account_label(namespace, pod_name, account, volume_name, builtin_volume?)
 
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
@@ -1295,7 +1316,7 @@ defmodule Tuist.Runners do
              # presigned URLs for the account's master archive — trusted jobs
              # only. nil for an untrusted job (no convergence, and the guest has
              # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(trusted, do: volume_head_payload(account, volume_name))
+             volume_head: if(builtin_volume?, do: volume_head_payload(account, volume_name))
            }}
         else
           {:error, reason} = err ->
@@ -1400,7 +1421,7 @@ defmodule Tuist.Runners do
   end
 
   defp cache_volume_name(fleet_name, node_name, candidate) do
-    if FeatureFlags.runner_cache_volumes_per_repository_enabled?() and volume_affinity_enabled?(fleet_name) and
+    if FeatureFlags.runner_cache_volumes_per_repository_enabled?() and builtin_volumes?(fleet_name) and
          VolumeAffinities.repository_volumes?(node_name) do
       VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
     else

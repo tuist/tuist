@@ -125,7 +125,9 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject size mismatches, foreign mounts,
 symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
-the host cannot advertise volume readiness. Disabling provisioning never deletes
+the host cannot advertise volume readiness. Each reconcile also labels the Node
+`tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
+master and removes the labels of evicted ones. Disabling provisioning never deletes
 the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those
@@ -386,9 +388,11 @@ remains bounded to 25 seconds on the host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This favors warming hosts after an observed miss over predicting cache keys in the
-scheduler. It preserves ordinary placement and does not replicate every volume to
-every host. The `prefetch` results and subsequent `attach{source="local"}` observations
+This warms hosts after an observed miss and does not replicate every volume to
+every host. Dispatch separately prefers handing a polling host a queued job whose
+predicted custom volumes the host's Node labels advertise (see
+`Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
+the built-in volume. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
 
 Publishing a generation supersedes every other host's replica of that volume.

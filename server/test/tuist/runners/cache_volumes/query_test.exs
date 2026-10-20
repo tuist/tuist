@@ -243,4 +243,33 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
       assert {:error, :invalid_parameters} = Query.run(:analytics, account.id, args)
     end
   end
+
+  test "describes checkout uses by whether the job reused the cached checkout", %{account: account} do
+    job = %{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      workflow_run_id: 654,
+      run_attempt: 1,
+      repository: "org/repo"
+    }
+
+    {:ok, checkout} =
+      CacheVolumes.allocate_for_job(job, %{repository_id: 123, trusted: true, same_repository: true}, %{
+        pod_name: "checkout",
+        pod_uid: "checkout",
+        node_name: "node",
+        key: CacheVolumes.checkout_key(),
+        architecture: "arm64",
+        uid: 501
+      })
+
+    use = Repo.get!(Usage, checkout.id)
+    use |> Ecto.Changeset.change(status: "discarded", warm: true) |> Repo.update!()
+    assert {:ok, %{jobs: [reused]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert reused.cache_status == "reused"
+
+    use |> Ecto.Changeset.change(status: "discarded", warm: false) |> Repo.update!()
+    assert {:ok, %{jobs: [cold]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert cold.cache_status == "cold"
+  end
 end

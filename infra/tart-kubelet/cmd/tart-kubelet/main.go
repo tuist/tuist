@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
@@ -394,7 +395,9 @@ func main() {
 
 	var customVolumes *podagent.CustomVolumes
 	if customCacheURL != "" && volumes.Enabled() {
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes}
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes,
+			// Checkout masters share the custom volumes' filesystem, admission and agent.
+			Checkouts: &podagent.Checkouts{Root: filepath.Join(runnerCacheRoot, "custom", "checkouts")}}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
@@ -535,6 +538,14 @@ func main() {
 			// costs at most a heartbeat of oldest-queued dispatch.
 			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
 				return volumes.CacheMasterNodeLabels()
+			}},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
 		},
 	}); err != nil {

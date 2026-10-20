@@ -239,7 +239,8 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "brand_apple"},
               %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "brand_gradle"},
               %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"},
-              %Item{label: "Elixir cache", slug: "/en/guides/features/cache/elixir", icon: "brand_elixir"}
+              %Item{label: "Elixir cache", slug: "/en/guides/features/cache/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust cache", slug: "/en/guides/features/cache/rust", icon: "brand_rust"}
             ]
           },
           %Item{

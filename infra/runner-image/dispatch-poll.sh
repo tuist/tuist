@@ -465,6 +465,23 @@ CACHE_LIMITS_FILE="cache-limits"
 # neither is withdrawn from promotion and usage reporting.
 RUNNER_CACHES_DIR="/Users/runner/.tuist-runner-caches"
 AUTOMATIC_CACHES=1
+# An account on managed cache volumes keeps each cache on its own custom volume
+# (`tuist-xcode`, `tuist-module`) instead of the built-in image, which this job
+# never attaches. tuist-runner-cache attaches a volume when the job activates its
+# cache; teardown drains and prunes the compilation cache on it before
+# `tuist-cache-volume --detach-all` saves the volumes.
+MANAGED_CACHE_VOLUMES=0
+MANAGED_XCODE_CACHE="/Users/runner/.tuist-compilation-cache"
+MANAGED_MODULE_CACHE="/Users/runner/.tuist-module-cache"
+MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
+# The server allocates `tuist-xcode` at 30 GB and `tuist-module` at 20 GB. Each
+# limit leaves the room a job grows into before the next prune, under the 99%
+# fill at which a volume is no longer saved.
+MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
+# The compilation cache root teardown drains and prunes. Empty means the built-in
+# image's folded store (see cas_store_root).
+CAS_STORE_ROOT=""
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -827,8 +844,22 @@ CAS_PROXY_SOCKET="${HOME:-/Users/runner}/.local/state/tuist/cas-proxy.sock"
 # the gate a no-op: a plain `xcodebuild` job runs Xcode's builtin lane, which
 # has no remote and nothing to publish.
 cas_spool_dirs() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
-  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -type d -name tuist-spool 2>/dev/null
+  local root
+  root=$(cas_store_root)
+  [ -n "${root}" ] || return 0
+  find "${root}/" -type d -name tuist-spool 2>/dev/null | sed 's|//|/|'
+}
+
+# cas_store_root prints the compilation cache root this job used: the managed
+# volume's store when CAS_STORE_ROOT names one, else the store folded into the
+# built-in image, else nothing. A managed store is a symlink into its volume, so
+# callers search under "<root>/".
+cas_store_root() {
+  if [ -n "${CAS_STORE_ROOT}" ]; then
+    printf '%s' "${CAS_STORE_ROOT}"
+  elif [ -n "${CACHE_MOUNT}" ]; then
+    printf '%s' "${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  fi
 }
 
 # cas_spool_records counts what a spool still owes the remote. A record is
@@ -922,7 +953,7 @@ cas_proxy_client() {
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
 # reaching this.
 drain_cas_publications() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "$(cas_store_root)" ] || return 0
   local spools
   spools=$(cas_spool_dirs)
   [ -n "${spools}" ] || return 0
@@ -989,8 +1020,10 @@ EOF
 # compilers and `generic` for Swift Build itself), so discover them by that shape
 # rather than assume the set. All need bounding.
 cas_store_dirs() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
-  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
+  local root
+  root=$(cas_store_root)
+  [ -n "${root}" ] || return 0
+  find "${root}/" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null | sed 's|//|/|' |
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
@@ -1137,7 +1170,7 @@ EOF
 # store over budget) or merely kept tidy on the way OUT.
 prune_cas_stores() {
   local when="${1:-teardown}"
-  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "$(cas_store_root)" ] || return 0
   local stores
   stores=$(cas_store_dirs)
   [ -n "${stores}" ] || return 0
@@ -1420,7 +1453,9 @@ stage_runner_caches() {
     printf 'automatic' >"${RUNNER_CACHES_DIR}/mode" 2>/dev/null || true
     return 0
   fi
-  if [ -n "${CACHE_MOUNT}" ]; then
+  if [ "${MANAGED_CACHE_VOLUMES:-0}" = "1" ]; then
+    stage_managed_cache_volumes
+  elif [ -n "${CACHE_MOUNT}" ]; then
     {
       printf 'TUIST_XDG_CACHE_HOME=%s\n' "${TUIST_XDG_CACHE_HOME:-}"
       if [ -n "${TUIST_CACHE_MAX_BYTES:-}" ]; then
@@ -1440,6 +1475,30 @@ stage_runner_caches() {
     TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE
   printf 'opt-in' >"${RUNNER_CACHES_DIR}/mode" 2>/dev/null || true
   echo "$(date -u +%FT%TZ) dispatch-poll: caches are opt-in; staged for tuist/module-cache and tuist/xcode-cache"
+}
+
+# stage_managed_cache_volumes stages each cache on its own custom volume: the
+# volume tuist-runner-cache attaches (`<cache>.volume`, key and path) and the
+# environment that points the cache at it. The compilation cache gets its own
+# xcconfig, bounded to its volume, with the store on the volume's path.
+stage_managed_cache_volumes() {
+  printf 'tuist-module\t%s\n' "${MANAGED_MODULE_CACHE}" >"${RUNNER_CACHES_DIR}/module.volume" 2>/dev/null || true
+  {
+    printf 'TUIST_XDG_CACHE_HOME=%s\n' "${MANAGED_MODULE_CACHE}"
+    printf 'TUIST_CACHE_MAX_BYTES=%s\n' "${MANAGED_MODULE_CACHE_MAX_BYTES}"
+  } >"${RUNNER_CACHES_DIR}/module.env" 2>/dev/null || true
+  if {
+    printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${MANAGED_XCODE_CACHE}"
+    printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
+    printf 'COMPILATION_CACHE_LIMIT_SIZE = %s\n' "${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+  } >"${MANAGED_XCCONFIG}" 2>/dev/null; then
+    printf 'tuist-xcode\t%s\n' "${MANAGED_XCODE_CACHE}" >"${RUNNER_CACHES_DIR}/xcode.volume" 2>/dev/null || true
+    {
+      printf 'XCODE_XCCONFIG_FILE=%s\n' "${MANAGED_XCCONFIG}"
+      printf 'TUIST_COMPILATION_CACHE_CAS_PATH=%s\n' "${MANAGED_XCODE_CACHE}"
+      printf 'TUIST_CAS_DRAINED_STORE=%s\n' "${MANAGED_XCODE_CACHE}"
+    } >"${RUNNER_CACHES_DIR}/xcode.env" 2>/dev/null || true
+  fi
 }
 
 # runner_caches_used says whether the job reached the caches: always with
@@ -2077,6 +2136,9 @@ while true; do
       fi
       if "${JQ}" -e '.automatic_caches == false' /tmp/dispatch.json >/dev/null 2>&1; then
         AUTOMATIC_CACHES=0
+        if "${JQ}" -e '.managed_cache_volumes == true' /tmp/dispatch.json >/dev/null 2>&1; then
+          MANAGED_CACHE_VOLUMES=1
+        fi
       fi
       # The GitHub runner inherits this process's environment, so exporting
       # is enough there. The Buildkite agent sanitizes the job environment
@@ -2134,7 +2196,11 @@ while true; do
       else
         echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
       fi
-      wait_for_cache_ready
+      # On managed cache volumes the job keeps its caches on custom volumes the
+      # helper attaches; the built-in image is never attached.
+      if [ "${MANAGED_CACHE_VOLUMES}" != "1" ]; then
+        wait_for_cache_ready
+      fi
       stage_runner_caches
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It
@@ -2166,11 +2232,18 @@ while true; do
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
       rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      # The hook also mounts the job's cached checkout at its workspace before
+      # the first step, so a stock actions/checkout reuses it instead of
+      # cloning. The host decides whether there is one; any miss leaves the
+      # workspace empty and the job checks out exactly as before.
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
+fi
 exit 0
 HOOK
       chmod +x "${JOB_STARTED_HOOK}"
@@ -2418,7 +2491,30 @@ HOOK
         report_cache_dirty "${CACHE_PASSED}"
         report_volume_head "${CACHE_PASSED}"
       fi
-      if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
+      # Hand the host what the job's checkout added; the host verifies it and
+      # builds the next cached checkout from it. Never affects the exit code.
+      if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+        /usr/local/bin/tuist-cache-volume --checkout-export || true
+      fi
+      # A managed compilation cache follows the built-in image's order: its
+      # publications reach the remote before the volume holding their store is
+      # saved, and the store is bounded before the volume is measured. The drain
+      # runs for every job that used the cache, the prune only for one whose
+      # volumes are saved. A drain that cannot finish withholds the job's volumes,
+      # as it withholds the built-in image.
+      custom_volumes_savable="${JOB_PASSED}"
+      if [ "${MANAGED_CACHE_VOLUMES}" = "1" ] && [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]; then
+        CAS_STORE_ROOT="${MANAGED_XCODE_CACHE}"
+        if ! drain_cas_publications; then
+          custom_volumes_savable=0
+          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
+        elif [ "${JOB_PASSED}" = "1" ]; then
+          CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+          prune_cas_stores managed-teardown
+        fi
+        CAS_STORE_ROOT=""
+      fi
+      if [ "${custom_volumes_savable}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
         if ! /usr/local/bin/tuist-cache-volume --detach-all; then
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2
         fi
