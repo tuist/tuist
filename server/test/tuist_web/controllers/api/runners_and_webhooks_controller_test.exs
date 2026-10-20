@@ -133,7 +133,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
       response = conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
 
-      assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => []} =
+      assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => ["*"]} =
                Enum.find(response["profiles"], &(&1["name"] == "ci"))
 
       response =
@@ -178,7 +178,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
                |> patch(~p"/api/accounts/#{account.name}/runners/profiles/missing", %{cache_writer_branches: ["main"]})
                |> json_response(:not_found)
 
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+      assert %{cache_writer_branches: ["*"]} = Profiles.get_by_name(account, "ci")
     end
 
     test "lists the shapes and Xcode versions profiles can use", %{conn: conn, user: user, account: account} do
@@ -301,10 +301,10 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       conn
       |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
       |> put_req_header("content-type", "application/json")
-      |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["*"]})
+      |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["develop"]})
       |> json_response(:forbidden)
 
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+      assert %{cache_writer_branches: ["*"]} = Profiles.get_by_name(account, "ci")
 
       conn
       |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})

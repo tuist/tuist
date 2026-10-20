@@ -147,7 +147,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                "name" => "ci",
                "runs_on_label" => "tuist-ci",
                "cache_writer_default_branch" => true,
-               "cache_writer_branches" => []
+               "cache_writer_branches" => ["*"]
              } = Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
 
       arguments = %{"account_handle" => account.name, "profile_name" => "ci"}

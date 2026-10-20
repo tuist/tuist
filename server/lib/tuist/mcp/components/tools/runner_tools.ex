@@ -291,7 +291,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       "cache_writer_branches" => %{
         "type" => "array",
         "items" => %{"type" => "string"},
-        "description" => "Additional branch names or * patterns that save. An empty list removes them."
+        "description" =>
+          ~s(Additional branch names or * patterns that save. New profiles start with ["*"], every branch of the repository. An empty list removes them.)
       }
     }
   end
@@ -775,7 +776,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch, which new profiles start with. Fork pull requests and pull_request_target jobs never save. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do

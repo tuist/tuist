@@ -172,6 +172,10 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*Any branch\s*</
+      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">\*</
+
+      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "*"})
       assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
@@ -226,7 +230,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute html =~ "Use a branch name, optionally with * to match any characters."
       render_hook(lv, "save_profile", %{})
 
-      assert %{cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
+      assert %{cache_writer_default_branch: true, cache_writer_branches: ["*", "feature"]} =
                Profiles.get_by_name(account, "ci")
     end
   end

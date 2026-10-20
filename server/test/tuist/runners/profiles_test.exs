@@ -114,7 +114,7 @@ defmodule Tuist.Runners.ProfilesTest do
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       assert profile.cache_writer_default_branch
-      assert is_nil(profile.cache_writer_branches)
+      assert profile.cache_writer_branches == ["*"]
 
       assert {:ok, updated} =
                Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
@@ -282,6 +282,7 @@ defmodule Tuist.Runners.ProfilesTest do
       assert profile.protected
       assert profile.vcpus == 4
       assert profile.memory_gb == 16
+      assert profile.cache_writer_branches == ["*"]
     end
 
     test "is idempotent — second call is a no-op on `(account_id, name)` conflict",

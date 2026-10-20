@@ -303,7 +303,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
     |> assign(:form_cache_writer_default_branch, true)
-    |> assign(:form_cache_writer_branches, [])
+    |> assign(:form_cache_writer_branches, Profile.default_cache_writer_branches())
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)

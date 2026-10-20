@@ -43,6 +43,10 @@ defmodule Tuist.Runners.Profile do
 
   @max_cache_writer_branches 20
 
+  # Every branch of the repository saves. Forks and pull_request_target never
+  # have a writer branch, so they never match.
+  @default_cache_writer_branches ["*"]
+
   schema "runner_profiles" do
     field :name, :string
     # Default `:linux` matches the migration's column default and
@@ -56,7 +60,7 @@ defmodule Tuist.Runners.Profile do
     field :protected, :boolean, default: false
     field :cache_writer_default_branch, :boolean, default: true
     # Branches that save besides the default branch. nil when there are none.
-    field :cache_writer_branches, {:array, :string}
+    field :cache_writer_branches, {:array, :string}, default: @default_cache_writer_branches
 
     belongs_to :account, Account
 
@@ -69,6 +73,8 @@ defmodule Tuist.Runners.Profile do
   def platforms, do: @platforms
 
   def max_cache_writer_branches, do: @max_cache_writer_branches
+
+  def default_cache_writer_branches, do: @default_cache_writer_branches
 
   @doc """
   Changeset for create / update.
