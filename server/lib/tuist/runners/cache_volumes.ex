@@ -789,6 +789,8 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
   # The host builds a checkout master from exports it verified itself, so the job's
   # outcome and the use's state after the job do not matter: the use only names
   # the lineage and the HEAD the master fast-forwards, once.
@@ -807,8 +809,6 @@ defmodule Tuist.Runners.CacheVolumes do
         image_publish(volume, usage, operation, digest, content)
     end
   end
-
-  defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
 
   defp head_download(volume, generation) do
     name = storage_name(volume)
