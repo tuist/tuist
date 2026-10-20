@@ -72,9 +72,10 @@ jobs:
         run: |
           set -euo pipefail
           xcrun simctl list runtimes
-          device_type=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.name | startswith("iPhone"))] | last | .identifier')
-          echo "device type: ${device_type}"
-          udid=$(xcrun simctl create probe "${device_type}")
+          runtime=$(xcrun simctl list runtimes -j | jq -c '[.runtimes[] | select(.platform == "iOS" and .isAvailable)] | last')
+          device_type=$(jq -r '[.supportedDeviceTypes[] | select(.productFamily == "iPhone")] | last | .identifier' <<< "$runtime")
+          echo "runtime: $(jq -r .identifier <<< "$runtime"), device type: ${device_type}"
+          udid=$(xcrun simctl create probe "${device_type}" "$(jq -r .identifier <<< "$runtime")")
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl shutdown "$udid"
           xcrun simctl delete "$udid"
