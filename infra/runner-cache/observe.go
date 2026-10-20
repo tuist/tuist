@@ -36,6 +36,8 @@ func Result(err error) string {
 		return "conflict"
 	case errors.Is(err, ErrPoisoned):
 		return "invalid_image"
+	case errors.Is(err, ErrWithheld):
+		return "withheld"
 	case errors.Is(err, ErrBusy):
 		return "busy"
 	case errors.Is(err, ErrCapacity):

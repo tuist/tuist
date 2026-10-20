@@ -54,11 +54,9 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	image := b.image(slot)
 	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
-		minimum := b.MinFreeBytes
-		if slot.BaseGeneration == 0 {
-			// Cold creation has no downloaded archive beside the private image.
-			minimum = uint64(b.SizeGB) * 1_000_000_000
-		}
+		// A job never downloads: it clones a local copy or starts empty, so one
+		// image of room is enough either way.
+		minimum := uint64(b.SizeGB) * 1_000_000_000
 		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
@@ -72,6 +70,8 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		tmp := image + ".sparseimage"
 		_ = os.Remove(tmp)
 		defer os.Remove(tmp)
+		_ = os.Remove(image + ".cold")
+		cold := slot.BaseGeneration == 0
 		if slot.BaseGeneration > 0 {
 			if !validHead(slot.Identity) {
 				return errors.New("invalid master identity")
@@ -82,36 +82,22 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if lockErr != nil {
 				return lockErr
 			}
-			defer unlock()
-			master := b.master(slot)
-			mounted := slot.BaseGeneration
-			if _, err = os.Stat(master); os.IsNotExist(err) {
-				// An older master of the same uncleared lineage mounts instantly and the
-				// job's tools update its contents; the HEAD is fetched in the background.
-				if older, generation := b.olderMaster(slot); older != "" {
-					source, master, mounted, err = "older", older, generation, nil
-				} else {
-					source = "remote"
-					err = b.restoreMaster(ctx, slot, master)
-				}
+			err = b.cloneLocal(ctx, slot, image, tmp, &source)
+			unlock()
+			if errors.Is(err, errNoLocalCopy) {
+				// A job never waits for a download: it starts empty, the HEAD is fetched
+				// in the background, and this branch is withheld from publication so it
+				// cannot replace the saved version.
+				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
 			}
 			if err != nil {
 				return err
 			}
-			if source == "unknown" {
-				source = "local"
-			}
-			if err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
+		}
+		if cold {
+			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, int64(b.SizeGB)*1_000_000_000) }); err != nil {
 				return err
 			}
-			if mounted != slot.BaseGeneration {
-				if err = os.WriteFile(image+".base", []byte(strconv.FormatInt(mounted, 10)), 0600); err != nil {
-					return err
-				}
-			}
-			_ = os.Chtimes(master, time.Now(), time.Now())
-		} else if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, int64(b.SizeGB)*1_000_000_000) }); err != nil {
-			return err
 		}
 		if err = ctx.Err(); err != nil {
 			return err
@@ -185,6 +171,9 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if !APFSMarker(path, ".detached", slot.ID) {
 		return ErrPoisoned
 	}
+	if b.Cold(slot) {
+		return ErrWithheld
+	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
 		return ErrPoisoned
 	} else if !os.IsNotExist(err) {
@@ -251,7 +240,7 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 			return err
 		}
 	}
-	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base"} {
+	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base", ".cold"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -310,4 +299,46 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 		defer finish(false)
 	}
 	return b.prefetch(ctx, slot)
+}
+
+var errNoLocalCopy = errors.New("no local copy of the lineage")
+
+// cloneLocal clones the slot's base master, or the newest older master of the
+// same lineage, into tmp. The caller holds the scope lock; nothing here touches
+// the network.
+func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp string, source *string) error {
+	master := b.master(slot)
+	mounted := slot.BaseGeneration
+	if _, err := os.Stat(master); os.IsNotExist(err) {
+		older, generation := b.olderMaster(slot)
+		if older == "" {
+			return errNoLocalCopy
+		}
+		*source, master, mounted = "older", older, generation
+	} else if err != nil {
+		return err
+	}
+	if *source == "unknown" {
+		*source = "local"
+	}
+	if err := b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
+		return err
+	}
+	if mounted != slot.BaseGeneration {
+		if err := os.WriteFile(image+".base", []byte(strconv.FormatInt(mounted, 10)), 0600); err != nil {
+			return err
+		}
+	}
+	_ = os.Chtimes(master, time.Now(), time.Now())
+	return nil
+}
+
+// Cold reports whether a warm identity's branch started empty because no copy
+// of its lineage was on this host.
+func (b *APFSImages) Cold(slot Slot) bool {
+	if slot.BaseGeneration <= 0 {
+		return false
+	}
+	_, err := os.Stat(b.image(slot) + ".cold")
+	return err == nil
 }
