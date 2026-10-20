@@ -67,13 +67,14 @@ Account administrators configure **Save cache from** on each runner profile unde
 **Runners → Profiles**. The settings apply to every custom volume attached by
 GitHub Actions jobs that run on the profile, including volumes created later.
 
-**Default branch** is on and **Additional branches** holds `*` by default, so
-every successful job from the repository saves its changes. Turn off **Default
-branch** to save only from the additional branches.
+By default every successful job from the repository saves its changes. Turn on
+**Limit to specific branches** to save only from some branches:
 
-**Additional branches** holds up to 20 branch names that also save. `*` matches
-any characters, so `release/*` covers `release/1.0` and `*` covers every branch.
-Remove `*` to save only from the branches you list.
+- **Default branch** lets jobs on each repository's default branch save. Turn it
+  off to save only from the additional branches.
+- **Additional branches** holds up to 20 branch names that also save. `*`
+  matches any characters, so `release/*` covers `release/1.0`.
+
 Successful push, schedule and manual-dispatch jobs, and pull requests from the
 same repository, save their changes when their branch matches. On push and
 manual-dispatch runs, a tag with a matching name also matches.

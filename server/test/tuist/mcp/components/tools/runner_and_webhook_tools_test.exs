@@ -146,8 +146,9 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{
                "name" => "ci",
                "runs_on_label" => "tuist-ci",
+               "cache_writer_all_branches" => true,
                "cache_writer_default_branch" => true,
-               "cache_writer_branches" => ["*"]
+               "cache_writer_branches" => []
              } = Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
 
       arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
@@ -156,18 +157,23 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                UpdateRunnerProfile.call(
                  conn,
                  Map.merge(arguments, %{
+                   "cache_writer_all_branches" => false,
                    "cache_writer_default_branch" => false,
                    "cache_writer_branches" => ["develop", "release/*"]
                  })
                )
 
       assert %{
+               "cache_writer_all_branches" => false,
                "cache_writer_default_branch" => false,
                "cache_writer_branches" => ["develop", "release/*"]
              } = JSON.decode!(text)
 
-      assert %{cache_writer_default_branch: false, cache_writer_branches: ["develop", "release/*"]} =
-               Repo.get!(Profile, profile.id)
+      assert %{
+               cache_writer_all_branches: false,
+               cache_writer_default_branch: false,
+               cache_writer_branches: ["develop", "release/*"]
+             } = Repo.get!(Profile, profile.id)
 
       assert %{"content" => [%{"text" => text}]} =
                UpdateRunnerProfile.call(conn, Map.put(arguments, "cache_writer_branches", []))

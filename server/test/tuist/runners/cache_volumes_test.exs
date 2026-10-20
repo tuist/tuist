@@ -1254,7 +1254,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       other_account = AccountsFixtures.account_fixture()
       stub(Catalog, :shapes, fn _ -> [%{vcpus: 4, memory_gb: 16}] end)
 
-      # Narrowed to the default branch, so each test can widen it explicitly.
+      # Limited to the default branch, so each test can widen it explicitly.
       profile =
         Repo.insert!(%Profile{
           account_id: account.id,
@@ -1262,7 +1262,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
           platform: :linux,
           vcpus: 4,
           memory_gb: 16,
-          cache_writer_branches: nil
+          cache_writer_all_branches: false
         })
 
       %{
@@ -1291,6 +1291,27 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:ok, %{can_publish: false}} =
                CacheVolumes.allocate_for_job(job, branch_identity(nil), attrs("pull-request-target"))
+    end
+
+    test "limiting a profile to specific branches revokes pending saves from other branches", %{
+      job: job,
+      account: account
+    } do
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "limited", platform: :linux, vcpus: 4, memory_gb: 16})
+
+      job = %{job | requested_dispatch_label: Profile.dispatch_label(profile)}
+      {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
+      {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
+      assert main.can_publish and feature.can_publish
+
+      set_policy(profile, %{cache_writer_all_branches: false})
+
+      assert Repo.get!(Usage, main.id).can_publish
+      refute Repo.get!(Usage, feature.id).can_publish
+
+      assert {:ok, %{can_publish: false}} =
+               CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature-again"))
     end
 
     test "jobs without a profile follow the default policy", %{job: job} do

@@ -20620,6 +20620,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
+            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_all_branches`.
+            public var cache_writer_all_branches: Swift.Bool
             /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
@@ -20658,6 +20662,7 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
+            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
             ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
             ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
             ///   - id:
@@ -20671,6 +20676,7 @@ public enum Components {
             ///   - vcpus:
             ///   - xcode_version:
             public init(
+                cache_writer_all_branches: Swift.Bool,
                 cache_writer_branches: [Swift.String],
                 cache_writer_default_branch: Swift.Bool,
                 id: Swift.Int,
@@ -20684,6 +20690,7 @@ public enum Components {
                 vcpus: Swift.Int,
                 xcode_version: Swift.String? = nil
             ) {
+                self.cache_writer_all_branches = cache_writer_all_branches
                 self.cache_writer_branches = cache_writer_branches
                 self.cache_writer_default_branch = cache_writer_default_branch
                 self.id = id
@@ -20698,6 +20705,7 @@ public enum Components {
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
+                case cache_writer_all_branches
                 case cache_writer_branches
                 case cache_writer_default_branch
                 case id
@@ -31113,6 +31121,10 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_all_branches`.
+                            public var cache_writer_all_branches: Swift.Bool
                             /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
@@ -31151,6 +31163,7 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                             ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                             ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
                             ///   - id:
@@ -31164,6 +31177,7 @@ public enum Operations {
                             ///   - vcpus:
                             ///   - xcode_version:
                             public init(
+                                cache_writer_all_branches: Swift.Bool,
                                 cache_writer_branches: [Swift.String],
                                 cache_writer_default_branch: Swift.Bool,
                                 id: Swift.Int,
@@ -31177,6 +31191,7 @@ public enum Operations {
                                 vcpus: Swift.Int,
                                 xcode_version: Swift.String? = nil
                             ) {
+                                self.cache_writer_all_branches = cache_writer_all_branches
                                 self.cache_writer_branches = cache_writer_branches
                                 self.cache_writer_default_branch = cache_writer_default_branch
                                 self.id = id
@@ -31191,6 +31206,7 @@ public enum Operations {
                                 self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case cache_writer_all_branches
                                 case cache_writer_branches
                                 case cache_writer_default_branch
                                 case id
@@ -31522,6 +31538,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_all_branches`.
+                    public var cache_writer_all_branches: Swift.Bool?
                     /// Additional branch names or * patterns that save. An empty list removes them.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_branches`.
@@ -31556,6 +31576,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - cache_writer_all_branches: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
                     ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
                     ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
                     ///   - memory_gb: Memory in GB of an available shape for the platform.
@@ -31564,6 +31585,7 @@ public enum Operations {
                     ///   - vcpus: vCPUs of an available shape for the platform.
                     ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
                     public init(
+                        cache_writer_all_branches: Swift.Bool? = nil,
                         cache_writer_branches: [Swift.String]? = nil,
                         cache_writer_default_branch: Swift.Bool? = nil,
                         memory_gb: Swift.Int,
@@ -31572,6 +31594,7 @@ public enum Operations {
                         vcpus: Swift.Int,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.cache_writer_all_branches = cache_writer_all_branches
                         self.cache_writer_branches = cache_writer_branches
                         self.cache_writer_default_branch = cache_writer_default_branch
                         self.memory_gb = memory_gb
@@ -31581,6 +31604,7 @@ public enum Operations {
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case cache_writer_all_branches
                         case cache_writer_branches
                         case cache_writer_default_branch
                         case memory_gb
@@ -31616,6 +31640,10 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_all_branches`.
+                        public var cache_writer_all_branches: Swift.Bool
                         /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_branches`.
@@ -31654,6 +31682,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                         ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
@@ -31667,6 +31696,7 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - xcode_version:
                         public init(
+                            cache_writer_all_branches: Swift.Bool,
                             cache_writer_branches: [Swift.String],
                             cache_writer_default_branch: Swift.Bool,
                             id: Swift.Int,
@@ -31680,6 +31710,7 @@ public enum Operations {
                             vcpus: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.cache_writer_all_branches = cache_writer_all_branches
                             self.cache_writer_branches = cache_writer_branches
                             self.cache_writer_default_branch = cache_writer_default_branch
                             self.id = id
@@ -31694,6 +31725,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case cache_writer_all_branches
                             case cache_writer_branches
                             case cache_writer_default_branch
                             case id
@@ -88185,6 +88217,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_all_branches`.
+                    public var cache_writer_all_branches: Swift.Bool?
                     /// Additional branch names or * patterns that save. An empty list removes them.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_branches`.
@@ -88208,18 +88244,21 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - cache_writer_all_branches: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
                     ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
                     ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
                     ///   - memory_gb: Memory in GB of an available shape for the platform.
                     ///   - vcpus: vCPUs of an available shape for the platform.
                     ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
                     public init(
+                        cache_writer_all_branches: Swift.Bool? = nil,
                         cache_writer_branches: [Swift.String]? = nil,
                         cache_writer_default_branch: Swift.Bool? = nil,
                         memory_gb: Swift.Int? = nil,
                         vcpus: Swift.Int? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.cache_writer_all_branches = cache_writer_all_branches
                         self.cache_writer_branches = cache_writer_branches
                         self.cache_writer_default_branch = cache_writer_default_branch
                         self.memory_gb = memory_gb
@@ -88227,6 +88266,7 @@ public enum Operations {
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case cache_writer_all_branches
                         case cache_writer_branches
                         case cache_writer_default_branch
                         case memory_gb
@@ -88260,6 +88300,10 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_all_branches`.
+                        public var cache_writer_all_branches: Swift.Bool
                         /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
@@ -88298,6 +88342,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                         ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
@@ -88311,6 +88356,7 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - xcode_version:
                         public init(
+                            cache_writer_all_branches: Swift.Bool,
                             cache_writer_branches: [Swift.String],
                             cache_writer_default_branch: Swift.Bool,
                             id: Swift.Int,
@@ -88324,6 +88370,7 @@ public enum Operations {
                             vcpus: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.cache_writer_all_branches = cache_writer_all_branches
                             self.cache_writer_branches = cache_writer_branches
                             self.cache_writer_default_branch = cache_writer_default_branch
                             self.id = id
@@ -88338,6 +88385,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case cache_writer_all_branches
                             case cache_writer_branches
                             case cache_writer_default_branch
                             case id

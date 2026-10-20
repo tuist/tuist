@@ -36,8 +36,8 @@ to share build outputs through Tuist's remote cache.
 
 Saving follows the cache volume rules: by default every successful job from
 the repository saves, fork pull requests never do, and the runner profile's
-**Save cache from** setting can narrow it to some branches. The `cache-hit` output is `true` when the job attached a saved
-cache. On runners that are not Tuist runners the action does nothing, and if
+**Save cache from** setting can limit it to specific branches. The `cache-hit`
+output is `true` when the job attached a saved cache. On runners that are not Tuist runners the action does nothing, and if
 the volume is unavailable it warns and the job runs with an empty cache.
 
 The `SOURCE_COMMIT` file records the monorepo source.

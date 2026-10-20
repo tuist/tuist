@@ -297,11 +297,13 @@ apply to the Xcode and module caches.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
-**Default branch** is on and **Additional branches** holds `*`, which matches
-every branch, so every successful job from the repository saves its changes. To
-save only from some branches, remove `*` and add up to 20 branch names. Use `*`
-as a wildcard: `release/*` matches `release/1.0`. Turn off **Default branch** to
-save only from the additional branches.
+By default every successful job from the repository saves its changes. To save
+only from some branches, turn on **Limit to specific branches**:
+
+- **Default branch** lets jobs on each repository's default branch save. Turn it
+  off to save only from the additional branches.
+- Under **Additional branches**, add up to 20 branch names that also save. Use
+  `*` as a wildcard: `release/*` matches `release/1.0`.
 
 Successful push, schedule and manual-dispatch jobs, and pull requests from the
 same repository, save their changes when their branch matches. On push and

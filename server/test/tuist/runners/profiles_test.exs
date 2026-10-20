@@ -114,7 +114,8 @@ defmodule Tuist.Runners.ProfilesTest do
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       assert profile.cache_writer_default_branch
-      assert profile.cache_writer_branches == ["*"]
+      assert profile.cache_writer_all_branches
+      assert is_nil(profile.cache_writer_branches)
 
       assert {:ok, updated} =
                Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
@@ -130,6 +131,12 @@ defmodule Tuist.Runners.ProfilesTest do
                Profiles.update(updated, %{cache_writer_default_branch: nil})
 
       assert errors[:cache_writer_default_branch]
+
+      assert {:ok, %{cache_writer_all_branches: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_all_branches: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(updated, %{cache_writer_all_branches: nil})
+      assert errors[:cache_writer_all_branches]
     end
 
     test "rejects invalid refs and more than the branch limit", %{account: account} do
@@ -282,7 +289,7 @@ defmodule Tuist.Runners.ProfilesTest do
       assert profile.protected
       assert profile.vcpus == 4
       assert profile.memory_gb == 16
-      assert profile.cache_writer_branches == ["*"]
+      assert profile.cache_writer_all_branches
     end
 
     test "is idempotent — second call is a no-op on `(account_id, name)` conflict",
