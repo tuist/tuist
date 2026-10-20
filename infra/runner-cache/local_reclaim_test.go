@@ -48,3 +48,28 @@ func TestSharedReclamationMustActuallyFreeSpace(t *testing.T) {
 		t.Fatal("lost reclamation failure", err)
 	}
 }
+
+// A background prefetch holding space gives it back before admission evicts a
+// master that jobs on this host still clone from.
+func TestAdmissionDisplacesSpeculativeWorkBeforeEvicting(t *testing.T) {
+	root := t.TempDir()
+	master := filepath.Join(root, "masters", strings.Repeat("a", 64), "cache.img")
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	free := uint64(0)
+	b := &LocalImages{Root: root, FreeBytes: func(string) (uint64, error) { return free, nil }}
+	b.Displace = func(context.Context) bool {
+		free = 20
+		return true
+	}
+	if err := b.reserveBytes(context.Background(), 20); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(master); err != nil {
+		t.Fatal("evicted a master although displacing the prefetch made room", err)
+	}
+}

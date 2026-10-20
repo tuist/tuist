@@ -3,12 +3,14 @@ package podagent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const customCapacity = 20_000_000_000
@@ -74,6 +76,11 @@ func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (fu
 	free, err := c.freeBytesLocked()
 	if err != nil {
 		return nil, err
+	}
+	if free < customAdmissionBytes(slot) && slot.ID != cachevolumes.PrefetchReservation && c.displaceSpareLocked() {
+		if free, err = c.freeBytesLocked(); err != nil {
+			return nil, err
+		}
 	}
 	if free < customAdmissionBytes(slot) {
 		return nil, cachevolumes.ErrCapacity
@@ -155,4 +162,51 @@ func (c *CustomVolumes) refreshReservations(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+var errSpareDisplaced = errors.New("background prefetch gave way to a job")
+
+// prefetchSpare runs a download the server listed for this host so that job
+// admission can cancel it (displaceSpareLocked). The prefetcher runs one
+// download at a time, so at most one is registered.
+func (c *CustomVolumes) prefetchSpare(ctx context.Context, run func(context.Context) error) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	c.Builtins.mu.Lock()
+	c.spare = cancel
+	c.Builtins.mu.Unlock()
+	defer func() {
+		c.Builtins.mu.Lock()
+		c.spare = nil
+		c.Builtins.mu.Unlock()
+	}()
+	err := run(ctx)
+	if err != nil && errors.Is(context.Cause(ctx), errSpareDisplaced) {
+		return fmt.Errorf("%w: %w", errSpareDisplaced, context.Canceled)
+	}
+	return err
+}
+
+func (c *CustomVolumes) displaceSpare(ctx context.Context) bool {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return false
+	}
+	defer release()
+	return c.displaceSpareLocked()
+}
+
+// displaceSpareLocked cancels a background prefetch and drops its reservation,
+// so built-in and custom job admission spend that space before evicting a
+// master. Bytes it already downloaded stay until it unwinds; free space already
+// reflects them. Requires Builtins.mu.
+func (c *CustomVolumes) displaceSpareLocked() bool {
+	if c.spare == nil {
+		return false
+	}
+	c.spare(errSpareDisplaced)
+	c.spare = nil
+	delete(c.reservations, cachevolumes.PrefetchReservation)
+	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job")
+	return true
 }
