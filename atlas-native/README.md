@@ -233,7 +233,11 @@ mise run build:android
   the one-time profile setup above and fails visibly if credentials are missing.
   Signing completes before any previews are uploaded, so signing failures do not
   publish a simulator-only nightly. Credential-free keychain and icon-packaging
-  tests also gate publication.
+  tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
+  with a fresh timestamp so cached binaries and delivery reruns do not collide
+  with an existing preview. This changes only preview metadata, leaving the app's
+  internal build version and signature unchanged. Device packaging already stamps
+  its temporary copy before distribution signing.
 - Never publishes from pull requests. Cache authentication failure can fall back
   to a local build; delivery failures remain visible.
 
