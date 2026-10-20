@@ -314,4 +314,5 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
   the job's checkout added in `/home/runner/work/_tuist_checkout_export`
   (hard-linking LFS objects where it can) and streams it as a tar to the agent's
-  `/checkout-export` (60 s). The runner never gets a writable host directory.
+  `/checkout-export` (3 minutes; a cold export carries the whole repository).
+  The runner never gets a writable host directory.

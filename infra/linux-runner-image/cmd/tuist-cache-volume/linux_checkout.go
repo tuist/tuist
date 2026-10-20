@@ -109,11 +109,13 @@ func checkoutLinuxAt(ctx context.Context, workspace, root, statePath string, req
 }
 
 // exportCheckoutLinux hands the host what the job's checkout added, after the
-// job. The host verifies all of it and builds the next master from it.
+// job. The host verifies all of it and builds the next master from it. A cold
+// job streams the whole repository and its LFS objects, so the budget covers a
+// few gigabytes; it only delays the pod's teardown, never the job.
 func exportCheckoutLinux() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	client := newLinuxCheckoutClient(60 * time.Second)
+	client := newLinuxCheckoutClient(3 * time.Minute)
 	return exportCheckoutLinuxAt(ctx, linuxCheckoutStatePath, linuxExportScratch, gitCommand, client.upload)
 }
 
