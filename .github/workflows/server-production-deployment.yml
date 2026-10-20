@@ -1490,18 +1490,25 @@ jobs:
         with:
           install: "erlang elixir"
           working-directory: server
+      # Mix links each `_build/<env>/lib/<dep>` directory to `deps/<dep>`
+      # through relative symlinks, and macOS attaches a cache volume as a
+      # symlink, so the deps and build directories share one volume.
       - uses: tuist/cache-volume@v1
         with:
-          key: xcresult-processor-release-deps
-          path: server/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: xcresult-processor-release-build
-          path: server/_build
+          key: xcresult-processor-release-mix
+          path: ~/.cache/tuist-ci/xcresult-processor-release/mix
       - uses: tuist/cache-volume@v1
         with:
           key: xcresult-processor-release-nif
           path: ~/.cache/tuist-ci/xcresult-processor-release/nif
+      - name: Point build caches at the volumes
+        run: |
+          cache_root="${HOME}/.cache/tuist-ci/xcresult-processor-release"
+          {
+            echo "MIX_BUILD_ROOT=${cache_root}/mix/build"
+            echo "MIX_DEPS_PATH=${cache_root}/mix/deps"
+            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
+          } >> "$GITHUB_ENV"
       - name: Install Hex and Rebar
         working-directory: server
         run: |
@@ -1516,15 +1523,15 @@ jobs:
         working-directory: server
         run: |
           set -euo pipefail
-          export TUIST_NIF_BUILD_ROOT="${HOME}/.cache/tuist-ci/xcresult-processor-release/nif"
+          release_dir="${MIX_BUILD_ROOT}/prod/rel/tuist"
           ./native/xcresult_nif/build.sh
           ./native/xcactivitylog_nif/build.sh
           mix compile --force --warnings-as-errors
-          # The release directory sits in the cached _build, and
+          # The release directory sits in the cached build root, and
           # `mix release --overwrite` does not empty it first.
-          rm -rf _build/prod/rel/tuist
+          rm -rf "$release_dir"
           mix release tuist --overwrite
-          echo "dir=$(pwd)/_build/prod/rel/tuist" >> "$GITHUB_OUTPUT"
+          echo "dir=${release_dir}" >> "$GITHUB_OUTPUT"
       - name: Report native linkage
         env:
           RELEASE_DIR: ${{ steps.release.outputs.dir }}
