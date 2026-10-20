@@ -237,9 +237,8 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools
-  # only. The platform-install job runs `mise -C infra run`, which
-  # resolves the repo toolset including `github:endevco/aube`;
-  # mise's SLSA check builds a malformed release
+  # only. Installing the repo toolset resolves github-backend tools such
+  # as `github:endevco/aube`, and mise's SLSA check builds a malformed release
   # URL for github-backend tools (releases/tags/<owner>/<repo>@<ver>
   # instead of /<ver>) and 404s on cache-cold runners. GitHub artifact
   # attestations still verify. Aqua-backend SLSA stays ON: mise.lock
@@ -730,9 +729,13 @@ jobs:
           # Full history + tags so k8s:install-platform can resolve the
           # stable-egress-controller@<semver> image tag reachable from this commit.
           fetch-depth: 0
+      # The versions k8s:install-platform runs with: infra/mise.toml pins its own
+      # Helm. The task then runs with --skip-tools, so mise does not first
+      # install the rest of the root toolset.
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
+          working_directory: infra
           cache: "false"
       - uses: 1password/install-cli-action@v4
         with:
@@ -779,7 +782,7 @@ jobs:
           echo "::add-mask::$CLOUDFLARE_API_TOKEN"
           export CLOUDFLARE_API_TOKEN
           echo "Reconciling platform chart for cluster $CLUSTER_NAME"
-          mise -C infra run k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
+          mise -C infra run --skip-tools k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
