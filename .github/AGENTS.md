@@ -405,7 +405,8 @@ covered only by the production schedule.
 - On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
   custom cache volume: the probe job seeds it with its run id through
   `tuist/cache-volume`, and `macos-volume` attaches it after
-  `PUBLISH_WAIT_SECONDS` and requires that run id. Canary has one rack host, so
+  `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
+  overlapping probe runs share the volume. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make
   it depend on convergence. Both jobs require a real APFS mount, because an
   unavailable volume falls back to a job-local directory and still succeeds.
