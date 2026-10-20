@@ -10,8 +10,8 @@ public struct Scheme: Equatable, Codable, Sendable {
     /// When `true` the scheme doesn't show up in the dropdown scheme's list.
     public var hidden: Bool
     /// The position of the scheme in Xcode's scheme list. Schemes with an order hint are listed first, in ascending order,
-    /// followed by the rest in alphabetical order. Xcode falls back to the first scheme in the list when none is selected,
-    /// for example in a freshly generated workspace.
+    /// followed by the rest in alphabetical order. Schemes with the same order hint are listed alphabetically. Xcode falls
+    /// back to the first scheme in the list when none is selected, for example in a freshly generated workspace.
     public var orderHint: Int?
     /// Action that builds the project targets.
     public var buildAction: BuildAction?

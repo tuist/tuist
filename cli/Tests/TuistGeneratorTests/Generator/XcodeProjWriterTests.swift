@@ -364,6 +364,27 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         XCTAssertEqual(try orderHints(in: xcworkspacePath), ["Delta.xcscheme": 3])
     }
 
+    func test_writeProject_ordersSchemesWithTheSameOrderHintAlphabetically() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let descriptor = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            schemes: [
+                SchemeDescriptor.test(name: "Gamma", shared: true),
+                SchemeDescriptor.test(name: "Beta", shared: true, orderHint: 0),
+                SchemeDescriptor.test(name: "Alpha", shared: true, orderHint: 0),
+            ]
+        )
+
+        // When
+        try await subject.write(project: descriptor)
+
+        // Then
+        XCTAssertEqual(try orderHints(in: xcodeProjPath), ["Alpha.xcscheme": 0, "Beta.xcscheme": 1, "Gamma.xcscheme": 2])
+    }
+
     func test_writeWorkspace_writesPerUserDerivedDataSettings() async throws {
         // Given
         let path = try temporaryPath()
