@@ -899,6 +899,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
+            quarantinedTests: quarantinedTests,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
             mode: mode,
@@ -927,15 +928,53 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
 
+        try await finishTestWithoutBuilding(
+            testError: testError,
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: quarantinedTests,
+            stressResult: stressResult
+        )
+    }
+
+    /// Rethrows the `test-without-building` failure unless every failing test is muted, in which
+    /// case the run passes as it does on the scheme path.
+    private func finishTestWithoutBuilding(
+        testError: Error?,
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier],
+        stressResult: StressNewTestsResult?
+    ) async throws {
         if let testError {
-            throw testError
+            guard await onlyQuarantinedTestsFailed(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+            else { throw testError }
         }
 
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }
 
-        AlertController.current.success(.alert("The project tests ran successfully"))
+        if testError != nil {
+            AlertController.current.success(
+                .alert("The project tests ran successfully (including \(quarantinedTests.count) quarantined test(s))")
+            )
+        } else {
+            AlertController.current.success(.alert("The project tests ran successfully"))
+        }
+    }
+
+    private func onlyQuarantinedTestsFailed(
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier]
+    ) async -> Bool {
+        guard !quarantinedTests.isEmpty,
+              let resultBundlePath,
+              (try? await fileSystem.exists(resultBundlePath)) == true,
+              let testStatuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return false }
+        return testQuarantineService.onlyQuarantinedTestsFailed(
+            testStatuses: testStatuses,
+            quarantinedTests: quarantinedTests
+        )
     }
 
     /// Only Tuist-owned products (downloaded or extracted for this shard) are cleaned up;
@@ -1094,6 +1133,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
+            quarantinedTests: quarantinedTests,
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
@@ -1115,15 +1155,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if let testError {
-            throw testError
-        }
-
-        if let stressResult, stressResult.blocks {
-            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
-        }
-
-        AlertController.current.success(.alert("The project tests ran successfully"))
+        try await finishTestWithoutBuilding(
+            testError: testError,
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: quarantinedTests,
+            stressResult: stressResult
+        )
     }
 
     /// The stress pass for the paths that execute prebuilt products: the same
