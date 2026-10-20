@@ -271,9 +271,9 @@ With `enabled`, every command and every environment reads one instrumented varia
 | `tuist generate` | Reads instrumented binaries | Reads plain binaries |
 | `tuist test` | Reads instrumented binaries | Reads plain binaries |
 
-The option applies to every configuration Xcode treats as Debug. Release builds are never instrumented. Tuist also links the profile runtime in those configurations (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`), so builds that don't collect coverage still link the instrumented binaries, and turns on coverage in the test action of the schemes it generates automatically.
+The option applies to every configuration Xcode treats as Debug. Release builds are never instrumented. Tuist also links the profile runtime in those configurations (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`), so builds that don't collect coverage still link the instrumented binaries, and turns on coverage in the test action of the schemes it generates automatically and of the schemes you define that leave `coverage` unset.
 
-The option chooses which binaries Tuist reads; it doesn't decide whether a run collects coverage. Schemes and test plans you define, and `-enableCodeCoverage`, still decide that, as in Xcode, and Tuist leaves them unchanged. A run that reads instrumented binaries without collecting coverage builds and tests normally. When a run collects coverage but your project's targets came from the cache as plain binaries, Tuist warns that their coverage isn't measured.
+A scheme you define follows the option unless it sets coverage itself: `.options(coverage: false)` keeps it off and `.options(coverage: true)` keeps it on whatever the option says. Test plans decide coverage themselves, and `-enableCodeCoverage` still overrides a run, as in Xcode. A run that reads instrumented binaries without collecting coverage builds and tests normally. When a run collects coverage but your project's targets came from the cache as plain binaries, Tuist warns that their coverage isn't measured.
 
 You can override the option for a single command or job, highest precedence first:
 

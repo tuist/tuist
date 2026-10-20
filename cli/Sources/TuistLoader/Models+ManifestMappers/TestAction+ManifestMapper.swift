@@ -23,6 +23,7 @@ extension XcodeGraph.TestAction {
         let targets: [XcodeGraph.TestableTarget]
         let arguments: XcodeGraph.Arguments?
         let coverage: Bool
+        let inheritsCoverage: Bool
         let codeCoverageTargets: [XcodeGraph.TargetReference]
         let expandVariablesFromTarget: XcodeGraph.TargetReference?
         let diagnosticsOptions: XcodeGraph.SchemeDiagnosticsOptions
@@ -45,6 +46,7 @@ extension XcodeGraph.TestAction {
             targets = []
             arguments = nil
             coverage = false
+            inheritsCoverage = false
             codeCoverageTargets = []
             expandVariablesFromTarget = nil
             diagnosticsOptions = .init()
@@ -56,7 +58,8 @@ extension XcodeGraph.TestAction {
             targets = try manifest.targets
                 .map { try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
-            coverage = manifest.options.coverage
+            coverage = manifest.options.coverage ?? false
+            inheritsCoverage = manifest.options.coverage == nil
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
                 XcodeGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
@@ -105,7 +108,8 @@ extension XcodeGraph.TestAction {
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
             testPlans: testPlans,
-            skippedTests: skippedTests
+            skippedTests: skippedTests,
+            inheritsCoverage: inheritsCoverage
         )
     }
 }

@@ -134,3 +134,58 @@ struct AutomaticSchemesCoverageTests {
         #expect(got.workspace.schemes.first { $0.name == "Custom" } == userScheme)
     }
 }
+
+struct InheritedCoverageSchemesWorkspaceMapperTests {
+    private let projectPath = try! AbsolutePath(validating: "/project")
+
+    private func scheme(_ name: String, coverage: Bool = false, inherits: Bool, testPlans: [TestPlan]? = nil) -> Scheme {
+        .test(name: name, testAction: .test(coverage: coverage, testPlans: testPlans, inheritsCoverage: inherits))
+    }
+
+    private func workspace(type: ProjectType = .local) throws -> WorkspaceWithProjects {
+        let plan = TestPlan(path: try AbsolutePath(validating: "/project/App.xctestplan"), testTargets: [], isDefault: true)
+        let schemes = [
+            scheme("Inherits", inherits: true),
+            scheme("ExplicitOff", inherits: false),
+            scheme("ExplicitOn", coverage: true, inherits: false),
+            scheme("Planned", inherits: true, testPlans: [plan]),
+        ]
+        return WorkspaceWithProjects(
+            workspace: .test(schemes: [scheme("WorkspaceInherits", inherits: true)]),
+            projects: [.test(path: projectPath, schemes: schemes, type: type)]
+        )
+    }
+
+    private func coverage(_ workspace: WorkspaceWithProjects) -> [String: Bool] {
+        let schemes = workspace.workspace.schemes + workspace.projects.flatMap(\.schemes)
+        return Dictionary(uniqueKeysWithValues: schemes.map { ($0.name, $0.testAction?.coverage ?? false) })
+    }
+
+    @Test func map_turnsOnCoverageInSchemesThatLeaveItUnset_whenCoverageIsOn() throws {
+        let (got, _) = try InheritedCoverageSchemesWorkspaceMapper(enabled: true).map(workspace: workspace())
+
+        #expect(coverage(got) == [
+            "WorkspaceInherits": true,
+            "Inherits": true,
+            "ExplicitOff": false,
+            "ExplicitOn": true,
+            "Planned": false,
+        ])
+    }
+
+    @Test func map_leavesEverySchemeAlone_whenCoverageIsOff() throws {
+        let input = try workspace()
+
+        let (got, _) = try InheritedCoverageSchemesWorkspaceMapper(enabled: false).map(workspace: input)
+
+        #expect(got == input)
+    }
+
+    @Test func map_leavesExternalPackagesAlone() throws {
+        let input = try workspace(type: .external(hash: "revision"))
+
+        let (got, _) = try InheritedCoverageSchemesWorkspaceMapper(enabled: true).map(workspace: input)
+
+        #expect(got.projects == input.projects)
+    }
+}

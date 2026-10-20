@@ -57,12 +57,11 @@ extension Tuist {
             /// Whether coverage is on for the project. The project's own targets are read from and warmed into the
             /// binary cache with coverage counters in configurations Xcode treats as Debug, so a test run that collects
             /// coverage measures the cached code too; external packages and Release configurations stay plain.
-            /// Tuist's automatic schemes collect coverage in their test action, and Debug configurations link the
-            /// profile runtime (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`).
-            ///
-            /// It doesn't turn on coverage in schemes or test plans you define: they decide whether a run collects
-            /// coverage, as in Xcode. `--coverage` and `--no-coverage`, then the `TUIST_COVERAGE_ENABLED` environment
-            /// variable, take precedence over this value.
+            /// Tuist's automatic schemes, and schemes you define that leave `TestActionOptions.coverage` unset, collect
+            /// coverage in their test action, and Debug configurations link the profile runtime
+            /// (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`). A scheme that sets `coverage` keeps its value, and test plans
+            /// decide coverage themselves. `--coverage` and `--no-coverage`, then the `TUIST_COVERAGE_ENABLED`
+            /// environment variable, take precedence over this value.
             public var enabled: Bool
 
             /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
