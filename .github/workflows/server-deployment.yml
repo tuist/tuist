@@ -1234,6 +1234,9 @@ jobs:
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
         timeout-minutes: 70
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          KURA_EXPEDITE: ${{ inputs.kura_expedite }}
         run: |
           set -euo pipefail
 
@@ -1324,7 +1327,7 @@ jobs:
 
           helm_values_args=(
             -f "$HELM_CHART_PATH/values-managed-common.yaml"
-            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml"
+            -f "$HELM_CHART_PATH/values-managed-${TARGET_ENVIRONMENT}.yaml"
           )
 
           # Kura runtime image tag precedence:
@@ -1340,18 +1343,18 @@ jobs:
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
-          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
+          elif [ "$TARGET_ENVIRONMENT" = "staging" ] && [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
             kura_runtime_tag="$IMAGE_TAG"
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
             kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
-            echo "Kura runtime: ${{ inputs.environment }} pins kura@ tag ${kura_runtime_tag}"
+            echo "Kura runtime: ${TARGET_ENVIRONMENT} pins kura@ tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
           # Expediting the rollout is always an explicit deployment input,
           # never inferred. The value pins this deploy's tag so a later
           # unrelated rollout can never inherit the expedite.
-          if [ "${{ inputs.kura_expedite }}" = "true" ] && [ -n "$kura_runtime_tag" ]; then
+          if [ "$KURA_EXPEDITE" = "true" ] && [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: expediting rollout of ${kura_runtime_tag} (deployment input)"
             add_set "kuraRuntime.rollout.expediteTag" "$kura_runtime_tag"
           fi
