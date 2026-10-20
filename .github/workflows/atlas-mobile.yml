@@ -218,6 +218,9 @@ jobs:
           xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
           xcrun simctl bootstatus "$device" -b
           mkdir -p ui-evidence
+          # Once emits the runnable xctestrun only for its test capability.
+          ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests \
+            --test-unit 'AtlasSettingsUITests::AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete'
           xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/task-crud.mov" &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
