@@ -159,6 +159,10 @@ type RackAppleSiliconMachineReconciler struct {
 	// none.
 	Borrowers BorrowerClients
 
+	// Tailnet clears the devices a returned host ran as. Nil leaves that to a
+	// person, with an event naming them.
+	Tailnet TailnetDevices
+
 	// osUpdateDial opens the SSH side of an in-place macOS update; nil dials the host.
 	osUpdateDial osUpdateDialFunc
 
@@ -380,6 +384,14 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		}
 	}
 
+	// A host on its way to another env is not bootstrapped (see lendingGate).
+	if !conditions.IsTrue(machine, BootstrappedCondition) && gate.skipBootstrap {
+		conditions.MarkFalse(machine, BootstrappedCondition, "Lending", clusterv1.ConditionSeverityInfo,
+			"%s is being lent to %s and is not bootstrapped here meanwhile", host.Name, host.Spec.LendTo)
+		machine.Status.Phase = "Lending"
+		return gate.result, nil
+	}
+
 	// Stage 2: bootstrap (idempotent; re-running picks up where it left off).
 	if !conditions.IsTrue(machine, BootstrappedCondition) {
 		machine.Status.Phase = "Bootstrapping"
@@ -392,7 +404,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 				clusterv1.ConditionSeverityWarning, "%v", prepErr.err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		perHost.TailscaleForceReauth = gate.forceReauth
+		perHost.TakeOver = gate.takeOver
 
 		fingerprint, runErr := bootstrap.Run(ctx, r.hostConfig(machine, host, perHost))
 		// Persist whatever fingerprint Run captured even on the error path, so

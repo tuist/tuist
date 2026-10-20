@@ -826,6 +826,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// The rack's tailnet API: the rack Linux hosts' devices, and the devices a
+	// returned rack Mac ran as.
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+
 	// A rack host this operator lends reaches the borrowing env's cluster
 	// through the kubeconfig Secret its --rack-lease-borrower names.
 	var rackBorrowers macos.BorrowerClients
@@ -866,6 +873,7 @@ func main() {
 		SecretsNamespace:              secretsNamespace,
 		Env:                           rackEnv,
 		Borrowers:                     rackBorrowers,
+		Tailnet:                       rackTailnet,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
@@ -904,10 +912,6 @@ func main() {
 		}
 	}
 
-	var rackTailnet linux.TailnetAPI
-	if rackLinuxTailscaleSecretName != "" {
-		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
-	}
 	var rackInstall *linux.RackInstall
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
 		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
