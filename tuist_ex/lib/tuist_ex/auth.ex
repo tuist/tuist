@@ -231,25 +231,52 @@ defmodule TuistEx.Auth do
   end
 
   defp provider_token(server_url, environment, reason, options) do
-    key = {__MODULE__, :provider_token, server_url, oidc_account(environment)}
-    cached = :persistent_term.get(key, nil)
+    with {:ok, source} <- identity_source(environment, options) do
+      key = {__MODULE__, :provider_token, server_url, oidc_account(environment)}
 
-    if is_binary(cached) and not expired?(cached) do
-      {:ok, cached}
-    else
-      case identity_token(environment, options) do
-        {:ok, identity_token} ->
-          with {:ok, access} <- exchange(server_url, identity_token, environment) do
-            :persistent_term.put(key, access)
-            {:ok, access}
-          end
+      cached =
+        case :persistent_term.get(key, nil) do
+          {^source, access} -> access
+          _ -> nil
+        end
 
-        :unsupported ->
-          {:error, reason}
+      if is_binary(cached) and not expired?(cached) do
+        {:ok, cached}
+      else
+        case identity_token(environment, options) do
+          {:ok, identity_token} ->
+            with {:ok, access} <- exchange(server_url, identity_token, environment) do
+              :persistent_term.put(key, {source, access})
+              {:ok, access}
+            end
 
-        {:error, message} ->
-          {:error, message}
+          :unsupported ->
+            {:error, reason}
+
+          {:error, message} ->
+            {:error, message}
+        end
       end
+    end
+  end
+
+  defp identity_source(environment, options) do
+    cond do
+      not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
+        with {:ok, identity} <- identity_token(environment, options),
+             do: {:ok, {:supplied, :crypto.hash(:sha256, identity)}}
+
+      truthy?(environment.("GITHUB_ACTIONS")) ->
+        {:ok, :github_actions}
+
+      truthy?(environment.("CIRCLECI")) ->
+        {:ok, :circleci}
+
+      truthy?(environment.("BITRISE_IO")) ->
+        {:ok, :bitrise}
+
+      true ->
+        {:ok, :unsupported}
     end
   end
 

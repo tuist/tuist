@@ -223,6 +223,95 @@ defmodule TuistEx.AuthTest do
     end
   end
 
+  test "a warm workload session does not hide an explicitly blank identity", context do
+    access = jwt(System.os_time(:second) + 3600)
+
+    expect(HTTP, :request, fn :post, _url, %{token: "first-identity"} ->
+      {:ok, 200, %{"access_token" => access}}
+    end)
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "first-identity"}))
+
+    for blank <- ["", " \n\t"] do
+      assert {:error, message} =
+               Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => blank}))
+
+      assert message =~ "TUIST_OIDC_TOKEN is empty"
+    end
+  end
+
+  test "changing a supplied identity replaces the single cached session", context do
+    expiration = System.os_time(:second) + 3600
+    tokens = %{"first-identity" => jwt(expiration), "second-identity" => jwt(expiration + 1)}
+
+    expect(HTTP, :request, 3, fn :post, _url, %{token: identity} ->
+      {:ok, 200, %{"access_token" => Map.fetch!(tokens, identity)}}
+    end)
+
+    for identity <- ["first-identity", "second-identity", " second-identity\n", "first-identity"] do
+      access = tokens[String.trim(identity)]
+
+      assert {:ok, ^access} =
+               Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => identity}))
+
+      assert {{:supplied, fingerprint}, ^access} =
+               :persistent_term.get({Auth, :provider_token, "https://tuist.example", nil})
+
+      assert fingerprint == :crypto.hash(:sha256, String.trim(identity))
+    end
+  end
+
+  test "a rejected identity cannot reuse an earlier workload session", context do
+    access = jwt(System.os_time(:second) + 3600)
+
+    expect(HTTP, :request, 2, fn :post, _url, %{token: identity} ->
+      if identity == "valid-identity",
+        do: {:ok, 200, %{"access_token" => access}},
+        else: {:ok, 401, %{"message" => "Rejected identity"}}
+    end)
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "valid-identity"}))
+
+    assert {:error, message} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "rejected-identity"}))
+
+    assert message =~ "Rejected identity"
+
+    assert {:ok, ^access} =
+             Auth.token(automatic_options(context, %{"TUIST_OIDC_TOKEN" => "valid-identity"}))
+  end
+
+  test "switching identity sources exchanges again but reuses an unchanged GitHub session",
+       context do
+    expiration = System.os_time(:second) + 3600
+    tokens = %{"workload-identity" => jwt(expiration), "github-identity" => jwt(expiration + 1)}
+
+    expect(HTTP, :request, fn :get,
+                              "https://github.example/token?audience=tuist",
+                              nil,
+                              [{"authorization", "Bearer github-request"}] ->
+      {:ok, 200, %{"value" => "github-identity"}}
+    end)
+
+    expect(HTTP, :request, 3, fn :post, _url, %{token: identity} ->
+      {:ok, 200, %{"access_token" => Map.fetch!(tokens, identity)}}
+    end)
+
+    for source <- [:supplied, :github, :github, :supplied, :supplied] do
+      values = %{
+        "TUIST_OIDC_TOKEN" => if(source == :supplied, do: "workload-identity"),
+        "GITHUB_ACTIONS" => "true",
+        "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "github-request"
+      }
+
+      access = tokens[if(source == :supplied, do: "workload-identity", else: "github-identity")]
+      assert {:ok, ^access} = Auth.token(automatic_options(context, values))
+    end
+  end
+
   test "automatic workload exchanges and caches are scoped to the selected account", context do
     expiration = System.os_time(:second) + 3600
     tokens = %{"first-account" => jwt(expiration), "second-account" => jwt(expiration + 1)}
@@ -543,6 +632,13 @@ defmodule TuistEx.AuthTest do
       "ACTIONS_ID_TOKEN_REQUEST_TOKEN" -> "request-token"
       key -> context.environment.(key)
     end
+  end
+
+  defp automatic_options(context, values) do
+    [
+      url: "https://tuist.example",
+      environment: fn key -> Map.get(values, key, context.environment.(key)) end
+    ]
   end
 
   defp jwt(expiration) do

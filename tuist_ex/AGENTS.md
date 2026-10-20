@@ -181,7 +181,11 @@ dashboard presentation belong in `server/`.
   server enforces a project-configured issuer/JWKS/audience/exact-claims policy.
   Forward `TUIST_OIDC_ACCOUNT` as `account_handle` (required for custom workload
   providers, optional for built-in CI) and partition automatic-exchange caches
-  by server and account.
+  by server and account, with one replaceable entry per pair. Bind the cached
+  value to the identity source and a SHA-256 fingerprint of a supplied token,
+  never the raw identity or a per-token persistent-term key. Reject blank supplied
+  identities before looking up this cache; changed identities or provider sources
+  must exchange again, while an unchanged GitHub session must not mint repeatedly.
   A Fly identity lasts about ten minutes; exchanged sessions last one hour with
   no refresh token, so long-running Machines must mint and log in again.
   The exchanged token is kept in memory for the VM and never
