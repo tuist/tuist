@@ -215,8 +215,9 @@ this is a soft cleanup target within the 20 GB volume, not a build-time quota.
 `mise-install` installs Node in the same phase as npm-backed tools, not the later
 locked-tool phase: cold runners have no npm until Node is installed.
 
-Mix jobs attach their ordinary `deps` and `_build` directories with separate
-readable project/job keys. Mix owns compiler and dependency invalidation; do not
+Mix jobs attach their ordinary `deps` and `_build` directories together on one
+volume with a readable project/job key (`ci-<project>-<job>-mix-v1`, listing
+both paths), so they are restored and saved as one snapshot. Mix owns compiler and dependency invalidation; do not
 add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
