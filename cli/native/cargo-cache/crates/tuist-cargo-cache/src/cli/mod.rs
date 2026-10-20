@@ -265,9 +265,15 @@ pub fn run_tuist_gc() -> Result<ExitCode> {
 pub fn run_tuist_cargo() -> Result<ExitCode> {
     cargo::reset_cargo_started();
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let (config, mut settings) = match Config::load_for_tuist() {
-        Ok(settings) if crate::storage::check_cache(&settings.0).is_ok() => settings,
-        _ => {
+    let (config, mut settings) = match Config::load_for_tuist().and_then(|settings| {
+        crate::storage::check_cache(&settings.0)?;
+        Ok(settings)
+    }) {
+        Ok(settings) => settings,
+        Err(error) => {
+            log::debug!(
+                "cache setup failed before Cargo started; running ordinary Cargo: {error:#}"
+            );
             let executable = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
             return cargo::run_cargo(&executable, &arguments, std::collections::BTreeMap::new());
         }

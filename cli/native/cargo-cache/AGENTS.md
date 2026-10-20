@@ -50,7 +50,7 @@ recorded there, and keep model versions reviewable when changing copied code.
   execution must safely fall back; guard fallback with successful Cargo spawn,
   not wrapper completion. Remote setup failures retain isolated local caching.
   Preserve Cargo's progress environment rather than forcing the copied model's
-  plain-output preference onto Cargo.
+  plain-output preference onto Cargo. Every plain-Cargo fallback uses the invocation-local Swift observer without native cache settings or credentials; never layer it over a managed native compiler shim. Tuist leaves rustdoc selection to Cargo: explicit settings take precedence, otherwise Cargo performs its own lookup. Do not intercept doctests or promise that Cargo always bypasses PATH. `TUIST_DEBUG=1` maps to crate-scoped native debug logging.
 - Keep the complete input tracking, local CAS, predictions, prefetching, Rust/C/C++
   and build-script model. Neither a lockfile nor a prediction proves a hit.
 - `tuist_observer.rs` records actual compiler executions, not restores or opaque

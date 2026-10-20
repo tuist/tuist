@@ -59,6 +59,12 @@ not invented compiler rows.
 - Project/server/network configuration comes from `tuist.toml` and existing Tuist
   services. Independent model global/workspace configuration is ignored,
   including automatic and low-disk cleanup. No `[cargo]` section is required.
+- Tuist does not intercept rustdoc, including doctests: Cargo honors explicit
+  rustdoc settings and otherwise performs its own lookup. Do not override that
+  selection or assume Cargo always resolves a toolchain sibling instead of PATH.
+- Native plain-Cargo fallbacks use the invocation-local Swift observer without
+  cache settings or credentials, preserving compiler rows without mixing stores.
+  `TUIST_DEBUG=1` enables crate-scoped native setup diagnostics.
 - Target placement/views, lanes, seeding, scheduler-driven execution, learned
   incremental rewriting, first-run notices and application summaries are
   disabled for transparent Cargo decoration. Existing global compiler wrappers

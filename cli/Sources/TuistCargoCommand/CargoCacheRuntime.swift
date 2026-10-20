@@ -78,6 +78,9 @@ struct CargoCacheRuntime {
         environment["TUIST_CARGO_CACHE_EVENTS"] = "false"
         environment["TUIST_CARGO_CACHE_SUMMARY"] = "off"
         environment["TUIST_CARGO_CACHE_SAVINGS"] = "off"
+        if environment["TUIST_DEBUG"] == "1" {
+            environment["TUIST_CARGO_CACHE_LOG"] = "info,portable_pty=off,tuist_cargo_cache=debug,tuist_cargo_cache_core=debug"
+        }
         environment["TUIST_CARGO_CACHE_USE_ENVIRONMENT_PROXY"] = String(HTTPSettings.current.useEnvironmentProxy)
         environment["TUIST_CARGO_CACHE_CA_CERTIFICATE"] = HTTPSettings.current.caCertificatePath
         environment["TUIST_CARGO_CACHE_REPORTS"] = root.appendingPathComponent("cache-reports").path

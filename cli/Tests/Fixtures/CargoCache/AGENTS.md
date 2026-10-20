@@ -32,7 +32,11 @@ Cargo/target/cache directories, and supplies only a synthetic loopback token.
 It checks native workspace-library/build-script reuse after deleting Cargo
 outputs, the actual aggregate/detail payload through the Swift reporting path,
 source invalidation, and digest-corruption fallback while running each produced
-executable. A mock API does not validate real-server authorization or Kura.
+executable. Plain `cargo test` additionally verifies native cache measurements
+and test outcomes together, so output observation cannot bypass native stats setup.
+The `cargo run --config` plain-launch fallback must retain actual compiler rows
+without inventing cache measurements or mixing native/Swift cache entries.
+A mock API does not validate real-server authorization or Kura.
 
 ## Swift fallback public CLI and real remote transport
 

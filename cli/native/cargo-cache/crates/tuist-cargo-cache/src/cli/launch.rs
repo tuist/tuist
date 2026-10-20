@@ -37,11 +37,13 @@ pub fn remember_caller() {
 }
 
 pub(super) fn plain_launch(cargo: &OsStr, arguments: &[String]) -> Result<ExitCode> {
+    log::debug!("running ordinary Cargo without native caching for this launch");
     let mut command = Command::new(cargo);
     command.args(arguments);
     if let Some(caller) = CALLER.get() {
         command.env_clear().envs(caller);
     }
+    super::cargo::configure_fallback_observer(&mut command);
     Ok(super::cargo::exit_code(command.status()?))
 }
 

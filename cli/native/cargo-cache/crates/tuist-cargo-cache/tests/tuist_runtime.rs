@@ -199,6 +199,121 @@ fn unavailable_public_report_storage_does_not_change_cargo_status() {
 }
 
 #[test]
+fn doctests_preserve_cargos_rustdoc_selection_instead_of_using_a_path_shim() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    fs::create_dir(root.path().join("bin")).unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname='tuist_doctest_probe'\nversion='0.1.0'\nedition='2024'\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("src/lib.rs"),
+        "/// ```\n/// assert_eq!(tuist_doctest_probe::answer(), 42);\n/// ```\npub fn answer() -> usize { 42 }\n",
+    )
+    .unwrap();
+    script(&root.path().join("bin"), "rustdoc", "exit 79");
+    let path = std::env::join_paths(
+        std::iter::once(root.path().join("bin"))
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+    let rustdoc = Path::new(env!("CARGO")).with_file_name("rustdoc");
+    for native in [false, true] {
+        let mut command = if native {
+            runtime(root.path())
+        } else {
+            let mut command = Command::new(env!("CARGO"));
+            command.current_dir(root.path());
+            command
+        };
+        let output = command
+            .env("CARGO", env!("CARGO"))
+            .env("PATH", &path)
+            .env_remove("RUSTDOC")
+            .env_remove("CARGO_BUILD_RUSTDOC")
+            .args([
+                "test",
+                "--doc",
+                "--offline",
+                "--config",
+                &format!("build.rustdoc={:?}", rustdoc),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "native={native}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+    }
+    let custom = script(
+        root.path(),
+        "custom-rustdoc",
+        "touch custom-rustdoc-was-used; exec \"$ACTUAL_RUSTDOC\" \"$@\"",
+    );
+    for from_config in [false, true] {
+        let mut command = runtime(root.path());
+        command
+            .env("CARGO", env!("CARGO"))
+            .env("ACTUAL_RUSTDOC", &rustdoc)
+            .args(["test", "--doc", "--offline"]);
+        if from_config {
+            command.args(["--config", &format!("build.rustdoc={:?}", custom)]);
+        } else {
+            command.env("RUSTDOC", &custom);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(root.path().join("custom-rustdoc-was-used").exists());
+        fs::remove_file(root.path().join("custom-rustdoc-was-used")).unwrap();
+    }
+}
+
+#[test]
+fn setup_fallback_observes_compilers_without_native_cache_or_credentials() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    fs::write(root.path().join("cache"), "not a directory").unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname='tuist_fallback_probe'\nversion='0.1.0'\nedition='2024'\n",
+    )
+    .unwrap();
+    fs::write(root.path().join("src/lib.rs"), "pub fn example() {}\n").unwrap();
+    let observer = script(
+        root.path(),
+        "observer",
+        "test -z \"$TUIST_CARGO_CACHE_DIR\" || exit 98; test -z \"$TUIST_CARGO_CACHE_REMOTE_TOKEN\" || exit 99; echo observed >> observed; exec \"$@\"",
+    );
+    let output = runtime(root.path())
+        .env("CARGO", env!("CARGO"))
+        .env("TUIST_CARGO_FALLBACK_RUSTC_WRAPPER", observer)
+        .env("TUIST_CARGO_CACHE_REMOTE_TOKEN", "private-token")
+        .env("TUIST_CARGO_CACHE_LOG", "tuist_cargo_cache=debug")
+        .args(["build", "--offline"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(root.path().join("observed").exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("running ordinary Cargo"));
+    assert_eq!(
+        fs::read_to_string(root.path().join("cache")).unwrap(),
+        "not a directory"
+    );
+}
+
+#[test]
 fn public_inspection_records_real_library_decisions_without_private_inputs() {
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("src")).unwrap();

@@ -76,7 +76,8 @@ struct CargoTestService {
         do {
             try await runner.runWithOutputHandler(
                 arguments: ["/usr/bin/env", context.executable] + context.arguments,
-                environment: context.environment, workingDirectory: context.directory,
+                environment: context.reporting.process.reportingEnvironment(context.environment),
+                workingDirectory: context.directory,
                 onIncompleteOutput: { output.discard() },
                 onOutput: { output.receive($0) }
             )

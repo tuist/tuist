@@ -15,7 +15,7 @@ struct CargoCacheRuntimeTests {
         let service = try runtime(root, protocolVersion: "tuist-cargo-cache 1")
         let context = context(root, environment: [
             "TUIST_CARGO_CACHE_TARGET_VIEWS": "true", "TUIST_CARGO_CACHE_REMOTE_TOKEN": "inherited-secret",
-            "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push", "CI_COMMIT_REF_PROTECTED": "true",
+            "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push", "CI_COMMIT_REF_PROTECTED": "true", "TUIST_DEBUG": "1",
         ])
         let session = try #require(await service.prepare(context, root: URL(fileURLWithPath: root.pathString)))
         defer { session.cancel() }
@@ -30,6 +30,8 @@ struct CargoCacheRuntimeTests {
         #expect(session.environment["TUIST_CARGO_CACHE_REMOTE_MODE"] == "read-only")
         #expect(session.environment["TUIST_CARGO_CACHE_TARGET_VIEWS"] == "false")
         #expect(session.environment["TUIST_CARGO_CACHE_SCHEDULER"] == "false")
+        #expect(session.environment["TUIST_CARGO_CACHE_LOG"] ==
+            "info,portable_pty=off,tuist_cargo_cache=debug,tuist_cargo_cache_core=debug")
         #expect(session.environment["RUSTC_WRAPPER"] == nil)
         #expect(FileManager.default.fileExists(atPath: root.appending(component: "cache-reports").pathString))
         #expect(FileManager.default.fileExists(atPath: root.appending(component: "cache-details").pathString))
@@ -44,6 +46,7 @@ struct CargoCacheRuntimeTests {
         ]), root: URL(fileURLWithPath: root.pathString)))
         defer { session.cancel() }
         #expect(session.environment["TUIST_CARGO_CACHE_REMOTE_MODE"] == "read-write")
+        #expect(session.environment["TUIST_CARGO_CACHE_LOG"] == nil)
     }
 
     @Test(.inTemporaryDirectory) func unavailableOrIncompatibleHelpersAllowTheSwiftFallback() async throws {
@@ -78,6 +81,32 @@ struct CargoCacheRuntimeTests {
         #expect(first.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(".json"))
         let ordinary = try await process.capture("/bin/sh", arguments: arguments, environment: [:], directory: root)
         #expect(ordinary == "\n")
+    }
+
+    @Test(.inTemporaryDirectory) func observedNativeTestsGetIndependentAggregateReports() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let trace = root.appending(component: "trace")
+        let reports = root.appending(component: "reports")
+        let process = CargoProcess(runner: CommandRunner())
+        let context = CargoExecutionContext(
+            executable: "/bin/sh", directory: root,
+            arguments: ["-c", "printf '%s\\n' \"$TUIST_CARGO_CACHE_STATS_REPORT\" >> \"$TRACE\""],
+            environment: [
+                "TUIST_CARGO_NATIVE": "1", "TUIST_CARGO_CACHE_REPORTS": reports.pathString,
+                "TRACE": trace.pathString,
+            ],
+            reporting: CargoReporting(
+                process: process, directory: root, environment: [:], handle: "acme/app",
+                serverURL: URL(string: "http://localhost:9001")!
+            )
+        )
+        for _ in 0 ..< 2 {
+            try await CargoTestService(runner: CommandRunner()).execute(context) { _ in }
+        }
+        let paths = try String(contentsOfFile: trace.pathString, encoding: .utf8).split(separator: "\n")
+        #expect(paths.count == 2)
+        #expect(Set(paths).count == 2)
+        #expect(paths.allSatisfy { $0.hasPrefix(reports.pathString + "/") && $0.hasSuffix(".json") })
     }
 
     private func runtime(_ root: AbsolutePath, protocolVersion: String) throws -> CargoCacheRuntime {

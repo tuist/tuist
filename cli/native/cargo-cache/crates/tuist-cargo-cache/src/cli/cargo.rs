@@ -1096,7 +1096,11 @@ pub(super) fn run_cargo(
 ) -> Result<ExitCode> {
     let mut command = Command::new(cargo);
     command.args(arguments);
+    let managed_wrapper = environment.contains_key("RUSTC_WRAPPER");
     command.envs(environment);
+    if !managed_wrapper {
+        configure_fallback_observer(&mut command);
+    }
     let mut child = command
         .spawn()
         .wrap_err_with(|| format!("failed to run {}", cargo.to_string_lossy()))?;
@@ -1105,6 +1109,33 @@ pub(super) fn run_cargo(
         .wait()
         .wrap_err_with(|| format!("failed to wait for {}", cargo.to_string_lossy()))?;
     Ok(exit_code(status))
+}
+
+pub(super) fn configure_fallback_observer(command: &mut Command) {
+    if std::env::var_os("TUIST_CARGO_NATIVE").is_none()
+        || ["RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER"]
+            .iter()
+            .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
+    {
+        return;
+    }
+    let Some(wrapper) = std::env::var_os("TUIST_CARGO_FALLBACK_RUSTC_WRAPPER") else {
+        return;
+    };
+    // The fallback observes compilation only. Never let the Swift cache write
+    // its different entry layout into the native store, or inherit native auth.
+    let names: Vec<_> = std::env::vars_os()
+        .map(|(name, _)| name)
+        .chain(command.get_envs().map(|(name, _)| name.to_owned()))
+        .filter(|name| name.to_string_lossy().starts_with("TUIST_CARGO_CACHE_"))
+        .collect();
+    for name in names {
+        command.env_remove(name);
+    }
+    command.env_remove("TUIST_CARGO_NATIVE");
+    command.env_remove("TUIST_CARGO_FALLBACK_RUSTC_WRAPPER");
+    command.env_remove("CARGO_BUILD_RUSTC_WRAPPER");
+    command.env("RUSTC_WRAPPER", wrapper);
 }
 
 /// Cargo's quiet flag applies to tuist_cargo_cache's build summary as well as Cargo's own

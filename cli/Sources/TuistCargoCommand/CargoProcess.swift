@@ -37,7 +37,7 @@ struct CargoProcess {
         return result
     }
 
-    private func reportingEnvironment(_ environment: [String: String]) -> [String: String] {
+    func reportingEnvironment(_ environment: [String: String]) -> [String: String] {
         guard environment["TUIST_CARGO_NATIVE"] == "1",
               let directory = environment["TUIST_CARGO_CACHE_REPORTS"] else { return environment }
         var environment = environment

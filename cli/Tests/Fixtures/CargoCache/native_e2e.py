@@ -20,6 +20,7 @@ def main():
     assert helper.is_file(), "Stage the freshly built helper beside the freshly built CLI first"
     assert subprocess.check_output([str(helper), "__tuist_protocol"], text=True).strip() == "tuist-cargo-cache 1"
     reports = []
+    test_reports = []
 
     class API(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -31,11 +32,22 @@ def main():
             self.end_headers()
 
         def do_POST(self):
-            assert self.path == "/api/projects/fixture/native/cargo/builds", self.path
+            assert self.headers["Authorization"] == "Bearer loopback-fixture-token"
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            reports.append(payload)
-            body = json.dumps({"id": payload["id"], "url": "http://localhost/fixture"}).encode()
-            self.send_response(201)
+            if self.path == "/api/projects/fixture/native/tests":
+                test_reports.append(payload)
+                response = {
+                    "type": "test", "id": payload["id"], "duration": payload["duration"],
+                    "project_id": 1, "url": "http://localhost/fixture", "test_case_runs": [],
+                }
+                status = 200
+            else:
+                assert self.path == "/api/projects/fixture/native/cargo/builds", self.path
+                reports.append(payload)
+                response = {"id": payload["id"], "url": "http://localhost/fixture"}
+                status = 201
+            body = json.dumps(response).encode()
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -53,8 +65,17 @@ def main():
             )
             (root / "build.rs").write_text('fn main() { println!("cargo:rerun-if-changed=build.rs"); }\n')
             source = root / "src/lib.rs"
-            source.write_text("pub fn value() -> usize { 42 }\n")
+            unit_test = "#[test] fn positive_value() { assert!(value() > 0); }\n"
+            source.write_text("pub fn value() -> usize { 42 }\n" + unit_test)
             (root / "src/main.rs").write_text('fn main() { println!("{}", tuist_native_probe::value()); }\n')
+            (root / "tests").mkdir()
+            (root / "tests/executable.rs").write_text(
+                '#[test] fn executable_matches_library() {\n'
+                'let output = std::process::Command::new(env!("CARGO_BIN_EXE_tuist_native_probe")).output().unwrap();\n'
+                'assert!(output.status.success());\n'
+                'assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), tuist_native_probe::value().to_string());\n'
+                '}\n'
+            )
             environment = {
                 key: value for key, value in os.environ.items()
                 if not key.startswith(("TUIST_", "GITHUB_"))
@@ -71,22 +92,28 @@ def main():
                 "CARGO_INCREMENTAL": "0",
             })
 
-            def build(name, expected):
+            def build(name, expected, arguments=("build", "--offline"), native_stats=True):
                 shutil.rmtree(root / "target", ignore_errors=True)
                 before = len(reports)
                 result = subprocess.run(
-                    [str(cli), "cargo", "build", "--offline"], cwd=root,
+                    [str(cli), "cargo", *arguments], cwd=root,
                     env=environment, capture_output=True, text=True, timeout=120,
                 )
                 assert result.returncode == 0, result.stdout + result.stderr
                 assert len(reports) == before + 1, result.stdout + result.stderr
                 report = reports[-1]
                 assert report["status"] == "success", report
-                assert report["cache"]["version"] == 1, report
+                if native_stats:
+                    assert report["cache"]["version"] == 1, report
+                else:
+                    assert report["compilations"], report
+                    assert "cache" not in report, report
+                    assert "running ordinary Cargo without native caching for this launch" in result.stderr, result.stderr
                 assert (root / "cache/tuist/CargoNative").is_dir(), "Native dispatch was bypassed"
                 value = subprocess.check_output([str(root / "target/debug/tuist_native_probe")], text=True).strip()
                 assert value == str(expected), value
-                print(f"{name}: hits={report['cache']['hits']}, compiler executions={len(report['compilations'])}, output={value}")
+                hits = report.get("cache", {}).get("hits", "unavailable")
+                print(f"{name}: hits={hits}, compiler executions={len(report['compilations'])}, output={value}")
                 return report
 
             cold = build("cold", 42)
@@ -94,7 +121,7 @@ def main():
             assert warm["cache"]["hits"] > 0, warm
             assert len(warm["compilations"]) < len(cold["compilations"]), (cold, warm)
             assert any(task["status"] == "hit" for task in warm["cache"]["details"]["tasks"])
-            source.write_text("pub fn value() -> usize { 7 }\n")
+            source.write_text("pub fn value() -> usize { 7 }\n" + unit_test)
             changed = build("changed source", 7)
             assert changed["compilations"], changed
             corrupted = 0
@@ -108,6 +135,14 @@ def main():
             repaired = build("corrupt local objects", 7)
             assert repaired["compilations"], repaired
             assert repaired["cache"]["hits"] == 0, repaired
+            build("plain Cargo tests", 7, ("test", "--offline"))
+            tested = build("warm plain Cargo tests", 7, ("test", "--offline"))
+            assert tested["cache"]["hits"] > 0, tested
+            build("plain launch fallback", 7, ("run", "--offline", "--config", "profile.dev.debug=0"), native_stats=False)
+            assert len(test_reports) == 2, test_reports
+            for report in test_reports:
+                cases = [case for module in report["test_modules"] for case in module["test_cases"]]
+                assert len(cases) == 2 and all(case["status"] == "success" for case in cases), report
     finally:
         server.shutdown()
         server.server_close()

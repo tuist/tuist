@@ -611,12 +611,16 @@ impl CacheSession {
                 previous.clone(),
             );
         }
-        let rustdoc = configured_rustdoc(environment);
-        environment.insert(REAL_RUSTDOC_ENV.into(), rustdoc);
-        environment.insert(
-            "RUSTDOC".into(),
-            self.rustdoc_shim.to_string_lossy().into_owned(),
-        );
+        // Tuist does not cache documentation. Let Cargo honor explicit rustdoc
+        // settings and otherwise perform its own lookup, without interception.
+        if std::env::var_os("TUIST_CARGO_NATIVE").is_none() {
+            let rustdoc = configured_rustdoc(environment);
+            environment.insert(REAL_RUSTDOC_ENV.into(), rustdoc);
+            environment.insert(
+                "RUSTDOC".into(),
+                self.rustdoc_shim.to_string_lossy().into_owned(),
+            );
+        }
         if let Some(shims) = &self.cc_shims {
             // Select CMake from the final per-build environment, just as we
             // do for compilers. Do this before injecting compiler shims: if
