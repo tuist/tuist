@@ -845,20 +845,26 @@ defmodule TuistWeb.API.TestsController do
 
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
 
-      {:error, :shard_plan_not_visible} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> put_resp_header("retry-after", "1")
-        |> json(%{message: "The shard plan is not visible yet; retry this report"})
-
-      {:error, :invalid_coverage_storage_key} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "The coverage storage key must be the key createCoverageUpload returned for this run's id"})
-
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+      {:error, reason} ->
+        respond_to_test_creation_error(conn, reason)
     end
+  end
+
+  defp respond_to_test_creation_error(conn, :shard_plan_not_visible) do
+    conn
+    |> put_status(:service_unavailable)
+    |> put_resp_header("retry-after", "1")
+    |> json(%{message: "The shard plan is not visible yet; retry this report"})
+  end
+
+  defp respond_to_test_creation_error(conn, :invalid_coverage_storage_key) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "The coverage storage key must be the key createCoverageUpload returned for this run's id"})
+  end
+
+  defp respond_to_test_creation_error(conn, _reason) do
+    conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
   end
 
   defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
