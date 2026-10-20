@@ -34,6 +34,7 @@ const (
 	checkoutWaitFor     = time.Hour
 	checkoutQueue       = 16
 	checkoutIncomingDir = ".incoming"
+	checkoutVolumesDir  = ".volumes"
 
 	// The git-lfs the populator runs, pinned and verified before it is used.
 	gitLFSURL    = "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-darwin-arm64-v3.8.0.zip"
@@ -90,8 +91,10 @@ type checkoutTask struct {
 	ImageDigest    string
 	ContentDigest  string
 	// Export holds what the job exported; a task without one restores the HEAD.
-	Export string
-	Since  time.Time
+	// VolumeKey stays the same when the volume is cleared; Scope does not.
+	VolumeKey string
+	Export    string
+	Since     time.Time
 }
 
 type checkoutMeta struct {
@@ -334,7 +337,6 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 			c.discard(task)
 		}
 	}()
-	c.dropOtherGenerations(task.Scope, task.Generation)
 	meta, _ := c.readMeta(task.Scope, task.Generation)
 	cold := c.Master(task.Scope, task.Generation) == "" || meta == nil
 	operation, source, budget, room := "checkout_ingest", "local", 15*time.Minute, uint64(checkoutIngestRoom)
@@ -375,6 +377,17 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 }
 
 func (c *Checkouts) build(ctx context.Context, task checkoutTask, cold bool, meta *checkoutMeta, room uint64) (err error) {
+	export, err := openCheckoutExport(task.Export)
+	if err != nil {
+		return err
+	}
+	defer export.Close()
+	// A master only starts from a default-branch commit; other exports only add to one.
+	if cold && !(task.DefaultBranchJob && export.Head == task.Commit) {
+		return nil
+	}
+	// The image grows by about twice the export: its objects and their checked-out files.
+	room = max(room, 2*export.Bytes)
 	c.setBusy(task.Scope, true)
 	defer c.setBusy(task.Scope, false)
 	if c.Room != nil {
@@ -384,11 +397,6 @@ func (c *Checkouts) build(ctx context.Context, task checkoutTask, cold bool, met
 		}
 		defer release()
 	}
-	export, err := openCheckoutExport(task.Export)
-	if err != nil {
-		return err
-	}
-	defer export.Close()
 	dir := c.dir(task.Scope, task.Generation)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -508,29 +516,37 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 			return false, err
 		}
 	}
-	store := filepath.Join(repo, ".git", "lfs", "objects")
-	for _, oid := range export.LFS {
-		if err := export.copyLFS(oid, store); err != nil {
-			return false, err
-		}
-	}
-	if !onDefault && meta.Tip != "" || export.Head == meta.Tip {
-		_, _ = git("gc", "--auto", "--quiet")
-		return false, nil
-	}
-	// A pointer left in the working tree would be served as the file's content,
-	// so the tip only moves to a commit whose LFS objects are all here.
+	// Only LFS objects the exported commit references are kept: anything else in
+	// an export would take disk and be published without ever being used.
 	listing, err := git("lfs", "ls-files", "--long", export.Head)
 	if err != nil {
 		return false, err
 	}
+	exported := map[string]bool{}
+	for _, oid := range export.LFS {
+		exported[oid] = true
+	}
+	store := filepath.Join(repo, ".git", "lfs", "objects")
+	complete := true
 	for _, oid := range lfsPointers(listing) {
-		if _, err := os.Stat(filepath.Join(store, oid[:2], oid[2:4], oid)); err != nil {
-			if cold {
-				return false, errors.New("checkout export lacks LFS objects of its commit")
+		if exported[oid] {
+			if err := export.copyLFS(oid, store); err != nil {
+				return false, err
 			}
-			return false, nil
 		}
+		if _, err := os.Stat(filepath.Join(store, oid[:2], oid[2:4], oid)); err != nil {
+			complete = false
+		}
+	}
+	// The tip's tree is what every later job is handed, so it only moves to a
+	// default-branch commit, and only when all its LFS objects are here: a pointer
+	// left in the working tree would be served as the file's content.
+	if !onDefault || export.Head == meta.Tip || !complete {
+		if cold {
+			return false, errors.New("checkout export cannot start a master")
+		}
+		_, _ = git("gc", "--auto", "--quiet")
+		return false, nil
 	}
 	if _, err := git("checkout", "-q", "--detach", "--force", export.Head); err != nil {
 		return false, err
@@ -678,6 +694,11 @@ func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64)
 		return err
 	}
 	tip, err := c.run(ctx, mount, c.gitEnv(), "git", "rev-parse", "HEAD")
+	var recent []byte
+	if err == nil {
+		// The publisher's job commits age out here from now on.
+		recent, err = c.run(ctx, mount, c.gitEnv(), "git", "for-each-ref", "--format=%(objectname)", "refs/tuist/recent")
+	}
 	if detachErr := c.detachStrict(ctx, mount); err == nil {
 		err = detachErr
 	}
@@ -686,6 +707,11 @@ func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64)
 	}
 	_ = os.Remove(mount)
 	meta := &checkoutMeta{Tip: strings.TrimSpace(string(tip)), BuiltAt: c.now(), RefreshedAt: c.now(), Recent: map[string]time.Time{}}
+	for _, commit := range strings.Fields(string(recent)) {
+		if checkoutCommit.MatchString(commit) {
+			meta.Recent[commit] = c.now()
+		}
+	}
 	return c.install(task, next, meta)
 }
 
@@ -799,19 +825,37 @@ func (c *Checkouts) writeMeta(scope string, generation int64, meta *checkoutMeta
 	return checkoutRename(path+".tmp", path)
 }
 
-// A cleared volume starts a new generation; its older masters are never used again.
-func (c *Checkouts) dropOtherGenerations(scope string, generation int64) {
-	entries, err := os.ReadDir(filepath.Join(c.Root, scope))
-	if err != nil {
+// Track records the scope a volume uses on this host. Clearing a volume gives it
+// a new scope, so the copies kept under the previous one are dropped.
+func (c *Checkouts) Track(task checkoutTask) {
+	if c == nil || !checkoutScope.MatchString(task.VolumeKey) || !checkoutScope.MatchString(task.Scope) {
 		return
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	dir := filepath.Join(c.Root, checkoutVolumesDir)
+	path := filepath.Join(dir, task.VolumeKey)
+	previous, _ := os.ReadFile(path)
+	if string(previous) == task.Scope {
+		return
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return
+	}
+	if err := os.WriteFile(path, []byte(task.Scope), 0600); err != nil {
+		return
+	}
+	if old := string(previous); checkoutScope.MatchString(old) {
+		go c.removeScope(old)
+	}
+}
+
+func (c *Checkouts) removeScope(scope string) {
 	lock := c.lock(scope)
 	lock.Lock()
 	defer lock.Unlock()
-	for _, entry := range entries {
-		if entry.Name() != strconv.FormatInt(generation, 10) {
-			_ = os.RemoveAll(filepath.Join(c.Root, scope, entry.Name()))
-		}
+	if !c.isBusy(scope) {
+		_ = os.RemoveAll(filepath.Join(c.Root, scope))
 	}
 }
 
@@ -891,9 +935,6 @@ func (c *Checkouts) Evict(enough func() bool) bool {
 }
 
 func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
-	if c.isBusy(master.scope) {
-		return false
-	}
 	lock := c.lock(master.scope)
 	if try {
 		if !lock.TryLock() {
@@ -903,10 +944,19 @@ func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
 		lock.Lock()
 	}
 	defer lock.Unlock()
+	// Busy is set under this lock, so a build that started cannot lose its directory.
+	if c.isBusy(master.scope) {
+		return false
+	}
 	return os.RemoveAll(filepath.Dir(master.path)) == nil
 }
 
 func (c *Checkouts) setBusy(scope string, busy bool) {
+	if busy {
+		lock := c.lock(scope)
+		lock.Lock()
+		defer lock.Unlock()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.busy == nil {

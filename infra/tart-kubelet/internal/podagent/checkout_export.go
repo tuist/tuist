@@ -23,7 +23,10 @@ const checkoutExportDir = "checkout-export"
 const (
 	checkoutHeadMax    = 128
 	checkoutShallowMax = 64 << 10
-	checkoutExportMax  = checkoutCapacity
+	// An export never exceeds half an image: the image holds its objects and the
+	// files checked out from them.
+	checkoutExportMax = checkoutCapacity / 2
+	checkoutLFSMax    = 200_000
 )
 
 var checkoutOID = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -33,6 +36,8 @@ type checkoutExport struct {
 	Head    string
 	Shallow []string
 	LFS     []string
+	// Bytes is the pack and the LFS objects together.
+	Bytes uint64
 }
 
 // openCheckoutExport validates an export the host moved out of a pod's share.
@@ -72,16 +77,32 @@ func openCheckoutExport(path string) (*checkoutExport, error) {
 		root.Close()
 		return nil, err
 	}
-	if _, err := export.regular("pack"); err != nil {
+	pack, err := root.Lstat("pack")
+	if err != nil || !pack.Mode().IsRegular() {
 		root.Close()
-		return nil, err
+		return nil, errors.New("checkout export has no pack")
 	}
+	export.Bytes = uint64(pack.Size())
 	if entries, err := fs.ReadDir(root.FS(), "lfs"); err == nil {
-		for _, entry := range entries {
-			if checkoutOID.MatchString(entry.Name()) && entry.Type().IsRegular() {
-				export.LFS = append(export.LFS, entry.Name())
-			}
+		if len(entries) > checkoutLFSMax {
+			root.Close()
+			return nil, errors.New("checkout export has too many LFS objects")
 		}
+		for _, entry := range entries {
+			if !checkoutOID.MatchString(entry.Name()) || !entry.Type().IsRegular() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			export.LFS = append(export.LFS, entry.Name())
+			export.Bytes += uint64(info.Size())
+		}
+	}
+	if export.Bytes > checkoutExportMax {
+		root.Close()
+		return nil, errors.New("checkout export is larger than an image can hold")
 	}
 	return export, nil
 }

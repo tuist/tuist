@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -19,12 +20,17 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	VolumeKey        string `json:"volume_key"`
 }
 
 // checkout answers a guest's request for its job's checkout volume. The server
 // decides the repository from the executed job; the guest only asks. It returns
 // a nil response while the server is still waiting for GitHub's execution binding.
 func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) map[string]any {
+	// Without working git the host builds nothing, so the guest should not export.
+	if !c.Checkouts.Ready() {
+		return map[string]any{"error": "unavailable", "reason": "denied"}
+	}
 	var grant checkoutGrant
 	status, err := c.request(ctx, "checkout", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "architecture": "arm64", "uid": uid}, &grant)
 	if status == http.StatusTooEarly && ctx.Err() == nil {
@@ -35,7 +41,7 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 	}
 	task := checkoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -43,16 +49,17 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 	identity.Kind, identity.CanPublish = cachevolumes.KindCheckout, false
 	identity.ParentID, identity.BaseGeneration, identity.ImageDigest, identity.ContentDigest = "", 0, "", ""
 	c.rememberCheckout(string(pod.UID), task)
-	cold := c.Checkouts.Master(grant.Scope, grant.Generation) == ""
-	if cold && task.BaseGeneration > 0 {
-		c.Checkouts.Enqueue(task)
+	c.Checkouts.Track(task)
+	if c.Checkouts.Master(grant.Scope, grant.Generation) == "" {
+		if task.BaseGeneration > 0 {
+			c.Checkouts.Enqueue(task)
+		}
+		// No branch can exist, so nothing is admitted or journaled: the use ends now.
+		c.endUse(ctx, grant.ID)
+		return map[string]any{"error": "unavailable", "reason": "cold"}
 	}
-	// Acquire even when cold: the journaled lease is what tells the server this
-	// use ended, once the pod is gone and the empty slot is reported deleted.
 	warm, err := c.Store.Acquire(ctx, identity, pod.Name, string(pod.UID))
 	switch {
-	case cold:
-		return map[string]any{"error": "unavailable", "reason": "cold"}
 	case errors.Is(err, context.DeadlineExceeded):
 		return map[string]any{"error": "unavailable", "reason": "timeout"}
 	case errors.Is(err, cachevolumes.ErrCapacity):
@@ -61,6 +68,14 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 		return map[string]any{"error": "unavailable", "reason": "error"}
 	}
 	return map[string]any{"id": grant.ID, "directory": grant.Scope, "warm": warm}
+}
+
+// endUse reports a use that never got a branch as deleted, as reconcile does for
+// a branch it removed.
+func (c *CustomVolumes) endUse(ctx context.Context, id string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	_, _ = c.request(ctx, "report", map[string]any{"id": id, "node_name": c.Node, "state": "deleted", "gone": true, "warm": false, "size_bytes": 0, "capacity_bytes": 0, "attach_ms": nil}, &struct{}{})
 }
 
 func (c *CustomVolumes) rememberCheckout(podUID string, task checkoutTask) {

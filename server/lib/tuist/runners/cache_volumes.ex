@@ -118,7 +118,10 @@ defmodule Tuist.Runners.CacheVolumes do
          clone_url: "https://github.com/" <> job.repository,
          default_branch: identity.default_branch,
          commit: job.head_sha,
-         default_branch_job: job.head_branch == identity.default_branch
+         # A pull request from a branch or fork named like the default branch is not one.
+         default_branch_job: identity.trusted,
+         # Stable across clears, so a host can drop the copies of a cleared generation.
+         volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
        })}
     else
       {:error, :pending} -> {:error, :pending}
@@ -813,6 +816,15 @@ defmodule Tuist.Runners.CacheVolumes do
        when is_integer(generation) and generation > 0 and generation != usage.base_generation do
     if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
     head_download(volume, generation)
+  end
+
+  # A host restores a checkout HEAD in the background, possibly after the job that
+  # asked for it is gone, so the use only has to name the current lineage.
+  defp image_action(%Volume{key: @checkout_key} = volume, usage, %{"operation" => "download"}) do
+    if usage.base_generation == 0 or usage.generation != volume.generation or not is_nil(volume.deleted_at),
+      do: Repo.rollback(:conflict)
+
+    head_download(volume, usage.base_generation)
   end
 
   defp image_action(volume, usage, %{"operation" => "download"}) do

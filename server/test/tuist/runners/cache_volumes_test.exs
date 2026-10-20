@@ -1623,7 +1623,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert checkout.clone_url == "https://github.com/org/repo"
       assert checkout.default_branch == "main"
       assert checkout.commit == job.head_sha
-      refute checkout.default_branch_job
+      assert checkout.default_branch_job
       refute Map.has_key?(checkout, :token)
       assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
       assert volume(account).key == "checkout"
@@ -1635,10 +1635,54 @@ defmodule Tuist.Runners.CacheVolumesTest do
       refute Repo.get!(Usage, checkout.id).can_publish
     end
 
-    test "marks a job on the default branch", %{job: job, params: params} do
+    test "a pull request from a fork's branch named like the default branch is not a default-branch job", %{
+      job: job,
+      params: params
+    } do
       WorkflowJob |> Repo.get!(job.workflow_job_id) |> Ecto.Changeset.change(head_branch: "main") |> Repo.update!()
 
-      assert {:ok, %{default_branch_job: true}} = CacheVolumes.allocate_checkout(params)
+      stub(GitHubClient, :get_workflow_run, fn _ ->
+        {:ok,
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "head_branch" => "main",
+           "event" => "pull_request",
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 456}
+         }}
+      end)
+
+      assert {:ok, %{default_branch_job: false}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "names the volume with a key that survives a clear", %{account: account, params: params} do
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+      {:ok, _} = CacheVolumes.delete(account.id, Repo.get!(Usage, first.id).volume_id)
+      {:ok, second} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+
+      refute second.scope == first.scope
+      assert second.volume_key == first.volume_key
+    end
+
+    test "a host restores the HEAD under a use whose job is already gone", %{params: params} do
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", first.id, publish)
+
+      {:ok, cold} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "cold-uid"})
+      CacheVolumes.report("mac-node", cold.id, report())
+      CacheVolumes.report("mac-node", cold.id, report("deleted"))
+      stub(Runners, :volume_master_download_url, fn _, _, _, _ -> {:ok, "https://storage/head"} end)
+
+      assert {:ok, %{download_url: "https://storage/head", generation: 1}} =
+               CacheVolumes.image("other-node", cold.id, %{"operation" => "download", "generation" => 1})
     end
 
     test "the host publishes its master once, under a use whose job is already gone", %{params: params} do

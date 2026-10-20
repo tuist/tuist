@@ -131,9 +131,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   export is untrusted (`checkout_export.go`): read through `os.Root` without
   following links and bounded, the pack goes through `git index-pack --strict`
   after the shallow boundary is recorded, LFS objects are hashed against their
-  names, and the host writes the working tree and the index itself. The tip only
-  moves to a commit of a default-branch job whose LFS objects are all present: a
-  pointer left in the tree would be served as the file. Branches stay
+  names, and the host writes the working tree and the index itself. Only LFS
+  objects the exported commit references are kept, an export is capped at half
+  an image (and 200,000 LFS entries), and a build reserves twice its size. A
+  master only starts from, and its tip only moves to, a default-branch job's
+  commit (`default_branch_job` is the server's verified `trusted`, never the
+  branch name) whose LFS objects are all present: its tree is handed to every
+  later job, and a pointer left in it would be served as the file. Branches stay
   `refs/remotes/origin/*` (actions/checkout deletes local branches before
   fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
   smudged files' mtimes before the final `update-index --really-refresh`: racily
@@ -141,7 +145,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the LFS filter.
 - A master that moved to a default-branch commit is published under the job's
   use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
-  one); a cold host with a HEAD restores it in the background instead.
+  one); a cold host with a HEAD restores it in the background instead. A cold
+  answer journals no branch and reports the use deleted at once. A host without
+  working git answers `denied`, so guests do not export. `Track` maps the
+  server's stable `volume_key` to the current scope and drops the previous
+  scope's copies after a clear. Custom-volume admission evicts idle checkout
+  copies before refusing.
 - A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
   allocates through `/checkout`, marks the identity `Kind: checkout` itself,
   strips the HEAD fields (the branch is a clone of this host's master) and seeds

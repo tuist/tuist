@@ -149,6 +149,11 @@ these schemas persist volume identities and per-job uses.
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
   `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `default_branch_job` is the resolved identity's `trusted` (same repository,
+  default branch, push/schedule/dispatch), so a fork's branch named like the
+  default branch never qualifies. `volume_key` (sha256 of the volume id) lets
+  hosts drop a cleared volume's copies, and a checkout `download` only needs the
+  current lineage, so a restore outlives the job that asked for it.
   A job also needs its runner profile's `cached_checkouts` (default true; a job on
   a legacy label has it on); the profile modal shows the toggle on macOS
   profiles only while the account has the flag.

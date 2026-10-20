@@ -410,14 +410,112 @@ func TestCheckoutRecentCommitsExpire(t *testing.T) {
 	}
 }
 
-func TestCheckoutClearDropsOlderGenerations(t *testing.T) {
+func TestCheckoutClearDropsThePreviousScopesCopies(t *testing.T) {
 	c, _ := newCheckouts(t)
-	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
-	task := exportFrom(t, c, "cleared", checkoutTestCommit, nil)
-	task.Generation = 2
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	first.VolumeKey = strings.Repeat("d", 64)
+	c.Track(first)
+	c.process(context.Background(), first)
+
+	cleared := exportFrom(t, c, "cleared", checkoutTestCommit, nil)
+	cleared.VolumeKey, cleared.Scope = first.VolumeKey, strings.Repeat("e", 64)
+	c.Track(cleared)
+	deadline := time.Now().Add(5 * time.Second)
+	for c.Master(first.Scope, 1) != "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if c.Master(first.Scope, 1) != "" {
+		t.Fatal("a cleared volume's copy survived")
+	}
+	c.Track(cleared)
+	c.process(context.Background(), cleared)
+	if c.Master(cleared.Scope, 1) == "" {
+		t.Fatal("the new scope has no copy")
+	}
+}
+
+func TestCheckoutColdBuildsOnlyStartFromDefaultBranchCommits(t *testing.T) {
+	c, host := newCheckouts(t)
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob = false
+	c.process(context.Background(), branch)
+	if c.Master(checkoutTestScope, 1) != "" || host.ran("hdiutil", "create") {
+		t.Fatal("a branch job started a master every later job would be handed")
+	}
+
+	moved := exportFrom(t, c, "moved", checkoutTestOther, nil)
+	c.process(context.Background(), moved)
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("a default-branch job whose checkout is not its commit started a master")
+	}
+}
+
+func TestCheckoutKeepsOnlyLFSObjectsTheCommitReferences(t *testing.T) {
+	c, host := newCheckouts(t)
+	used, unused := "used content", "unused content"
+	host.lfs = []string{lfsOID(used)}
+	c.process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, map[string]string{lfsOID(used): used, lfsOID(unused): unused}))
+	if _, err := os.Stat(filepath.Join(lfsStore(c), lfsOID(used)[:2], lfsOID(used)[2:4], lfsOID(used))); err != nil {
+		t.Fatal("the referenced LFS object was not kept")
+	}
+	if _, err := os.Stat(filepath.Join(lfsStore(c), lfsOID(unused)[:2], lfsOID(unused)[2:4], lfsOID(unused))); !os.IsNotExist(err) {
+		t.Fatal("kept an LFS object no commit references")
+	}
+}
+
+func TestCheckoutReservesRoomForLargeExportsAndRefusesOversizedOnes(t *testing.T) {
+	c, _ := newCheckouts(t)
+	var reserved uint64
+	c.Room = func(_ context.Context, bytes uint64) (func(), error) {
+		reserved = bytes
+		return func() {}, nil
+	}
+	large := exportFrom(t, c, "large", checkoutTestCommit, nil)
+	if err := os.Truncate(filepath.Join(large.Export, "pack"), 15_000_000_000); err != nil {
+		t.Fatal(err)
+	}
+	c.process(context.Background(), large)
+	if reserved < 30_000_000_000 {
+		t.Fatalf("reserved %d for a 15 GB export", reserved)
+	}
+
+	oversized := exportFrom(t, c, "oversized", checkoutTestCommit, nil)
+	if err := os.Truncate(filepath.Join(oversized.Export, "pack"), checkoutExportMax+1); err != nil {
+		t.Fatal(err)
+	}
+	if export, err := openCheckoutExport(oversized.Export); err == nil {
+		export.Close()
+		t.Fatal("accepted an export larger than an image can hold")
+	}
+}
+
+func TestCheckoutRestoreKeepsAgingThePublishersJobCommits(t *testing.T) {
+	host := &fakeCheckoutHost{}
+	c := &Checkouts{Root: t.TempDir(), Transfer: &fakeCheckoutTransfer{}, Run: func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
+		if name == "git" && args[0] == "for-each-ref" {
+			return []byte(checkoutTestOther + "\n"), nil
+		}
+		return host.run(ctx, dir, env, name, args...)
+	}}
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
 	c.process(context.Background(), task)
-	if c.Master(checkoutTestScope, 1) != "" || c.Master(checkoutTestScope, 2) == "" {
-		t.Fatal("a cleared generation's master survived")
+	if meta, err := c.readMeta(checkoutTestScope, 1); err != nil || meta.Recent[checkoutTestOther].IsZero() {
+		t.Fatalf("meta %+v %v", meta, err)
+	}
+}
+
+func TestCheckoutHostWithoutGitDeniesCheckouts(t *testing.T) {
+	root := t.TempDir()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+	share := checkoutRequest(t, root, pod)
+	checkouts := &Checkouts{Root: filepath.Join(root, "checkouts")}
+	c, _, _ := checkoutAgent(t, root, checkoutGrantJSON(0), checkouts)
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(share, "checkout.request.response")); !strings.Contains(string(data), `"denied"`) {
+		t.Fatal(string(data))
 	}
 }
 
@@ -508,11 +606,17 @@ func TestCheckoutEvictionSkipsMastersInUse(t *testing.T) {
 	}
 }
 
-func checkoutAgent(t *testing.T, root string, grant map[string]any, checkouts *Checkouts) (*CustomVolumes, *cachevolumes.Store) {
+func checkoutAgent(t *testing.T, root string, grant map[string]any, checkouts *Checkouts) (*CustomVolumes, *cachevolumes.Store, *[]map[string]any) {
 	t.Helper()
+	reports := &[]map[string]any{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&got)
+		if r.URL.Path == "/report" {
+			*reports = append(*reports, got)
+			_ = json.NewEncoder(w).Encode(map[string]any{"action": "forget"})
+			return
+		}
 		if r.URL.Path != "/checkout" || got["pod_name"] != "host-pod" || got["node_name"] != "host-node" || got["key"] != nil {
 			t.Errorf("unexpected checkout request %s %v", r.URL.Path, got)
 		}
@@ -533,13 +637,14 @@ func checkoutAgent(t *testing.T, root string, grant map[string]any, checkouts *C
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	return &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube, Store: store, Checkouts: checkouts}, store
+	return &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube, Store: store, Checkouts: checkouts}, store, reports
 }
 
 func checkoutGrantJSON(base int64) map[string]any {
 	grant := map[string]any{
 		"id": checkoutTestUse, "account_id": 1, "scope": checkoutTestScope, "uid": 501, "generation": 1, "can_publish": true,
 		"clone_url": "https://github.com/org/repo", "default_branch": "main", "commit": checkoutTestCommit, "default_branch_job": true,
+		"volume_key": strings.Repeat("d", 64),
 	}
 	if base > 0 {
 		grant["base_generation"], grant["parent_id"] = base, "22222222-2222-4222-8222-222222222222"
@@ -567,7 +672,7 @@ func TestCheckoutMailboxRequestSeedsTheWorkspaceVolume(t *testing.T) {
 	checkouts, _ := newCheckouts(t)
 	checkouts.process(context.Background(), exportFrom(t, checkouts, "first", checkoutTestCommit, nil))
 	checkouts.queue, checkouts.ready = make(chan string, 1), true
-	c, store := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
+	c, store, _ := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
@@ -598,7 +703,7 @@ func TestCheckoutColdHostRestoresTheHeadAndBuildsFromTheExport(t *testing.T) {
 	share := checkoutRequest(t, root, pod)
 	checkouts := &Checkouts{Root: filepath.Join(root, "checkouts"), Run: (&fakeCheckoutHost{}).run}
 	checkouts.queue, checkouts.ready = make(chan string, 2), true
-	c, _ := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
+	c, store, reports := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
@@ -608,6 +713,12 @@ func TestCheckoutColdHostRestoresTheHeadAndBuildsFromTheExport(t *testing.T) {
 	}
 	if task := checkouts.pending[checkoutTestScope]; len(checkouts.queue) != 1 || task.Export != "" || task.BaseGeneration != 1 {
 		t.Fatalf("a cold host with a HEAD restores it: %+v", task)
+	}
+	if slots, _ := store.Snapshot(); len(slots) != 0 {
+		t.Fatalf("a cold checkout admitted a branch that cannot exist: %+v", slots)
+	}
+	if len(*reports) != 1 || (*reports)[0]["state"] != "deleted" || (*reports)[0]["id"] != checkoutTestUse {
+		t.Fatalf("the cold use was not ended: %v", *reports)
 	}
 
 	// The job's export is taken out of the share once the pod is gone.

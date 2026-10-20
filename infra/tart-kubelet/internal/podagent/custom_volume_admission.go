@@ -38,6 +38,14 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 	if errors.Is(err, errNoRoom) && c.Builtins.dropConvergeStagingLocked() {
 		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
 	}
+	// Idle checkout copies are rebuilt from the next jobs' exports, so they go before
+	// a job loses its volume.
+	if errors.Is(err, errNoRoom) && c.Checkouts.Evict(func() bool {
+		free, freeErr := c.freeBytesLocked()
+		return freeErr == nil && free >= minimum
+	}) {
+		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
+	}
 	if errors.Is(err, errNoRoom) {
 		return cachevolumes.ErrCapacity
 	}
