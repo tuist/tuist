@@ -633,3 +633,25 @@ func TestLentHostUpdateNotOfferedReturnsTheNode(t *testing.T) {
 		t.Fatalf("result = %+v, want a NotOffered failure that returns the Node", res)
 	}
 }
+
+// A borrowing cluster that cannot take a lease yet (not deployed with the
+// RackHostLease kind, or its rack-lender identity not bound) leaves the host
+// as it is: lending ships with the deploys of every env at once, and each
+// takes it up when it can.
+func TestLendWaitsForABorrowerThatCannotTakeALease(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	notReady := fake.NewClientBuilder().WithScheme(scheme).Build()
+	machine := bootstrappedMachine("ber1-0")
+	r, h := newLendingReconciler(t, notReady, lendingHost(), machine)
+
+	gate := lend(t, r, machine)
+	if gate.stop || !gate.skipDrift {
+		t.Fatalf("gate = %+v, want the host kept as it is", gate)
+	}
+	if len(h.calls) != 0 {
+		t.Fatalf("handovers = %+v", h.calls)
+	}
+}

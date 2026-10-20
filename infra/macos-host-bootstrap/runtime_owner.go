@@ -149,3 +149,21 @@ chmod 0600 "$tmp"
 mv "$tmp" "$keys"
 `, shellQuote(path), shellQuote(owner), shellQuote(leaseKeyBegin), shellQuote(leaseKeyEnd))
 }
+
+// Probe dials the host as cfg would push to it and claims its runtime for
+// cfg.RuntimeOwner, changing nothing else: it proves the key is authorized, the
+// host key is the pinned one, and the host is the owner's to push to. It
+// returns the observed host fingerprint, like Run.
+func Probe(ctx context.Context, cfg Config) (string, error) {
+	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
+	if err != nil {
+		return "", fmt.Errorf("parse ssh key: %w", err)
+	}
+	hk := NewHostKeyState(cfg.KnownHostFingerprint)
+	client, err := Dial(cfg.IP, cfg.SSHUser, signer, hk)
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+	return hk.Observed(), claimRuntime(ctx, client, cfg.RuntimeOwner)
+}

@@ -78,6 +78,8 @@ type RackHostLeaseReconciler struct {
 
 	// pushRuntime pushes the runtime; nil is bootstrap.UpdateTartKubelet.
 	pushRuntime func(ctx context.Context, cfg bootstrap.Config) (string, error)
+	// probeHost checks the host can be pushed to; nil is bootstrap.Probe.
+	probeHost func(ctx context.Context, cfg bootstrap.Config) (string, error)
 }
 
 const leaseRequeue = 5 * time.Minute
@@ -164,6 +166,29 @@ func (r *RackHostLeaseReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // Node it ran under before is drained, with a fresh tailnet login, so the host
 // leaves the lender's tailnet tags for this env's.
 func (r *RackHostLeaseReconciler) takeOver(ctx context.Context, lease *infrav1.RackHostLease, node string, privateKey []byte) (ctrl.Result, error) {
+	// Nothing is drained before the host is known to answer this env's key and
+	// to be this env's to push to: a missing route or grant must not take the
+	// Node it runs under now out of service.
+	probe := r.probeHost
+	if probe == nil {
+		probe = bootstrap.Probe
+	}
+	ip := lease.Spec.Host.Address
+	if h := rackEgressHost(r.egressConfig(), lease.Name); h != "" {
+		ip = h
+	}
+	if _, err := probe(ctx, bootstrap.Config{
+		IP: ip, SSHUser: lease.Spec.Host.SSHUser, SSHPrivateKey: privateKey,
+		KnownHostFingerprint: lease.Spec.Host.HostKeyFingerprint, RuntimeOwner: r.Env,
+	}); err != nil {
+		reason := "HostUnreachable"
+		if bootstrap.IsRuntimeOwnerError(err) {
+			reason = "RuntimeOwnedElsewhere"
+		}
+		conditions.MarkFalse(lease, BootstrappedCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
+		return ctrl.Result{RequeueAfter: lendingRequeue}, nil
+	}
+
 	previous := lease.Spec.PreviousNodeName
 	if previous != "" && previous != node {
 		active, err := drainNodeForLease(ctx, r.Client, previous, r.Env)

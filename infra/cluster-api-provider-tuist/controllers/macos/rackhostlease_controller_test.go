@@ -115,6 +115,7 @@ func newLeaseReconciler(t *testing.T, objs ...runtime.Object) (*RackHostLeaseRec
 		TartKubeletBinarySHA:         "staging-sha",
 		TartKubeletMaxUpdateAttempts: 5,
 		pushRuntime:                  p.fn,
+		probeHost:                    func(context.Context, bootstrap.Config) (string, error) { return "", nil },
 	}, p
 }
 
@@ -592,5 +593,39 @@ func TestBorrowerRefusesToAskForAReinstall(t *testing.T) {
 	}
 	if _, set := lease.Annotations[OSReinstallAnnotation]; set {
 		t.Fatal("the refused annotation was left in place")
+	}
+}
+
+// The borrower drains the Node a host ran under before only once it can reach
+// the host with its key and owns its runtime. Otherwise a missing route or
+// grant would take the env's capacity away and give nothing back.
+func TestBorrowerReachesTheHostBeforeDrainingThePreviousNode(t *testing.T) {
+	previous := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "tuist-tuist-rack-fleet-mini-01"}}
+	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), previous)
+	unreachable := true
+	r.probeHost = func(context.Context, bootstrap.Config) (string, error) {
+		if unreachable {
+			return "", errUnreachable
+		}
+		return "", nil
+	}
+	grant(t, r, reconcileLease(t, r))
+
+	lease := reconcileLease(t, r)
+	node := &corev1.Node{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: previous.Name}, node); err != nil || node.Spec.Unschedulable {
+		t.Fatalf("cordoned the previous Node of a host it cannot reach (err %v)", err)
+	}
+	if len(p.configs) != 0 {
+		t.Fatal("pushed to a host it cannot reach")
+	}
+	if got := conditions.GetReason(lease, BootstrappedCondition); got != "HostUnreachable" {
+		t.Fatalf("reason = %q, want HostUnreachable", got)
+	}
+
+	unreachable = false
+	reconcileLease(t, r)
+	if len(p.configs) != 1 {
+		t.Fatalf("pushes = %d once reachable, want the takeover", len(p.configs))
 	}
 }

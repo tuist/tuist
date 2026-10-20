@@ -13,6 +13,12 @@ the two halves of the one credential that takes.
 # The lending half: the borrowing chart's rack-lender identity (below), stored
 # once per borrowing env in this env's vault. It can read and write
 # RackHostLeases in that env's namespace and nothing else.
+#
+# A hook, like the CAPI kubeconfig's, because Helm waits on no hook but a Job
+# or a Pod: the item is made after the borrowing env first deploys its
+# identity, and a deploy here must not wait on a person. Until it syncs, the
+# operator leaves the hosts lent to that env as they are. Orphan and Retain
+# keep the synced Secret across the hook's delete-and-create on every deploy.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -21,14 +27,19 @@ metadata:
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-fleet
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
-  refreshInterval: 1h
+  # Short, so a lend waiting on a new item starts minutes after it is stored.
+  refreshInterval: 5m
   secretStoreRef:
     name: {{ $.Values.rackFleet.sshExternalSecret.storeRef.name | default "onepassword" }}
     kind: {{ $.Values.rackFleet.sshExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
   target:
     name: {{ $name }}
-    creationPolicy: Owner
+    creationPolicy: Orphan
+    deletionPolicy: Retain
     template:
       engineVersion: v2
       data:

@@ -1065,7 +1065,7 @@ op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$
 Then set `kubeconfigItem` on the env's entry in `rackFleet.borrowers` in
 values-managed-production.yaml and deploy. Rotating it is deleting the token
 Secret in the borrowing env (its next deploy makes a new one), storing the new
-kubeconfig under the same item, and waiting for ESO's hourly refresh.
+kubeconfig under the same item, and waiting for ESO's five-minute refresh.
 
 **Lend a host** (remote):
 
@@ -1107,33 +1107,34 @@ and lend it again.
 
 #### Moving ber1-runner-b01 and b02 off the manual lend
 
-b01 (staging) and b02 (canary) are lent the earlier way: production pushes its
+b01 (staging) and b02 (canary) were lent the earlier way: production pushed its
 own runtime with a kubeconfig the borrowing env issued (`nodeCluster`,
-`nodeFleet`, `rackFleet.joiningNodes`). Each env has one rack host, which can be
-its only macOS capacity, so a third host covers each move:
+`nodeFleet`, `rackFleet.joiningNodes`). The change that brought `lendTo` also
+switches them, and each env takes its host over as soon as it can:
 
-1. Ship this, and give production the `rack-lender` kubeconfigs (above). Delete
-   the leftover staging RackAppleSiliconMachines and Machines for b01..b03
-   (step 17 of "Into production" above) first: once staging's cluster may dial the minis,
-   nothing in staging but the lease controller should be able to try.
-2. Lend b03 to staging (`borrow.hosts: [ber1-runner-b03]` there, `lendTo:
-   staging` in production) and check that its Node registers Ready in staging
-   as `tuist-staging-rack-fleet-ber1-runner-b03` and runs a job; staging's rack
-   pools now have both hosts. This is also the first end-to-end run of a lend,
-   on a host whose Node nothing else depends on.
-3. Move b01: in production replace its `nodeFleet` and `nodeCluster` with
-   `lendTo: staging`, add it to staging's `borrow.hosts`, and deploy both. The
-   borrower drains the Node b01 had under production's name
-   (`tuist-tuist-rack-fleet-ber1-runner-b01`), takes the host over and deletes
-   that Node; b03 runs staging's jobs meanwhile.
-4. Return b03 (drop its `lendTo`) once b01's new Node is Ready, then drop
-   `BER1_RUNNER_B01_STAGING_KUBECONFIG` and staging's leftover
-   `tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01` identity.
-5. The same for b02 and canary, with b03, outside a deploy cascade (canary's
-   runners acceptance gate runs on the rack), and then drop `joiningNodes`.
+- **canary** on the merge's own cascade. Canary deploys first, with its lease
+  controller and `rack-lender` identity, and its runners acceptance gate still
+  runs on b02's old Node. Production then deploys with `lendTo: canary`, and
+  the lend starts once `RACK_BORROWER_CANARY_KUBECONFIG` exists (above), which a
+  person stores after that canary deploy; ESO picks it up within five minutes.
+- **staging** once it has run the change: a staging deploy of the branch before
+  the merge (with the operator image built from it, `capi_image_tag`) lets
+  `RACK_BORROWER_STAGING_KUBECONFIG` be stored ahead, and production lends b01
+  as soon as it deploys.
 
-After both, `nodeCluster`, `nodeFleet` and `rackFleet.joiningNodes` go from the
-chart and the operator.
+Until its item exists and its env runs the change, a host stays exactly as it
+is: production pushes nothing to it, and its old Node keeps running jobs. The
+borrower drains that Node (`tuist-tuist-rack-fleet-<host>`) only once it has
+reached the host with its own key, which needs the staging and canary grants in
+`infra/tailscale/acls.json` pasted, then takes the host over and deletes it.
+Each env's rack jobs wait out that drain and the push, a few minutes.
+
+Afterwards, in a later change: drop canary's `joiningNodes`, staging's leftover
+`tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01` identity, the
+`BER1_RUNNER_B0{1,2}_*_KUBECONFIG` items, and the leftover staging
+RackAppleSiliconMachines and Machines for b01..b03 (step 17 of "Into
+production"); then `nodeCluster`, `nodeFleet` and `rackFleet.joiningNodes` go
+from the chart and the operator.
 
 Any account's jobs can run on a rack host, since staging and canary route all
 of theirs there. A runner VM is isolated from the rack's private networks, the
@@ -1144,7 +1145,7 @@ translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
 from a VM on the host it lands on; run it on a host before lending it to an
 env, and after a change to either. The one rack target a guest reaches on
 purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
-probe's cluster DNS check always fails on a lent host, which has no route to
+probe's cluster DNS check fails on a host lent by hand, which has no route to
 the borrowing cluster's Service CIDR.
 
 ## Tests

@@ -94,7 +94,14 @@ func (r *RackAppleSiliconMachineReconciler) reconcileLending(ctx context.Context
 	}
 	lease, err := r.ensureLease(ctx, borrower, namespace, machine, host, knownFingerprint, rec)
 	if err != nil {
-		return lendingGate{}, fmt.Errorf("keep the lease of %s in %s: %w", host.Name, want, err)
+		// A borrowing cluster not yet deployed with the RackHostLease kind or
+		// its rack-lender identity: every env takes a lend up on its own deploy.
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BorrowerUnavailable",
+			"%s cannot take the lease of %s yet: %v", want, host.Name, err)
+		if rec == nil || rec.State == infrav1.LendingOffered {
+			return lendingGate{skipDrift: true, result: ctrl.Result{RequeueAfter: lendingRequeue}}, nil
+		}
+		return r.holdLent(machine, rec), nil
 	}
 
 	state := ""

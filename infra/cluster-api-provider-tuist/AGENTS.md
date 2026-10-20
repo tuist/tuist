@@ -494,7 +494,13 @@ between clusters:
   `rack-lender` ServiceAccount, which can do nothing but read and write
   RackHostLeases in that env's namespace. A person stores its kubeconfig once
   in the lender's vault; the lender's chart syncs it with the namespace
-  (`rackFleet.borrowers`) and passes `--rack-lease-borrower=<env>=<secret>`.
+  (`rackFleet.borrowers`, as a hook, so no deploy waits on an item nobody has
+  stored yet) and passes `--rack-lease-borrower=<env>=<secret>`. Until it
+  syncs, or while the borrowing cluster cannot take a lease yet (not deployed
+  with the kind), the hosts lent to that env stay as they are. The borrower,
+  in turn, drains nothing before it has reached the host with its key
+  (`bootstrap.Probe`), so a missing grant or route never takes a Node out of
+  service for nothing.
 - The borrower dials with its own per-lease key, of which the lender only
   ever sees the public half. Rotating it is deleting `rack-lease-<host>-ssh` in
   the borrowing cluster: the borrower mints a new one and waits, and the lender

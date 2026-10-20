@@ -806,11 +806,14 @@ rackFleet:
   # Rack hosts production lends canary with `lendTo: canary` (see "A host lent
   # to another env" in infra/cluster-api-provider-tuist/AGENTS.md). Canary's
   # operator runs their runtime and rolls it with canary's deploys.
-  # ber1-runner-b02 is still lent by hand (joiningNodes below) until its move
-  # in "Lending a host to another env" in infra/rack-nodes/AGENTS.md.
   borrow:
     enabled: true
-    hosts: []
+    hosts:
+      - ber1-runner-b02
+  # The identity ber1-runner-b02 ran under while it was lent by hand. Canary
+  # deploys before production in the cascade, and its runners acceptance gate
+  # runs on b02 before production lends it with `lendTo`, so this stays until
+  # canary's lease is Active, and goes in a later change.
   joiningNodes:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:
