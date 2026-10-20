@@ -16,6 +16,22 @@ describe("tooltipSeries", () => {
     expect(html).toContain("1.5s");
   });
 
+  it.each([
+    [66.66666666666666, "66.7%"],
+    [33.33333333333333, "33.3%"],
+    [0, "0%"],
+    [100, "100%"],
+  ])(
+    "rounds percentage tooltip values without changing the data (%s)",
+    (value, formatted) => {
+      const point = { color: "#000", seriesName: "Cache hit rate", value };
+      const html = tooltipSeries(point, { valueFormat: "{value}%" });
+
+      expect(html).toContain(`data-part="value">${formatted}</span>`);
+      expect(point.value).toBe(value);
+    },
+  );
+
   it("renders a missing value as no data rather than as zero", () => {
     const html = tooltipSeries(
       { color: "#000", seriesName: "p50", value: [1, null] },
@@ -40,6 +56,23 @@ describe("tooltip titles", () => {
       .match(/<span data-part="title">(.*?)<\/span>/)[1]
       .replace(/\s/gu, " ");
   };
+
+  it("rounds percentages in scatter tooltip titles as well as series values", () => {
+    const date = "2026-10-16T09:04:00Z";
+    const html = getNooraChartTheme({
+      colors: ["#000"],
+      tooltip: { valueFormat: "{value}%", dateFormat: "minute" },
+    }).tooltip.formatter({
+      name: date,
+      color: "#000",
+      seriesName: "Local",
+      value: [date, 66.66666666666666],
+      data: { tooltipExtra: [{ label: "Command", value: "mix compile" }] },
+    });
+
+    expect(html).toContain("· 66.7%");
+    expect(html).not.toContain("66.66666666666666%");
+  });
 
   it("titles a point by the calendar period it stands for, in UTC", () => {
     expect(title("day", "2026-09-07T00:00:00.000000Z")).toBe("Sep 7, 2026");

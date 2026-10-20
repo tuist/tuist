@@ -961,6 +961,26 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/logout/path")
     }
 
+    @Test(.withMockedEnvironment()) func hashCacheCommandUsesEnvVars() throws {
+        setVariable(.hashCachePath, value: "/hash/path")
+        setVariable(.hashCacheConfiguration, value: "Debug")
+        setVariable(.hashCacheCoverage, value: "true")
+
+        let commandWithEnvVars = try HashCacheCommand.parse([])
+        #expect(commandWithEnvVars.path == "/hash/path")
+        #expect(commandWithEnvVars.configuration == "Debug")
+        #expect(commandWithEnvVars.coverage == true)
+
+        let commandWithArgs = try HashCacheCommand.parse([
+            "--path", "/other/path",
+            "--configuration", "Release",
+            "--no-coverage",
+        ])
+        #expect(commandWithArgs.path == "/other/path")
+        #expect(commandWithArgs.configuration == "Release")
+        #expect(commandWithArgs.coverage == false)
+    }
+
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheProfile, value: "development")
@@ -971,8 +991,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheWarmScratchDirectory, value: "/cache/warm-scratch-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
+        setVariable(.cacheCoverage, value: "true")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
+        #expect(commandWithEnvVars.coverage == true)
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
@@ -991,10 +1013,12 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
+            "--coverage",
             "--",
             "Fmk1", "Fmk2",
         ])
         #expect(commandWithArgs.externalOnly == true)
+        #expect(commandWithArgs.coverage == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.noUpload == true)

@@ -48,6 +48,9 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scmToRegistryTransformation: SCMToRegistryTransformation
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var manifestEnvironment: [String: String]?
+    /// The environment for native resolution that can fetch dependencies. When omitted, it uses `manifestEnvironment`.
+    /// Warm lockfile validation always uses `manifestEnvironment`, matching cached manifest evaluation.
+    public var resolutionEnvironment: [String: String]?
     public var quiet: Bool
 
     public init(
@@ -67,6 +70,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         scmToRegistryTransformation: SCMToRegistryTransformation = .disabled,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
         manifestEnvironment: [String: String]? = nil,
+        resolutionEnvironment: [String: String]? = nil,
         quiet: Bool = false
     ) {
         self.packageDirectory = packageDirectory
@@ -85,6 +89,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.scmToRegistryTransformation = scmToRegistryTransformation
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
         self.manifestEnvironment = manifestEnvironment
+        self.resolutionEnvironment = resolutionEnvironment
         self.quiet = quiet
     }
 }
@@ -136,11 +141,18 @@ public struct SwifterPM: Sendable {
         -> SwifterPMResolutionResult
     {
         try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
-                    try await runResolution(request: request, preferResolvedFile: true)
+                    try await ManifestCache.withContext(
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                        sharedCacheDirectory: request.cacheDirectory
+                    ) {
+                        try await runResolution(request: request, preferResolvedFile: true)
+                    }
                 }
             }
         }
@@ -150,11 +162,18 @@ public struct SwifterPM: Sendable {
         -> SwifterPMResolutionResult
     {
         try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
-            try await Environment.withManifestEnvironment(request.manifestEnvironment) {
+            try await Environment.withManifestEnvironment(
+                request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
+            ) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
                 ) {
-                    try await runResolution(request: request, preferResolvedFile: false)
+                    try await ManifestCache.withContext(
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                        sharedCacheDirectory: request.cacheDirectory
+                    ) {
+                        try await runResolution(request: request, preferResolvedFile: false)
+                    }
                 }
             }
         }
@@ -165,7 +184,12 @@ public struct SwifterPM: Sendable {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
-                try await runRestore(request)
+                try await ManifestCache.withContext(
+                    packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                    sharedCacheDirectory: request.cacheDirectory
+                ) {
+                    try await runRestore(request)
+                }
             }
         }
     }
@@ -212,7 +236,8 @@ public struct SwifterPM: Sendable {
             scratchDir: scratch,
             mirrors: mirrors,
             resolved: resolved,
-            disableSandbox: request.disableSandbox
+            disableSandbox: request.disableSandbox,
+            sourceCacheDirectory: cache.root
         )
     }
 
@@ -351,7 +376,8 @@ public struct SwifterPM: Sendable {
                 scratchDir: scratch,
                 mirrors: mirrors,
                 resolved: resolved,
-                disableSandbox: request.disableSandbox
+                disableSandbox: request.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
         }
 
@@ -370,7 +396,6 @@ public struct SwifterPM: Sendable {
                 scmToRegistryTransformation: request.scmToRegistryTransformation
             )
         }
-
         return SwifterPMResolutionResult(resolved)
     }
 

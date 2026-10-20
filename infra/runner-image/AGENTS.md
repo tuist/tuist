@@ -255,8 +255,27 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Only a job that **succeeded** promotes. The gate is `JOB_PASSED` (zero exit AND
-  a job result of `succeeded`), not the runner's exit status. `run.sh` folds
+  **Opt-in caches.** When the dispatch response carries `"automatic_caches":
+  false` (the server's `:runner_opt_in_caches` flag for the account, macOS
+  fleets only), everything above still runs, but `stage_runner_caches` moves
+  the module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
+  Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
+  `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
+  `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
+  attach-time `cache-usage.json`. The `tuist/module-cache` and
+  `tuist/xcode-cache` actions, Buildkite plugins and GitLab snippets
+  (`ci/runner-caches/`) run `/usr/local/bin/tuist-runner-cache activate
+  <cache>`, which prints that file for the action to export, chains a
+  workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
+  with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).
+  `mode` (`automatic` or `opt-in`) tells the helper which case it is in; an
+  absent `mode` means a runner that never staged caches. If the directory
+  cannot be created, the job keeps automatic caches. A workflow's relative
+  `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
+  contract in step with these exports. Run `runner-caches_test.sh`.
+  Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
+  `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
+  reached the caches, not the runner's exit status. `run.sh` folds
   every Listener code except a restart into 0, and the GitLab executor exits 0
   for job outcomes by design. Gating on the exit status promoted failed and
   cancelled jobs, about one in ten of one account's HEAD publishes in a week.
@@ -286,7 +305,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Teardown order is load-bearing: **wait for the compilation cache's
   publications to reach the remote** (`drain_cas_publications`, below), sample
   the signals that need a live mount (fill
-  %), then **detach**, then measure the SETTLED image for the digest this job
+  %, which also withholds an image at 98% full or holding more than the staged
+  cache budget, since a master over the budget leaves the next job less than the
+  reserve to build in), then **detach**, then measure the SETTLED image for the digest this job
   publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
   the same view the verifying host uses), then write `cache-dirty` (only after both
   a clean detach and a successful measurement — its absence is what tells the host
@@ -356,6 +377,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
   promotion and publication.
+  Before any detach, after the drain and the teardown prune (both ask the
+  proxy), `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the
+  CLI installed during the job (the image's own agents are `dev.tuist.*`) and
+  waits up to 10 s for each process to exit, since `launchctl bootout` returns
+  first. These agents outlive the runner's process cleanup and restart on an
+  unsuccessful exit, so they are booted out, not killed. The proxy holds the
+  compilation-cache store open, and a Tuist installed onto a custom volume (for
+  example mise's install directory) runs from it; either keeps a volume busy, so its clean detach fails with
+  EBUSY.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
@@ -416,6 +446,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a bounded tail of it, so a verbose job's attach lines never reach the log
   store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
   limit that was applied.
+  `cas_proxy_client` resolves an explicit proxy override, the installed agent's
+  configured override or CLI bundle, PATH, then the image fallback. For stable
+  `/bin/sh` agents it reads the JSON launch target from ProgramArguments[2];
+  for explicit custom/source-built agents it reads the CLI from
+  ProgramArguments[4]. Legacy agents still name the CLI in Program. Run
+  `bash infra/runner-image/tests/cas-proxy-client-test.sh` on macOS to cover
+  all discovery modes without starting the dispatch loop.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit
@@ -614,7 +651,11 @@ CI:
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
      `runnersFleet.runnerImageSemver` resolves to that tag at deploy
-     time.
+     time, and `server-deployment.yml` resolves each profile that
+     release lists in `profiles.json` to the digest its tag serves
+     (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
+     carried profile's pools, warm Pods and host goldens stay as they
+     were. A profile tag that cannot be resolved fails the deploy.
   5. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
@@ -656,7 +697,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
@@ -668,6 +709,15 @@ resolves to a runner pool sized by
 channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's
 `tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
+
+Xcode 27.1 RC retirement removes RC builds and pools and the temporary
+stable bootstrap pin only after the additive chart is deployed and a
+versioned release includes stable. Keep the bootstrap image for rollback.
+The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
+for merge prerequisites and required post-rollout reconciliation, including
+profiles saved by old replicas and jobs requeued after their claims release.
+Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this
+reconciliation; `rpc` is unavailable when release distribution is disabled.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -691,7 +741,7 @@ removing one drops it from the next release.
   That dispatch path doesn't move the chart pin.
 
 Active rebuilds always produce both an immutable tag
-(`:macos-<dashes>-<semver>`, the one the chart pins) and a rolling
+(`:macos-<dashes>-<semver>`, the one deploys resolve to a digest) and a rolling
 tag (`:macos-<dashes>`, convenient for humans pulling "latest in
 this profile").
 
@@ -752,27 +802,19 @@ in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
 rollbacks and traceability). The tag form is the Xcode version
 with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
 1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
-produces `:macos-26-5`. The chart pins the immutable per-release
-tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
+produces `:macos-26-5`. Pools run the digest of the immutable
+per-release tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
 coexist in GHCR — the runner-fleet config currently selects one as
 the default but the structure is ready for the future
 customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. Each `runnersFleet.pools[].runnerImage` (helm value) is pinned to
-   a profile's immutable per-release tag
-   (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
-   chart's `required` directive only enforces non-empty; the
-   release flow writes the immutable tag (not a digest) because
-   the semver is monotonic, so the ref is reproducible without a
-   registry lookup.
-
-   > **Transitional:** today there's a single pool (`name: default`)
-   > and the release pins it to the first matrix profile (the
-   > "default profile"). The chart is built for one pool per profile
-   > — once #10970 lands the pool-per-profile values, each pool pins
-   > its own profile tag and the "default" goes away.
+1. Each catalog RunnerPool's `spec.image` (`tuist.macosRunnerImage`)
+   is `ghcr.io/tuist/tuist-runner@<digest>`, the digest the deploy
+   resolved for the profile's immutable per-release tag
+   (`:macos-<profile>-<semver>`) from GHCR the way hosts pull it. An
+   `xcodeOverrides[].imageTag` pin renders as that tag instead.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.

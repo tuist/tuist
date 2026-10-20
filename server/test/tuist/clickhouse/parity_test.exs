@@ -29,6 +29,39 @@ defmodule Tuist.ClickHouse.ParityTest do
       assert migrations == %{missing_on_destination: [20_260_910_150_000], only_on_destination: [20_260_912_090_000]}
     end
 
+    test "reports a table only the destination holds as drift instead of comparing it" do
+      test = self()
+
+      stub_catalogue = fn repo, tables ->
+        stub(repo, :query!, fn sql, _params, _opts ->
+          cond do
+            sql =~ "SELECT table, name, type FROM system.columns" ->
+              %{rows: Enum.map(tables, &[&1, "inserted_at", "DateTime64(6)"])}
+
+            sql =~ "test_run_enumerated_tests" ->
+              send(test, {:compared, sql})
+              %{rows: []}
+
+            true ->
+              %{rows: []}
+          end
+        end)
+      end
+
+      stub_catalogue.(Tuist.IngestRepo, ["build_runs"])
+      stub_catalogue.(Tuist.ClickHouseRepo, ["build_runs", "test_run_enumerated_tests"])
+
+      assert {:ok, %{compared: 0, differing: [], schema: %{missing_on_source: ["test_run_enumerated_tests"]}}} =
+               Parity.compare(
+                 source_repo: Tuist.IngestRepo,
+                 target_repo: Tuist.ClickHouseRepo,
+                 tables: ["test_run_enumerated_tests"],
+                 derived: []
+               )
+
+      refute_received {:compared, _}
+    end
+
     test "reports no ledger drift when both servers hold the same versions" do
       stub_ledger(Tuist.IngestRepo, [20_260_901_000_000, 20_260_910_150_000])
       stub_ledger(Tuist.ClickHouseRepo, [20_260_910_150_000, 20_260_901_000_000])
@@ -146,6 +179,58 @@ defmodule Tuist.ClickHouse.ParityTest do
       assert september =~ "`inserted_at` >= toDateTime64('2026-09-01 00:00:00', 6)"
       assert september =~ "`inserted_at` < toDateTime64('2026-09-26 06:00:00', 6)"
       refute_received {:fingerprint, _}
+    end
+
+    # Answers a table whose time columns are `columns`, in position order, and
+    # hands back the statement it was fingerprinted with.
+    defp fingerprint_with_time_columns(table, columns) do
+      test = self()
+      rows = Enum.map(columns, &[&1])
+
+      for repo <- [Tuist.IngestRepo, Tuist.ClickHouseRepo] do
+        stub(repo, :query!, fn sql, _params, _opts ->
+          cond do
+            sql =~ "SELECT count() AS rows" ->
+              send(test, {:fingerprint, repo, sql})
+              %{rows: [[1, ~U[2026-10-04 19:00:00Z], ~U[2026-10-04 19:00:00Z]]]}
+
+            sql =~ "SELECT name FROM system.columns" ->
+              %{rows: rows}
+
+            true ->
+              %{rows: []}
+          end
+        end)
+      end
+
+      assert {:ok, %{matching: [^table]}} =
+               Parity.compare(
+                 source_repo: Tuist.IngestRepo,
+                 target_repo: Tuist.ClickHouseRepo,
+                 tables: [table],
+                 derived: [],
+                 as_of: ~U[2026-10-04 20:05:00Z]
+               )
+
+      assert_received {:fingerprint, Tuist.IngestRepo, sql}
+      sql
+    end
+
+    test "bounds a table by when its rows were written as well as by its own time column" do
+      # `runner_job_logs`: bounded by the time of each log line, while the
+      # lines arrive after the job finishes. Read one side after the other,
+      # the second side counted lines the first had not received yet.
+      sql = fingerprint_with_time_columns("runner_job_logs", ["ts", "inserted_at"])
+
+      assert sql =~ "PREWHERE `inserted_at` < toDateTime64('2026-10-04 20:05:00', 6) WHERE"
+      assert sql =~ "`ts` < toDateTime64('2026-10-04 20:05:00', 6)"
+    end
+
+    test "bounds a table without an inserted_at by its own time column only" do
+      sql = fingerprint_with_time_columns("kura_capacity_samples", ["window_start"])
+
+      refute sql =~ "PREWHERE"
+      assert sql =~ "`window_start` < toDateTime64('2026-10-04 20:05:00', 6)"
     end
 
     test "adds the months up into one fingerprint of the table" do

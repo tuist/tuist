@@ -2,12 +2,12 @@
 {
   "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance for Xcode, Gradle, Bazel, and Elixir projects with Tuist Build Insights."
+  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Build Insights."
 }
 ---
 # Build Insights {#build-insights}
 
-Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, and Elixir.
+Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, Elixir, and Rust.
 
 <.home_cards>
   <.home_card
@@ -34,5 +34,10 @@ Use Build Insights to track local and CI build performance. It currently support
     title="Elixir"
     details="Track how long your Elixir project takes to compile, its warnings, and the files that hold a build back."
     link="/guides/features/build-insights/elixir"
+/>
+  <.home_card
+    title="Rust"
+    details="Track Cargo command duration, observed rustc invocations, and compiler diagnostics with the Tuist CLI."
+    link="/guides/features/build-insights/rust"
 />
 </.home_cards>

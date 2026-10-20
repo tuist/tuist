@@ -4,6 +4,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
   alias Tuist.FeatureFlags
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
 
   def authorize_account(arguments, assigns) do
     with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :read, :runners),
@@ -15,8 +17,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     end
   end
 
-  def authorize_profiles_account(arguments, assigns) do
-    with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :update, :account),
+  def authorize_runners_update(arguments, assigns) do
+    with {:ok, account} <- MCPTool.resolve_and_authorize_account(arguments, assigns, :update, :runners),
          true <- FeatureFlags.runners_enabled?(account) do
       {:ok, account}
     else
@@ -118,11 +120,25 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb" => %{"type" => "integer"},
         "xcode_version" => %{"type" => ["string", "null"]},
         "protected" => %{"type" => "boolean"},
+        "runs_on_label" => %{
+          "type" => "string",
+          "description" => "The label workflows reference in runs-on to run jobs on this profile."
+        },
+        "cache_writer_all_branches" => %{
+          "type" => "boolean",
+          "description" =>
+            "Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save."
+        },
+        "cache_writer_default_branch" => %{
+          "type" => "boolean",
+          "description" =>
+            "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
+        },
         "cache_writer_branches" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
           "description" =>
-            "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
+            "Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes."
         },
         "inserted_at" => %{"type" => "string"},
         "updated_at" => %{"type" => "string"}
@@ -135,6 +151,9 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb",
         "xcode_version",
         "protected",
+        "runs_on_label",
+        "cache_writer_all_branches",
+        "cache_writer_default_branch",
         "cache_writer_branches",
         "inserted_at",
         "updated_at"
@@ -250,11 +269,90 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
       protected: profile.protected,
+      runs_on_label: Profile.dispatch_label(profile),
+      cache_writer_all_branches: profile.cache_writer_all_branches,
+      cache_writer_default_branch: profile.cache_writer_default_branch,
       cache_writer_branches: profile.cache_writer_branches || [],
       inserted_at: Formatter.iso8601(profile.inserted_at),
       updated_at: Formatter.iso8601(profile.updated_at)
     }
   end
+
+  def profile_resource_properties do
+    %{
+      "vcpus" => %{"type" => "integer", "description" => "vCPUs of an available shape for the platform."},
+      "memory_gb" => %{"type" => "integer", "description" => "Memory in GB of an available shape for the platform."},
+      "xcode_version" => %{
+        "type" => "string",
+        "description" => "An available Xcode version, for example 26.5. Required for macOS profiles."
+      }
+    }
+  end
+
+  def cache_writer_properties do
+    %{
+      "cache_writer_all_branches" => %{
+        "type" => "boolean",
+        "description" =>
+          "Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save."
+      },
+      "cache_writer_default_branch" => %{
+        "type" => "boolean",
+        "description" => "Whether jobs on each repository's default branch save. Defaults to true."
+      },
+      "cache_writer_branches" => %{
+        "type" => "array",
+        "items" => %{"type" => "string"},
+        "description" => "Additional branch names or * patterns that save. An empty list removes them."
+      }
+    }
+  end
+
+  def catalog_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "shapes" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "platform" => %{"type" => "string", "enum" => ["linux", "macos"]},
+              "vcpus" => %{"type" => "integer"},
+              "memory_gb" => %{"type" => "integer"},
+              "default" => %{"type" => "boolean"}
+            },
+            "required" => ["platform", "vcpus", "memory_gb", "default"],
+            "additionalProperties" => false
+          }
+        },
+        "xcode_versions" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "xcode_version" => %{"type" => "string"},
+              "default" => %{"type" => "boolean"}
+            },
+            "required" => ["xcode_version", "default"],
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => ["shapes", "xcode_versions"],
+      "additionalProperties" => false
+    }
+  end
+
+  def fetch_profile(account, name) do
+    case Profiles.get_by_name(account, name) do
+      %Profile{} = profile -> {:ok, profile}
+      nil -> {:error, "The runner profile was not found."}
+    end
+  end
+
+  def profile_result({:ok, profile}), do: {:ok, profile}
+  def profile_result({:error, reason}), do: {:error, Profiles.error_message(reason)}
 
   def serialize_job_step(step) do
     %{
@@ -540,7 +638,7 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfiles do
   @impl EMCP.Tool
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns) do
+         {:ok, account} <- RunnerTools.authorize_account(arguments, conn.assigns) do
       profiles = account |> Profiles.list_for_account() |> Enum.map(&RunnerTools.serialize_profile/1)
       MCPTool.json_response(%{profiles: profiles}, __MODULE__)
     else
@@ -549,15 +647,182 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfiles do
   end
 end
 
-defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
+defmodule Tuist.MCP.Components.Tools.GetRunnerCatalog do
   @moduledoc """
-  Update which branches save a runner profile's cache volumes.
+  List the machine shapes and Xcode versions runner profiles can use.
   """
 
   use Tuist.MCP.Tool,
-    name: "update_runner_profile_cache_branches",
-    title: "Update Runner Profile Cache Branches",
+    name: "get_runner_catalog",
+    title: "Get Runner Catalog",
+    read_only_hint: true,
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "account_handle" => %{"type" => "string", "description" => "The account handle."}
+      },
+      "required" => ["account_handle"],
+      "additionalProperties" => false
+    },
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.catalog_schema()
+
+  alias Tuist.MCP.Components.Tools.RunnerTools
+  alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profiles
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List the machine shapes (vcpus and memory_gb per platform) and macOS Xcode versions a runner profile can use. Entries marked default are what the default profiles use."
+
+  @impl EMCP.Tool
+  def call(conn, arguments) do
+    with :ok <- MCPTool.validate_input(__MODULE__, arguments),
+         {:ok, _account} <- RunnerTools.authorize_account(arguments, conn.assigns) do
+      MCPTool.json_response(Profiles.catalog(), __MODULE__)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
+end
+
+defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
+  @moduledoc """
+  Create a CI runner profile.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "create_runner_profile",
+    title: "Create Runner Profile",
     read_only_hint: false,
+    schema: %{
+      "type" => "object",
+      "properties" =>
+        Map.merge(
+          %{
+            "account_handle" => %{"type" => "string", "description" => "The account handle."},
+            "name" => %{
+              "type" => "string",
+              "description" =>
+                "The profile name: up to 32 lowercase letters, digits, and hyphens, starting with a letter. runner, runners, and tuist are reserved. Workflows reference it as runs_on_label."
+            },
+            "platform" => %{"type" => "string", "enum" => ["linux", "macos"]}
+          },
+          Map.merge(
+            Tuist.MCP.Components.Tools.RunnerTools.profile_resource_properties(),
+            Tuist.MCP.Components.Tools.RunnerTools.cache_writer_properties()
+          )
+        ),
+      "required" => ["account_handle", "name", "platform", "vcpus", "memory_gb"],
+      "additionalProperties" => false
+    },
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_schema()
+
+  alias Tuist.MCP.Components.Tools.RunnerTools
+  alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profiles
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use get_runner_catalog for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
+
+  @impl EMCP.Tool
+  def call(conn, arguments) do
+    attrs =
+      Map.take(arguments, [
+        "name",
+        "platform",
+        "vcpus",
+        "memory_gb",
+        "xcode_version",
+        "cache_writer_all_branches",
+        "cache_writer_default_branch",
+        "cache_writer_branches"
+      ])
+
+    with :ok <- MCPTool.validate_input(__MODULE__, arguments),
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
+         {:ok, profile} <- RunnerTools.profile_result(Profiles.create(account, attrs)) do
+      MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
+end
+
+defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
+  @moduledoc """
+  Update a CI runner profile.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "update_runner_profile",
+    title: "Update Runner Profile",
+    read_only_hint: false,
+    schema: %{
+      "type" => "object",
+      "properties" =>
+        Map.merge(
+          %{
+            "account_handle" => %{"type" => "string", "description" => "The account handle."},
+            "profile_name" => %{
+              "type" => "string",
+              "description" => "The profile name, without the runs-on label prefix."
+            }
+          },
+          Map.merge(
+            Tuist.MCP.Components.Tools.RunnerTools.profile_resource_properties(),
+            Tuist.MCP.Components.Tools.RunnerTools.cache_writer_properties()
+          )
+        ),
+      "required" => ["account_handle", "profile_name"],
+      "additionalProperties" => false
+    },
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_schema()
+
+  alias Tuist.MCP.Components.Tools.RunnerTools
+  alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profiles
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests and pull_request_target jobs never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+
+  @impl EMCP.Tool
+  def call(conn, arguments) do
+    attrs =
+      Map.take(arguments, [
+        "vcpus",
+        "memory_gb",
+        "xcode_version",
+        "cache_writer_all_branches",
+        "cache_writer_default_branch",
+        "cache_writer_branches"
+      ])
+
+    with :ok <- MCPTool.validate_input(__MODULE__, arguments),
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
+         {:ok, profile} <- RunnerTools.fetch_profile(account, arguments["profile_name"]),
+         {:ok, profile} <- RunnerTools.profile_result(Profiles.update(profile, attrs)) do
+      MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
+end
+
+defmodule Tuist.MCP.Components.Tools.DeleteRunnerProfile do
+  @moduledoc """
+  Delete a CI runner profile.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "delete_runner_profile",
+    title: "Delete Runner Profile",
+    read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -565,55 +830,31 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
         "profile_name" => %{
           "type" => "string",
           "description" => "The profile name, without the runs-on label prefix."
-        },
-        "cache_writer_branches" => %{
-          "type" => "array",
-          "items" => %{"type" => "string"},
-          "description" => "Branch names or * patterns. An empty list follows each repository's default branch."
         }
       },
-      "required" => ["account_handle", "profile_name", "cache_writer_branches"],
+      "required" => ["account_handle", "profile_name"],
       "additionalProperties" => false
     },
     output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_schema()
 
   alias Tuist.MCP.Components.Tools.RunnerTools
   alias Tuist.MCP.Tool, as: MCPTool
-  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
 
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Replace the branch names or * patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes, for example ["main", "release/*"] or ["*"] for every branch. Pass an empty list to follow each repository's default branch. Narrowing the list discards pending saves it no longer allows. Requires account administration.)
+      "Delete a runner profile after user confirmation. Jobs that request its runs-on label stop being picked up; running jobs finish. Default profiles can't be deleted. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
-         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
-         {:ok, profile} <- fetch_profile(account, arguments["profile_name"]),
-         {:ok, profile} <- update(profile, arguments["cache_writer_branches"]) do
+         {:ok, account} <- RunnerTools.authorize_runners_update(arguments, conn.assigns),
+         {:ok, profile} <- RunnerTools.fetch_profile(account, arguments["profile_name"]),
+         {:ok, profile} <- RunnerTools.profile_result(Profiles.delete(profile)) do
       MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
     else
       {:error, message} -> EMCP.Tool.error(message)
-    end
-  end
-
-  defp fetch_profile(account, name) do
-    case Profiles.get_by_name(account, name) do
-      %Profile{} = profile -> {:ok, profile}
-      nil -> {:error, "The runner profile was not found."}
-    end
-  end
-
-  defp update(profile, branches) do
-    case Profiles.update_cache_writer_branches(profile, branches) do
-      {:ok, profile} ->
-        {:ok, profile}
-
-      {:error, _changeset} ->
-        {:error,
-         "Use up to #{Profile.max_cache_writer_branches()} branch names, optionally with * to match any characters."}
     end
   end
 end

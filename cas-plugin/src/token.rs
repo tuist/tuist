@@ -34,6 +34,7 @@ const MAX_RETRY_DELAY: Duration = Duration::from_secs(300);
 struct RefreshState {
     retry_at: Option<Instant>,
     retry_delay: Duration,
+    executable: Option<String>,
 }
 
 impl Default for RefreshState {
@@ -41,6 +42,7 @@ impl Default for RefreshState {
         Self {
             retry_at: None,
             retry_delay: INITIAL_RETRY_DELAY,
+            executable: None,
         }
     }
 }
@@ -61,8 +63,18 @@ impl CachedToken {
 
 pub struct TokenFetch {
     pub tuist_bin: String,
+    launch_target: Option<std::path::PathBuf>,
     pub server_url: Option<String>,
     full_handle: Option<String>,
+}
+
+impl TokenFetch {
+    pub fn executable(&self) -> String {
+        self.launch_target.as_deref()
+            .and_then(crate::proxy_upgrade::selected_executable)
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.tuist_bin.clone())
+    }
 }
 
 impl TokenProvider {
@@ -81,6 +93,7 @@ impl TokenProvider {
         let cached = env_nonempty("TUIST_CAS_TOKEN").map(CachedToken::new);
         let fetch = env_nonempty("TUIST_CAS_TUIST_BIN").map(|tuist_bin| TokenFetch {
             tuist_bin,
+            launch_target: env_nonempty("TUIST_CAS_PROXY_LAUNCH_TARGET").map(Into::into),
             server_url: env_nonempty("TUIST_CAS_SERVER_URL"),
             full_handle: None,
         });
@@ -102,6 +115,7 @@ impl TokenProvider {
             refreshing: Mutex::new(RefreshState::default()),
             fetch: Some(TokenFetch {
                 tuist_bin: fetch.tuist_bin.clone(),
+                launch_target: fetch.launch_target.clone(),
                 server_url: fetch.server_url.clone(),
                 full_handle: Some(full_handle.to_string()),
             }),
@@ -143,6 +157,12 @@ impl TokenProvider {
             return;
         };
         let mut state = self.refreshing.lock().unwrap();
+        let executable = fetch.executable();
+        if state.executable.as_deref() != Some(executable.as_str()) {
+            state.retry_at = None;
+            state.retry_delay = INITIAL_RETRY_DELAY;
+            state.executable = Some(executable.clone());
+        }
         // Recheck after waiting: another caller may have fetched a token or
         // recorded a failure while this one waited for the refresh lock.
         let should_refresh = match self.cached.lock().unwrap().as_ref() {
@@ -160,7 +180,7 @@ impl TokenProvider {
         {
             return;
         }
-        if let Some(token) = run_token_command(fetch) {
+        if let Some(token) = run_token_command(fetch, &executable) {
             *self.cached.lock().unwrap() = Some(CachedToken::new(token));
             *state = RefreshState::default();
         } else {
@@ -211,8 +231,8 @@ fn extract_exp(payload: &[u8]) -> Option<u64> {
     None
 }
 
-fn run_token_command(fetch: &TokenFetch) -> Option<String> {
-    let mut command = Command::new(&fetch.tuist_bin);
+fn run_token_command(fetch: &TokenFetch, executable: &str) -> Option<String> {
+    let mut command = Command::new(executable);
     if let Some(full_handle) = &fetch.full_handle {
         command
             .arg("cache")
@@ -261,13 +281,15 @@ pub(crate) mod tests {
     impl FakeCli {
         pub(crate) fn new() -> Self {
             use std::os::unix::fs::PermissionsExt;
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let path = std::env::temp_dir().join(format!(
-                "tuist-token-test-{}-{}",
+                "tuist-token-test-{}-{}-{}",
                 std::process::id(),
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
-                    .as_nanos()
+                    .as_nanos(),
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             ));
             std::fs::create_dir(&path).unwrap();
             let command = path.join("tuist");
@@ -296,11 +318,35 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
                 refreshing: Mutex::new(RefreshState::default()),
                 fetch: Some(TokenFetch {
                     tuist_bin: self.0.join("tuist").to_str().unwrap().to_string(),
+                    launch_target: None,
                     server_url: Some("https://tuist.dev".into()),
                     full_handle: None,
                 }),
             })
         }
+    }
+
+    #[test]
+    fn a_removed_old_cli_does_not_strand_token_refresh_or_its_retry_backoff() {
+        let old = FakeCli::new();
+        let new = FakeCli::new();
+        let target = old.0.join("target.json");
+        let write_target = |executable: &std::path::Path, version: &str| {
+            std::fs::write(&target, serde_json::json!({
+                "executable": executable, "tuistVersion": version
+            }).to_string()).unwrap();
+        };
+        write_target(&old.0.join("tuist"), "4.213.0");
+        let mut root = old.provider();
+        Arc::get_mut(&mut root).unwrap().fetch.as_mut().unwrap().launch_target = Some(target.clone());
+        let provider = root.for_instance("acme/one");
+        std::fs::remove_file(old.0.join("tuist")).unwrap();
+        assert_eq!(provider.current(), None);
+        assert!(provider.refreshing.lock().unwrap().retry_at.is_some());
+        write_target(&new.0.join("tuist"), "4.214.0");
+        assert_eq!(provider.current().as_deref(), Some("acme/one"));
+        assert_eq!(provider.cli_fetch().unwrap().executable(), new.0.join("tuist").to_str().unwrap());
+        assert_eq!(std::fs::read_to_string(new.0.join("calls")).unwrap(), "acme/one\n");
     }
 
     impl Drop for FakeCli {

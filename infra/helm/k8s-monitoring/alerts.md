@@ -1539,6 +1539,28 @@ from. It overstates headroom only while rows are waiting for pods.
 32 GiB is one enterprise instance at its starting claim. Change it with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
 
+The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
+the gauge too. Before they did, the plugin polled it over the same public-only
+region list as the lifecycle gauges, so a full runner-cache box had neither
+operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
+had about 3 GiB left under its line while it refused claim growths for days and
+a new instance every minute. The occupancy gauges, and with them the second
+operand, still cover public regions only, so a private region whose server does
+not emit the headroom gauge has no row.
+
+The same `< 32` holds for them. A private region's candidate is claim x its own
+replica count, so 32 GiB is one enterprise instance at its starting claim in
+`scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
+Both are a single box, so the remedy is freeing reservations or giving the
+site another storage node rather than adding a node to a pool. Runner-cache
+claims grow well past their starting claim (16 to 100 GiB on the rack in
+October 2026), so a single-box private region is effectively out of room for
+growth long before it reaches 32; the rule is the floor below which the region
+cannot take another account at all. A full private region also refuses the
+claim growth of every account it hosts in all of that account's regions, as
+any governed region does, which shows on
+`tuist_kura_lifecycle_claim_apply_refused_count`.
+
 **Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
 2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,
 us-central 2, us-west 6. Three independent gaps:
@@ -2761,6 +2783,7 @@ queue rather than on any particular cause.
 ```promql
 max by (cluster, env, queue) (
   tuist_oban_queue_oldest_available_age_seconds{
+    cluster=~"tuist-production|tuist-staging|tuist-canary",
     queue=~"process_xcresult|process_build"
   }
 ) > 900
@@ -2768,6 +2791,7 @@ max by (cluster, env, queue) (
 
 - Pending period: 5 minutes
 - Severity: critical
+- Grafana rule: `fg1efz3p68740a`
 - Summary: `No consumer is draining the {{ $labels.queue }} Oban queue in
   {{ $labels.cluster }}: the oldest job has been runnable for over 15
   minutes`
@@ -2778,6 +2802,8 @@ rather than the polling node's own producers. Every node running PromEx
 therefore reports it, including the always-healthy web pods, so the
 signal survives the complete loss of the deployment that consumes the
 queue. `max by` is required: the same gauge is reported once per pod.
+Only production emits it today, so the rule is silent in staging and
+canary, and the `cluster` matcher keeps the pentest cluster out.
 
 Age, not depth. A queue that is never empty because arrivals are served
 promptly and a queue with no consumer at all both sit at a non-zero
@@ -2814,6 +2840,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `bg1ewhe80qosgc`
 - Summary: `Oban queue-age telemetry is missing for
   {{ $labels.queue }} in {{ $labels.cluster }}`
 
@@ -3242,23 +3269,22 @@ release is up. This alert is the readiness probe the platform can't
 give us, expressed in the metrics pipeline instead.
 
 ```promql
-(
-  sum by (cluster, env) (up{job="tuist-macos-pod-metrics"}) == 0
-)
-and
-(
-  count by (cluster, env) (up{job="tuist-macos-pod-metrics"}) > 0
-)
+count by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{cluster="tuist-production", job="tuist-macos-pod-metrics"} == 1)
 ```
 
 - Pending period: 10 minutes
 - Severity: critical
+- Grafana rule: `dg1ejbdu0vwu8e`
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down fleet-wide`
 
-The second clause keeps this distinct from `xcresult processor guest
-telemetry missing` below: it fires only when targets exist and every one
-of them is down, never when the job vanished from discovery.
+The expression counts down targets and drops any cluster with at least
+one target up, so it is positive when firing. That also keeps it
+distinct from `xcresult processor guest telemetry missing` below: with
+no targets at all there is nothing to count, so it never fires when the
+job vanished from discovery.
 
 Fleet-wide rather than per-target because that is what a rollout cannot
 produce. `xcresultProcessor.strategy` sets `maxSurge: 0` and the PDB
@@ -3268,16 +3294,56 @@ never a normal state, which is what lets the pending period stay at 10
 minutes despite a single VM cycle legitimately taking up to
 `progressDeadlineSeconds: 1800`.
 
+Production only, because that argument needs two replicas. Canary and
+staging run one, so every deploy takes their only guest down for a full
+VM replacement. Each server release ships a new `xcresult-processor-image`
+digest, so that replacement includes a cold image pull, and
+`tart_kubelet_image_pull_seconds` varies from about 4 to over 11 minutes
+between releases that change nothing in the image but the server
+release. A 683s pull on 2026-10-16 kept canary's guest down for 14
+minutes and fired this rule when it still covered every cluster. Those
+two clusters have their own rule below.
+
+### xcresult processor guest metrics unavailable in canary or staging
+
+```promql
+count by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-macos-pod-metrics"} == 1)
+```
+
+- Pending period: 30 minutes
+- Severity: critical
+- Summary: `No xcresult processor is serving metrics in
+  {{ $labels.cluster }}. The queue consumer is down`
+- Grafana rule: `ag1f78hvm3i0wd`
+
+The single-replica counterpart of the rule above. 30 minutes matches
+`progressDeadlineSeconds: 1800`: a guest that stays down longer than one
+full VM replacement is not a rollout. Replayed over 2026-10-02 to
+10-16, canary never stayed down longer than 14 minutes. Staging
+fired for its broken host-to-guest path (2026-10-07 to 10-13) and for a
+run of back-to-back staging deploys on 2026-10-16, which kept the guest
+down for 39 minutes.
+
+When it fires, check `tart_kubelet_image_pull_seconds` and
+`tart_kubelet_vm_provision_work_seconds` for the host before treating it
+as a BEAM failure: a pull still in progress means the replacement is
+slow, not broken.
+
 ### xcresult processor guest metrics unavailable on one host
 
 ```promql
-min by (cluster, env, instance) (
-  min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
-) == 0
+(
+  1 - min by (cluster, env, instance) (
+    min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
+  )
+) > 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
+- Grafana rule: `dg1ejbvirpslcc`
 - Summary: `xcresult processor on {{ $labels.instance }} is not serving
   metrics. The fleet is running below capacity`
 
@@ -3313,6 +3379,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `dg1ew04a5qfwge`
 - Summary: `xcresult processor scrape telemetry is missing in
   {{ $labels.cluster }}`
 
@@ -3325,21 +3392,32 @@ identity. Without this, every rule above silently evaluates to nothing.
 ### xcresult processor replicas unavailable
 
 ```promql
-kube_deployment_status_replicas_available{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
-<
-kube_deployment_spec_replicas{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_spec_replicas{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+-
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_status_replicas_available{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+> 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
-- Summary: `xcresult processor has unavailable replicas in
-  {{ $labels.namespace }}`
+- Summary: `{{ $values.A.Value | printf "%.0f" }} xcresult processor replica(s)
+  unavailable in {{ $labels.namespace }} ({{ $labels.cluster }})`
+- Grafana rule: `cg1efzyensg74a`
+
+The value is the number of missing replicas. Spec minus available, not
+`available < spec`: that form returns the available count, which is 0 in
+a total outage and never crosses a `> 0` threshold. `max by` keeps the
+two sides joined when kube-state-metrics moves to another pod.
 
 Catches the scheduling half of the same outage: on 2026-08-12 one of the
 two replicas sat `Pending` for over four hours while the Deployment
@@ -3347,6 +3425,10 @@ reported `Available=True MinimumReplicasAvailable` and
 `Progressing=True NewReplicaSetAvailable`, because both conditions are
 satisfied by `maxUnavailable` rather than by `readyReplicas ==
 spec.replicas`. Kubernetes considers that healthy; it is not.
+
+The readinessProbe tart-kubelet evaluates (`xcresultProcessor.readinessProbe`,
+on by default) also makes a replica that runs but cannot reach Postgres,
+ClickHouse or its Oban queue count as unavailable here.
 
 Same 45-minute rationale as the per-host rule: a Tart VM replacement
 makes one replica unavailable for a long, legitimate window. Deliberately
@@ -4123,9 +4205,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   state on an instance, raise the floor or move the kind to a rate-based tier;
   do not raise the bar for the HTTP kinds, which are loss.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
-    Write decoding borrows the ceiling headroom above the floor-derived budget
-    while pressure is normal, so a shed means the pod exhausted its floor *and*
-    that headroom, or it was above normal pressure and the borrow was closed.
+    Write decoding, including a compressed `BatchUpdateBlobs` item, borrows
+    the ceiling headroom above the floor-derived budget while pressure is
+    normal, so a shed means the pod exhausted its floor *and* that headroom,
+    or it was above normal pressure and the borrow was closed. The one
+    exception is a write's reply, which never borrows: it is refused when the
+    floor cannot cover it, which happens only after that write's own decode
+    borrowed, so `transient_ceiling_headroom_borrowed` in
+    `kura_memory_actions_total_total` rises in the same window. A shed burst
+    with no borrows at normal pressure is a pod predating compressed items
+    borrowing, which refused them on a full floor with the headroom idle.
     Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` before reaching for the
     profile: a pod resting at its elastic capacity has a floor genuinely too
@@ -5912,10 +6001,13 @@ The query returns the ready count for every proxy, so a healthy proxy is
 a `Normal` instance rather than an empty result. The healthy baseline on
 2026-09-23 was 21 series across the three clusters.
 
-**The rule keys on the proxy, not the StatefulSet.** The Connector,
-ProxyClass and ProxyGroup are Helm `post-upgrade` hooks with
+**The rule keys on the proxy, not the StatefulSet.** Until
+[#14236](https://github.com/tuist/tuist/pull/14236), the Connector,
+ProxyClass and ProxyGroup were Helm `post-upgrade` hooks with
 `before-hook-creation`, so every `helm upgrade` of the tailscale-operator
-release deletes and recreates them, and the operator gives the new
+release deleted and recreated them. They are ordinary release resources
+now, but the StatefulSet still gets a new name whenever the Connector is
+recreated for any other reason. On each recreation the operator gives the new
 Connector StatefulSet a new generated suffix
 (`ts-tuist-cluster-subnet-router-qzwq6`). Staging's router was recreated
 up to 25 times a day in September. A rule keyed on the StatefulSet or the
@@ -6079,14 +6171,12 @@ max by (fleet) (
 
 - Pending period: 15 minutes
 - Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
-  receiver `Slack #notifications 2`.
-- **Paused.** Until the release that ships the one-off
-  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker` backfill, the gauge
-  also counted long-running jobs in the minute between their completion and the
-  outbox flush, so it read 10 to 35 every day without any lasting divergence.
-  Unpause once that release is deployed and
-  `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
-  reads 0.
+  receiver `Slack #notifications 2`. An edit on 2026-09-10 dropped the receiver,
+  leaving the rule on the default notification policy, and it was restored on
+  2026-10-16. A Grafana rule update replaces the whole rule, so carry
+  `notification_settings` over when editing it.
+- Unpaused on 2026-10-16, once the one-off backfill had repaired every
+  diverged row and the gauge read 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
   `queued`/`claimed`/`running` while the authoritative Postgres
   `runner_workflow_jobs` row is terminal. Both stores must have settled for
@@ -6098,9 +6188,11 @@ max by (fleet) (
   clock after its row write, so of two writes to one job the later commit
   carries the later version. A reading here means something bypassed that,
   such as a new direct `IngestRepo` write to `runner_jobs` or the Postgres
-  primary's clock stepping backwards across a failover. Find the cause, then
-  repair the rows by queuing the backfill again from a live node:
-  `bin/tuist rpc 'Oban.insert!(Tuist.Runners.Workers.RepairReplicaDivergenceWorker.new(%{enqueued_after: "<ISO-8601 floor>"}))'`.
+  primary's clock stepping backwards across a failover. Find and fix the cause;
+  the fix also has to repair the rows it left behind, since nothing else will.
+  The 2026-10 backfill (tuist/tuist#14179) is the pattern: re-emit each
+  affected row's Postgres state through the transition outbox, in a one-off
+  job queued by a migration.
 - Data-correctness, not availability: dispatch reads Postgres directly, so jobs
   keep running while this fires. What breaks is analytics —
   `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
@@ -6433,6 +6525,97 @@ line there, or its ratio is absent and the rule ignores it. The `count_over_time
 gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
 in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 5-minute windows, which alone made the 95th percentile three times the commit.
+
+### Rack power draw near its contracted limit
+
+The rule's draw, written `<rack draw>` below and expanded in Grafana:
+
+```promql
+sum by (site) (
+  capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"}
+  or (
+    (
+      capt_rackats_output_current_amps{cluster="tuist-production"}
+      * on (site, ats, output) capt_rackats_output_voltage_volts{cluster="tuist-production"}
+    )
+    unless on (site, ats) capt_rackpdu_chain{cluster="tuist-production"}
+  )
+)
+```
+
+```promql
+<rack draw> / on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+```
+
+- Threshold: `> 0.8`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `eg1eawacfhkaoe`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} rack draw is {{ humanize $values.B.Value }}W,
+  {{ humanizePercentage $values.A.Value }} of its contracted power`
+
+The rule has a second query, `B`, which is `<rack draw>` alone, so the summary
+can show the draw in watts. The divisor is the site's contracted power in
+effect. It comes from `contracted_power` in the site definition
+(`infra/rack-switch-fleet/sites/<site>.json`), as dated steps, and the RackSite
+controller switches to each step on its first day. A contract change is a new
+step there, not an edit to this rule. A site with no contracted power has no
+ratio, which [Rack has no contracted power](#rack-has-no-contracted-power)
+catches.
+
+BER1's steps:
+
+| From | Contracted power | Fires above |
+| --- | --- | --- |
+| 2026-10-05 | 3 kW | 2400 W |
+| 2027-02-05 | 5 kW | 4000 W |
+| 2027-06-05 | 8 kW | 6400 W |
+
+The contract ends on 2027-10-04, and the last step stays in effect until the
+site definition changes. If the draw goes over the contracted power by up to
+10%, the facility sends a written notice and gives 7 working days to fix it.
+Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
+load or order more power before either happens.
+
+The draw is every PDU outlet's active power, plus the output of each transfer
+switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
+directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
+reports draw, so a chain is never counted twice. A PDU that stops reporting
+hands its load back to its switch's meter. The transfer switches report only
+output current and voltage, so their part is current times voltage in VA,
+which is at least the real wattage. Their current comes in 0.1 A steps and
+reads coarsely at low load, off by a step or two. That is tens of VA against a
+threshold in kW. The facility's meter (NTT Berlin 2) is the authoritative
+reading.
+
+A switch the operator cannot read drops its output series, and so does a PDU
+its outlet series. Either makes the draw smaller, and
+[Rack power equipment not observed](#rack-power-equipment-not-observed) covers
+both.
+
+Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` and
+`capt_rackats_output_current_amps{site="ber1"}` show what grew.
+
+### Rack has no contracted power
+
+```promql
+group by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
+unless on (site)
+group by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `cg1eca8b0awowf`, folder `Alerts`, group `Rack`
+- Summary: `{{ $labels.site }} reports PDU draw but has no contracted power to
+  compare it with`
+
+Without this rule, a site missing from the divisor above would be silently
+unwatched. `kubectl get racksite <site> -o yaml` says which case it is: no
+object, no steps, a first step still in the future, or a `status.message` for
+a step that cannot be read.
 
 ### Tuist license expires within 30 days
 

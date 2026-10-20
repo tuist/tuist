@@ -22,12 +22,13 @@ enum NativeRegistryAuthentication {
         scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws -> Plan {
         let environment = Environment.current
+        let childEnvironment = Environment.resolution ?? environment
         guard credentialVariables.contains(where: { nonEmpty(environment[$0]) != nil }) else { return .native }
         let version = try await SystemProcess.run(
-            "swift", ["--version"], customEnvironment: Environment.manifestValues
+            "swift", ["--version"], customEnvironment: Environment.resolution
         )
         if supportsEnvironmentCredentials(version.stdoutString), credentialVariables.allSatisfy({
-            nonEmpty(environment[$0]) == nonEmpty(Environment.manifest[$0])
+            nonEmpty(environment[$0]) == nonEmpty(childEnvironment[$0])
         }) { return .native }
         guard try await mayResolveRegistryDependencies(
             packageDir: packageDir, disableSandbox: disableSandbox,
@@ -39,7 +40,7 @@ enum NativeRegistryAuthentication {
         return try plan(
             versionOutput: version.stdoutString,
             environment: environment,
-            childEnvironment: Environment.manifest,
+            childEnvironment: childEnvironment,
             netrc: Environment.netrc,
             registryConfig: config
         )

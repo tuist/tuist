@@ -133,6 +133,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     attrs =
       Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: parsed[:project_id],
+        started_at: parsed[:started_at],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
         category: parsed[:category],
@@ -182,6 +183,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           :__meta__,
           :project,
           :ran_by_account,
+          :actor_account,
           :issues,
           :files,
           :targets,

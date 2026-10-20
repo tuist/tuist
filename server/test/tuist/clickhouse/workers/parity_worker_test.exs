@@ -2,6 +2,8 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.Workers.ParityWorker
 
@@ -64,6 +66,36 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
     end
 
+    test "counts a table only the destination holds as schema drift" do
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+      test = self()
+      handler = "parity-worker-test-#{System.unique_integer([:positive])}"
+
+      :telemetry.attach(
+        handler,
+        [:tuist, :clickhouse, :parity],
+        fn _event, measurements, _metadata, _config -> send(test, {:parity, measurements}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      expect(Parity, :compare, fn _opts ->
+        {:ok,
+         %{
+           compared: 2,
+           matching: [],
+           differing: [],
+           skipped: [],
+           derived: %{},
+           schema: %{missing_on_destination: [], missing_on_source: ["test_run_enumerated_tests"], differing_columns: []}
+         }}
+      end)
+
+      assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
+      assert_received {:parity, %{schema_drift: 1}}
+    end
+
     test "measures how much of the dataset the window could not cover" do
       # A table leaves the hourly check by growing past what a window can
       # bound, and the tables that do are the largest ones. Without this the
@@ -111,6 +143,21 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
       end)
 
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
+    end
+
+    test "names every differing table in the log" do
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+
+      sums = Map.new(1..9, &{"sum_c#{&1}", &1})
+      differing = Enum.map(1..14, &%{table: "table_#{&1}", source: sums, destination: sums})
+
+      expect(Parity, :compare, fn _opts ->
+        {:ok, %{compared: 14, matching: [], differing: differing, skipped: [], derived: %{}, schema: no_drift()}}
+      end)
+
+      log = capture_log(fn -> ParityWorker.perform(%Oban.Job{args: %{}}) end)
+
+      assert log =~ ~s("table_14")
     end
   end
 end

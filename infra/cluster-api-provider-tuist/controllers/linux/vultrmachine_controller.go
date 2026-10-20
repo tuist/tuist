@@ -503,8 +503,33 @@ func (r *VultrMachineReconciler) reconcileDelete(ctx context.Context, machine *i
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
+	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
+
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("delete node identity: %w", err)
+	}
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		return ctrl.Result{}, fmt.Errorf("delete machine bootstrap secret: %w", err)
+	}
+	// The wiped box's kubelet never deregisters and nothing else reaps a Node with
+	// this providerID. Left behind, it stays NotReady with its DaemonSet pods
+	// unavailable, which fails `helm --wait` on the observability chart.
+	node := &corev1.Node{}
+	node.SetName(machine.Name)
+	if err := r.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+	if err := deleteNodeLocalPVCs(ctx, r.Client, machine.Name); err != nil {
+		r.event(machine, "DeletePVCsFailed", "delete node-local PVCs orphaned by release: %v (will retry)", err)
+		return ctrl.Result{}, err
 	}
 
 	if machine.Status.InstanceID != "" {

@@ -599,6 +599,20 @@ in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)
 That observation replaces an SNMP exporter: nothing polls these switches over
 SNMP.
 
+### RackSite object
+
+Each site is rendered as a `RackSite` into `k8s/<site>/<site>.yaml` by
+`fleet_render_site`, named after the site and applied with the rest of the
+directory. Its `spec.contractedPower` comes from the site definition's
+`contracted_power`: the power the colocation contract allows, as
+`{"from": "YYYY-MM-DD", "watts": N}` steps, each in effect from that day (UTC)
+until the next one's. When the contract changes, add a step here. Don't edit the
+alert. `fleet_check_contracted_power` refuses a `from` that is not a real day, a
+`watts` that is not a whole number above 0, and two steps on one day. A site
+without `contracted_power` still gets its object, with no steps. What the
+controller does with it is "RackSite" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
 ### The seam between two inventories, and how it is joined
 
 This file's site definition and `rackFleet.hosts` describe overlapping things.
@@ -1125,8 +1139,12 @@ addresses and the gateways.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on
-  `wan0`, forwarded or not. The edges' SSH, kubelets and boot server are
-  reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  `wan0`, except what the edge translated itself (`ct status dnat`): the
+  cluster ports of the site's cluster-network storage host, from the
+  cluster's nodes only, in the `tuist_cluster_forwards` table the CAPI operator
+  renders into the edge's node configuration (see "A storage node on the
+  cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
+  and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
   no room for the machines.
 
 ### Cold boot
@@ -1255,6 +1273,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes

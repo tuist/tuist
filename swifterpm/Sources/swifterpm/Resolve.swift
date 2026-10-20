@@ -143,6 +143,7 @@ enum PackageResolver {
                 disableSandbox: disableSandbox,
                 scmToRegistryTransformation: scmToRegistryTransformation,
                 authentication: authentication,
+                environment: Environment.resolution,
                 forceResolvedVersions: forceResolvedVersions,
                 forwardOutput: forwardOutput
             )
@@ -180,6 +181,7 @@ enum PackageResolver {
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation,
         authentication: NativeRegistryAuthentication.Plan,
+        environment: [String: String]?,
         forceResolvedVersions: Bool,
         forwardOutput: Bool
     ) async throws {
@@ -209,7 +211,7 @@ enum PackageResolver {
             bridged ? ["-c", NativeRegistryAuthentication.credentialOwnerScript, "swifterpm-netrc", "swift"] + arguments :
                 arguments,
             workingDirectory: packageDir,
-            customEnvironment: Environment.manifestValues,
+            customEnvironment: environment,
             input: input,
             gracefulShutdown: bridged,
             forwardOutput: forwardOutput
@@ -706,6 +708,8 @@ enum PackageResolver {
         _ = try await NativeWorkspace.prepare(scratchDir: scratch)
         // The restored workspace makes this a no-fetch validation. Legacy environment
         // providers are irrelevant here, and refusing them would break warm installs.
+        // Use the manifest environment so rotating fetch credentials cannot invalidate
+        // SwiftPM's native manifest cache or change the graph being validated.
         try await runNativeResolution(
             packageDir: packageDir,
             scratchDir: scratchDir,
@@ -715,6 +719,7 @@ enum PackageResolver {
             disableSandbox: disableSandbox,
             scmToRegistryTransformation: scmToRegistryTransformation,
             authentication: .native,
+            environment: Environment.manifestValues,
             forceResolvedVersions: true,
             forwardOutput: false
         )

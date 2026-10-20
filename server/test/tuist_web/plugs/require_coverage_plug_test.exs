@@ -30,6 +30,17 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
 
     assert %{"message" => "Code coverage is in early access and is not enabled for this account."} =
              conn |> post(base <> "/tests/coverage/commits/abc/complete") |> json_response(404)
+
+    for path <- [
+          "/tests/coverage",
+          "/tests/coverage?branch=main",
+          "/tests/coverage/commits/abc",
+          "/tests/coverage/commits/abc/files",
+          "/tests/coverage/commits/abc/file?path=Sources/A.swift"
+        ] do
+      assert %{"message" => "Code coverage is in early access and is not enabled for this account."} =
+               conn |> get(base <> path) |> json_response(404)
+    end
   end
 
   test "the commit graph is collected whether or not the flag is on", %{conn: conn, base: base} do

@@ -5,6 +5,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
@@ -16,6 +17,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -80,6 +82,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
   defp set_policy(profile, attrs) do
     {:ok, profile} = Profiles.update(Repo.get!(Profile, profile.id), attrs)
     profile
+  end
+
+  test "allocations carry the size the host creates the volume at", %{job: job} do
+    assert {:ok, %{volume_bytes: 20_000_000_000}} = CacheVolumes.allocate_for_job(job, identity(), attrs("custom"))
+
+    assert {:ok, %{volume_bytes: 30_000_000_000}} =
+             CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("xcode"), :key, "tuist-xcode"))
   end
 
   test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
@@ -243,6 +252,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     }
 
     assert {:error, :pending} = CacheVolumes.allocate(params)
+    refute_enqueued(worker: ExecutionLookupWorker)
 
     row =
       Repo.insert!(
@@ -303,6 +313,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:error, :unavailable} = CacheVolumes.allocate(params)
       assert {:error, :pending} = CacheVolumes.allocate(params)
+      assert_enqueued(worker: ExecutionLookupWorker, args: %{session_id: session.id})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
       assert CacheVolumes.list(account.id).volumes == []
@@ -353,7 +364,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert is_nil(cold.content_digest)
   end
 
-  test "local replicas validate against the current head after private branches are reclaimed", %{
+  test "local replicas validate against the current head after private branches are reclaimed, from any host", %{
     job: job,
     account: account
   } do
@@ -365,9 +376,131 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:ok, %{action: "keep"}} = publish_report("node", next.id)
     assert {:ok, _} = CacheVolumes.report("node", first.id, %{"state" => "deleted"})
     assert {:ok, %{generation: 2}} = CacheVolumes.image("node", first.id, %{"operation" => "retain"})
-    assert {:error, :not_found} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
+    assert {:ok, %{generation: 2}} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
     CacheVolumes.delete(account.id, volume(account).id)
     assert {:error, :conflict} = CacheVolumes.image("node", next.id, %{"operation" => "retain"})
+  end
+
+  test "a host refreshes a stale local master to the current head", %{job: job, account: account} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    assert {:ok, _} = CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next", "other-node"))
+    assert {:ok, %{action: "keep"}} = publish_report("other-node", next.id)
+    head = Repo.get!(Usage, next.id)
+    name = CacheVolumes.storage_name(volume(account))
+
+    expect(Runners, :volume_master_download_url, 2, fn account_id, ^name, digest, content ->
+      assert {account_id, digest, content} == {account.id, head.image_digest, head.content_digest}
+      {:ok, "https://1.1.1.1/image"}
+    end)
+
+    assert {:ok, %{generation: 2, image_digest: image_digest, content_digest: content_digest}} =
+             CacheVolumes.image("node", first.id, %{"operation" => "retain"})
+
+    assert image_digest == head.image_digest
+    assert content_digest == head.content_digest
+
+    assert {:ok, %{generation: 2, content_digest: ^content_digest, download_url: "https://1.1.1.1/image"}} =
+             CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
+
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 3})
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 1})
+
+    assert {:ok, %{generation: 2, download_url: "https://1.1.1.1/image"}} =
+             CacheVolumes.image("third-node", first.id, %{"operation" => "download", "generation" => 2})
+
+    assert {:error, :not_found} =
+             CacheVolumes.image("third-node", first.id, %{
+               "operation" => "upload",
+               "image_digest" => String.duplicate("b", 40),
+               "content_digest" => String.duplicate("c", 64)
+             })
+
+    CacheVolumes.delete(account.id, volume(account).id)
+    assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
+  end
+
+  test "lists the saved heads of macOS custom volumes used on the given hosts", %{job: job, account: account} do
+    {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs("linux"))
+    {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("mac"), :platform, "macos"))
+
+    {:ok, unsaved} =
+      CacheVolumes.allocate_for_job(job, identity(), Map.put(%{attrs("unsaved") | key: "other"}, :platform, "macos"))
+
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", linux.id)
+    assert {:ok, %{action: "keep"}} = publish_report("node", mac.id)
+    since = DateTime.add(DateTime.utc_now(), -60, :second)
+    published = Repo.get!(Usage, mac.id)
+    mac_volume = Repo.get!(Volume, published.volume_id)
+    scope = CacheVolumes.scope(mac_volume)
+    account_id = account.id
+
+    assert [
+             %{
+               kind: "custom",
+               id: id,
+               account_id: ^account_id,
+               scope: ^scope,
+               generation: 1,
+               image_digest: image_digest,
+               content_digest: content_digest,
+               volume_bytes: 20_000_000_000
+             }
+           ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
+
+    assert {id, image_digest, content_digest} == {mac.id, published.image_digest, published.content_digest}
+    refute Repo.get!(Usage, unsaved.id).status == "published"
+    assert [] = CacheVolumes.recent_macos_heads(["other-node"], since, 8)
+    assert [] = CacheVolumes.recent_macos_heads(["node"], DateTime.add(DateTime.utc_now(), 60, :second), 8)
+
+    CacheVolumes.delete(account.id, mac_volume.id)
+    assert [] = CacheVolumes.recent_macos_heads(["node"], since, 8)
+  end
+
+  test "records the older generation a host mounted, and only that", %{job: job} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, second} = CacheVolumes.allocate_for_job(job, identity(), attrs("second"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", second.id)
+    {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+    {:ok, current} = CacheVolumes.allocate_for_job(job, identity(), attrs("current"))
+    assert stale.base_generation == 2
+
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 1))
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 0))
+    assert %Usage{mounted_generation: 1} = stale = Repo.get!(Usage, stale.id)
+    assert CacheVolumes.older_copy?(stale)
+
+    for generation <- [2, 5, "1"] do
+      assert {:ok, _} =
+               CacheVolumes.report("node", current.id, Map.put(report("active", false), "mounted_generation", generation))
+    end
+
+    assert %Usage{mounted_generation: nil} = current = Repo.get!(Usage, current.id)
+    refute CacheVolumes.older_copy?(current)
+  end
+
+  test "a job's download keeps its own base after the head advances", %{job: job, account: account} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, live} = CacheVolumes.allocate_for_job(job, identity(), attrs("live"))
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next", "other-node"))
+    assert {:ok, %{action: "keep"}} = publish_report("other-node", next.id)
+    name = CacheVolumes.storage_name(volume(account))
+    assert %{generation: 2} = VolumeHeads.get_head(account.id, name)
+
+    expect(Runners, :volume_master_download_url, fn _account_id, ^name, digest, content ->
+      assert {digest, content} == {live.image_digest, live.content_digest}
+      {:ok, "https://1.1.1.1/image"}
+    end)
+
+    assert {:ok, %{generation: 1, download_url: "https://1.1.1.1/image"}} =
+             CacheVolumes.image("node", live.id, %{"operation" => "download", "generation" => 1})
   end
 
   test "provider and instance namespaces cannot collide, and each preserves warm reuse", %{job: job} do
@@ -1129,13 +1262,15 @@ defmodule Tuist.Runners.CacheVolumesTest do
       other_account = AccountsFixtures.account_fixture()
       stub(Catalog, :shapes, fn _ -> [%{vcpus: 4, memory_gb: 16}] end)
 
+      # Limited to the default branch, so each test can widen it explicitly.
       profile =
         Repo.insert!(%Profile{
           account_id: account.id,
           name: "ci-#{System.unique_integer([:positive])}",
           platform: :linux,
           vcpus: 4,
-          memory_gb: 16
+          memory_gb: 16,
+          cache_writer_all_branches: false
         })
 
       %{
@@ -1145,7 +1280,80 @@ defmodule Tuist.Runners.CacheVolumesTest do
       }
     end
 
-    test "without a custom list the repository's default branch saves", %{job: job, account: account, profile: profile} do
+    test "by default every successful job from the repository saves, forks never", %{job: job, account: account} do
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "default-policy", platform: :linux, vcpus: 4, memory_gb: 16})
+
+      job = %{job | requested_dispatch_label: Profile.dispatch_label(profile)}
+
+      for {identity, pod} <- [
+            {main_identity(), "main"},
+            {branch_identity("feature/x"), "feature"},
+            {branch_identity("release/1.0"), "release"}
+          ] do
+        assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, identity, attrs(pod))
+      end
+
+      fork = %{branch_identity("feature/x") | same_repository: false, writer_branch: nil}
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, fork, attrs("fork"))
+
+      assert {:ok, %{can_publish: false}} =
+               CacheVolumes.allocate_for_job(job, branch_identity(nil), attrs("pull-request-target"))
+    end
+
+    test "limiting a profile to specific branches revokes pending saves from other branches", %{
+      job: job,
+      account: account
+    } do
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "limited", platform: :linux, vcpus: 4, memory_gb: 16})
+
+      job = %{job | requested_dispatch_label: Profile.dispatch_label(profile)}
+      {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
+      {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
+      assert main.can_publish and feature.can_publish
+
+      set_policy(profile, %{cache_writer_all_branches: false})
+
+      assert Repo.get!(Usage, main.id).can_publish
+      refute Repo.get!(Usage, feature.id).can_publish
+
+      assert {:ok, %{can_publish: false}} =
+               CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature-again"))
+    end
+
+    test "jobs without a profile follow the default policy", %{job: job} do
+      for label <- ["shape-linux-4vcpu-16gb", ""] do
+        legacy = %{job | requested_dispatch_label: label}
+
+        assert {:ok, %{can_publish: true}} =
+                 CacheVolumes.allocate_for_job(legacy, branch_identity("feature"), attrs("feature-#{label}"))
+
+        fork = %{branch_identity("feature") | same_repository: false, writer_branch: nil}
+        assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(legacy, fork, attrs("fork-#{label}"))
+      end
+    end
+
+    test "deleting a narrowed profile falls back to the default policy", %{job: job, profile: profile} do
+      {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
+      refute feature.can_publish
+      {:ok, release} = CacheVolumes.allocate_for_job(job, branch_identity("release"), attrs("release"))
+      profile = set_policy(profile, %{cache_writer_branches: ["release"]})
+      {:ok, release_again} = CacheVolumes.allocate_for_job(job, branch_identity("release"), attrs("release-again"))
+      assert release_again.can_publish
+      refute Repo.get!(Usage, release.id).can_publish
+
+      assert {:ok, _} = Profiles.delete(profile)
+
+      assert Repo.get!(Usage, release_again.id).can_publish
+      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("after"))
+    end
+
+    test "a profile narrowed to the default branch saves only that branch", %{
+      job: job,
+      account: account,
+      profile: profile
+    } do
       assert {:ok, %{can_publish: true} = main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
 
       assert %{writer_profile_id: profile_id, writer_default_branch: true, writer_branch: "main"} =
@@ -1162,7 +1370,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert is_nil(Repo.get!(Usage, legacy_use.id).writer_profile_id)
 
       assert volume(account).default_branch == "main"
-      assert CacheVolumes.default_branches(account.id) == ["main"]
     end
 
     test "a matching verified branch saves only when its job succeeds", %{
@@ -1190,15 +1397,21 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert is_nil(volume(account).head_id)
     end
 
-    test "custom lists replace the default branch and match * patterns", %{job: job, profile: profile} do
+    test "additional branches match * patterns and the default branch can be turned off", %{job: job, profile: profile} do
       set_policy(profile, %{cache_writer_branches: ["release/*"]})
-      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
+      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
 
       assert {:ok, %{can_publish: true}} =
                CacheVolumes.allocate_for_job(job, branch_identity("release/1.0"), attrs("release"))
 
       assert {:ok, %{can_publish: false}} =
                CacheVolumes.allocate_for_job(job, branch_identity("releases"), attrs("releases"))
+
+      set_policy(profile, %{cache_writer_default_branch: false})
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("off-main"))
+
+      assert {:ok, %{can_publish: true}} =
+               CacheVolumes.allocate_for_job(job, branch_identity("release/2.0"), attrs("off-release"))
 
       set_policy(profile, %{cache_writer_branches: ["*"]})
 
@@ -1211,18 +1424,19 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       set_policy(profile, %{cache_writer_branches: []})
       assert is_nil(Repo.get!(Profile, profile.id).cache_writer_branches)
-      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("default"))
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("none"))
     end
 
-    test "jobs outside the profile never receive its grants", %{
+    test "jobs outside the profile follow the default policy, not the profile's", %{
       job: job,
       profile: profile,
       other_account: other
     } do
-      set_policy(profile, %{cache_writer_branches: ["*"]})
+      set_policy(profile, %{cache_writer_default_branch: false, cache_writer_branches: nil})
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("profile"))
 
       for {label, pod} <- [{"shape-linux-4vcpu-16gb", "legacy"}, {"", "unlabelled"}] do
-        assert {:ok, %{can_publish: false}} =
+        assert {:ok, %{can_publish: true}} =
                  CacheVolumes.allocate_for_job(
                    %{job | requested_dispatch_label: label},
                    branch_identity("feature"),
@@ -1232,7 +1446,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       other_job = %{job | account_id: other.id, workflow_job_id: System.unique_integer([:positive])}
 
-      assert {:ok, %{can_publish: false}} =
+      assert {:ok, %{can_publish: true}} =
                CacheVolumes.allocate_for_job(other_job, branch_identity("feature"), attrs("other-account"))
 
       buildkite =
@@ -1241,25 +1455,30 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, buildkite, attrs("buildkite"))
     end
 
-    test "changing the list revokes pending saves it no longer allows", %{job: job, profile: profile} do
+    test "narrowing the policy revokes pending saves it no longer allows", %{job: job, profile: profile} do
       set_policy(profile, %{cache_writer_branches: ["*"]})
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
       {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
       {:ok, release} = CacheVolumes.allocate_for_job(job, branch_identity("release/1.0"), attrs("release"))
 
       set_policy(profile, %{cache_writer_branches: ["feature", "release/*"]})
+      assert Repo.get!(Usage, main.id).can_publish
+      assert Repo.get!(Usage, feature.id).can_publish
+      assert Repo.get!(Usage, release.id).can_publish
+
+      set_policy(profile, %{cache_writer_default_branch: false})
       refute Repo.get!(Usage, main.id).can_publish
       assert Repo.get!(Usage, feature.id).can_publish
       assert Repo.get!(Usage, release.id).can_publish
 
-      set_policy(profile, %{cache_writer_branches: nil})
+      set_policy(profile, %{cache_writer_default_branch: true, cache_writer_branches: nil})
       refute Repo.get!(Usage, feature.id).can_publish
       refute Repo.get!(Usage, release.id).can_publish
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main-again"))
       assert main.can_publish
     end
 
-    test "custom lists revoke pending saves allocated before uses recorded their profile", %{
+    test "turning off the default branch revokes pending saves allocated before uses recorded their profile", %{
       job: job,
       account: account,
       profile: profile
@@ -1295,38 +1514,41 @@ defmodule Tuist.Runners.CacheVolumesTest do
       end
 
       set_policy(profile, %{cache_writer_branches: ["release/*"]})
+      assert Repo.get!(Usage, legacy.id).can_publish
+
+      set_policy(profile, %{cache_writer_default_branch: false})
       refute Repo.get!(Usage, legacy.id).can_publish
       assert Repo.get!(Usage, unrelated.id).can_publish
       complete(job)
       assert {:ok, %{action: "delete"}} = publish_report("node", legacy.id)
     end
 
-    test "additions and reordering keep pending saves; deleting the profile falls back to the default branch",
+    test "additions and reordering keep pending saves; deleting the profile falls back to the default policy",
          %{job: job, account: account, profile: profile} do
       legacy = %{job | requested_dispatch_label: ""}
       {:ok, legacy_main} = CacheVolumes.allocate_for_job(legacy, main_identity(), attrs("legacy-main"))
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
-      profile = set_policy(profile, %{cache_writer_branches: ["main", "feature", "retained"]})
+      profile = set_policy(profile, %{cache_writer_branches: ["feature", "retained"]})
       {:ok, removed} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("removed"))
       {:ok, retained} = CacheVolumes.allocate_for_job(job, branch_identity("retained"), attrs("retained"))
 
-      for branches <- [["retained", "feature", "main"], ["new", "main", "feature", "retained"]] do
+      for branches <- [["retained", "feature"], ["new", "feature", "retained"]] do
         set_policy(profile, %{cache_writer_branches: branches})
 
         for use <- [legacy_main, main, removed, retained], do: assert(Repo.get!(Usage, use.id).can_publish)
       end
 
-      profile = set_policy(profile, %{cache_writer_branches: ["main", "retained"]})
+      profile = set_policy(profile, %{cache_writer_branches: ["retained"]})
       refute Repo.get!(Usage, removed.id).can_publish
       assert Repo.get!(Usage, retained.id).can_publish
 
       assert {:ok, _} = Profiles.delete(profile)
       assert Repo.get!(Usage, legacy_main.id).can_publish
       assert Repo.get!(Usage, main.id).can_publish
-      refute Repo.get!(Usage, retained.id).can_publish
+      assert Repo.get!(Usage, retained.id).can_publish
+      refute Repo.get!(Usage, removed.id).can_publish
       complete(job)
       assert {:ok, %{action: "keep"}} = publish_report("node", main.id)
-      assert {:ok, %{action: "delete"}} = publish_report("node", retained.id)
       assert volume(account).head_id == main.id
     end
   end

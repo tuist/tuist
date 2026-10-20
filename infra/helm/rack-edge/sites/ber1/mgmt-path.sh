@@ -100,6 +100,7 @@ table inet tuist_rack_wan {
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }

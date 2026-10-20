@@ -274,13 +274,18 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  @doc """
+  Records that GitHub placed `executed_workflow_job_id` on `runner_name`
+  within `account_id`, as reported by a `workflow_job.in_progress` webhook or
+  read back from GitHub's API. Safe to repeat for the same pair.
+  """
   # Binds the runner→job proof onto the live claim (drives metrics
   # attribution while the job runs) and the durable session (the
   # backstop that outlives the pod). The claim and session agree in
   # the common case; when they disagree — or when only one is still
   # present — we surface `:mismatch` so it's never silently the
   # weaker `:matched`.
-  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+  def record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
@@ -613,7 +618,8 @@ defmodule Tuist.Runners.Dispatch do
        alias path needed. An account on the `runner_site` flag gets the
        same Xcode and shape racked at a site when one is
        (`Catalog.site_pool_name/1`) and the site can serve it
-       (`Sites.available?/1`).
+       (`Sites.available?/1`), or always when the env rents no macOS fleet
+       (`Environment.runners_rented_macos_fleet?/0`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -644,11 +650,13 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   # An account on the `runner_site` flag runs at a site whenever one racks the
-  # profile's pool and can serve it, and on the rented fleet otherwise.
+  # profile's pool and can serve it, and on the rented fleet otherwise. In an
+  # env that rents no macOS fleet the site is the only home, so its jobs wait
+  # there while it is down.
   defp profile_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
          site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),
-         true <- Sites.available?(site_pool) do
+         true <- not Environment.runners_rented_macos_fleet?() or Sites.available?(site_pool) do
       site_pool
     else
       _ -> Catalog.pool_name(profile)

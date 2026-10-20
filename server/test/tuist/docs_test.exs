@@ -17,12 +17,30 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "cache documentation exposes Rust with its experimental qualification" do
+      index = Docs.get_page("/en/index").markdown
+      assert index =~ "supported_for=\"apple,gradle,bazel,rust\""
+      assert index =~ "Rust's experimental compilation cache"
+
+      cache = Docs.get_page("/en/guides/features/cache").markdown
+      assert cache =~ "Rust cache (experimental)"
+      assert cache =~ "supported_for=\"rust\""
+      assert cache =~ "/guides/features/build-insights/rust#cache-measurements"
+      guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
+      assert guide =~ "{#cache-measurements}"
+      assert guide =~ "registry leaf libraries"
+      assert guide =~ "absolute paths"
+      refute guide =~ "compatible cache runtime"
+      refute guide =~ "verification detects"
+    end
+
     test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do
       pages = [
         "/en/guides/get-started/existing-xcode-project",
         "/en/guides/get-started/generated-xcode-project",
         "/en/guides/get-started/gradle-project",
         "/en/guides/get-started/elixir-project",
+        "/en/guides/get-started/rust-project",
         "/en/guides/get-started/bazel-project"
       ]
 
@@ -32,6 +50,62 @@ defmodule Tuist.DocsTest do
         refute is_nil(page), "missing page: #{slug}"
         assert page.markdown =~ "[Agent prompt]"
         assert page.markdown =~ "## Prerequisites"
+      end
+    end
+
+    test "Rust guides document plain Cargo reporting and supported boundaries" do
+      for path <- ["build-insights", "test-insights", "test-insights/flaky-tests"] do
+        page = Docs.get_page("/en/guides/features/" <> path <> "/rust")
+        assert page
+        assert page.title =~ "Rust"
+        assert page.markdown =~ "tuist cargo"
+        assert page.markdown =~ "[!IMPORTANT] Requirements"
+        refute Regex.match?(~r/^> \[![A-Z]+\] [A-Z][A-Z ]+\??$/m, page.markdown)
+        assert Docs.get_page("/en/guides/features/" <> path).markdown =~ path <> "/rust"
+      end
+
+      getting_started = Docs.get_page("/en/guides/get-started/rust-project").markdown
+      assert getting_started =~ "[!TIP] Coding agents"
+      assert getting_started =~ "tuist cargo test --workspace"
+      assert getting_started =~ "tuist cargo test --doc"
+      refute getting_started =~ "## Test sharding"
+      refute getting_started =~ "test-build"
+      refute getting_started =~ "## Coverage and selective testing"
+      refute getting_started =~ "compiler-invocation timings"
+      sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
+      assert sharding =~ "does not shard plain `cargo test` runs"
+      assert sharding =~ "tuist cargo test --workspace"
+      refute sharding =~ "test-build"
+      assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
+      tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
+      assert tests =~ "unit tests, integration tests, and doctests"
+      assert tests =~ "tuist cargo test --doc"
+      assert tests =~ "excluded from per-case duration histories"
+      refute tests =~ "stale, or oversized report"
+      flaky = Docs.get_page("/en/guides/features/test-insights/flaky-tests/rust").markdown
+
+      for heading <- [
+            "How flaky detection works",
+            "Managing flaky tests",
+            "Quarantining and stress-testing",
+            "Slack notifications"
+          ] do
+        assert flaky =~ "## #{heading}"
+      end
+
+      assert flaky =~ "Cargo does not automatically retry failed tests"
+      assert flaky =~ "CI runs on the same commit"
+      assert flaky =~ "does not apply quarantine yet"
+      refute flaky =~ "Quarantine boundaries"
+    end
+
+    test "English documentation does not mention alternative Rust test runners" do
+      paths = :tuist |> Application.app_dir("priv/docs/en/**/*.md") |> Path.wildcard()
+      refute paths == []
+
+      for path <- paths do
+        refute Regex.match?(~r/nextest|nexttest|nexte\.st/i, File.read!(path)),
+               "unexpected test-runner mention in #{path}"
       end
     end
 
@@ -85,6 +159,21 @@ defmodule Tuist.DocsTest do
 
       assert migration_page.body_template
       assert migration_page.body =~ "localized_link"
+    end
+
+    test "self-hosting documents the instance-wide reporting configuration and separate client opt-in" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+      assert page.markdown =~ "all existing and newly created"
+      assert page.markdown =~ "across every account on the instance"
+      assert page.markdown =~ "reads the variable at startup"
+      assert page.markdown =~ "no project allowlist or dashboard toggle"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false"
+      assert page.markdown =~ "every relevant server replica"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING"
+      refute page.markdown =~ "enable **Network-trusted report publishing** in each"
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-report-publishing"))
     end
 
     test "wraps Markdown tables in a scroll container" do

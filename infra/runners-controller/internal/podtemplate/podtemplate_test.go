@@ -76,7 +76,7 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 	if len(exprs) != 1 {
 		t.Fatalf("match expressions = %d, want 1", len(exprs))
 	}
-	if got, want := exprs[0].Key, goldenNodeAffinityKey(p.Spec.Image); got != want {
+	if got, want := exprs[0].Key, GoldenNodeAffinityKey(p.Spec.Image); got != want {
 		t.Fatalf("affinity key = %q, want %q", got, want)
 	}
 	if exprs[0].Operator != corev1.NodeSelectorOpExists {
@@ -102,8 +102,8 @@ func TestBuild_LinuxHasNoGoldenAffinity(t *testing.T) {
 func TestGoldenNodeAffinityKey_MatchesTartKubelet(t *testing.T) {
 	img := "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64)
 	const wantKey = "tuist.dev/golden-9c8af651fdf30b10"
-	if got := goldenNodeAffinityKey(img); got != wantKey {
-		t.Fatalf("goldenNodeAffinityKey = %q, want %q", got, wantKey)
+	if got := GoldenNodeAffinityKey(img); got != wantKey {
+		t.Fatalf("GoldenNodeAffinityKey = %q, want %q", got, wantKey)
 	}
 }
 

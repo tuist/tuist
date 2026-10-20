@@ -226,11 +226,6 @@ server:
     # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
-    # Kura on a rack node exports traces to the Alloy receiver at its tailnet
-    # name (infra/helm/k8s-monitoring values-production.yaml): it reaches no
-    # cluster Service.
-    - name: TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT
-      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4318/v1/traces
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -436,6 +431,12 @@ capi:
     enabled: true
     vrackID: pn-2024093
     cidr: 172.30.243.0/24
+
+# Global cold-cache gateway; production platform owns the matching wildcard DNS.
+kuraActivation:
+  enabled: true
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
 
 kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
@@ -1023,7 +1024,7 @@ xcresultProcessor:
 # bootstraps the node itself.
 kuraFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   machine:
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
@@ -1039,38 +1040,23 @@ vultrFleet:
 
 vultrFleets:
   # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
-  # in the US interior; the plan and shape match sa-west exactly, so the machine
-  # kind, the disk conversion and the fleet wiring are the ones already proven
-  # there.
+  # in the US interior. vbm-8c-64gb-amd (2x1945 GB NVMe, 64 GB, EPYC 4345P) has
+  # about twice the disk of the vbm-6c-32gb-amd shape the region started on for
+  # $70 more a month, and disk reservations are what bind here. The key keeps its
+  # -8c suffix from when both shapes shared the pool: renaming it recreates the
+  # MachineDeployment and releases the live boxes.
   #
   # Every box counted by replicas must already carry the adoptTag and the fleet
-  # SSH key. The controller adopts a matching preordered box, converts its RAID1
-  # installation to separate root and quota-enabled XFS /data, then joins it.
-  # If replicas exceed adoptable capacity, the MachineDeployment cannot become
-  # ready and can block `helm --wait` for the production deployment.
+  # SSH key. The controller adopts a matching preordered box (region and plan
+  # must match), converts its RAID1 installation to separate root and
+  # quota-enabled XFS /data, then joins it. If replicas exceed adoptable
+  # capacity, the MachineDeployment cannot become ready and can block
+  # `helm --wait` for the production deployment.
   #
   # Running a box here is not the same as serving the region: that is decided by
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
-  us-central:
-    enabled: true
-    replicas: 2
-    nodePool: kura-us-central
-    machine:
-      adoptTag: tuist-kura-vultr-production
-      region: ord
-      plan: vbm-6c-32gb-amd
-      osID: 2284
-      egressBudgetMbps: 1000
-    sshExternalSecret:
-      enabled: true
-      item: VULTR_FLEET_SSH
-  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
-  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
-  # kura-us-central pool, so the region schedules across both fleets; adoption
-  # matches the plan, so neither fleet claims the other's boxes. The
-  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
   us-central-8c:
     enabled: true
     replicas: 2
@@ -1178,7 +1164,10 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 2
+    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
+    # At two the region reserved 1228 GiB against an admission line of 1267, so
+    # Admission refused every storage claim growth for the accounts it hosts.
+    replicas: 3
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1338,6 +1327,18 @@ ovhFleets:
 rackFleet:
   enabled: true
   site: ber1
+  env: production
+  # The envs whose rack pools production lends hosts to (`lendTo` below), each
+  # with the borrowing env's rack-lender kubeconfig, stored once in this vault
+  # (see "Lending a host to another env" in infra/rack-nodes/AGENTS.md). Until
+  # an item exists, the hosts lent to that env stay as they are.
+  borrowers:
+    staging:
+      kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG
+      namespace: tuist-staging
+    canary:
+      kubeconfigItem: RACK_BORROWER_CANARY_KUBECONFIG
+      namespace: tuist-canary
   # The edges' own addresses on the machines segment
   # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
   # edge routes the tailnet's connections to a host with SNAT, from its own
@@ -1349,6 +1350,27 @@ rackFleet:
   # ber1-store-a's Kura gateway on the machines segment.
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
+  # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
+  # the prewarm set sync, then route hosts through it one at a time in
+  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
+  # one re-pushes that mini's launchd config and needs an operator image
+  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+  #
+  # Off until the site's storage nodes have more disk (a drive in store-a's
+  # spare M.2 slots, or store-b): Kura takes precedence on store-a. zot stages
+  # a whole image before writing it into storage, so fetching one needs about
+  # twice its size (a 58.8 GiB image needs ~118 GiB), plus the previous tag
+  # while it ages out (`keepPulledWithin`). At 64 GiB every fetch of 27.1 ran
+  # out of space and was retried, 2026-10-16 17:40 to 10-18, ~200 GB/h over
+  # the WAN.
+  imageCache:
+    enabled: false
+    routeHosts: []
+    nodes:
+      - name: ber1-store-a
+        address: 10.10.0.11
+    sizeGi: 64
+    prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the
@@ -1364,12 +1386,9 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "1"
-      # Lent to staging: its Node registers in the staging cluster, where
-      # staging's rack pools run its guests (rackFleet.joiningNodes in
-      # values-managed-staging.yaml). Staging has no custom cache volumes.
-      nodeFleet: tuist-staging-rack-fleet
-      nodeCluster:
-        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
+      # Lent to staging, whose operator runs its runtime and whose rack pools
+      # run its guests (rackFleet.borrow in values-managed-staging.yaml).
+      lendTo: staging
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
@@ -1378,6 +1397,10 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "2"
+      # Lent to canary, whose operator runs its runtime and whose rack pools
+      # run its guests, including the deploy cascade's runners acceptance gate
+      # (rackFleet.borrow in values-managed-canary.yaml).
+      lendTo: canary
     - name: ber1-runner-b03
       serial: JC332QMX73
       address: 10.10.0.103
@@ -1554,6 +1577,11 @@ rackLinuxFleet:
       role: storage
       bootMAC: "38:05:25:3a:de:67"
       address: 10.10.0.11
+      # On the cluster's Cilium network at the site's address, so the
+      # ber1-runners Kura region replicates pod to pod with the accounts' other
+      # regions. The rack's one public IPv4 fits one such host; store-b waits
+      # for the site's own range.
+      publicAddress: 149.6.170.31
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
       amt: {activate: true}
@@ -1567,6 +1595,10 @@ rackLinuxFleet:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # Off the processor pool, which has no memory to spare beside the processor.
   operatorNodeSelector:
     node.cluster.x-k8s.io/pool: general
@@ -1996,7 +2028,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 16
-    "27.1-rc":
+    "27.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -2095,10 +2127,19 @@ runnersFleet:
 # total. The operator's pre-order job for production already
 # tracks the macos + runners side; bump it by 2 ahead of the
 # `helm upgrade` that applies this replica count.
+#
+# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
+# to a new macOS release" in vm-image-builder.md. The two Tahoe builders
+# keep their own os pin and runner labels. Machines created from here on
+# adopt a Golden Gates host and register without `vm-image-builder`, so
+# they take no image jobs until that label is added to their runner.
 buildersFleet:
   enabled: true
-  replicas: 2
+  replicas: 3
   adoptPoolPrefix: "tuist-pool-"
+  ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
+  machine:
+    os: "Golden Gates"
   externalSecrets:
     enabled: true
 

@@ -4,6 +4,7 @@ import Path
 import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
+import TuistCache
 import TuistCI
 import TuistConfig
 import TuistConfigLoader
@@ -388,7 +389,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination,
-            schemeName: schemeName
+            schemeName: schemeName,
+            coverage: Self.binaryCacheCoverage(
+                schemeName: schemeName,
+                xcodebuildArguments: passthroughXcodeBuildArguments,
+                config: config
+            )
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -893,6 +899,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
+            quarantinedTests: quarantinedTests,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
             mode: mode,
@@ -921,15 +928,53 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
 
+        try await finishTestWithoutBuilding(
+            testError: testError,
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: quarantinedTests,
+            stressResult: stressResult
+        )
+    }
+
+    /// Rethrows the `test-without-building` failure unless every failing test is muted, in which
+    /// case the run passes as it does on the scheme path.
+    private func finishTestWithoutBuilding(
+        testError: Error?,
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier],
+        stressResult: StressNewTestsResult?
+    ) async throws {
         if let testError {
-            throw testError
+            guard await onlyQuarantinedTestsFailed(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+            else { throw testError }
         }
 
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }
 
-        AlertController.current.success(.alert("The project tests ran successfully"))
+        if testError != nil {
+            AlertController.current.success(
+                .alert("The project tests ran successfully (including \(quarantinedTests.count) quarantined test(s))")
+            )
+        } else {
+            AlertController.current.success(.alert("The project tests ran successfully"))
+        }
+    }
+
+    private func onlyQuarantinedTestsFailed(
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier]
+    ) async -> Bool {
+        guard !quarantinedTests.isEmpty,
+              let resultBundlePath,
+              (try? await fileSystem.exists(resultBundlePath)) == true,
+              let testStatuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return false }
+        return testQuarantineService.onlyQuarantinedTestsFailed(
+            testStatuses: testStatuses,
+            quarantinedTests: quarantinedTests
+        )
     }
 
     /// Only Tuist-owned products (downloaded or extracted for this shard) are cleaned up;
@@ -1088,6 +1133,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
+            quarantinedTests: quarantinedTests,
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
@@ -1109,15 +1155,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if let testError {
-            throw testError
-        }
-
-        if let stressResult, stressResult.blocks {
-            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
-        }
-
-        AlertController.current.success(.alert("The project tests ran successfully"))
+        try await finishTestWithoutBuilding(
+            testError: testError,
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: quarantinedTests,
+            stressResult: stressResult
+        )
     }
 
     /// The stress pass for the paths that execute prebuilt products: the same
@@ -2588,13 +2631,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// coverage itself and isn't read, so a scheme with test plans is unknown (`nil`).
     static func coverageEnabled(testAction: TestAction?, xcodebuildArguments: [String], config: Tuist) -> Bool? {
         guard UploadResultBundleService.uploadsCoverage(config: config) else { return false }
-        if let index = xcodebuildArguments.lastIndex(of: "-enableCodeCoverage"),
-           xcodebuildArguments.indices.contains(index + 1)
-        {
-            return xcodebuildArguments[index + 1].uppercased() == "YES"
-        }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage }
         guard let testAction, testAction.testPlans?.isEmpty ?? true else { return nil }
         return testAction.coverage
+    }
+
+    /// The variant of the binary cache the run reads, by the same rule: the instrumented binaries when
+    /// the run collects the coverage Tuist uploads, the plain ones otherwise. The scheme's test action
+    /// is read off the generated graph, once there is one.
+    static func binaryCacheCoverage(schemeName: String?, xcodebuildArguments: [String], config: Tuist) -> BinaryCacheCoverage {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return .off }
+        if let coverage = passthroughCoverage(xcodebuildArguments) { return coverage ? .on : .off }
+        return .scheme(schemeName)
+    }
+
+    private static func passthroughCoverage(_ arguments: [String]) -> Bool? {
+        guard let index = arguments.lastIndex(of: "-enableCodeCoverage"), arguments.indices.contains(index + 1)
+        else { return nil }
+        return arguments[index + 1].uppercased() == "YES"
     }
 
     private static func merging(_ identifiers: [String], _ passthrough: [String]) -> [String] {

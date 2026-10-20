@@ -31,6 +31,15 @@ defmodule TuistWeb.CldrHelpers do
     end
   end
 
+  @doc """
+  Formats a count as a whole number with locale grouping and no unit
+  abbreviation (658422 becomes "658,422" in English), for figures where the
+  exact value matters, such as live counters.
+  """
+  def format_count(number, opts \\ []) do
+    format_decimal(decimal(number), locale(Keyword.get(opts, :locale)), 0)
+  end
+
   def format_money(%Money{} = money, opts \\ []) do
     {locale, opts} = Keyword.pop(opts, :locale)
     locale = locale(locale)

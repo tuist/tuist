@@ -10,14 +10,8 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.Menu
 import android.view.MenuItem
-import android.view.ViewGroup
-import android.widget.Button
 import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
-import android.widget.Toolbar
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 
@@ -25,11 +19,18 @@ class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
+    private var holidays: AtlasTimeOffModel? = null
+    private var timeOff: AtlasTimeOffScreen? = null
+    private var restoreTimeOff = false
+    private var navigation: AtlasWorkspaceModel? = null
+    private var workspace: AtlasWorkspaceScreen? = null
     private var recoveredLoginId: String? = null
 
     private data class Retained(
         val authentication: AtlasAuthentication,
         val accounts: AtlasAIAccountsModel?,
+        val holidays: AtlasTimeOffModel?,
+        val navigation: AtlasWorkspaceModel?,
     )
 
     private var restoreSettings = false
@@ -41,13 +42,16 @@ class MainActivity : Activity() {
         val retained = lastNonConfigurationInstance as? Retained
         authentication = retained?.authentication ?: AtlasAuthentication(this)
         accounts = retained?.accounts
+        holidays = retained?.holidays
+        navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
+        restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
         recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
         restoreSettings = savedInstanceState?.getBoolean("settings") == true
         if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
-    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts)
+    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts, holidays, navigation)
 
     override fun onStart() {
         super.onStart()
@@ -61,13 +65,17 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("workspace_group", navigation?.groupId)
         outState.putBoolean("settings", settings != null || restoreSettings)
+        outState.putBoolean("time_off", timeOff != null || restoreTimeOff)
         outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
         settings?.close(cancelPending = !isChangingConfigurations)
+        timeOff?.close()
+        workspace?.close()
         if (!isChangingConfigurations && settings == null) accounts?.takeIf { it.pendingLoginId != null }?.load()
         unregisterSettingsBack?.invoke()
         if (!isChangingConfigurations) authentication.close()
@@ -96,6 +104,15 @@ class MainActivity : Activity() {
             settings?.close()
             settings = null
             accounts = null
+            timeOff?.close()
+            timeOff = null
+            holidays = null
+            workspace?.close()
+            workspace = null
+            if (!authentication.busy) {
+                restoreTimeOff = false
+                navigation = null
+            }
             updateSettingsBack()
             setActionBar(null)
             setContentView(
@@ -109,97 +126,36 @@ class MainActivity : Activity() {
             )
             return
         }
-        if (settings != null) return
+        if (settings != null || timeOff != null) return
+        if (restoreTimeOff) {
+            restoreTimeOff = false
+            showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
+            return
+        }
         if (restoreSettings) {
             restoreSettings = false
             showSettings()
             return
         }
-        title = getString(R.string.app_name)
-        val content =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                val padding = (24 * resources.displayMetrics.density).toInt()
-                setPadding(padding, padding, padding, padding)
-            }
-        content.addView(
-            TextView(this).apply {
-                text = getString(R.string.welcome)
-                textSize = 28f
-                setPadding(0, 0, 0, 24)
-            },
-        )
-
-        fun button(
-            label: String,
-            action: () -> Unit,
-        ) {
-            content.addView(
-                Button(this).apply {
-                    text = label
-                    isEnabled = !authentication.busy
-                    setOnClickListener { action() }
-                },
-            )
-        }
-        val server = authentication.server
-        if (server != null) {
-            content.addView(TextView(this).apply { text = Uri.parse(server).host })
-            AtlasCore()
-                .sections()
-                .filter {
-                    !Uri
-                        .parse(it.url)
-                        .path
-                        .orEmpty()
-                        .startsWith("/settings/")
-                }.forEach { section ->
-                    button(section.title) {
-                        val origin = Uri.parse(server)
-                        val destination =
-                            Uri
-                                .parse(
-                                    section.url,
-                                ).buildUpon()
-                                .scheme(origin.scheme)
-                                .encodedAuthority(origin.encodedAuthority)
-                                .build()
-                        openBrowser(destination)
-                    }
-                    content.addView(
-                        TextView(this).apply {
-                            text = section.description
-                            textSize = 16f
-                            setPadding(0, 0, 0, 32)
-                        },
-                    )
+        val server = authentication.server ?: return
+        val model = navigation ?: catalogNavigation().also { navigation = it }
+        workspace?.close()
+        val screen =
+            AtlasWorkspaceScreen(this, model, Uri.parse(server).host.orEmpty(), { section ->
+                if (section.screen == "time-off") {
+                    showTimeOff(section.title)
+                } else {
+                    openBrowser(section.destination(server))
                 }
-            content.addView(
-                TextView(this).apply {
-                    text = "Sections currently open in your browser, which may ask you to sign in separately."
-                },
-            )
-        }
-        if (authentication.busy) content.addView(TextView(this).apply { text = "Updating session…" })
-        authentication.errorMessage?.let { message -> content.addView(TextView(this).apply { text = message }) }
-        val toolbar = Toolbar(this)
-        setActionBar(toolbar)
-        val scroll =
-            ScrollView(this).apply {
-                addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            }
-        setContentView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setOnApplyWindowInsetsListener { view, insets ->
-                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, 0)
-                    scroll.setPadding(0, 0, 0, insets.systemWindowInsetBottom)
-                    insets
-                }
-                addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-                addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            },
-        )
+            }, {
+                actionBar?.setDisplayHomeAsUpEnabled(model.canBack)
+                updateSettingsBack()
+            }, authentication.errorMessage)
+        workspace = screen
+        setActionBar(screen.toolbar)
+        actionBar?.setDisplayHomeAsUpEnabled(model.canBack)
+        setContentView(screen.view)
+        updateSettingsBack()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -211,7 +167,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(1)?.isVisible = authentication.server != null && settings == null
+        menu.findItem(1)?.isVisible = authentication.server != null && settings == null && timeOff == null
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -222,7 +178,13 @@ class MainActivity : Activity() {
                 true
             }
             android.R.id.home -> {
-                leaveSettings()
+                if (timeOff != null) {
+                    leaveTimeOff()
+                } else if (settings != null) {
+                    leaveSettings()
+                } else {
+                    workspace?.back()
+                }
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -230,7 +192,38 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        if (settings != null) leaveSettings() else super.onBackPressed()
+        if (timeOff != null) {
+            leaveTimeOff()
+        } else if (settings != null) {
+            leaveSettings()
+        } else if (workspace?.back() != true) {
+            super.onBackPressed()
+        }
+    }
+
+    private fun catalogNavigation(group: String? = null): AtlasWorkspaceModel {
+        val core = AtlasCore()
+        return AtlasWorkspaceModel(core.groups(), core.sections(), group)
+    }
+
+    private fun showTimeOff(title: String) {
+        val model = holidays ?: AtlasTimeOffModel(authentication::timeOff).also { holidays = it }
+        val screen = AtlasTimeOffScreen(this, title, model)
+        timeOff = screen
+        setActionBar(screen.toolbar)
+        actionBar?.setDisplayHomeAsUpEnabled(true)
+        setContentView(screen.view)
+        invalidateOptionsMenu()
+        updateSettingsBack()
+        screen.load()
+    }
+
+    private fun leaveTimeOff() {
+        if (timeOff?.back() == true) return
+        timeOff?.close()
+        timeOff = null
+        updateSettingsBack()
+        render()
     }
 
     private fun showSettings() {
@@ -267,8 +260,19 @@ class MainActivity : Activity() {
     private fun updateSettingsBack() {
         unregisterSettingsBack?.invoke()
         unregisterSettingsBack = null
-        if (Build.VERSION.SDK_INT >= 33 && settings != null) {
-            val callback = OnBackInvokedCallback { leaveSettings() }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            (settings != null || timeOff != null || (authentication.server != null && navigation?.canBack == true))
+        ) {
+            val callback =
+                OnBackInvokedCallback {
+                    if (timeOff != null) {
+                        leaveTimeOff()
+                    } else if (settings != null) {
+                        leaveSettings()
+                    } else {
+                        workspace?.back()
+                    }
+                }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
             unregisterSettingsBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
         }

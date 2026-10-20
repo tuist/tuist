@@ -78,7 +78,12 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
-         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id,
+             include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(selected_account)
+           )
+         )
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
@@ -172,7 +177,9 @@ defmodule TuistWeb.RunnerJobLive do
           type="secondary"
           size="large"
           title={
-            dgettext("dashboard_runners", "%{volume} ran out of space", volume: usage.volume.key)
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
           }
           description={
             dgettext(
@@ -189,17 +196,25 @@ defmodule TuistWeb.RunnerJobLive do
           row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
         >
           <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
-            <.text_cell label={usage.volume.key} />
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
           </:col>
           <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
             <.badge_cell
               :if={not is_nil(usage.warm)}
               label={
-                if usage.warm,
-                  do: dgettext("dashboard_runners", "Hit"),
-                  else: dgettext("dashboard_runners", "Miss")
+                cond do
+                  CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                  usage.warm -> dgettext("dashboard_runners", "Hit")
+                  true -> dgettext("dashboard_runners", "Miss")
+                end
               }
-              color={if usage.warm, do: "success", else: "neutral"}
+              color={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> "warning"
+                  usage.warm -> "success"
+                  true -> "neutral"
+                end
+              }
               style="light-fill"
             />
             <.text_cell :if={is_nil(usage.warm)} label="—" />
@@ -1081,11 +1096,11 @@ defmodule TuistWeb.RunnerJobLive do
   def log_ts(_), do: ""
 
   # Renders a list of grouped log nodes (`{:line, line}` /
-  # `{:group, header, children}`) as the Steps tab body. Groups
-  # become collapsible `<details>` elements that match GitHub's
-  # own log UI; lines render with ANSI SGR codes decoded into
-  # `<span>` classes so the user sees colours instead of literal
-  # `[36;1m` artefacts.
+  # `{:group, header, children}` / `{:action, header, children}`) as
+  # the Steps tab body. Groups and composite-action steps become
+  # collapsible `<details>` elements that match GitHub's own log UI;
+  # lines render with ANSI SGR codes decoded into `<span>` classes so
+  # the user sees colours instead of literal `[36;1m` artefacts.
   attr(:tree, :list, required: true)
 
   def log_tree(assigns) do
@@ -1101,7 +1116,7 @@ defmodule TuistWeb.RunnerJobLive do
     assigns = assign(assigns, :line, line)
 
     ~H"""
-    <div data-part="log-line">
+    <div data-part="log-line" data-annotation={LogFormatter.annotation(@line.message)}>
       <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
@@ -1131,7 +1146,49 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  # Per-step ranges are computed once (three small ClickHouse queries,
+  # A step of a composite action, rendered like GitHub's nested step
+  # header: status icon, name, and duration. Failed steps start
+  # expanded so the error is visible without a click.
+  def log_node(%{node: {:action, _header, _children}} = assigns) do
+    {:action, header, children} = assigns.node
+
+    assigns =
+      assigns
+      |> assign(:header, header)
+      |> assign(:children, children)
+      |> assign(:status, step_status(%{conclusion: header.conclusion}))
+
+    ~H"""
+    <details data-part="log-group" data-kind="action" open={@header.conclusion == "failure"}>
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.line.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron" data-empty={to_string(@children == [])}>
+            <.chevron_right />
+          </span>
+          <span data-part="log-action-icon" data-status={@status}>
+            <.circle_check :if={@status == :success} />
+            <.alert_circle :if={@status == :failure} />
+            <.alert_hexagon :if={@status == :warning} />
+            <.circle_dashed :if={@status == :processing} />
+          </span>
+          <span data-part="log-action-name">{@header.name}</span>
+          <span :if={@header.duration_ms} data-part="log-action-duration">
+            {DateFormatter.format_duration_from_milliseconds(@header.duration_ms,
+              fractional_seconds: false
+            )}
+          </span>
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} />
+      </div>
+    </details>
+    """
+  end
+
+  # Per-step ranges are computed once (two small ClickHouse queries,
   # no log-body scan); the expanded step's lines are fetched on demand
   # and cached individually. A user who never opens a step pays
   # nothing beyond mount; a job with hundreds of thousands of lines
@@ -1151,6 +1208,9 @@ defmodule TuistWeb.RunnerJobLive do
         case Map.get(ranges, number) do
           {first, last} ->
             JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+
+          :unattributed ->
+            :unattributed
 
           _ ->
             []

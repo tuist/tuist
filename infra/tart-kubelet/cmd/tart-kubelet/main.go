@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
@@ -81,6 +82,8 @@ func main() {
 		customCacheSA        string
 		cacheVolumeCapGiB    int
 		cacheVolumeCASGiB    int
+		imageMirrors         imageMirrorList
+		imageMirrorSync      time.Duration
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -153,6 +156,12 @@ func main() {
 			"by what each cache holds. This value is the CAS's share of the fixed split that runner images older "+
 			"than that division apply, the binary cache getting the rest. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
+	flag.Var(&imageMirrors, "image-mirror",
+		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
+			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
+			"pulled with `tart pull --insecure`. A mirror that is down, does not hold the image or fails the pull falls back to the upstream.")
+	flag.DurationVar(&imageMirrorSync, "image-mirror-sync-timeout", 30*time.Minute,
+		"How long a Pod waits for an --image-mirror that is still fetching its image before the host pulls from the upstream instead.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -295,6 +304,12 @@ func main() {
 	tartClient := tart.New()
 	tartClient.Binary = tartBinary
 
+	var images *podagent.ImageSources
+	if len(imageMirrors) > 0 {
+		images = &podagent.ImageSources{Mirrors: imageMirrors, SyncTimeout: imageMirrorSync}
+		setupLog.Info("pulling golden bases through image mirrors", "mirrors", imageMirrors.String())
+	}
+
 	resolver := &envresolver.Resolver{K8s: mgr.GetAPIReader()}
 
 	store := podagent.NewStore()
@@ -322,6 +337,7 @@ func main() {
 			GoldenRetention: 24 * time.Hour,
 			// 0 falls back to the collector's own default (1).
 			MinGoldensKept: minGoldensKept,
+			Images:         images,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -397,6 +413,9 @@ func main() {
 		}
 		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
 		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
+		if customVolumes != nil {
+			converge.Custom = customVolumes
+		}
 		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
 			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
 		if err := mgr.Add(converge); err != nil {
@@ -428,6 +447,7 @@ func main() {
 		CustomVolumes: customVolumes,
 		Converge:      converge,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
+		Images:        images,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
@@ -484,16 +504,17 @@ func main() {
 	}
 
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:      mgr.GetClient(),
-		NodeName:    nodeName,
-		ProviderID:  providerID,
-		NodeIP:      nodeIP,
-		NodeLabels:  nodeLabels,
-		CPU:         hostCPU,
-		MemoryMB:    hostMemoryMB,
-		MaxPods:     maxPods,
-		Heartbeat:   30 * time.Second,
-		PrewarmGate: prewarmGate,
+		Client:         mgr.GetClient(),
+		NodeName:       nodeName,
+		ProviderID:     providerID,
+		NodeIP:         nodeIP,
+		NodeLabels:     nodeLabels,
+		CPU:            hostCPU,
+		MemoryMB:       hostMemoryMB,
+		MaxPods:        maxPods,
+		Heartbeat:      30 * time.Second,
+		PrewarmGate:    prewarmGate,
+		RuntimeVersion: tartClient.Version,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config
@@ -515,6 +536,14 @@ func main() {
 			// costs at most a heartbeat of oldest-queued dispatch.
 			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
 				return volumes.CacheMasterNodeLabels()
+			}},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
 		},
 	}); err != nil {
@@ -921,3 +950,26 @@ func recoverState(
 // clientcmdConfig is an alias so the signature of recoverState reads
 // without dragging the rest-config dep into the main signature line.
 type clientcmdConfig = rest.Config
+
+// imageMirrorList implements flag.Value for repeated --image-mirror.
+type imageMirrorList []podagent.ImageMirror
+
+func (l *imageMirrorList) String() string {
+	if l == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(*l))
+	for _, m := range *l {
+		parts = append(parts, m.String())
+	}
+	return joinComma(parts)
+}
+
+func (l *imageMirrorList) Set(value string) error {
+	m, err := podagent.ParseImageMirror(value)
+	if err != nil {
+		return err
+	}
+	*l = append(*l, m)
+	return nil
+}

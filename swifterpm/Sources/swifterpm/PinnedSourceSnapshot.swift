@@ -215,6 +215,7 @@ enum PinnedSourceSnapshot {
                 ".build/.buildSystem_debug",
                 ".build/swifterpm/manifests/package.json",
                 ".build/swifterpm/manifests/package.json.envhash",
+                ".build/swifterpm/manifests/package.json.inputs.json",
             ].contains(String(path))
         }
     }

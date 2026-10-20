@@ -10,6 +10,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -984,8 +986,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     # Three GH-shaped steps: an auto "Set up job" head, a single
     # user "Build" step delimited by `##[group]Run`, and an auto
-    # "Complete job" tail anchored to its own `started_at`. Slicing
-    # walks the marker, not the timestamps — see Tuist.Runners.JobLogs.
+    # "Complete job" tail starting at the runner's cleanup line.
+    # Slicing walks those markers, not the timestamps — see
+    # Tuist.Runners.JobLogs.
     :ok =
       JobSteps.record([
         %{
@@ -1055,7 +1058,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
           account_id: account.id,
           line_number: 5,
           ts: ~U[2026-05-28 12:02:00.000000Z],
-          message: "after the build step"
+          message: "Cleaning up orphan processes"
         }
       ])
 
@@ -1069,8 +1072,57 @@ defmodule TuistWeb.RunnerJobLiveTest do
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
-    refute panel =~ "after the build step"
+    refute panel =~ "Cleaning up orphan processes"
     refute panel =~ "Current runner version"
+  end
+
+  test "renders a composite action's steps as nested step headers", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_603, 316_030, ["Set up job", "Apply Simulator Workaround", "Complete job"], [
+      "Current runner version",
+      "##[group]Run ./.github/actions/simulator-workaround",
+      "##[endgroup]",
+      "##[start-action display=Apply workaround;id=__self.__run]",
+      "##[group]Run echo workaround",
+      "##[endgroup]",
+      "##[error]Process completed with exit code 26.",
+      "##[end-action id=__self.__run;outcome=failure;conclusion=failure;duration_ms=204]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
+    assert has_element?(lv, ~s{[data-kind="action"] [data-part="log-action-icon"][data-status="failure"]})
+    assert panel =~ "Process completed with exit code 26."
+    assert has_element?(lv, ~s{[data-part="log-line"][data-annotation="error"] .log-annotation-label}, "Error:")
+    refute panel =~ "##[error]"
+    refute panel =~ "##[start-action"
+    refute panel =~ "##[end-action"
+  end
+
+  test "explains when a step's output can't be separated from the job log", %{conn: conn, account: account} do
+    # Two `##[group]Run` lines for a single user step: the boundaries
+    # don't line up with the steps, so no step gets a slice.
+    complete_job_with_logs!(account, 31_604, 316_040, ["Set up job", "Test", "Complete job"], [
+      "Current runner version",
+      "##[group]Run make test",
+      "##[endgroup]",
+      "##[group]Run tests",
+      "##[endgroup]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "be separated from the rest of the job"
+    refute panel =~ "No logs were captured for this step."
+    assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
   end
 
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
@@ -2018,9 +2070,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   end
 
   test "flags a volume that a failed job filled as the likely cause" do
-    volume = %Tuist.Runners.CacheVolumes.Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
 
-    usage = %Tuist.Runners.CacheVolumes.Usage{
+    usage = %Usage{
       volume_id: volume.id,
       volume: volume,
       warm: true,
@@ -2040,6 +2092,84 @@ defmodule TuistWeb.RunnerJobLiveTest do
     roomy = %{usage | size_bytes: 10_000_000_000}
     html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
     refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
+  test "names managed volumes after the caches they hold" do
+    builtin = %Volume{id: Ecto.UUID.generate(), key: "tuist-cache", builtin_name: "tuist-cache"}
+    gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
+
+    usages =
+      for volume <- [builtin, gradle] do
+        %Usage{
+          volume_id: volume.id,
+          volume: volume,
+          warm: true,
+          size_bytes: 19_427_938_304,
+          capacity_bytes: 19_503_599_616
+        }
+      end
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
+
+    assert html =~ "Xcode and module caches"
+    assert html =~ "Gradle cache ran out of space"
+    refute html =~ "tuist-cache"
+    refute html =~ "tuist-gradle"
+  end
+
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-x", claimed_at)
+    {:ok, _} = Jobs.complete(workflow_job_id, "success")
+
+    :ok =
+      step_names
+      |> Enum.with_index(1)
+      |> Enum.map(fn {name, number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: number,
+          name: name,
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:01.000000Z]
+        }
+      end)
+      |> JobSteps.record()
+
+    :ok =
+      messages
+      |> Enum.with_index(1)
+      |> Enum.map(fn {message, line_number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          line_number: line_number,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: message
+        }
+      end)
+      |> JobLogs.append()
+
+    flush_outbox!()
   end
 
   defp flush_outbox! do

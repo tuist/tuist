@@ -66,6 +66,11 @@ let tuist = Tuist(
 )
 EOF
 
+    # The CLI loads the nearest Tuist.swift from the working directory. Run from
+    # the fixture so the old binary never picks up the repository's own manifest,
+    # which may use APIs newer than it.
+    cd "$FIXTURE_DIR"
+
     echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
     # The way `auth login` is pointed at a server changed across versions: older
     # CLIs take --path and read the URL from Tuist.swift, newer ones take --url.

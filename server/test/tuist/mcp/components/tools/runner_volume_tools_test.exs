@@ -91,7 +91,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
   end
 
   test "clear requires account administration and is declared destructive", %{account: account, conn: conn, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> :ok end)
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
 
     expect(Query, :run, fn :clear, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
       {:ok, %{id: id, cleared: true}}
@@ -103,8 +103,16 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
     assert %{readOnlyHint: false, destructiveHint: true} = ClearRunnerVolume.annotations()
   end
 
+  test "clearing a built-in volume returns an error", %{account: account, conn: conn, id: id} do
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
+    expect(Query, :run, fn :clear, 1, _args -> {:error, :unsupported} end)
+
+    assert %{"isError" => true, "content" => [%{"text" => "Built-in volumes can't be cleared."}]} =
+             ClearRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
+  end
+
   test "read access does not grant clearing", %{account: account, conn: conn, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> {:error, :forbidden} end)
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> {:error, :forbidden} end)
     reject(&Query.run/3)
     assert %{"isError" => true} = ClearRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
   end

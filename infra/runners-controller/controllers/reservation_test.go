@@ -396,6 +396,53 @@ func TestReservation_PrefersTheHostThatConvergesSoonest(t *testing.T) {
 	}
 }
 
+// Between hosts that converge equally soon, the one already holding the
+// pool's golden image wins, so the starved job clones instead of pulling.
+func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-b")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-a"), warm, starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host that already holds the pool's image")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host that would have to pull the image")
+	}
+}
+
+// Holding the image never outranks convergence: waiting on a customer job
+// can take longer than a pull.
+func TestReservation_PrefersConvergenceOverTheImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-a")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), warm, m4Node("m4-b"), starved,
+		placedPod("job-a", "macos-26-6", "m4-a", "acme"),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host with no customer job to wait out")
+	}
+}
+
 // Linux fleets opt out: those hosts are far larger than any shape, so a
 // shape never needs one drained to fit.
 // The Linux equivalent of the scenario above. A 64 GiB shape costs a

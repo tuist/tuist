@@ -247,7 +247,9 @@ defmodule TuistWeb.BuildEntityLive do
     Enum.map(rows, fn row ->
       context = Map.get(contexts, row.parent_id, %{})
 
-      Map.merge(row, %{
+      row
+      |> Map.merge(Map.take(context, [:submission_auth, :claimed_actor_id, :actor_account]))
+      |> Map.merge(%{
         parent_available: row.parent_id != "",
         parent_label: context_label(resource, context),
         parent_tags: Map.get(context, :tags, []),

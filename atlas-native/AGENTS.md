@@ -1,11 +1,11 @@
 # Atlas native
 
 This is an independent Once workspace for Atlas's native clients. The shared
-Rust core owns the section catalog and destinations; the CLI is Rust, Android
+Rust core owns the hierarchical domain/section catalog and destinations; the CLI is Rust, Android
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Workspace sections still open in the system browser and
+and secure persistence. Time off is a native employee destination on both platforms; other workspace sections open in the system browser and
 may require a separate browser sign-in. Personal settings are native and use the authenticated API on the selected server. OAuth tokens are not browser cookies.
 
 ## Layout
@@ -26,6 +26,9 @@ may require a separate browser sign-in. Personal settings are native and use the
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
   restore button.
+- `ios/distribution/`: post-build ad-hoc device signing and IPA packaging; see
+  `ios/distribution/AGENTS.md`. Reuse the Tuist distribution certificate with an
+  Atlas-specific profile; device enrollment and 1Password setup are in the README.
 - `previews/`: isolated native Settings screenshot harnesses and UI tests; see `previews/AGENTS.md`.
 - `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
   light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
@@ -63,13 +66,30 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## Workspace navigation
+
+- The signed-in landing screen is a searchable workspace hub, not a tab per feature. `My work` contains catalog-marked shortcuts to Tasks and Time off; these reference the same canonical destinations as Overview and People, not separate routes. Settings stays in the toolbar and outside the workspace directory. Do not add empty Home/Activity tabs or one bottom tab per business domain.
+- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
+- C/JNI section fields 0–3 and the original five indices remain compatible. Fields 4–7 expose stable ID, group ID, shortcut flag, and required web scope. The parallel group bridge exposes title, description, stable ID, parent ID, and placement. Group strings have the same immutable process-lifetime ownership and primitive JNI rules as section strings. Rust tests enforce unique routes/IDs, reachable nonempty groups, valid parents, acyclicity, and stable original destinations.
+- iOS `AtlasWorkspaceView` uses native NavigationStack/List drill-down, searchable feature results with domain breadcrumbs, native Settings, and native Time off. Android `AtlasWorkspaceModel` owns the selected group and search without retaining an Activity; `AtlasWorkspaceScreen` owns SearchView, scrollable 48dp+ navigation rows, insets, and keyboard behavior. Retain the model across configuration changes, save only a validated group ID for process restoration, disable automatic search-view state persistence, detach old listeners, and preserve the originating group/search when returning from Time off or Settings. Back clears search before ascending the domain hierarchy, with system Back/Up support.
+- Browser-only features are explicitly marked and remapped to the authenticated selected server's origin. Scope metadata is descriptive, never a local authorization grant: browser sessions can differ from native sessions, and Atlas enforces actual access. Do not fetch restricted data or pretend all directory entries are native screens. Implement future native adapters under the same stable destination IDs without changing the information architecture.
+- Coverage includes the Rust graph/ABI tests, `ios/Tests/AtlasCoreTests.swift`, and fixture-backed `AtlasWorkspaceUITests` / Android workspace model checks and `capture_android.py --workspace`. Keep fixtures outside production source globs; see `previews/AGENTS.md`.
+
 ## AI account settings
 
-- iOS opens native Settings from the workspace toolbar, using SwiftUI Form, NavigationLink, SecureField, and confirmation dialogs. Android opens native Settings from the workspace toolbar, using the platform Toolbar, wrapping two-line list rows, a dedicated secure-token screen, and AlertDialog for destructive confirmation. Settings includes the selected server, an AI accounts section for Claude and ChatGPT, and sign-out. Mobile apps exclude settings destinations from the browser-only workspace list; the shared catalog/CLI keep the existing `/settings/llm-providers` web destination.
+- iOS opens native Settings from the workspace toolbar, using SwiftUI Form, NavigationLink, SecureField, and confirmation dialogs. Android opens native Settings from the workspace toolbar, using the platform Toolbar, wrapping two-line list rows, a dedicated secure-token screen, and AlertDialog for destructive confirmation. Settings includes the selected server, an AI accounts section for Claude and ChatGPT, and sign-out. Mobile apps exclude catalog settings destinations from workspace navigation; the shared catalog/CLI keep the existing `/settings/llm-providers` web destination.
 - `ios/Sources/AtlasAIAccounts.swift` owns the iOS account state; `AtlasAIAccountViews.swift` owns its presentation. The auth coordinator caches one model per signed-in session, using a weak, session-identity-checked request closure; leaving Settings must not discard failed cancellation handles. Keep native settings rows icon-led with secondary status, setup screens focused on one task with a prominent bottom action, and detailed Claude instructions in a disclosure rather than paragraph-heavy form rows. Preserve Dynamic Type, dark appearance, secure entry, and explicit device-code expiry/cancellation. `android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt` owns Android presentation; `AtlasAIAccountsModel.kt` owns metadata, requests, and polling without retaining an Activity, View, or token. Retain that model alongside authentication for the signed-in session, including across Settings closure and configuration changes, detach the old view listener without cancelling sign-in, and save only the known Atlas login ID for process-death cancellation. Never save token fields or device codes in view state. All authenticated requests go through the existing auth coordinator and the fixed-route Rust `auth/src/accounts.rs` bridge, never directly from views or via browser cookies. Persist rotated Atlas OAuth credentials before API calls; serialize refresh and sign-out. Provider credentials stay encrypted on Atlas, not in native preferences or model tool arguments. Clear Claude input on submit/dismiss and disable Android form-state saving/autofill.
 - Native setup supports Claude create/update, ChatGPT start/poll/cancel, and confirmed disconnect. Poll no faster than the returned interval, stop on completion/expiry, ignore stale results, and cancel on leaving the ChatGPT page, including an in-flight start. Cancellation preserves existing credentials. Reload metadata after cancellation, including an already-completed/expired response, because authorization may have won the race. Retain failed cancellation handles for retry, treat `login_failed` and rejected Atlas refresh credentials as terminal, scope stale errors to their originating page, and never let a late save close a newer form. Android requires cancelling pending sign-in before disconnecting its saved ChatGPT connection. Real-account ChatGPT sign-in still needs an authorized Atlas client. User-triggered agent execution remains separate follow-up work.
 - Preserve platform behavior: 44pt iOS / 48dp Android touch targets, accessible labels/headings, system appearance and text scaling, scrollable keyboard-safe forms, and Android system/cutout/IME insets. Use API 33+ Back callbacks with the older Back fallback. Keep API-26 navigation bars dark; dark navigation icons on a light background belong in `values-v27`. Do not add navigation/state frameworks just for these two setup screens.
 - Reproducible fixture-backed screenshots and the iOS UI test use separate [preview targets](previews/AGENTS.md). These render production views without authenticating or making account-management requests. Never ship preview fixture sources or authentication bypasses in production apps. Clearly label screenshot evidence as preview-backed.
+
+## Employee time off
+
+- The shared catalog owns the Time off title, description, browser fallback URL, and native screen key. C/JNI field 3 exposes that screen key without changing fields 0–2. Mobile dispatches `time-off` natively instead of opening a browser; the CLI keeps the web destination.
+- iOS uses `AtlasTimeOff` with `AtlasTimeOffView`; Android uses the activity-independent `AtlasTimeOffModel` and platform-widget `AtlasTimeOffScreen`. Employees can request inclusive full days, view paginated personal history and Berlin public holidays, edit non-cancelled requests, and confirm cancellation of active requests. There are no mobile approval controls or location selectors. All transitions are enforced by the existing server context.
+- Requests use the fixed-route Rust `time_off` auth command and the owner-scoped bearer-authenticated `/api/me/time-off` endpoints, never browser cookies, arbitrary paths, owner IDs, or approval/status parameters. Preserve ISO calendar dates, not UTC instants. Refresh rotation/persistence is serialized by the existing auth coordinator; holiday networking runs outside that credential queue. Session identity checks reject responses from a signed-out/replaced session. Drafts/history remain memory-only; Android retains its model across configuration changes and detaches old view listeners.
+- Preserve drafts and loaded history on failures, prevent double submission, and distinguish a failed save from a successful mutation whose subsequent reload failed. iOS uses item-backed editor presentation to preselect the correct request. Android uses native date dialogs and saves its draft in the retained model, not a View. Cancellation and Back must not discard an in-flight save.
+- Coverage: Rust `auth/src/time_off_tests.rs`, Swift `ios/Tests/AtlasTimeOffTests.swift`, and server `atlas/test/atlas_web/controllers/time_off_controller_test.exs`. Once's production auth source lists must include `time_off.rs`; test sources remain separate.
 
 ## Boundaries
 
@@ -111,8 +131,12 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - `Info.plist` is a complete template, not a merge into Once's default plist.
   Keep its identifier, executable, families and supported platform consistent
   with the manifest, and smoke-test simulator installation after changes.
-- Mobile builds are arm64 Android debug APKs and arm64 iOS simulator apps. Store
-  delivery requires separate device targets, signing, app icons and store setup.
+- Mobile builds are arm64 Android debug APKs, arm64 iOS simulator apps and arm64
+  iOS device apps. `AtlasIOSDevice` uses separate device Rust targets and shared
+  production Swift sources; do not ship screenshot fixtures. CI device builds use
+  only the local cache, not the shared cache accessible to PRs. Main-branch delivery
+  provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
+  still requires app icons and store setup.
   The CLI builds for the host and is distributed as an executable tar archive;
   it must not be sent to Tuist's mobile preview endpoints.
 - GitHub CI uses the existing private Once project. Its repository connection to
@@ -124,5 +148,8 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   only for `atlas-native/**` changes and skips draft PRs. Keep building, testing
   and each language's linting in distinct jobs. There is no unconditional merge
   queue trigger because it cannot apply GitHub path filters.
-- Main-branch delivery uses the `nightly` Tuist preview track, gated by all build,
-  test and lint jobs. Forks use local caching and no OIDC; no PR publishes previews.
+- Main-branch delivery uses the `nightly` Tuist preview track for APK, simulator
+  app and signed device IPA, gated by all build, test and lint jobs. Only the
+  protected publication job's signing step receives 1Password access; upload
+  steps do not. Forks use local caching
+  and no OIDC; no PR publishes previews or receives distribution credentials.

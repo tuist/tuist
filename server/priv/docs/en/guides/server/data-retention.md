@@ -7,7 +7,9 @@
 ---
 # Data retention {#data-retention}
 
-The hosted Tuist server and self-hosted Tuist instances apply different artifact-retention policies. The hosted server uses plan-based windows capped at 30 days. Artifact cleanup is disabled by default on self-hosted instances, where operators can opt in and configure a separate window for each supported artifact type.
+Tuist applies separate retention policies to uploaded artifact files and the records used for dashboards and insights. Deleting an expired artifact file does not delete its associated insights records.
+
+For artifact files, the hosted Tuist server uses plan-based windows capped at 30 days. Artifact cleanup is disabled by default on self-hosted instances, where operators can opt in and configure a separate window for each supported artifact type.
 
 ## Artifact files {#artifact-files}
 
@@ -34,16 +36,30 @@ Self-hosted artifact cleanup is opt-in, configurable separately for each artifac
 
 ## Dashboard and activity data {#dashboard-and-activity-data}
 
-These windows define how long selected dashboard and activity data remains available in Tuist. They are independent of the configurable self-hosted artifact cleanup above.
+Dashboard and activity records have retention policies independent of artifact-file cleanup. The windows below do not vary by hosted plan, including Enterprise.
+
+### Xcode build and test insights {#xcode-build-and-test-insights}
+
+Core Xcode build and test records currently have no fixed time-based deletion schedule. Other report data, such as timeline steps and machine metrics, expires separately:
 
 | Data | Retention |
 | --- | --- |
+| Build summaries, per-file and per-target build records, and build issues | No fixed time-based deletion schedule |
+| Test runs, module and suite results, and individual test results | No fixed time-based deletion schedule |
+| Build timeline steps and their captured logs | 90 days |
+| Build machine metrics | 90 days |
 | Xcode project graph records | 30 days |
-| Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
+
+These records are separate from the downloadable build archives, result bundles, and test attachments covered by the [artifact-file retention windows](#hosted-artifact-files). On Enterprise, those files are retained for 30 days; the associated build and test records remain available after the files expire. A record having no fixed time-based deletion schedule is not a guarantee of permanent availability.
+
+### Other dashboard and activity data {#other-dashboard-and-activity-data}
+
+| Data | Retention |
+| --- | --- |
+| Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
 | Generated Xcode module history on persistent module detail pages | 30 days |
 | Task, declared action, compiled file and module observations on persistent detail pages | 90 days, except generated Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |
-| Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
 

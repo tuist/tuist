@@ -382,6 +382,18 @@ fn spool_records(cas_path: &str) -> usize {
         .count()
 }
 
+/// Unlike drain accounting, an unreadable spool cannot authorize an upgrade.
+fn spool_is_empty(cas_path: &str) -> bool {
+    match std::fs::read_dir(spool_dir(cas_path)) {
+        Ok(mut entries) => entries.all(|entry| {
+            entry.ok().is_some_and(|entry| {
+                entry.file_name().to_str().is_some_and(|name| name.ends_with(TAGS_SUFFIX))
+            })
+        }),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
 /// How long a drain waits when its caller names no budget of its own.
 const DRAIN_TIMEOUT_DEFAULT: Duration = Duration::from_secs(120);
 /// Ceiling on a caller-named budget. A drain parks a proxy thread and the
@@ -2496,6 +2508,10 @@ pub struct Proxy {
     stalls: &'static StoreStalls,
     // How many connections are being handled. See `serve`.
     requests: RequestLimit,
+    request_revision: AtomicU64,
+    last_request_ms: AtomicU64,
+    // A drained maintenance pass authorizes exit only until the next connection.
+    upgrade_revision: AtomicU64,
     publisher: Prefetcher,
     // Deletes the spool records of projects that do not upload, off the request
     // that handed them over. Items are record paths.
@@ -2602,6 +2618,9 @@ impl Proxy {
             paths: Mutex::new(HashMap::new()),
             stalls: Box::leak(Box::new(StoreStalls::new())),
             requests: RequestLimit::new(MAX_CONCURRENT_REQUESTS),
+            request_revision: AtomicU64::new(1),
+            last_request_ms: AtomicU64::new(0),
+            upgrade_revision: AtomicU64::new(0),
             publisher: Prefetcher::new(),
             spool_cleaner: Prefetcher::new(),
             spool_ledger: SpoolLedger::default(),
@@ -5101,7 +5120,7 @@ impl Proxy {
             return;
         }
         let resolution =
-            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance);
+            crate::endpoint::resolve(&fetch.executable(), fetch.server_url.as_deref(), instance);
         self.record_resolution(resolution, || self.current_endpoint_reachable(instance));
     }
 
@@ -6049,13 +6068,74 @@ impl Proxy {
         }
     }
 
+    /// Called at the END of a maintenance pass, after sweeping publications.
+    /// Spool I/O stays off the accept loop; any connection arriving while this
+    /// checks the stores invalidates its authorization, even if already finished.
+    pub fn allow_idle_upgrade(&self) {
+        self.allow_idle_upgrade_at(self.epoch.elapsed());
+    }
+
+    fn allow_idle_upgrade_at(&self, elapsed: Duration) {
+        self.upgrade_revision.store(0, Ordering::Release);
+        let revision = self.request_revision.load(Ordering::Acquire);
+        if elapsed.as_millis().saturating_sub(self.last_request_ms.load(Ordering::Acquire) as u128) < 30_000 {
+            return;
+        }
+        if self.requests.in_flight.load(Ordering::Acquire) != 0
+            || self.requests.control_in_flight.load(Ordering::Acquire) != 0
+            || !self.stalls.running.lock().unwrap().is_empty()
+            || !self.materialize_jobs.lock().unwrap().is_empty()
+            || ![&self.publisher, &self.spool_cleaner, &self.materializer, &self.prematerializer]
+                .iter().all(|pool| pool.wait_idle(Duration::ZERO))
+        {
+            return;
+        }
+        let paths: Vec<String> = self.path_instance.lock().unwrap().keys().cloned().collect();
+        if paths.iter().all(|path| spool_is_empty(path)) {
+            self.upgrade_revision.store(revision, Ordering::Release);
+        }
+    }
+
+    fn can_exit_for_upgrade(&self) -> bool {
+        self.can_exit_for_upgrade_at(self.epoch.elapsed())
+    }
+
+    fn can_exit_for_upgrade_at(&self, elapsed: Duration) -> bool {
+        self.upgrade_revision.load(Ordering::Acquire) == self.request_revision.load(Ordering::Acquire)
+            && self.requests.in_flight.load(Ordering::Acquire) == 0
+            && self.requests.control_in_flight.load(Ordering::Acquire) == 0
+            && elapsed.as_millis().saturating_sub(
+                self.last_request_ms.load(Ordering::Acquire) as u128
+            ) >= 30_000
+    }
+
     /// Handles each connection on a thread of its own, at most
     /// `MAX_CONCURRENT_REQUESTS` at once. A connection past that, or one whose
     /// thread cannot start, is refused (see `refuse`) rather than queued:
     /// handlers that are not finishing would not finish for a queue either.
     pub fn serve(&'static self, listener: UnixListener) {
-        for stream in listener.incoming() {
-            let Ok(stream) = stream else { continue };
+        listener.set_nonblocking(true).expect("nonblocking proxy listener");
+        loop {
+            let stream = match listener.accept() {
+                Ok((stream, _)) => stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    // Only the accept loop can commit the exit: no request can be
+                    // admitted between checking idleness and returning to launchd.
+                    if self.can_exit_for_upgrade() {
+                        return;
+                    }
+                    use std::os::fd::AsRawFd;
+                    let mut descriptor = libc::pollfd {
+                        fd: listener.as_raw_fd(), events: libc::POLLIN, revents: 0,
+                    };
+                    unsafe { libc::poll(&mut descriptor, 1, 1000); }
+                    continue;
+                }
+                Err(_) => continue,
+            };
+            self.request_revision.fetch_add(1, Ordering::AcqRel);
+            self.last_request_ms.store(self.epoch.elapsed().as_millis() as u64, Ordering::Release);
+            let _ = stream.set_nonblocking(false);
             let Some(slot) = self.requests.acquire() else {
                 self.refuse(stream, "at its limit");
                 continue;
@@ -6119,9 +6199,9 @@ impl Proxy {
     }
 
     fn dispatch(&'static self, request: Request, mut stream: UnixStream) -> std::io::Result<()> {
-        // A plugin from a different CLI version speaks a different frame layout;
-        // reject rather than misparse, so the plugin degrades to a local miss.
-        if request.version != crate::proxy_proto::PROTOCOL_VERSION {
+        // v1 has the same frame layout but cannot self-heal demand loads. Its
+        // resolve path below materializes the closure before answering a hit.
+        if !(1..=crate::proxy_proto::PROTOCOL_VERSION).contains(&request.version) {
             return write_response(
                 &mut stream,
                 STATUS_ERROR,
@@ -6159,7 +6239,14 @@ impl Proxy {
                     fresh
                 });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
+                    let value = self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())?;
+                    if request.version == 1 {
+                        if let Some(value) = value {
+                            return self.fetch_object(state, &request.cas_path, &instance, &value)
+                                .map(|ready| ready.then_some(value));
+                        }
+                    }
+                    Ok(value)
                 });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -13594,6 +13681,114 @@ mod tests {
             "capacity comes back once the handlers finish"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn upgrade_requires_a_quiet_drained_proxy_and_new_requests_revoke_it() {
+        let proxy = test_proxy();
+        let now = Duration::from_secs(30);
+        proxy.allow_idle_upgrade_at(Duration::from_secs(29));
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        let request = proxy.requests.acquire().unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(request);
+        let control = proxy.requests.acquire_control().unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(control);
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        proxy.request_revision.fetch_add(1, Ordering::AcqRel);
+        assert!(!proxy.can_exit_for_upgrade_at(now), "even a finished new connection revokes the check");
+        proxy.last_request_ms.store(30_000, Ordering::Release);
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        proxy.allow_idle_upgrade_at(Duration::from_secs(60));
+        assert!(proxy.can_exit_for_upgrade_at(Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn upgrade_waits_for_publications_and_unreadable_spools() {
+        let (dir, registry) = drain_fixture("upgrade");
+        let proxy = registry_proxy(&registry);
+        let cas_path = dir.join("cas");
+        proxy.path_instance.lock().unwrap().insert(cas_path.to_string_lossy().into_owned(), "tuist/app".into());
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).unwrap();
+        let now = Duration::from_secs(30);
+        std::fs::write(spool.join("record.claim-42"), b"owed").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        std::fs::remove_file(spool.join("record.claim-42")).unwrap();
+        std::fs::write(spool.join("record.tags"), b"sidecar").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        std::fs::remove_dir_all(&spool).unwrap();
+        std::fs::write(&spool, b"not a directory").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now), "a failed read is not a drained spool");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn upgrade_waits_for_background_work() {
+        let proxy = test_proxy();
+        let now = Duration::from_secs(30);
+        let work = proxy.stalls.begin("/cas", "opening the store");
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(work);
+        let (release, released) = std::sync::mpsc::channel();
+        let released = Mutex::new(released);
+        proxy.publisher.configure(1, move |_| { released.lock().unwrap().recv().unwrap(); });
+        proxy.publisher.enqueue(b"publication".to_vec());
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        release.send(()).unwrap();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(5)));
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        proxy.publisher.drain_stop_timeout(Duration::from_secs(5));
+    }
+
+    #[test]
+    fn previous_protocol_materializes_before_replying_and_unknown_versions_are_rejected() {
+        if run_in_cas_subprocess() { return; }
+        let source_dir = TempCasDir::new("v1-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"v1-child");
+        let root = store_probe_object_with_refs(source, b"v1-root", &[child.clone()]);
+        let remote = test_proxy().remote_for("tuist/compatibility");
+        let (mut manifest, blobs) = walk_closure(source, &root, &remote).unwrap();
+        for (entry, (contents, _)) in manifest.iter_mut().zip(blobs) { entry.contents = contents; }
+        for (version, complete) in [(1, true), (1, false), (2, true), (3, true)] {
+            let dir = TempCasDir::new(&format!("v1-target-{version}-{complete}"));
+            let proxy = test_proxy();
+            proxy.snapshots.lock().unwrap().insert("tuist/compatibility".into(), SnapshotState::Absent {
+                checked: Instant::now(), retry_after: Duration::from_secs(3600),
+            });
+            let state = opened_path_state(proxy, &dir.path());
+            let mut instructions = manifest.clone();
+            if !complete {
+                instructions.iter_mut().find(|entry| entry.llcas_digest == child).unwrap().contents = Some(vec![0]);
+            }
+            register_instructions(state, &instructions);
+            state.resolved.lock().unwrap().insert(b"key".to_vec(), Resolution::Candidate(root.clone()));
+            let (mut client, server) = UnixStream::pair().unwrap();
+            proxy.dispatch(Request {
+                version, op: OP_RESOLVE, cas_path: dir.path(),
+                instance: "tuist/compatibility".into(), payload: b"key".to_vec(),
+            }, server).unwrap();
+            let (status, _) = crate::proxy_proto::read_response(&mut client).unwrap();
+            if version == 1 && !complete {
+                assert_ne!(status, STATUS_HIT, "a legacy client cannot repair a missing child");
+            } else {
+                assert_eq!(status, if version <= 2 { STATUS_HIT } else { STATUS_ERROR });
+            }
+            assert_eq!(state.graph_present(&root), version == 1 && complete,
+                "only the legacy client must receive an already complete graph");
+        }
     }
 
     include!("proxy_cold_replay_benchmark.rs");

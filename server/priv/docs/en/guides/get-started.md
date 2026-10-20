@@ -2,7 +2,7 @@
 {
   "title": "Get started",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, or Bazel."
+  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, Rust, or Bazel."
 }
 ---
 # Get started {#get-started}
@@ -32,6 +32,12 @@ Connect a Gradle project to Tuist's remote cache, build insights, and test insig
 Connect an Elixir project to Tuist's build insights, test insights, flaky test detection, and test sharding through the `tuist_ex` Hex package.
 
 <.localized_link href="/guides/get-started/elixir-project">Start with an Elixir project →</.localized_link>
+
+## Rust project {#rust-project}
+
+Run Cargo through the Tuist CLI to report builds and individual test results, including doctests, and investigate flaky tests.
+
+<.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 
 ## Bazel project {#bazel-project}
 

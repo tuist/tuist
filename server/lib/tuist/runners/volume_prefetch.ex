@@ -18,11 +18,17 @@ defmodule Tuist.Runners.VolumePrefetch do
   there keep them current. A repository volume that has published no master yet
   falls back to its account's `tuist-cache` master, which the host seeds a new
   repository volume from. The host decides what it can keep.
+
+  The list also names the saved HEADs of the custom volumes jobs used on the
+  Node's host class over the last day, for every Node of the class: dispatch
+  cannot know which custom volumes a queued job will attach, so it cannot steer
+  the job to a Node holding them. The host downloads these only into free space.
   """
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
@@ -72,13 +78,17 @@ defmodule Tuist.Runners.VolumePrefetch do
         repository_volumes?: repository_volumes?
       }
 
-      pools
-      |> demand(context.peer_names)
-      |> Stream.uniq_by(&{&1.account_id, Map.get(&1, :repository)})
-      |> Stream.map(&volume_to_prefetch(&1, context))
-      |> Stream.reject(&is_nil/1)
-      |> Stream.uniq_by(&{&1.account_id, &1.volume})
-      |> Enum.take(@limit)
+      builtin =
+        pools
+        |> demand(context.peer_names)
+        |> Stream.uniq_by(&{&1.account_id, Map.get(&1, :repository)})
+        |> Stream.map(&volume_to_prefetch(&1, context))
+        |> Stream.reject(&is_nil/1)
+        |> Stream.uniq_by(&{&1.account_id, &1.volume})
+        |> Enum.take(@limit)
+
+      since = DateTime.add(DateTime.utc_now(), -@recent_window_seconds, :second)
+      builtin ++ CacheVolumes.recent_macos_heads(context.peer_names, since, @limit)
     else
       _ -> []
     end

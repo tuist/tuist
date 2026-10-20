@@ -5,7 +5,6 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
-  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
@@ -16,12 +15,11 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    # Profiles is a settings surface — create / edit / delete rows
-    # affect every workflow on the account, so we gate it on
-    # `:account_update` (admin-only) the same way `webhooks_live` and
-    # `integrations_live` do. Read-only sibling views use
-    # `:runners_read` because they only surface state.
-    if Authorization.authorize(:account_update, current_user, selected_account) != :ok or
+    # Create / edit / delete rows affect every workflow on the account, so
+    # the page is gated on `:runners_update` (admin-only for users).
+    # Read-only sibling views use `:runners_read` because they only
+    # surface state.
+    if Authorization.authorize(:runners_update, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
@@ -39,7 +37,6 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
-     |> assign(:default_branches, CacheVolumes.default_branches(selected_account.id))
      |> assign_profiles()
      |> reset_form()}
   end
@@ -66,7 +63,9 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
-         |> assign(:form_cache_writer_branches, profile.cache_writer_branches)
+         |> assign(:form_cache_writer_all_branches, profile.cache_writer_all_branches)
+         |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
+         |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
@@ -104,11 +103,9 @@ defmodule TuistWeb.RunnerProfilesLive do
         {:noreply, socket}
 
       Profile.valid_cache_writer_branch?(branch) ->
-        branches = shown_cache_writer_branches(socket.assigns)
-
         {:noreply,
          socket
-         |> assign(:form_cache_writer_branches, Enum.uniq(branches ++ [branch]))
+         |> update(:form_cache_writer_branches, &Enum.uniq(&1 ++ [branch]))
          |> update(:form_cache_branch_input, &(&1 + 1))
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)}
@@ -125,12 +122,18 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   def handle_event("remove_cache_writer_branch", %{"data" => branch}, socket) do
-    branches = with [] <- List.delete(shown_cache_writer_branches(socket.assigns), branch), do: nil
-    {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_cache_branch_error, nil)}
+    {:noreply,
+     socket
+     |> update(:form_cache_writer_branches, &List.delete(&1, branch))
+     |> assign(:form_cache_branch_error, nil)}
   end
 
-  def handle_event("use_default_cache_writer_branch", _params, socket) do
-    {:noreply, socket |> assign(:form_cache_writer_branches, nil) |> assign(:form_cache_branch_error, nil)}
+  def handle_event("toggle_cache_writer_default_branch", _params, socket) do
+    {:noreply, update(socket, :form_cache_writer_default_branch, &(not &1))}
+  end
+
+  def handle_event("toggle_cache_writer_all_branches", _params, socket) do
+    {:noreply, update(socket, :form_cache_writer_all_branches, &(not &1))}
   end
 
   def handle_event("select_platform", params, socket) do
@@ -180,6 +183,8 @@ defmodule TuistWeb.RunnerProfilesLive do
       "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
       "memory_gb" => assigns.form_memory_gb,
+      "cache_writer_all_branches" => assigns.form_cache_writer_all_branches,
+      "cache_writer_default_branch" => assigns.form_cache_writer_default_branch,
       "cache_writer_branches" => assigns.form_cache_writer_branches
     }
 
@@ -303,7 +308,9 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
-    |> assign(:form_cache_writer_branches, nil)
+    |> assign(:form_cache_writer_all_branches, true)
+    |> assign(:form_cache_writer_default_branch, true)
+    |> assign(:form_cache_writer_branches, [])
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)
@@ -379,34 +386,34 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   @doc """
-  Branches shown as badges. Without a custom list, the profile follows each
-  repository's default branch, shown by the names seen on the account's volumes.
+  Summary of the branches being edited, shown on the collapsed section.
   """
-  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: []}), do: ["main"]
-  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: branches}), do: branches
-  def shown_cache_writer_branches(%{form_cache_writer_branches: branches}), do: branches
+  def cache_saving_summary(true, _default_branch?, _branches), do: dgettext("dashboard_runners", "Any branch")
 
-  @doc """
-  Summary of the branches being edited, shown on the collapsed section. A
-  profile that follows the default branch shows the default branch names.
-  """
-  def cache_saving_summary(branches) do
-    if "*" in branches do
-      dgettext("dashboard_runners", "Any branch")
-    else
-      case Enum.split(branches, 2) do
-        {shown, []} ->
-          Enum.join(shown, ", ")
+  def cache_saving_summary(false, default_branch?, branches) do
+    labels = if default_branch?, do: [dgettext("dashboard_runners", "Default branch") | branches], else: branches
 
-        {shown, rest} ->
-          dngettext(
-            "dashboard_runners",
-            "%{branches} + %{count} more",
-            "%{branches} + %{count} more",
-            length(rest),
-            branches: Enum.join(shown, ", ")
-          )
-      end
+    cond do
+      "*" in branches ->
+        dgettext("dashboard_runners", "Any branch")
+
+      labels == [] ->
+        dgettext("dashboard_runners", "No branches")
+
+      true ->
+        case Enum.split(labels, 2) do
+          {shown, []} ->
+            Enum.join(shown, ", ")
+
+          {shown, rest} ->
+            dngettext(
+              "dashboard_runners",
+              "%{branches} + %{count} more",
+              "%{branches} + %{count} more",
+              length(rest),
+              branches: Enum.join(shown, ", ")
+            )
+        end
     end
   end
 

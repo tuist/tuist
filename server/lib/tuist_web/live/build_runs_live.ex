@@ -23,6 +23,9 @@ defmodule TuistWeb.BuildRunsLive do
 
     socket =
       cond do
+        Project.cargo_project?(project) ->
+          TuistWeb.CargoBuildRunsLive.assign_mount(socket)
+
         Project.bazel_project?(project) ->
           params
           |> TuistWeb.BazelBuildRunsLive.mount(%{}, socket)
@@ -49,6 +52,9 @@ defmodule TuistWeb.BuildRunsLive do
     params = Query.query_params(uri)
 
     cond do
+      Project.cargo_project?(project) ->
+        {:noreply, TuistWeb.CargoBuildRunsLive.assign_handle_params(socket, params)}
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_params(params, uri, socket)
 
@@ -77,6 +83,9 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_event("add_filter", %{"value" => filter_id}, %{assigns: %{selected_project: project}} = socket) do
     cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildRunsLive.handle_event("add_filter", %{"value" => filter_id}, socket)
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_event("add_filter", %{"value" => filter_id}, socket)
 
@@ -90,6 +99,9 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_event("update_filter", params, %{assigns: %{selected_project: project}} = socket) do
     cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildRunsLive.handle_event("update_filter", params, socket)
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_event("update_filter", params, socket)
 

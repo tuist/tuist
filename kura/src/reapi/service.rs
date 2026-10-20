@@ -465,6 +465,7 @@ impl ReapiService {
         usage.record_public_grpc_download(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
@@ -484,9 +485,19 @@ impl ReapiService {
         usage.record_public_grpc_upload(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
+    }
+
+    // Where the credential that authorized this request was issued. Read back from
+    // the authorization engine, which only holds an origin for a credential it
+    // confirmed, so it is never taken from the request on its word.
+    fn usage_origin(&self, metadata: &tonic::metadata::MetadataMap) -> Option<Arc<str>> {
+        let auth = self.state.auth.as_ref()?;
+        let authorization = metadata.get("authorization")?.to_str().ok()?;
+        auth.origin(authorization)
     }
 
     fn record_reapi_cache_event(
@@ -4250,10 +4261,12 @@ struct BatchUpdateItem {
 ///
 /// A compressed item admits its declared decoded length before decoding and
 /// keeps that permit until its persist returns, so the batch never holds more
-/// decoded bytes than the transient pool admitted. Admission is try-only: the
-/// request already holds its decode reservation from the same pool, so waiting
-/// here would be hold-and-wait. An item that cannot be admitted fails alone
-/// with RESOURCE_EXHAUSTED; identity items borrow the admitted request.
+/// decoded bytes than the transient pool admitted. Like the request's own
+/// decoding, it borrows ceiling headroom above a full floor. Admission is
+/// try-only: the request already holds its decode reservation from the same
+/// pool, so waiting here would be hold-and-wait. An item that cannot be
+/// admitted fails alone with RESOURCE_EXHAUSTED; identity items borrow the
+/// admitted request.
 async fn update_batch_blob(
     state: &SharedState,
     namespace_id: &str,
@@ -4285,11 +4298,12 @@ async fn update_batch_blob(
                     return rejected(Some(digest), rpc_status_from_grpc_status(&status));
                 }
             };
-            let admission = match state.memory.try_acquire_reapi_materialization(declared) {
+            let admission = match state.memory.try_acquire_reapi_write_decode(declared) {
                 Ok(admission) => admission,
                 Err(()) => {
-                    // Decoding an upload is write decoding: a full pool here is
-                    // write backpressure, filed apart from the read sheds.
+                    // Decoding an upload is write decoding: a full floor and
+                    // headroom here is write backpressure, filed apart from the
+                    // read sheds.
                     if declared > state.memory.reapi_materialization_limit_bytes() {
                         record_materialization_rejection(state, shed_kind::REAPI_REQUEST_BUDGET);
                     } else {
@@ -4302,7 +4316,7 @@ async fn update_batch_blob(
                         Some(digest),
                         rpc_status(
                             8,
-                            "compressed blob was rejected because the concurrent REAPI materialization pool cannot hold its decoded size",
+                            "compressed blob was rejected because the server's write decoding memory cannot hold its decoded size; retry the write",
                         ),
                     );
                 }
@@ -4856,19 +4870,69 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
+pub(super) struct BuildEventPublication {
+    pub account_handle: String,
+    pub network_trusted: bool,
+}
+
+pub(super) fn network_build_event_request(
+    metadata: &tonic::metadata::MetadataMap,
+) -> Result<bool, Status> {
+    if metadata.contains_key("authorization") {
+        return Ok(false);
+    }
+    let count = metadata
+        .get_all("x-tuist-network-trusted-publishing")
+        .iter()
+        .count();
+    if count == 0 {
+        return Ok(false);
+    }
+    if count != 1
+        || metadata
+            .get("x-tuist-network-trusted-publishing")
+            .and_then(|value| value.to_str().ok())
+            != Some("true")
+    {
+        return Err(Status::invalid_argument(
+            "Invalid network publishing metadata",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) async fn authorize_build_event_request(
     state: &SharedState,
     metadata: &tonic::metadata::MetadataMap,
     project_handle: &str,
     _route: &str,
-) -> Result<String, Status> {
+) -> Result<BuildEventPublication, Status> {
     if state.runtime.is_draining() {
         return Err(Status::unavailable("server is draining"));
     }
 
     let account_handle = usage_tenant_id(metadata, &state.account_identity.load().handle);
+    let supplied_credentials = metadata.get_all("authorization").iter().count();
+    if supplied_credentials > 1
+        || (supplied_credentials == 1
+            && metadata
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .is_none_or(|value| value.trim().is_empty()))
+    {
+        return Err(Status::unauthenticated("Invalid authorization metadata"));
+    }
+    let network_trusted = network_build_event_request(metadata)?;
     let Some(auth) = state.auth.as_ref() else {
-        return Ok(account_handle);
+        if network_trusted {
+            return Err(Status::permission_denied(
+                "Network reporting requires a configured control plane",
+            ));
+        }
+        return Ok(BuildEventPublication {
+            account_handle,
+            network_trusted: false,
+        });
     };
 
     let spec = GrpcRequestSpec {
@@ -4878,8 +4942,17 @@ pub(super) async fn authorize_build_event_request(
     let mut context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
     state.canonicalize_auth_context(&mut context);
 
-    match auth.evaluate_access(&context).await {
-        AccessDecision::Allow => Ok(context.server_tenant_id),
+    let decision = if network_trusted {
+        auth.network_build_event_access(&context.server_tenant_id, project_handle)
+            .await
+    } else {
+        auth.evaluate_access(&context).await
+    };
+    match decision {
+        AccessDecision::Allow => Ok(BuildEventPublication {
+            account_handle: context.server_tenant_id,
+            network_trusted,
+        }),
         AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
     }
 }
@@ -5205,6 +5278,51 @@ mod bytestream_recovery_tests;
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn supplied_bes_credentials_never_select_unsigned_publishing() {
+        for credential in ["", "Bearer ", "Bearer invalid", "Bearer token"] {
+            let mut metadata = tonic::metadata::MetadataMap::new();
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                "true".parse().unwrap(),
+            );
+            metadata.insert("authorization", credential.parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+            metadata.append("authorization", "Bearer other".parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+        }
+    }
+
+    #[test]
+    fn unsigned_bes_requires_one_exact_marker_and_never_an_actor_claim() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        metadata.insert("x-tuist-actor-id", "claimed-admin".parse().unwrap());
+        assert!(!network_build_event_request(&metadata).unwrap());
+        for marker in ["", "false", "TRUE", " true", "true "] {
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                marker.parse().unwrap(),
+            );
+            assert_eq!(
+                network_build_event_request(&metadata).unwrap_err().code(),
+                tonic::Code::InvalidArgument
+            );
+        }
+        metadata.insert(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert!(network_build_event_request(&metadata).unwrap());
+        metadata.append(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert_eq!(
+            network_build_event_request(&metadata).unwrap_err().code(),
+            tonic::Code::InvalidArgument
+        );
+    }
 
     // gRPC has no payment-required code, so the refusal arrives as an ordinary
     // permission denial. Clients that keep working through it need the reason
@@ -10581,6 +10699,70 @@ mod tests {
         request
     }
 
+    // A write authorized by a cache token carrying a signed origin books its
+    // usage under that origin, read back from the engine that confirmed it.
+    #[tokio::test]
+    async fn usage_carries_the_origin_of_the_credential_that_authorized_it() {
+        let context = test_context_with_auth(
+            |config| config.usage = Some(test_usage_config()),
+            Some(namespace_policy_auth()),
+        )
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "cache_origin": "US-IL",
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(NAMESPACE_POLICY_SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(reapi::Digest {
+                hash: hex::encode(Sha256::digest(b"action")),
+                size_bytes: "action".len() as i64,
+            }),
+            action_result: Some(reapi::ActionResult::default()),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        update.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {token}").parse().expect("bearer metadata"),
+        );
+        add_direct_write_admission(
+            &context.state,
+            &mut update,
+            ACTION_CACHE_UPDATE_DECODE_COPIES,
+        );
+        service
+            .update_action_result(update)
+            .await
+            .expect("update action result should succeed");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("update_action_result should record an upload rollup");
+        assert_eq!(upload.origin.as_deref(), Some("US-IL"));
+    }
+
     #[tokio::test]
     async fn get_capabilities_authorizes_against_instance_namespace() {
         let auth = namespace_policy_auth();
@@ -12774,6 +12956,21 @@ mod tests {
         held
     }
 
+    /// Takes all of the ceiling headroom, so nothing can borrow above the
+    /// floor. Call with the floor held.
+    fn hold_ceiling_headroom(
+        memory: &crate::memory::MemoryController,
+    ) -> crate::memory::ForegroundMemoryReservation {
+        let headroom = memory
+            .try_reserve_elastic_foreground_memory(memory.elastic_transient_capacity_bytes())
+            .expect("the ceiling headroom is free");
+        assert_eq!(
+            memory.elastic_transient_reserved_bytes(),
+            memory.elastic_transient_capacity_bytes()
+        );
+        headroom
+    }
+
     /// A write admission whose reservation is all borrowed ceiling headroom,
     /// which is what write decoding holds when it arrives at a full floor.
     fn borrowing_write_admission(
@@ -13046,8 +13243,8 @@ mod tests {
         drop(floor);
     }
 
-    // Decoding a compressed upload item is write decoding, so a full pool
-    // refusing it is write backpressure. Counting it as a response
+    // Decoding a compressed upload item is write decoding, so a full floor and
+    // headroom refusing it is write backpressure. Counting it as a response
     // materialization shed pages the remote-execution reads alert for uploads.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn batch_update_counts_a_refused_compressed_item_as_write_decode_backpressure() {
@@ -13058,6 +13255,7 @@ mod tests {
         let mut client = ContentAddressableStorageClient::new(channel);
         // Room for the request and its reply, not for the decoded item.
         let floor = hold_floor_pool_leaving(&context.state.memory, 16 * 1024);
+        let headroom = hold_ceiling_headroom(&context.state.memory);
 
         let blob = vec![0x42_u8; 64 * 1024];
         let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
@@ -13085,6 +13283,60 @@ mod tests {
         );
         assert_write_decode_sheds(&context, 1);
         assert_materialization_metrics(&context, 0, 0, 0);
+
+        drop(headroom);
+        drop(floor);
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Decoding a compressed upload item is write decoding, and write decoding
+    // borrows the ceiling headroom above a full floor. Its permit is released
+    // when the item persists, so the borrow is bounded server-side.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn batch_update_decodes_a_compressed_item_on_ceiling_headroom_above_a_full_floor() {
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ContentAddressableStorageClient::new(channel);
+        // Room for the request and its reply, not for the decoded item.
+        let floor = hold_floor_pool_leaving(&context.state.memory, 16 * 1024);
+
+        let blob = vec![0x43_u8; 64 * 1024];
+        let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
+        let response = client
+            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest_of(&blob)),
+                    data: encoded,
+                    compressor: reapi::compressor::Value::Zstd as i32,
+                }],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            })
+            .await
+            .expect("the batch is answered")
+            .into_inner();
+
+        assert_eq!(
+            response
+                .responses
+                .iter()
+                .map(|response| response.status.as_ref().map(|status| status.code))
+                .collect::<Vec<_>>(),
+            vec![Some(0)]
+        );
+        assert!(stored_blob(&context, &blob));
+        assert_decode_borrowed_ceiling_headroom(&context);
+        assert_write_decode_sheds(&context, 0);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while context.state.memory.elastic_transient_reserved_bytes() != 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the borrowed headroom is returned once the item persists");
 
         drop(floor);
         let _ = shutdown_tx.send(());

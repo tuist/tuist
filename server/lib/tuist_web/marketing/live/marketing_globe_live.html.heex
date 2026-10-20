@@ -49,7 +49,11 @@
             "Reconnecting · showing last update"
           )}</span>
         </div>
+        <%!-- The demo toggle is a local development aid: production shows
+        only live activity, keeping the way back for anyone who opens
+        ?demo=true directly. --%>
         <.link
+          :if={@demo or @demo_toggle?}
           href={if @demo, do: @current_path, else: @current_path <> "?demo=true"}
           data-part="mode"
         >

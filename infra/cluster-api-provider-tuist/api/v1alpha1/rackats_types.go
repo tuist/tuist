@@ -78,7 +78,32 @@ type RackATSInput struct {
 	// +optional
 	Frequency string `json:"frequency,omitempty"`
 
+	// Current is the current the card reports on the source, in amperes.
+	// +optional
+	Current string `json:"current,omitempty"`
+
 	// Detail is what the card reported that the state was read from.
+	// +optional
+	Detail string `json:"detail,omitempty"`
+}
+
+// RackATSOutput is one output of the switch as its card reported it.
+type RackATSOutput struct {
+	// Output is the output's number on the card.
+	Output int32 `json:"output"`
+
+	// Current, Voltage, ActivePower and ApparentPower are the measures the
+	// controller recognises, in amperes, volts, watts and volt-amperes.
+	// +optional
+	Current string `json:"current,omitempty"`
+	// +optional
+	Voltage string `json:"voltage,omitempty"`
+	// +optional
+	ActivePower string `json:"activePower,omitempty"`
+	// +optional
+	ApparentPower string `json:"apparentPower,omitempty"`
+
+	// Detail is every measure the card reported, verbatim.
 	// +optional
 	Detail string `json:"detail,omitempty"`
 }
@@ -123,6 +148,17 @@ type RackATSStatus struct {
 	// Inputs are the switch's two sources at the last observation.
 	// +optional
 	Inputs []RackATSInput `json:"inputs,omitempty"`
+
+	// Outputs are the switch's outputs at the last observation, as the card
+	// serves them under powerDistributions/1/outputs.
+	// +optional
+	Outputs []RackATSOutput `json:"outputs,omitempty"`
+
+	// OutputsMessage is why the outputs could not be read at the last
+	// observation, with what the card answered. The rest of the observation
+	// stands without them.
+	// +optional
+	OutputsMessage string `json:"outputsMessage,omitempty"`
 
 	// LastTransfer is the last change of the active source the controller
 	// observed.

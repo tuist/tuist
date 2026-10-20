@@ -67,7 +67,7 @@ the tenant-repo copies are then retired to a pointer.
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx32 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 | `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
 
@@ -90,6 +90,25 @@ node's Hetzner Floating IP, with the failover controller keeping the IP +
 active label on one Ready candidate. It exists on staging/canary too so
 the failover path is exercised down the deployment cascade before
 production. See the pool comment in `cluster-production.yaml`.
+
+## Worker health checks
+
+Each MachineDeployment class in the ClusterClass defines a
+`MachineHealthCheck`: Ready `Unknown` or `False` for 5 minutes on cloud
+workers, and 10 minutes on bare metal, where remediation stays disabled. A
+pool's `healthCheck` in a Cluster CR replaces the class block entirely, not
+field by field. If an override sets only `remediation`, the pool gets no
+unhealthy node conditions and only the default startup timeout. Overrides
+must restate `checks`.
+
+Cloud workers remediate one unhealthy node at a time (`unhealthyInRange:
+"[0-1]"`). When two nodes in a pool are unhealthy at once, CAPI holds, and the
+"Worker node pool below desired replicas" alert pages after 15 minutes.
+
+`nodeLockupHardening` is an opt-in worker variable that applies the kernel
+lockup panics and systemd watchdog from `cluster-api-provider-tuist` to cloud
+workers. Changing it rolls the pool, so set it as a MachineDeployment override
+one pool at a time.
 
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,

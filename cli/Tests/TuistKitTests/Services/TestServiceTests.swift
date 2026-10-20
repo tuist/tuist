@@ -600,7 +600,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone"))),
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -2657,7 +2658,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -2719,7 +2721,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2822,7 +2825,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2899,7 +2903,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
 
@@ -3015,7 +3020,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -4956,7 +4962,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
     }
@@ -5010,7 +5017,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -5071,7 +5079,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -5128,7 +5137,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -5653,7 +5663,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -5898,7 +5909,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
 
@@ -6335,6 +6347,204 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_shard_passes_when_only_muted_tests_fail() async throws {
+        // Given
+        let path = try temporaryPath()
+        let mutedTest = try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: true)
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                resultBundlePath: path.appending(component: "Shard.xcresult"),
+                shardIndex: 0,
+                mode: .remote
+            )
+        }
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .value([mutedTest]),
+                buildRunId: .any,
+                shardPlanId: .value("plan-123"),
+                shardIndex: .value(0),
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
+            )
+            .called(1)
+    }
+
+    func test_run_shard_rethrows_when_a_test_that_is_not_muted_fails() async throws {
+        // Given
+        let path = try temporaryPath()
+        try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    path: path,
+                    action: .testWithoutBuilding,
+                    resultBundlePath: path.appending(component: "Shard.xcresult"),
+                    shardIndex: 0,
+                    mode: .remote
+                )
+            },
+            ShardTestError.failed
+        )
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_passes_when_only_muted_tests_fail() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let selectiveTestingGraph = SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"])
+        try JSONEncoder().encode(selectiveTestingGraph)
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+        let mutedTest = try givenFailingMutedTest(path: path, onlyMutedTestsFailed: true)
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                resultBundlePath: path.appending(component: "Shard.xcresult"),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString],
+                mode: .remote
+            )
+        }
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .value([mutedTest]),
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
+            )
+            .called(1)
+    }
+
+    private enum ShardTestError: Error, Equatable {
+        case failed
+    }
+
+    @discardableResult
+    private func givenShardWithFailingMutedTest(
+        path: AbsolutePath,
+        onlyMutedTestsFailed: Bool
+    ) throws -> TestIdentifier {
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try FileManager.default.createDirectory(at: extractedTestProductsPath.url, withIntermediateDirectories: true)
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+        return try givenFailingMutedTest(path: path, onlyMutedTestsFailed: onlyMutedTestsFailed)
+    }
+
+    private func givenFailingMutedTest(path: AbsolutePath, onlyMutedTestsFailed: Bool) throws -> TestIdentifier {
+        try FileManager.default.createDirectory(
+            at: path.appending(component: "Shard.xcresult").url,
+            withIntermediateDirectories: true
+        )
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        let mutedTest = try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()")
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([mutedTest])
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([])
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willThrow(ShardTestError.failed)
+
+        let testStatuses = TestResultStatuses(testCases: [
+            .init(name: "testFlaky()", testSuite: "FlakySuite", module: "AppTests", status: .failed),
+        ])
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(testStatuses)
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+
+        testQuarantineService.reset()
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .value([mutedTest]))
+            .willReturn(onlyMutedTestsFailed)
+
+        given(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 0,
+                    id: "stub",
+                    project_id: 0,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: ""
+                )
+            )
+        return mutedTest
+    }
+
     func test_run_build_writesSelectiveTestingGraph_whenTestProductsPathIsRelative() async throws {
         // Given
         givenGenerator()
@@ -6635,7 +6845,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(0)
         verify(cacheStorage)
@@ -6705,7 +6916,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -8046,7 +8258,8 @@ private struct TestServiceSchemePlanningFixture {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -8361,7 +8574,8 @@ private struct TestServiceStressNewTestsFixture {
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
-                schemeName: .any
+                schemeName: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(generator)
@@ -8630,5 +8844,23 @@ struct TestServiceCoverageEnabledTests {
             ) == nil
         )
         #expect(TestService.coverageEnabled(testAction: nil, xcodebuildArguments: [], config: config) == nil)
+    }
+
+    @Test(.withMockedEnvironment())
+    func picksTheBinaryCacheVariantByTheSameRule() {
+        let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+        let covered = ["-enableCodeCoverage", "YES"]
+
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .off)
+
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: covered, config: config) == .on)
+        #expect(
+            TestService.binaryCacheCoverage(
+                schemeName: "App", xcodebuildArguments: ["-enableCodeCoverage", "NO"], config: config
+            ) == .off
+        )
+        #expect(TestService.binaryCacheCoverage(schemeName: "App", xcodebuildArguments: [], config: config) == .scheme("App"))
+        #expect(TestService.binaryCacheCoverage(schemeName: nil, xcodebuildArguments: [], config: config) == .scheme(nil))
     }
 }

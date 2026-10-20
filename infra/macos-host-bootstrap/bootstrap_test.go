@@ -1354,8 +1354,7 @@ func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
 // that installs the script driving it.
 //
 // Bootstrap-only work must not appear in the hash at all rather than
-// appear here unmapped: TartTarball is the standing example, omitted
-// because the hypervisor cannot be swapped under running VMs.
+// appear here unmapped.
 var hashPartInstaller = map[string]string{
 	"firewall":                "installVMEgressFirewall",
 	"vmnat":                   "installVMEgressFirewall",
@@ -1374,8 +1373,11 @@ var hashPartInstaller = map[string]string{
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
+	"tart-install":            "installTart",
+	"tart-prune":              "installTart",
 
 	"tart-kubelet":         "installTartKubelet",
+	"tart-tarball":         "installTart",
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",
@@ -1736,6 +1738,44 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	}
 }
 
+// A rack guest leaves through the same public address the storage node uses
+// as its cluster InternalIP, so every Cilium node would take its packets for
+// the storage node's. The guard drops the cluster's node ports to every
+// destination.
+func TestRenderVMEgressFirewallScript_GuardDropsClusterNodePorts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, drop := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }",
+	} {
+		at := strings.Index(anchor, drop)
+		if at < 0 {
+			t.Fatalf("guard does not drop %q\n%s", drop, anchor)
+		}
+		if carveOut := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to 10.10.0.11/32"); carveOut >= 0 && at > carveOut {
+			t.Errorf("%q renders after a carve-out pass (first quick match wins)\n%s", drop, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, rule := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port = 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port = 4240",
+		"block drop in quick proto tcp from <vm_sources> to any port = 10250",
+	} {
+		if !strings.Contains(parsed, rule) {
+			t.Errorf("pfctl did not load %q\n%s", rule, parsed)
+		}
+	}
+}
+
 // The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
 // relays connect from the bridge address. A guest's reply arrives inbound to a
 // host address, so without a state from the host's side it hits the drop.
@@ -1871,5 +1911,48 @@ func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T
 	}
 	if gatewayDNS < 0 || gatewayDNS > selfBlock {
 		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
+	}
+}
+
+// A rack host pulls its golden bases through the rack's image caches, in the
+// order the fleet lists them. A host with none renders the plist it rendered
+// before mirrors existed, so the rented fleets do not drift.
+func TestRenderLaunchdPlist_RendersImageMirrorsInOrder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		ImageMirrors: []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=http://10.10.0.12:5000"},
+	})
+	first := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.11:5000</string>")
+	second := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.12:5000</string>")
+	if first < 0 || second < 0 || second < first {
+		t.Fatalf("expected both mirrors in order\n%s", out)
+	}
+	if bare := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"}); strings.Contains(bare, "--image-mirror") {
+		t.Fatalf("expected no --image-mirror without mirrors\n%s", bare)
+	}
+}
+
+// The mirrors reach a running host through the drift loop only if they move
+// the fleet fingerprint.
+func TestHostConfigHash_ChangesWithImageMirrors(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.ImageMirrors = []string{"ghcr.io=http://10.10.0.11:5000"}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when ImageMirrors does")
+	}
+}
+
+func TestValidateImageMirror(t *testing.T) {
+	for _, ok := range []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=https://images.example.com/"} {
+		if err := ValidateImageMirror(ok); err != nil {
+			t.Errorf("ValidateImageMirror(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ghcr.io", "=http://x", "ghcr.io=", "ghcr.io=10.10.0.11:5000", "ghcr.io=http://x/v2", "ghcr.io/x=http://x"} {
+		if err := ValidateImageMirror(bad); err == nil {
+			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
+		}
 	}
 }

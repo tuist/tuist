@@ -414,8 +414,12 @@ func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
 //
 // Preference is the host that will converge soonest — fewest Pods
 // running customer jobs, since those are the ones a reservation can only
-// wait for. Idle Pods are not counted; retiring them is immediate. Ties
-// break on name so a reservation does not wander between reconciles.
+// wait for. Idle Pods are not counted; retiring them is immediate. Among
+// hosts that converge equally soon, one already holding the pool's golden
+// image wins, so the starved job clones it instead of pulling it. Holding
+// the image never outranks convergence, since a customer job can run longer
+// than a pull. Remaining ties break on name so a reservation does not
+// wander between reconciles.
 func (r *RunnerPoolReconciler) pickReservationTarget(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -499,9 +503,15 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		return nil, nil
 	}
 
+	golden := podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)
 	sort.Slice(candidates, func(a, b int) bool {
 		if owned[candidates[a].Name] != owned[candidates[b].Name] {
 			return owned[candidates[a].Name] < owned[candidates[b].Name]
+		}
+		_, warmA := candidates[a].Labels[golden]
+		_, warmB := candidates[b].Labels[golden]
+		if warmA != warmB {
+			return warmA
 		}
 		return candidates[a].Name < candidates[b].Name
 	})
