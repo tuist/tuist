@@ -699,13 +699,14 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp unexecuted_named(project_id, named, runs) do
     tests = named_tests(project_id, named |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
+    test_case_ids = tests |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     schemes = MapSet.new(named, &elem(&1, 0))
 
     ran =
       runs
       |> Enum.filter(&MapSet.member?(schemes, &1.scheme))
       |> Enum.group_by(& &1.scheme, & &1.test_run_id)
-      |> Map.new(fn {scheme, run_ids} -> {scheme, ran(project_id, run_ids)} end)
+      |> Map.new(fn {scheme, run_ids} -> {scheme, ran(project_id, run_ids, test_case_ids)} end)
 
     Enum.filter(named, fn {scheme, [module | _] = identifier} ->
       executed = Map.get(ran, scheme, MapSet.new())
@@ -773,6 +774,22 @@ defmodule Tuist.Tests.Coverage.Reported do
     )
     |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
     |> MapSet.new()
+  end
+
+  # Which of the given tests the runs executed.
+  defp ran(project_id, run_ids, test_case_ids) do
+    for ids <- Coverage.id_chunks(test_case_ids, length(run_ids)),
+        id <-
+          ClickHouseRepo.all(
+            from(r in TestCaseRun,
+              where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.test_case_id in ^ids,
+              distinct: true,
+              select: r.test_case_id
+            ),
+            settings: [select_sequential_consistency: 1]
+          ),
+        into: MapSet.new(),
+        do: id
   end
 
   # Whether every run of a scheme executed only the tests its caller selected.

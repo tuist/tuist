@@ -2032,4 +2032,37 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == []
   end
+
+  test "a suite the other run skipped itself stays skipped and is carried", %{project: project, account: account} do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+
+    other_run(project, account, %{
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
+  test "a suite a skip identifier names that another run executed is measured, whatever the commit changed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    change_tracked_file(account)
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
 end
