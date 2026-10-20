@@ -3724,6 +3724,10 @@ WITH
 recent AS (
   SELECT id, any(account_id) AS acct FROM build_runs
   WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+    AND account_id IN (
+      SELECT account_id FROM kura_usage_events
+      WHERE window_start >= now() - INTERVAL 3 HOUR AND artifact_kind IN ('reapi', 'xcode') AND direction = 'egress'
+    )
   GROUP BY id
 ),
 base AS (
@@ -3777,6 +3781,14 @@ malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
 a far region. No server-side rule can see either. `cacheable_tasks` records what
 Xcode itself waited for.
 
+**Only accounts on Kura are evaluated.** `recent` keeps accounts with Xcode
+cache downloads in `kura_usage_events` (`artifact_kind` `reapi` or `xcode`,
+direction `egress`) in the last 3 hours. Accounts still on the legacy cache
+service (`cache-<region>.tuist.dev`) have no rows there and are skipped: the
+rule exists to catch problems in front of Kura, and a slow legacy client is not
+one. The 3-hour window covers builds that started up to two hours before they
+were ingested.
+
 **Why the account is compared with its own history.** Normal read latency
 differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
 read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
@@ -3803,13 +3815,14 @@ replaced by a fixed time:
 | --- | --- |
 | 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
 | 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
-| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-01 11:00 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 | 2026-09-03 12:00 | No rows |
+| 2026-10-20 13:40 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 
 Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
-account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
-genuine burst: that account's slow builds read at p90 500-700 ms for about two
-hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+account from 2026-09-14 03:00, about a day before the report. The 2026-09-14 and
+09-15 rows were rerun with the Kura filter on 2026-10-20 and returned the same
+values. Accounts with less than 1000 baseline reads (new accounts, or ones whose
 builds moved lane) are skipped.
 
 **Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts

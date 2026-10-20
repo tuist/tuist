@@ -383,6 +383,12 @@ defmodule TuistWeb.RunnersControllerTest do
       assert dispatch.(account, :macos, buildkite)["automatic_caches"] == false
       assert dispatch.(account, :macos, gitlab)["automatic_caches"] == false
       refute Map.has_key?(dispatch.(other_account, :macos, github), "automatic_caches")
+      refute Map.has_key?(dispatch.(account, :macos, github), "managed_cache_volumes")
+
+      stub(FeatureFlags, :runner_managed_cache_volumes_enabled?, fn candidate -> candidate.id == account.id end)
+      assert %{"automatic_caches" => false, "managed_cache_volumes" => true} = dispatch.(account, :macos, github)
+      refute Map.has_key?(dispatch.(account, :linux, github), "managed_cache_volumes")
+      refute Map.has_key?(dispatch.(other_account, :macos, github), "managed_cache_volumes")
     end
   end
 

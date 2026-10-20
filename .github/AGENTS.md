@@ -53,7 +53,10 @@ Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in a separate step without the 1Password token. PR/fork builds never receive distribution secrets. These are not
+simulator app in a separate step without the 1Password token. Signing runs before
+any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
+keychain-lifecycle and launcher-packaging tests also gate publication.
+PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
