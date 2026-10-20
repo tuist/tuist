@@ -269,6 +269,10 @@ cache hits break. Its scripts and fixture live in `scripts/runners-acceptance/`.
 The deploy cascade's `runners-acceptance` job runs it against canary through
 `gate.sh` and gates `production` on it; the hourly schedule runs it against
 production's rented fleet, the BER1 rack and the Linux pool.
+Canary's macOS probe runs on ber1-runner-b02, which production lends canary
+(see "Lending a host to another env" in `infra/rack-nodes/AGENTS.md`); its
+jobs take canary's public cache, so the rack-local cache on ber1-store-a is
+covered only by the production schedule.
 
 - A job no runner picks up stays queued for a day and `timeout-minutes` ignores
   that wait, so the in-run dispatch watchdog fails and cancels the run past the

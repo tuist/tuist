@@ -33,9 +33,6 @@ on:
         default: ""
   schedule:
     - cron: "23 * * * *"
-  push:
-    branches: [ci/runners-acceptance-gate]
-    paths: [.github/workflows/runners-acceptance.yml, .github/scripts/runners-acceptance/**]
 
 permissions: {}
 
@@ -52,19 +49,21 @@ jobs:
     steps:
       - id: plan
         env:
-          ENVIRONMENT: ${{ inputs.environment || 'canary' }}
-        # Canary has one rented Mac mini, its own runner-cache region on the
-        # Elastic Metal node beside it, and a Linux pool. The BER1 rack is a
-        # production fleet only. `tuist-runners-acceptance` is a pool on
-        # production's rented fleet (values-managed-production.yaml), because
-        # the account's profiles prefer the rack and only spill to the rented
-        # fleet, so no profile label lands there deterministically.
+          ENVIRONMENT: ${{ inputs.environment || 'production' }}
+        # Canary's macOS jobs run on ber1-runner-b02, which production lends
+        # it (`tuist` is on `runner_site` there), and take canary's public
+        # cache, since the rack's cache node belongs to production.
+        # Production probes its rented fleet and the rack.
+        # `tuist-runners-acceptance` is a pool on production's rented fleet
+        # (values-managed-production.yaml): the account's profiles prefer the
+        # rack and only spill to the rented fleet, so no profile label lands
+        # there deterministically.
         run: |
           set -euo pipefail
           case "${ENVIRONMENT}" in
             canary)
               server=https://canary.tuist.dev
-              macos='[{"name":"rented","label":"tuist-canary-macos","cache_host":""}]'
+              macos='[{"name":"BER1 rack","label":"tuist-canary-macos","cache_host":""}]'
               linux='[{"name":"default","label":"tuist-canary-linux"}]'
               ;;
             production)
