@@ -690,6 +690,34 @@ agent + dispatch loop + runner user / launchd wiring on top. A
 Layer 2 rebuild on every runner-image commit costs ~2 min instead
 of the ~30 min an all-in-one rebuild used to cost.
 
+### Stacked images
+
+`runner-image.yml` with `stacked: true` builds Layer 2 as a Tart
+stacked image: Layer 1's disk stays a read-only base, and the runner
+layer is an ASIF overlay. It runs on the macOS 27 builder (`macos-27`
+label) and pushes `:macos-<dashes>-<git-sha>-stacked`. Clone and run
+need macOS 27 and Tart 2.36 or newer, so only rack hosts can run it.
+Older hosts can pull one but not boot it.
+
+- **What it saves.** The base's chunks are the same blobs Layer 1
+  publishes, and Tart keeps immutable disk files in a content store
+  keyed by their digest. A host that holds the base pulls only the
+  overlay: 1.6 GB for 26.6, against 23 GB of changed chunks for the
+  standalone image.
+- **Build mechanics.** The Packer plugin has no `--stacked`, so the
+  job puts `stacked-tart/` first on `PATH`, which rewrites the plugin's
+  `tart clone` to `tart clone --stacked`. A stacked VM has no
+  `disk.img`, so `stacked = true` also keeps the recovery partition
+  instead of deleting it. `clone --stacked` of a standalone base
+  hashes the whole base disk (about a minute for 140 GB) on every
+  build.
+- **First push per base.** Tart checks the target repository for the
+  base's blobs and does not mount them from `macos-tahoe-xcode`, so
+  the first stacked push on a new Layer 1 uploads the base once.
+- **Lineage.** Always stack on Layer 1, never on a previous runner
+  image: every extra overlay is one more file to validate and open at
+  boot, and DiskImageKit cannot merge layers.
+
 ## Active profiles + the default
 
 Active profiles are the single source of truth in
