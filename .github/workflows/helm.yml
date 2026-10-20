@@ -145,6 +145,8 @@ jobs:
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
+      - name: Test cluster cookie ownership and managed environment wiring
+        run: python3 infra/helm/tuist/test-cluster-cookie.py
       - name: Install kubeconform
         run: |
           set -euo pipefail
