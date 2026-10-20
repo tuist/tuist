@@ -354,6 +354,13 @@ covered only by the production schedule.
   cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
   project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
   `Fixture`, which matches case-insensitively on macOS.
+- On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
+  custom cache volume: the probe job seeds it with its run id through
+  `tuist/cache-volume`, and `macos-volume` attaches it after
+  `PUBLISH_WAIT_SECONDS` and requires that run id. Canary has one rack host, so
+  verify lands where seed published; production's multi-host fleets would make
+  it depend on convergence. Both jobs require a real APFS mount, because an
+  unavailable volume falls back to a job-local directory and still succeeds.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
