@@ -601,6 +601,34 @@ defmodule Tuist.Runners.CacheVolumes do
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
   @doc """
+  The lineage scopes of the custom volumes that jobs of `repository` attached
+  since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
+  attaches its volumes at runtime, so this history is how dispatch predicts the
+  volumes a queued job will attach.
+  """
+  def recent_job_scopes(account_id, repository, %DateTime{} = since)
+      when is_integer(account_id) and is_binary(repository) do
+    from(v in Volume,
+      join: u in Usage,
+      on: u.volume_id == v.id,
+      join: j in WorkflowJob,
+      on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+      where:
+        v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at) and u.inserted_at >= ^since,
+      distinct: true,
+      select: {j.workflow_name, j.job_name, v.id, v.generation}
+    )
+    |> Repo.all()
+    |> Enum.group_by(
+      fn {workflow_name, job_name, _id, _generation} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, id, generation} -> scope(%{id: id, generation: generation}) end
+    )
+  end
+
+  def recent_job_scopes(_account_id, _repository, _since), do: %{}
+
+  @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since
   `since`, most recently used first. Each is the identity a host restores and
   then retains its master under: the use that published the HEAD.

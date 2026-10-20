@@ -386,9 +386,11 @@ remains bounded to 25 seconds on the host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This favors warming hosts after an observed miss over predicting cache keys in the
-scheduler. It preserves ordinary placement and does not replicate every volume to
-every host. The `prefetch` results and subsequent `attach{source="local"}` observations
+This warms hosts after an observed miss and does not replicate every volume to
+every host. Dispatch separately prefers handing a polling host a queued job whose
+predicted custom volumes the host's Node labels advertise (see
+`Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
+the built-in volume. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
 
 Publishing a generation supersedes every other host's replica of that volume.
