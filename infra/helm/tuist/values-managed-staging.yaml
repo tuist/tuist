@@ -786,12 +786,9 @@ macosFleet:
     # not the build.
     masterCapGib: 28
     casGib: 16
-  # Share the pre-ordered pool with runnersFleet (same prefix
-  # below). Both MachineDeployments draw from one Scaleway-side
-  # pool of `tuist-pool-*` hosts; the controller claims the first
-  # match per Machine. Avoids fragmenting capacity between the
-  # macos and runners fleets in staging where total hostCount
-  # (1 + 2) easily fits within one operator-managed pool.
+  # Same pre-ordered pool as runnersFleet, which rents no hosts in
+  # staging. The pool keeps no spare, so replacing this host means
+  # ordering a `tuist-pool-` Mac mini in the staging project first.
   adoptPoolPrefix: "tuist-pool-"
   # Enable Tailscale for the staging fleet — every Mac mini joins
   # the staging tailnet, tart-kubelet advertises the tailnet IPv4
@@ -843,19 +840,16 @@ macosFleet:
     hostCPU: 8
     hostMemoryMB: 14336
 
-# Customer-runner Mac mini fleet. Sized to tuist/tuist's
-# concurrency tier (2 in staging; production keeps 5).
-# Workloads that target this fleet schedule via
-# `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
-#
-# Image digest pinned to the artifact built by the most recent
-# successful run of .github/workflows/runner-image.yml. Bumped
-# manually for now (one digest per runner-image release);
-# automation lands when the image flow gets its own
-# release-bump workflow.
+# Staging rents no Scaleway hosts for its macOS runners: they run on the
+# BER1 rack host production lends it (`rackFleet`), and every staging account
+# runs there (`runner_site`). `enabled` stays on, since it also renders the
+# runners controller, the runner namespace and the rack's RunnerPools. With
+# `hostCount: 0` the chart renders no rented macOS pools, and the
+# MachineDeployment stays at zero, so a host released from it goes back to
+# the `tuist-pool-` pool.
 runnersFleet:
   enabled: true
-  hostCount: 1
+  hostCount: 0
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
   # Scaleway console with names starting with `tuist-pool-`
   # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
@@ -895,69 +889,6 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
-  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
-  # template merges each catalog entry with its override at render
-  # time. Pod sizing inherits the catalog's default shape
-  # (6 vCPU / 14 GB on M2-L) — only declare `pod` here if a profile
-  # needs to deviate from it.
-  #
-  # Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's guest-slot budget
-  # across all macOS pools in this fleet using the same three-tier
-  # (floor / load / headroom) policy that backs the Linux pools.
-  # `minWarmPoolFloor` is the always-on warm guarantee; sum across
-  # overrides must stay ≤ `hostCount` or the excess goes Pending.
-  # `maxReplicas` is per-pool and can be the full host budget — the
-  # allocator caps the joint sum so two pools both asking for 9
-  # don't double-book the cluster.
-  xcodeOverrides:
-    "27.2-beta":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.0":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.6":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 1
-        maxReplicas: 1
-    "26.5":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.4.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.3":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.1.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.0.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag
   # (server-deployment.yml passes it, and each profile's digest in
   # `runnerImageDigests`, via --set).
@@ -1068,18 +999,30 @@ runnersFleetLinux:
     - { vcpus: 16, memoryGb: 32 }
 
 # BER1 rack hosts production lends staging: production keeps them in its
-# inventory (rackFleet.hosts there, with nodeCluster set), and their Nodes
-# register here, so staging jobs run on rack hardware. The rack catalog's pools
-# run on them for accounts on the `runner_site` flag. Staging has no
-# ber1-runners cache region, so their jobs use the public cache.
+# inventory (rackFleet.hosts there, with `lendTo: staging`), and staging's
+# operator runs their runtime and registers their Nodes here, so staging jobs
+# run on rack hardware. They are staging's only macOS runners: every staging
+# account runs its macOS profiles on the rack catalog's pools (`runner_site`
+# is on for everyone here), and a job waits while the host is down or
+# cordoned. Staging has no ber1-runners cache region, so their jobs use the
+# public cache.
 rackFleet:
   enabled: false
   name: tuist-staging-rack-fleet
   site: ber1
-  # ber1-runner-b01 joins with the identity staging's operator minted for it
-  # while the rack was here (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01),
-  # which has the names and binding this list would render. List it here once
-  # that leftover is deleted (step 17 of the move in infra/rack-nodes/AGENTS.md).
+  env: staging
+  # Rack hosts production lends staging with `lendTo: staging` (see "A host
+  # lent to another env" in infra/cluster-api-provider-tuist/AGENTS.md).
+  # Staging's operator runs their runtime and rolls it with staging's deploys,
+  # so a rack runtime change reaches a rack host here first.
+  borrow:
+    enabled: true
+    hosts:
+      - ber1-runner-b01
+  # Until staging takes ber1-runner-b01 over, it runs under the identity
+  # staging's operator minted for it while the rack was here
+  # (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01), which is not this
+  # chart's. Delete that identity once the lease is Active.
   joiningNodes: []
   runners:
     enabled: true
@@ -1092,3 +1035,11 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxReplicas: 2
+    # `tuist-staging-macos` resolves to 26.6, which the staging smoke runs
+    # on, so one guest stays warm for it.
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2

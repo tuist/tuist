@@ -49,6 +49,8 @@ rules:
       - vultrmachinetemplates
       - rackapplesiliconmachines
       - rackhosts
+      # Lending: the borrowing side reconciles the leases other envs write here.
+      - rackhostleases
       - rackpdus
       - rackatses
       - racksites
@@ -72,6 +74,9 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      - rackhostleases/status
+      # The borrowing side holds a lease until it released the host.
+      - rackhostleases/finalizers
       # The RackPDU and RackATS controllers hold a deleted PDU or transfer
       # switch with a finalizer until its egress Service is gone.
       - rackpdus/status
@@ -471,6 +476,23 @@ spec:
             {{- if .Values.rackFleet.cardRootKey.enabled }}
             - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
             {{- end }}
+            {{- end }}
+            {{- /* Rack hosts this env lends (rackFleet.hosts[].lendTo) and borrows
+            (rackFleet.borrow): see "A host lent to another env" in
+            infra/cluster-api-provider-tuist/AGENTS.md. */}}
+            {{- with .Values.rackFleet.env }}
+            - --rack-env={{ . }}
+            {{- end }}
+            {{- if .Values.rackFleet.enabled }}
+            {{- range $env, $borrower := .Values.rackFleet.borrowers }}
+            {{- if $borrower.kubeconfigItem }}
+            - --rack-lease-borrower={{ $env }}={{ include "tuist.rackBorrowerSecret" (dict "root" $ "env" $env) }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.rackFleet.borrow.enabled }}
+            - --rack-lease-fleet-name={{ include "tuist.rackFleetName" . }}
+            - --rack-lease-hosts={{ join "," .Values.rackFleet.borrow.hosts }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}

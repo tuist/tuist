@@ -1327,6 +1327,18 @@ ovhFleets:
 rackFleet:
   enabled: true
   site: ber1
+  env: production
+  # The envs whose rack pools production lends hosts to (`lendTo` below), each
+  # with the borrowing env's rack-lender kubeconfig, stored once in this vault
+  # (see "Lending a host to another env" in infra/rack-nodes/AGENTS.md). Until
+  # an item exists, the hosts lent to that env stay as they are.
+  borrowers:
+    staging:
+      kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG
+      namespace: tuist-staging
+    canary:
+      kubeconfigItem: RACK_BORROWER_CANARY_KUBECONFIG
+      namespace: tuist-canary
   # The edges' own addresses on the machines segment
   # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
   # edge routes the tailnet's connections to a host with SNAT, from its own
@@ -1374,12 +1386,9 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "1"
-      # Lent to staging: its Node registers in the staging cluster, where
-      # staging's rack pools run its guests (rackFleet.joiningNodes in
-      # values-managed-staging.yaml). Staging has no custom cache volumes.
-      nodeFleet: tuist-staging-rack-fleet
-      nodeCluster:
-        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
+      # Lent to staging, whose operator runs its runtime and whose rack pools
+      # run its guests (rackFleet.borrow in values-managed-staging.yaml).
+      lendTo: staging
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
@@ -1388,6 +1397,10 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "2"
+      # Lent to canary, whose operator runs its runtime and whose rack pools
+      # run its guests, including the deploy cascade's runners acceptance gate
+      # (rackFleet.borrow in values-managed-canary.yaml).
+      lendTo: canary
     - name: ber1-runner-b03
       serial: JC332QMX73
       address: 10.10.0.103
