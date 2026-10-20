@@ -134,7 +134,9 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	workspace = mountBranch(t, c)
-	if out, err := exec.Command("git", "-C", workspace, "cat-file", "-e", job+"^{commit}").CombinedOutput(); err != nil {
+	catFile := exec.Command("git", "-C", workspace, "cat-file", "-e", job+"^{commit}")
+	catFile.Env = env
+	if out, err := catFile.CombinedOutput(); err != nil {
 		t.Fatalf("the job's commit did not reach the master: %s", out)
 	}
 	if tip := strings.TrimSpace(gitIn(workspace, "rev-parse", "HEAD")); tip != head {
@@ -163,7 +165,9 @@ func exportFromGuest(t *testing.T, repo, dst string, env []string, base string) 
 		t.Fatal(err)
 	}
 	pack.Close()
-	head, _ := exec.Command("git", "-C", repo, "rev-parse", "HEAD").Output()
+	revParse := exec.Command("git", "-C", repo, "rev-parse", "HEAD")
+	revParse.Env = env
+	head, _ := revParse.Output()
 	writeTestFile(t, filepath.Join(dst, "head"), string(head))
 	if shallow, err := os.ReadFile(filepath.Join(repo, ".git", "shallow")); err == nil {
 		writeTestFile(t, filepath.Join(dst, "shallow"), string(shallow))

@@ -202,7 +202,7 @@ defmodule TuistWeb.RunnerProfilesLive do
 
     # Without the flag the setting is hidden, so a save keeps whatever the profile has.
     attrs =
-      if assigns.cached_checkouts_enabled? and assigns.form_platform == "macos",
+      if assigns.cached_checkouts_enabled?,
         do: Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts),
         else: attrs
 

@@ -162,5 +162,9 @@ these schemas persist volume identities and per-job uses.
   hosts drop a cleared volume's copies, and a checkout `download` only needs the
   current lineage, so a restore outlives the job that asked for it.
   A job also needs its runner profile's `cached_checkouts` (default true; a job on
-  a legacy label has it on); the profile modal shows the toggle on macOS
-  profiles only while the account has the flag.
+  a legacy label has it on); the profile modal shows the toggle on macOS and
+  Linux profiles only while the account has the flag. Linux hosts (the
+  runners-controller cache agent, `amd64`) allocate through the same endpoint:
+  the volume identity carries the session's platform, architecture and UID, so a
+  repository has separate macOS and Linux checkout volumes, published and
+  restored through the same `image/3` clauses.

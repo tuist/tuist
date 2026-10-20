@@ -74,8 +74,9 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether the account's GitHub jobs get a cached checkout: a `checkout` volume the
-  runner host fills from GitHub and mounts at the job's workspace. Off unless the
-  `:runner_cached_checkouts` FunWithFlags toggle is enabled for the account.
+  runner host builds from what earlier jobs' checkouts exported, after verifying
+  it, and mounts at the job's workspace on macOS and Linux runners. Off unless
+  the `:runner_cached_checkouts` FunWithFlags toggle is enabled for the account.
   """
   def runner_cached_checkouts_enabled?(account) do
     FunWithFlags.enabled?(:runner_cached_checkouts, for: account)
