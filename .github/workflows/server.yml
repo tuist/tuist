@@ -601,9 +601,12 @@ jobs:
     name: Docker build
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
+    # Pushes to main skip it: server-release.yml and
+    # server-production-deployment.yml build the same Dockerfile from the
+    # same commit.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: github.repository == 'tuist/tuist' && github.event_name != 'push' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
