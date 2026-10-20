@@ -41,12 +41,182 @@ defmodule TuistWeb.ProjectAuthenticationLiveTest do
     assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Authentication")
     assert has_element?(lv, "#oidc-trust-policy-form")
     assert has_element?(lv, "#oidc-trust-policy-form textarea[name='oidc_trust_policy[claims]']")
-    assert has_element?(lv, "#oidc-trust-policy-form [data-part='example']", "Fly.io")
-    assert html =~ "TUIST_OIDC_ACCOUNT"
-    assert html =~ organization.account.name
+    assert has_element?(lv, "#oidc-template", "Custom provider")
+    assert has_element?(lv, "#oidc-template", "Fly.io Machines")
+    assert html =~ "Allow trusted workloads to access this project without long-lived tokens."
+    refute has_element?(lv, "#oidc-trust-policy-form [data-part='example']")
+    refute has_element?(lv, "#oidc-workload-setup")
+    refute html =~ "A token must come from the exact issuer"
     refute html =~ "Default branch"
     refute html =~ "Project logo"
     assert page_title(lv) == "Authentication · #{project.name} · Tuist"
+  end
+
+  defp select_template(lv, template), do: render_hook(lv, "select_oidc_template", %{"value" => [template]})
+
+  defp fill_fly_template(lv, overrides \\ %{}) do
+    values =
+      Map.merge(%{"organization_slug" => "example-org", "organization_id" => "123", "application_id" => "456"}, overrides)
+
+    lv |> form("#oidc-trust-policy-form", %{"fly_template" => values}) |> render_change()
+  end
+
+  test "Fly template generates editable issuer, JWKS and exact string claims", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    assert has_element?(lv, "#oidc-fly-template")
+    assert has_element?(lv, "#oidc_trust_policy_name[value='Fly.io Machines']")
+    assert has_element?(lv, "[data-part='advanced']:not([open])")
+    fill_fly_template(lv)
+    assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/example-org']")
+    assert has_element?(lv, "#oidc_trust_policy_jwks_url[value='https://oidc.fly.io/example-org/.well-known/jwks']")
+    assert has_element?(lv, "#oidc-trust-policy-claims", ~s("org_id":"123"))
+    lv |> form("#oidc-trust-policy-form") |> render_submit()
+    assert [policy] = Projects.list_oidc_trust_policies(project)
+    assert policy.claims === %{"org_id" => "123", "app_id" => "456"}
+    assert policy.issuer == @policy_params["issuer"]
+    assert policy.jwks_url == @policy_params["jwks_url"]
+    refute has_element?(lv, "#oidc-fly-template")
+    assert has_element?(lv, "#oidc-template-select-custom [data-part='label']", "Custom provider")
+    assert has_element?(lv, "#oidc-workload-setup", "TUIST_OIDC_ACCOUNT")
+    assert has_element?(lv, "#oidc-workload-setup", organization.account.name)
+    assert has_element?(lv, "#oidc-workload-setup", "tuist auth login")
+  end
+
+  test "helper edits update generated fields without keeping stale identities", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+    fill_fly_template(lv, %{"organization_slug" => "another-org", "application_id" => "789"})
+    assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/another-org']")
+    assert has_element?(lv, "#oidc-trust-policy-claims", ~s("app_id":"789"))
+    fill_fly_template(lv, %{"organization_slug" => "", "application_id" => ""})
+    refute has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/another-org']")
+    lv |> form("#oidc-trust-policy-form") |> render_submit()
+    assert [] = Projects.list_oidc_trust_policies(project)
+    assert has_element?(lv, "#oidc-trust-policy-form", "Enter a valid Fly.io organization slug")
+  end
+
+  test "queued helper events cannot restore stale generated values", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+    fill_fly_template(lv, %{"organization_slug" => "another-org"})
+
+    render_change(lv, "change_oidc_trust_policy", %{
+      "_target" => ["fly_template", "organization_slug"],
+      "oidc_trust_policy" => Map.put(@policy_params, "name", "Fly.io Machines"),
+      "fly_template" => %{"organization_slug" => "latest-org", "organization_id" => "123", "application_id" => "456"}
+    })
+
+    assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/latest-org']")
+    assert has_element?(lv, "#oidc_trust_policy_jwks_url[value='https://oidc.fly.io/latest-org/.well-known/jwks']")
+
+    render_change(lv, "change_oidc_trust_policy", %{
+      "_target" => ["oidc_trust_policy", "name"],
+      "oidc_trust_policy" => Map.put(@policy_params, "name", "My deployment"),
+      "fly_template" => %{"organization_slug" => "latest-org", "organization_id" => "123", "application_id" => "456"}
+    })
+
+    assert has_element?(lv, "#oidc_trust_policy_name[value='My deployment']")
+    assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/latest-org']")
+  end
+
+  test "template changes preserve manually edited configuration", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+
+    params = %{
+      @policy_params
+      | "name" => "My service",
+        "audience" => "custom",
+        "claims" => ~s({"sub":"deployment"}),
+        "issuer" => "https://custom.example",
+        "jwks_url" => "https://custom.example/keys"
+    }
+
+    lv |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => params}) |> render_change()
+    fill_fly_template(lv, %{"organization_slug" => "another-org", "application_id" => "789"})
+    select_template(lv, "custom")
+    select_template(lv, "fly")
+    assert has_element?(lv, "#oidc_trust_policy_name[value='My service']")
+    assert has_element?(lv, "#oidc_trust_policy_audience[value='custom']")
+    assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://custom.example']")
+    assert has_element?(lv, "#oidc_trust_policy_jwks_url[value='https://custom.example/keys']")
+    assert has_element?(lv, "#oidc-trust-policy-claims", ~s({"sub":"deployment"}))
+    select_template(lv, "custom")
+    lv |> form("#oidc-trust-policy-form") |> render_submit()
+    assert [policy] = Projects.list_oidc_trust_policies(project)
+    assert policy.claims == %{"sub" => "deployment"}
+  end
+
+  test "selecting a template does not replace an existing custom draft", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    lv |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => @policy_params}) |> render_change()
+    select_template(lv, "fly")
+    assert has_element?(lv, "#oidc_trust_policy_name[value='Fly.io production']")
+    assert has_element?(lv, "#oidc-trust-policy-claims", @policy_params["claims"])
+  end
+
+  test "invalid helper values and unknown templates never create policies", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "unknown")
+    refute has_element?(lv, "#oidc-fly-template")
+    select_template(lv, "fly")
+
+    for invalid <- [
+          %{"organization_slug" => "../another"},
+          %{"organization_slug" => "org?query"},
+          %{"organization_id" => "app-name"},
+          %{"application_id" => "1.2"},
+          %{"application_id" => String.duplicate("1", 256)}
+        ] do
+      fill_fly_template(lv, invalid)
+      lv |> form("#oidc-trust-policy-form") |> render_submit()
+      assert has_element?(lv, "#oidc-trust-policy-form", "Enter a valid Fly.io organization slug")
+      assert [] = Projects.list_oidc_trust_policies(project)
+    end
+  end
+
+  test "advanced errors expand the generated configuration", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+    submit_policy(lv, %{@policy_params | "claims" => "not JSON"})
+    assert has_element?(lv, "[data-part='advanced'][open]", "Claims must be valid JSON.")
+    assert [] = Projects.list_oidc_trust_policies(project)
+  end
+
+  test "existing Mix policies show the Elixir login command", %{conn: conn, organization: organization} do
+    project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :mix)
+    {:ok, _} = Projects.create_oidc_trust_policy(project, Map.put(@policy_params, "claims", %{"sub" => "builder"}))
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    assert has_element?(lv, "#oidc-workload-setup", "mix tuist.login")
   end
 
   test "is linked from every existing project settings tab", %{conn: conn, organization: organization, project: project} do

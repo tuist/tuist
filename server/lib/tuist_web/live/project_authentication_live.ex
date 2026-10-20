@@ -35,11 +35,31 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
-  def handle_event("create_oidc_trust_policy", %{"oidc_trust_policy" => attrs}, socket) when is_map(attrs) do
+  def handle_event("select_oidc_template", %{"value" => [template]}, socket) when template in ["custom", "fly"] do
+    socket = assign(socket, :oidc_template, template)
+
+    socket =
+      if template == "fly",
+        do: populate_fly_template(socket, socket.assigns.policy_params, socket.assigns.fly_template),
+        else: socket
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_oidc_template", _params, socket), do: {:noreply, socket}
+
+  def handle_event("change_oidc_trust_policy", %{"oidc_trust_policy" => attrs} = params, socket) when is_map(attrs) do
+    {:noreply, update_policy_form(socket, attrs, params)}
+  end
+
+  def handle_event("create_oidc_trust_policy", %{"oidc_trust_policy" => attrs} = params, socket) when is_map(attrs) do
     project = authorize_project_update!(socket)
+    socket = update_policy_form(socket, attrs, params)
+    attrs = socket.assigns.policy_params
     claims_input = Map.get(attrs, "claims", "")
 
-    with {:ok, claims} <- decode_claims(claims_input),
+    with :ok <- validate_template(socket),
+         {:ok, claims} <- decode_claims(claims_input),
          {:ok, _policy} <- Projects.create_oidc_trust_policy(project, Map.put(attrs, "claims", claims)) do
       {:noreply,
        socket
@@ -47,6 +67,17 @@ defmodule TuistWeb.ProjectAuthenticationLive do
        |> assign_empty_form()
        |> put_flash(:info, dgettext("dashboard_projects", "Trust policy added."))}
     else
+      {:error, :invalid_template} ->
+        {:noreply,
+         assign(socket,
+           form_errors: [
+             dgettext(
+               "dashboard_projects",
+               "Enter a valid Fly.io organization slug and numeric organization and application IDs."
+             )
+           ]
+         )}
+
       {:error, :invalid_claims_json, message} ->
         changeset =
           attrs
@@ -86,6 +117,47 @@ defmodule TuistWeb.ProjectAuthenticationLive do
     end
   end
 
+  attr :form, :any, required: true
+  attr :claims_input, :string, required: true
+
+  defp identity_fields(assigns) do
+    ~H"""
+    <div data-part="identity-fields">
+      <.text_input
+        label={dgettext("dashboard_projects", "Issuer URL")}
+        field={@form[:issuer]}
+        error={field_error(@form[:issuer])}
+        type="basic"
+        placeholder="https://identity.example.com"
+      />
+      <.text_input
+        label={dgettext("dashboard_projects", "JWKS URL")}
+        field={@form[:jwks_url]}
+        error={field_error(@form[:jwks_url])}
+        type="basic"
+        placeholder="https://identity.example.com/.well-known/jwks.json"
+      />
+      <.text_area
+        id="oidc-trust-policy-claims"
+        label={dgettext("dashboard_projects", "Claims")}
+        name={@form[:claims].name}
+        value={@claims_input}
+        error={field_error(@form[:claims])}
+        hint={
+          dgettext(
+            "dashboard_projects",
+            "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
+          )
+        }
+        placeholder={~s({"sub": "service:production"})}
+        rows={4}
+        max_length={8192}
+        show_character_count={false}
+      />
+    </div>
+    """
+  end
+
   # Claims are edited as a JSON object. Only the shape is checked here; the
   # changeset owns the rules for keys, value types, and size.
   defp decode_claims(input) when is_binary(input) and byte_size(input) <= 8192 do
@@ -106,13 +178,97 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   end
 
   defp assign_empty_form(socket) do
-    assign_form(socket, OIDCTrustPolicy.changeset(%{}), "")
+    socket
+    |> assign(oidc_template: "custom", fly_template: empty_fly_template(), edited_fields: MapSet.new())
+    |> assign_form(OIDCTrustPolicy.changeset(%{}), "")
   end
+
+  defp empty_fly_template, do: %{"organization_slug" => "", "organization_id" => "", "application_id" => ""}
+
+  defp update_policy_form(socket, attrs, params) do
+    attrs = Map.take(attrs, Enum.map(@policy_fields, &Atom.to_string/1))
+    fly = normalize_fly_template(Map.get(params, "fly_template", socket.assigns.fly_template))
+    helper_changed? = fly != socket.assigns.fly_template
+    edited = socket.assigns.edited_fields
+
+    edited =
+      case params["_target"] do
+        ["oidc_trust_policy", field] when is_map_key(attrs, field) ->
+          MapSet.put(edited, field)
+
+        nil when not helper_changed? ->
+          Enum.reduce(attrs, edited, fn {field, value}, edited ->
+            if value == socket.assigns.policy_params[field], do: edited, else: MapSet.put(edited, field)
+          end)
+
+        _ ->
+          edited
+      end
+
+    socket = assign(socket, :edited_fields, edited)
+
+    if socket.assigns.oidc_template == "fly" do
+      populate_fly_template(socket, attrs, fly)
+    else
+      assign_form(socket, OIDCTrustPolicy.changeset(Map.delete(attrs, "claims")), Map.get(attrs, "claims", ""))
+    end
+  end
+
+  defp normalize_fly_template(params) when is_map(params) do
+    Map.new(empty_fly_template(), fn {key, _} ->
+      value = Map.get(params, key, "")
+      {key, if(is_binary(value) and byte_size(value) <= 255, do: String.trim(value), else: "")}
+    end)
+  end
+
+  defp normalize_fly_template(_), do: empty_fly_template()
+
+  defp populate_fly_template(socket, params, fly) do
+    issuer =
+      if valid_fly_slug?(fly["organization_slug"]), do: "https://oidc.fly.io/" <> fly["organization_slug"], else: ""
+
+    claims =
+      if valid_fly_id?(fly["organization_id"]) and valid_fly_id?(fly["application_id"]) do
+        JSON.encode!(%{"org_id" => fly["organization_id"], "app_id" => fly["application_id"]})
+      else
+        ""
+      end
+
+    values = %{
+      "name" => "Fly.io Machines",
+      "issuer" => issuer,
+      "jwks_url" => if(issuer == "", do: "", else: issuer <> "/.well-known/jwks"),
+      "audience" => "tuist",
+      "claims" => claims
+    }
+
+    # Track edits explicitly: queued helper events may contain stale generated
+    # values from the browser, which must not be mistaken for manual edits.
+    params =
+      Enum.reduce(values, params, fn {key, value}, params ->
+        if MapSet.member?(socket.assigns.edited_fields, key), do: params, else: Map.put(params, key, value)
+      end)
+
+    socket
+    |> assign(fly_template: fly)
+    |> assign_form(OIDCTrustPolicy.changeset(Map.delete(params, "claims")), Map.get(params, "claims", ""))
+  end
+
+  defp validate_template(%{assigns: %{oidc_template: "custom"}}), do: :ok
+
+  defp validate_template(%{assigns: %{fly_template: fly}}) do
+    if valid_fly_slug?(fly["organization_slug"]) and valid_fly_id?(fly["organization_id"]) and
+         valid_fly_id?(fly["application_id"]), do: :ok, else: {:error, :invalid_template}
+  end
+
+  defp valid_fly_slug?(value), do: Regex.match?(~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, value)
+  defp valid_fly_id?(value), do: byte_size(value) in 1..64 and Regex.match?(~r/\A[0-9]+\z/, value)
 
   defp assign_form(socket, changeset, claims_input) do
     socket
     |> assign(oidc_trust_policy_form: to_form(changeset, as: :oidc_trust_policy))
     |> assign(claims_input: claims_input)
+    |> assign(policy_params: Map.put(Map.put_new(changeset.params || %{}, "audience", "tuist"), "claims", claims_input))
     |> assign(form_errors: unrendered_errors(changeset))
   end
 
@@ -123,6 +279,8 @@ defmodule TuistWeb.ProjectAuthenticationLive do
   defp unrendered_errors(%Changeset{errors: errors}) do
     for {field, error} <- errors, field not in @policy_fields, do: translate_error(error)
   end
+
+  defp identity_errors?(form), do: Enum.any?([:issuer, :jwks_url, :claims], &(form[&1].errors != []))
 
   defp field_error(%Phoenix.HTML.FormField{errors: [error | _]}), do: translate_error(error)
   defp field_error(_field), do: nil

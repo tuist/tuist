@@ -49,7 +49,9 @@
     }
 
     & > [data-part="content"],
-    & [data-part="form"] {
+    & [data-part="form"],
+    & [data-part="identity-fields"],
+    & [data-part="template-fields"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
@@ -88,38 +90,45 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
 
-    & [data-part="example"] {
+    & [data-part="documentation"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="template-picker"] {
       display: flex;
       flex-direction: column;
-      gap: var(--noora-spacing-3);
-      box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-4);
-      padding: var(--noora-spacing-4);
+      gap: var(--noora-spacing-2);
+    }
+
+    & [data-part="template-label"],
+    & [data-part="advanced"] > summary {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="template-ids"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--noora-spacing-5);
+
+      @media (max-width: 768px) {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    & [data-part="advanced"] > summary {
+      cursor: pointer;
+    }
+
+    & [data-part="advanced"] > [data-part="identity-fields"] {
+      padding-top: var(--noora-spacing-5);
+    }
+
+    & #oidc-workload-setup pre {
+      margin: var(--noora-spacing-3) var(--noora-spacing-0) var(--noora-spacing-0);
+      white-space: pre-wrap;
       overflow-wrap: anywhere;
-
-      & > [data-part="example-title"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-      }
-
-      & dl {
-        display: grid;
-        grid-template-columns: max-content 1fr;
-        gap: var(--noora-spacing-2) var(--noora-spacing-4);
-        margin: 0;
-      }
-
-      & dt {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      }
-
-      & dd {
-        margin: 0;
-        min-width: 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      }
     }
 
     & [data-part="form"] > .noora-button {

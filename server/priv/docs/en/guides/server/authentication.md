@@ -63,6 +63,8 @@ GitHub Actions, CircleCI, and Bitrise issuers are reserved for the repository-ba
 
 In the Tuist dashboard, open your project's **Settings** > **Authentication** and add a policy under **Workload identities**. You must have permission to update the project. Each project can have up to 20 policies.
 
+Choose **Custom provider** to enter the fields below, or **Fly.io Machines** to generate them from your organization slug and numeric organization and application IDs. The Fly template keeps the generated issuer, JWKS URL, and claims editable under **Advanced configuration**. Changing templates or helper values preserves fields you have manually edited; switch back to **Custom provider** to continue without the Fly helpers. Templates only fill configuration and don't change how Tuist verifies tokens.
+
 | Field | Description |
 | --- | --- |
 | Name | A label to recognize the policy, unique within the project. |
@@ -97,7 +99,7 @@ If the exchange fails, check that the issuer, audience, and every claim in the p
 [Fly.io supports OIDC workload identity](https://docs.fly.io/reference/openid-connect/). A Machine can request a short-lived, signed identity token from its local `/.fly/api` Unix socket, without a Fly API token or a long-lived Tuist secret. Fly tokens identify an organization and application, not a source repository, so use a trust policy instead of connecting a GitHub repository:
 
 1. Obtain the issuer (`iss`), organization ID (`org_id`), and application ID (`app_id`) from an identity token issued inside your Fly Machine. The issuer is `https://oidc.fly.io/<organization-slug>`. Use the numeric IDs, not organization or app names.
-2. [Create a trust policy](#create-a-trust-policy) with these values. Fly sends both IDs as strings, so keep the quotes around them in the claims.
+2. [Create a trust policy](#create-a-trust-policy) using the **Fly.io Machines** template and enter the organization slug and both numeric IDs. It fills the values below and keeps the IDs as strings. You can also enter them manually using **Custom provider**; keep the quotes around the IDs in the claims.
 
    | Field | Value |
    | --- | --- |

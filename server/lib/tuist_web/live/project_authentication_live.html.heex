@@ -47,16 +47,15 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_projects",
-          "Allow workloads from an OpenID Connect identity provider to access this project with CI permissions. A token must come from the exact issuer, be signed by a key from the JWKS URL, carry the audience, and contain every listed claim with the same value and type."
+          "Allow trusted workloads to access this project without long-lived tokens."
         )}
       </span>
-      <span data-part="subtitle">
-        {dgettext(
-          "dashboard_projects",
-          "Workloads must set TUIST_OIDC_ACCOUNT to %{account} when they exchange their token. GitHub Actions, CircleCI, and Bitrise keep using the repository connection and can't be configured here.",
-          account: @selected_account.name
-        )}
-      </span>
+      <.link
+        href="/en/docs/guides/server/authentication#workload-identity-trust-policies"
+        data-part="documentation"
+      >
+        {dgettext("dashboard_projects", "Learn about workload identities")}
+      </.link>
     </div>
     <div data-part="content">
       <div
@@ -86,10 +85,27 @@
           phx-value-policy-id={policy.id}
         />
       </div>
+      <.alert
+        :if={@oidc_trust_policies != []}
+        id="oidc-workload-setup"
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_projects", "Authenticate your workload")}
+      >
+        <p>
+          {dgettext(
+            "dashboard_projects",
+            "Provide a fresh provider token as TUIST_OIDC_TOKEN, then run:"
+          )}
+        </p>
+        <pre><code>{~s(export TUIST_OIDC_ACCOUNT="#{@selected_account.name}") <> "\n" <> if(@selected_project.build_system == :mix, do: "mix tuist.login", else: "tuist auth login")}</code></pre>
+      </.alert>
       <.form
         for={@oidc_trust_policy_form}
         id="oidc-trust-policy-form"
         data-part="form"
+        phx-change="change_oidc_trust_policy"
         phx-submit="create_oidc_trust_policy"
       >
         <.alert
@@ -99,27 +115,59 @@
           size="small"
           title={error}
         />
+        <div id="oidc-template" data-part="template-picker">
+          <span data-part="template-label">{dgettext("dashboard_projects", "Template")}</span>
+          <.select
+            id={"oidc-template-select-#{@oidc_template}"}
+            name="oidc_template"
+            label={dgettext("dashboard_projects", "Template")}
+            value={@oidc_template}
+            on_value_change="select_oidc_template"
+          >
+            <:item value="custom" label={dgettext("dashboard_projects", "Custom provider")} />
+            <:item value="fly" label="Fly.io Machines" />
+          </.select>
+        </div>
         <.text_input
           label={dgettext("dashboard_projects", "Name")}
           field={@oidc_trust_policy_form[:name]}
           error={field_error(@oidc_trust_policy_form[:name])}
           type="basic"
-          placeholder={dgettext("dashboard_projects", "Production Machines")}
+          placeholder={dgettext("dashboard_projects", "Production service")}
         />
-        <.text_input
-          label={dgettext("dashboard_projects", "Issuer URL")}
-          field={@oidc_trust_policy_form[:issuer]}
-          error={field_error(@oidc_trust_policy_form[:issuer])}
-          type="basic"
-          placeholder="https://oidc.fly.io/my-organization"
-        />
-        <.text_input
-          label={dgettext("dashboard_projects", "JWKS URL")}
-          field={@oidc_trust_policy_form[:jwks_url]}
-          error={field_error(@oidc_trust_policy_form[:jwks_url])}
-          type="basic"
-          placeholder="https://oidc.fly.io/my-organization/.well-known/jwks"
-        />
+        <div :if={@oidc_template == "fly"} id="oidc-fly-template" data-part="template-fields">
+          <.text_input
+            id="oidc-fly-organization-slug"
+            label={dgettext("dashboard_projects", "Organization slug")}
+            name="fly_template[organization_slug]"
+            value={@fly_template["organization_slug"]}
+            type="basic"
+            placeholder="my-organization"
+            required
+          />
+          <div data-part="template-ids">
+            <.text_input
+              id="oidc-fly-organization-id"
+              label={dgettext("dashboard_projects", "Organization ID")}
+              name="fly_template[organization_id]"
+              value={@fly_template["organization_id"]}
+              type="basic"
+              placeholder="123"
+              inputmode="numeric"
+              required
+            />
+            <.text_input
+              id="oidc-fly-application-id"
+              label={dgettext("dashboard_projects", "Application ID")}
+              name="fly_template[application_id]"
+              value={@fly_template["application_id"]}
+              type="basic"
+              placeholder="456"
+              inputmode="numeric"
+              required
+            />
+          </div>
+        </div>
         <.text_input
           label={dgettext("dashboard_projects", "Audience")}
           field={@oidc_trust_policy_form[:audience]}
@@ -127,38 +175,19 @@
           type="basic"
           placeholder="tuist"
         />
-        <.text_area
-          id="oidc-trust-policy-claims"
-          label={dgettext("dashboard_projects", "Claims")}
-          name={@oidc_trust_policy_form[:claims].name}
-          value={@claims_input}
-          error={field_error(@oidc_trust_policy_form[:claims])}
-          hint={
-            dgettext(
-              "dashboard_projects",
-              "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
-            )
-          }
-          placeholder={~s({"org_id": "123", "app_id": "456"})}
-          rows={4}
-          max_length={8192}
-          show_character_count={false}
+        <.identity_fields
+          :if={@oidc_template == "custom"}
+          form={@oidc_trust_policy_form}
+          claims_input={@claims_input}
         />
-        <div data-part="example">
-          <span data-part="example-title">
-            {dgettext("dashboard_projects", "Example: Fly.io Machines")}
-          </span>
-          <dl>
-            <dt>{dgettext("dashboard_projects", "Issuer URL")}</dt>
-            <dd><code>https://oidc.fly.io/&lt;organization-slug&gt;</code></dd>
-            <dt>{dgettext("dashboard_projects", "JWKS URL")}</dt>
-            <dd><code>https://oidc.fly.io/&lt;organization-slug&gt;/.well-known/jwks</code></dd>
-            <dt>{dgettext("dashboard_projects", "Audience")}</dt>
-            <dd><code>tuist</code></dd>
-            <dt>{dgettext("dashboard_projects", "Claims")}</dt>
-            <dd><code>{~s({"org_id": "123", "app_id": "456"})}</code></dd>
-          </dl>
-        </div>
+        <details
+          :if={@oidc_template == "fly"}
+          data-part="advanced"
+          open={identity_errors?(@oidc_trust_policy_form)}
+        >
+          <summary>{dgettext("dashboard_projects", "Advanced configuration")}</summary>
+          <.identity_fields form={@oidc_trust_policy_form} claims_input={@claims_input} />
+        </details>
         <.button
           type="submit"
           variant="primary"
