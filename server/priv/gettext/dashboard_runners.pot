@@ -1784,5 +1784,5 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:195
 #, elixir-autogen, elixir-format
-msgid "Jobs start with the repository already checked out, so actions/checkout only fetches what changed."
+msgid "Keeps each repository checked out on a \"checkout\" cache volume, so actions/checkout only fetches what changed."
 msgstr ""
