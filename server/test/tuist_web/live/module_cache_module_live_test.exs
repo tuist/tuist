@@ -487,7 +487,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     html = lv |> render() |> Floki.parse_document!()
 
     for reason <- ~w(all changed upstream cold evicted) do
-      assert Floki.find(html, ~s([phx-click="select_miss_reason"][phx-value-type="#{reason}"])) != []
+      assert [_ | _] = Floki.find(html, ~s([phx-click="select_miss_reason"][phx-value-type="#{reason}"]))
     end
 
     render_click(lv, "select_miss_reason", %{"type" => "changed"})
