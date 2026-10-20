@@ -276,13 +276,14 @@ defmodule TuistEx.Analytics.Coverage do
           {:error, {:already_started, _pid}} -> :ok
         end
 
-        Enum.each(modules, fn {module, beam} ->
-          :cover.compile_beam(beam)
-          # Swapped now, as `Mimic.copy` does for a cover compiled module, and
-          # not at the first stub, which would export the calls made before
-          # it and only bring them back after the suite.
-          Mimic.calls(module, :module_info, 0)
-        end)
+        # One call, which `cover` compiles in parallel.
+        modules |> Enum.map(&elem(&1, 1)) |> :cover.compile_beam()
+
+        # Swapped now, as `Mimic.copy` does for a cover compiled module, and
+        # not at the first stub, which would export the calls made before it
+        # and only bring them back after the suite. One at a time: Mimic swaps
+        # each inside its single coordinator process anyway.
+        Enum.each(modules, fn {module, _beam} -> Mimic.calls(module, :module_info, 0) end)
     end
   end
 

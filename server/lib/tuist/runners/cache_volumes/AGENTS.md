@@ -8,6 +8,13 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
+- `Runners.managed_cache_volumes?/1` (`:runner_opt_in_caches` and
+  `:runner_managed_cache_volumes`) puts an account's macOS Xcode and module caches
+  on the `tuist-xcode` (30 GB, `volume_bytes/1`) and `tuist-module` custom
+  volumes. Dispatch sends `managed_cache_volumes: true`, stamps the untrusted
+  label so the host neither materializes nor promotes the built-in volume, and
+  omits its HEAD; the cache signing grant still follows trust. The dashboard
+  names the volumes "Xcode cache" and "Module cache".
 - `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
   affinity: the lineage scopes jobs of the same repository, workflow name and job
   name attached since a cutoff. It starts from the account's volumes so the uses

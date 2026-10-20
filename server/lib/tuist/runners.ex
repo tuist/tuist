@@ -200,6 +200,20 @@ defmodule Tuist.Runners do
     Catalog.fleet_platform(fleet_name) == :macos
   end
 
+  @doc """
+  Whether the account's macOS jobs keep the Xcode and module caches on their own
+  custom volumes, which their CI integrations attach, instead of the built-in
+  volume.
+  """
+  def managed_cache_volumes?(account) do
+    FeatureFlags.runner_opt_in_caches_enabled?(account) and
+      FeatureFlags.runner_managed_cache_volumes_enabled?(account)
+  end
+
+  defp managed_cache_volumes?(fleet_name, account) do
+    builtin_volumes?(fleet_name) and managed_cache_volumes?(account)
+  end
+
   # Both fleets keep custom cache volume masters on their hosts and advertise
   # them. A fleet of another platform holds no volume, so its queue is never
   # scored for one.
@@ -1234,7 +1248,11 @@ defmodule Tuist.Runners do
           # would let a failed dispatch strand a stale account on a Pod that later
           # runs a different one. The volume and untrusted labels ride the same
           # patch so the host sees them atomically. See stamp_account_label/5.
-          stamp_account_label(namespace, pod_name, account, volume_name, trusted)
+          #
+          # A job on managed cache volumes keeps its caches on custom volumes, so the
+          # host neither materializes nor promotes the built-in one for it.
+          builtin_volume? = trusted and not managed_cache_volumes?(fleet_name, account)
+          stamp_account_label(namespace, pod_name, account, volume_name, builtin_volume?)
 
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
@@ -1298,7 +1316,7 @@ defmodule Tuist.Runners do
              # presigned URLs for the account's master archive — trusted jobs
              # only. nil for an untrusted job (no convergence, and the guest has
              # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(trusted, do: volume_head_payload(account, volume_name))
+             volume_head: if(builtin_volume?, do: volume_head_payload(account, volume_name))
            }}
         else
           {:error, reason} = err ->
