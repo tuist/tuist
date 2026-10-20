@@ -1,0 +1,40 @@
+name: Stacked Image Staging Test
+
+# Throwaway: runs two jobs on staging's Xcode 26.5 rack pool while it is
+# pinned to a stacked runner image, so both guest slots on the host run the
+# stacked image at once. Deleted with its branch.
+
+on:
+  push:
+    branches:
+      - test/stacked-26-5
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        slot: [1, 2]
+    runs-on: tuist-staging-stacked-26-5
+    timeout-minutes: 60
+    steps:
+      - name: Guest
+        run: |
+          sw_vers
+          xcodebuild -version
+          sysctl -n hw.ncpu hw.memsize
+          df -h /
+          uptime
+      - name: Build swift-syntax
+        run: |
+          set -euo pipefail
+          curl -fsSL -o swift-syntax.tar.gz https://github.com/swiftlang/swift-syntax/archive/refs/tags/602.0.0.tar.gz
+          echo "e5a5af9c82c8c192131598dc1242ab6c6bd68718689aa10d36594c187108aaca  swift-syntax.tar.gz" | shasum -a 256 -c
+          tar xzf swift-syntax.tar.gz
+          cd swift-syntax-602.0.0
+          s=$(date +%s)
+          xcodebuild -scheme swift-syntax-Package -destination "platform=macOS" -derivedDataPath "$RUNNER_TEMP/dd" build-for-testing CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/bft.log" 2>&1
+          m=$(date +%s)
+          xcodebuild -scheme swift-syntax-Package -destination "generic/platform=macOS" -configuration Release -derivedDataPath "$RUNNER_TEMP/dr" build CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/rel.log" 2>&1
+          e=$(date +%s)
+          echo "bft_seconds=$((m-s)) release_seconds=$((e-m))" | tee -a "$GITHUB_STEP_SUMMARY"
+          df -h /
