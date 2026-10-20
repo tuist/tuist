@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -86,6 +88,11 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
+	// Without a baseline the volume reports itself changed, so it is still saved.
+	_ = os.Remove(baselinePath(mountRoot, response.Directory))
+	if names, err := topLevelEntries(base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(names), 0644)
+	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
@@ -97,7 +104,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 func detachMac() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func() {
+	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func(base string, kill bool) { releaseMac(ctx, base, kill) }, func() {
 		select {
 		case <-ctx.Done():
 		case <-time.After(time.Second):
@@ -111,7 +118,62 @@ func measureMac(path string) (int64, int64, error) {
 	}
 	return int64(stat.Blocks-stat.Bfree) * int64(stat.Bsize), int64(stat.Blocks) * int64(stat.Bsize), nil
 }
-func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), pause func()) error {
+
+type macHolder struct {
+	pid     int
+	command string
+}
+
+// releaseMac ends this user's processes that still have files open on the
+// volume mounted at base, so the next plain detach can succeed. Launch agents
+// started during the job outlive the runner's own process cleanup, and a tool
+// installed onto a volume runs from it. Ending them never permits publication
+// by itself: only the clean detach that follows does.
+func releaseMac(ctx context.Context, base string, kill bool) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	// Naming the mount point lists every open file on that filesystem.
+	out, _ := exec.CommandContext(ctx, "lsof", "-n", "-w", "-F", "pc", "--", base).Output()
+	signal, verb := unix.SIGTERM, "terminating"
+	if kill {
+		signal, verb = unix.SIGKILL, "killing"
+	}
+	var names []string
+	for _, holder := range parseMacHolders(out) {
+		if holder.pid == os.Getpid() || holder.pid == os.Getppid() {
+			continue
+		}
+		names = append(names, fmt.Sprintf("%s (pid %d)", holder.command, holder.pid))
+		_ = unix.Kill(holder.pid, signal)
+	}
+	if len(names) == 0 {
+		fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; no process of this user holds it\n", filepath.Base(base))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; %s %s\n", filepath.Base(base), verb, strings.Join(names, ", "))
+}
+func parseMacHolders(out []byte) []macHolder {
+	var holders []macHolder
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 2 {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			pid, err := strconv.Atoi(line[1:])
+			if err != nil {
+				continue
+			}
+			holders = append(holders, macHolder{pid: pid})
+		case 'c':
+			if len(holders) > 0 {
+				holders[len(holders)-1].command = line[1:]
+			}
+		}
+	}
+	return holders
+}
+func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), release func(string, bool), pause func()) error {
 	dirs, err := os.ReadDir(mountRoot)
 	if os.IsNotExist(err) {
 		return nil
@@ -130,17 +192,21 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		baseline, _ := os.ReadFile(baselinePath(mountRoot, dir.Name()))
 		var used, capacity int64
+		var changed bool
 		for attempt := 0; attempt < 5; attempt++ {
 			used, capacity, err = measure(base)
 			if err != nil {
 				break
 			}
+			changed = changed || changedSinceMount(base, baseline)
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
 			}
 			if attempt < 4 {
+				release(base, attempt > 0)
 				pause()
 			}
 		}
@@ -148,14 +214,16 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
-		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity})
+		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity, "changed": changed})
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
 			continue
 		}
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".detached"), id, 0644); err != nil {
 			failures = append(failures, err)
+			continue
 		}
+		_ = os.Remove(baselinePath(mountRoot, dir.Name()))
 	}
 	return errors.Join(failures...)
 }
@@ -269,4 +337,63 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 		return "reused (unreported)"
 	}
 	return "reused"
+}
+
+// baselinePath records a mounted volume's top-level entries outside the volume.
+func baselinePath(mountRoot, dir string) string {
+	return filepath.Join(mountRoot, "."+dir+".inventory")
+}
+
+// topLevelEntries lists the volume root. Entries that start with a dot belong
+// to Tuist or macOS, which creates some of them lazily.
+func topLevelEntries(base string) (string, error) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return "", err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			names = append(names, entry.Name())
+		}
+	}
+	return strings.Join(names, "\n"), nil
+}
+
+var errChangedSinceMount = errors.New("changed since mount")
+
+// changedSinceMount reports whether anything in the volume changed after it was
+// mounted. Writing, renaming, deleting or changing the metadata of an entry
+// updates its ctime or its parent's, which no tool can set back, so the walk
+// stops at the first entry newer than `.tuist-volume`, written at mount.
+func changedSinceMount(base string, baseline []byte) bool {
+	var mounted unix.Stat_t
+	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
+		return true
+	}
+	if names, err := topLevelEntries(base); err != nil || names != string(baseline) {
+		return true
+	}
+	return filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == base {
+			return nil
+		}
+		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		var stat unix.Stat_t
+		if err := unix.Lstat(path, &stat); err != nil {
+			return err
+		}
+		if stat.Ctim.Nano() > mounted.Ctim.Nano() {
+			return errChangedSinceMount
+		}
+		return nil
+	}) != nil
 }

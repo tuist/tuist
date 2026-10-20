@@ -5,7 +5,8 @@ name: Runners Staging Smoke Test
 # BER1 rack host production lends staging (`rackFleet.runners` in
 # infra/helm/tuist/values-managed-staging.yaml keeps one guest warm).
 # Staging rents no macOS hosts, so a job waits while that host is
-# cordoned or down.
+# cordoned or down. `environment: canary` runs the same jobs on
+# `tuist-canary-macos`, canary's 26.6 pool on the rack host it borrows.
 #
 # Use this to validate, end-to-end:
 #   1. workflow_job: queued webhook reaches the staging server.
@@ -28,6 +29,11 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Env whose `tuist-<env>-macos` runners run the smoke (canary runs on the BER1 rack host production lends it)
+        type: choice
+        options: [staging, canary]
+        default: staging
       custom_cache_apfs:
         description: Run the candidate custom cache APFS tests inside a staging Mac VM
         type: boolean
@@ -88,7 +94,7 @@ jobs:
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
-    runs-on: tuist-staging-macos
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
     timeout-minutes: 10
     steps:
       - name: Show environment
@@ -163,7 +169,7 @@ jobs:
 
   custom-cache-apfs:
     if: github.repository == 'tuist/tuist' && inputs.custom_cache_apfs
-    runs-on: tuist-staging-macos
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
     timeout-minutes: 15
     permissions:
       contents: read
@@ -183,7 +189,7 @@ jobs:
   # apart, which is why the host's own addresses are the core of the probe.
   vm-isolation:
     if: github.repository == 'tuist/tuist' && inputs.vm_isolation
-    runs-on: tuist-staging-macos
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
     timeout-minutes: 15
     env:
       HOST_ADDRESSES: ${{ inputs.host_addresses }}

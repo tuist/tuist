@@ -60,12 +60,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
+  `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
+  runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
   Admission, convergence and cache eviction also preserve the host's 15% physical
   free-space floor. Custom admission reclaims its own masters first, then built-in
   masters/convergence staging under the shared lock; remeasure actual space after
   deletion because running CoW clones can pin blocks. Never reclaim live branches.
+  A background prefetch the server listed for the host gives way first: built-in
+  and custom job admission cancel it and drop its 40 GB reservation before
+  evicting any master (`displaceSpareLocked`).
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
@@ -84,12 +90,16 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`.
-  A job whose base is not local mounts the newest older master of the same
-  lineage instead of an empty directory (reported as `mounted_generation`) and its
-  base is queued. A superseded master used in the last day stays until its
-  successor is downloaded through the queue (`LocalImages.Replace`).
-  Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
-  cold request has no archive to budget beside its image.
+  A job never waits for a download. Without its base locally it mounts the newest
+  older master of the same lineage (reported as `mounted_generation`), or else an
+  empty image marked `.cold` that reports a miss and is withheld from publication;
+  either way its base is queued. A superseded master used in the last day stays
+  until its successor is downloaded through the queue (`LocalImages.Replace`).
+  Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
+  server sends none, at most `MaxVolumeBytes`) for every attach and twice that
+  for prefetch, which also holds the
+  archive. Prefetch downloads into `staging/` without the lineage lock, and
+  maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.
 - Publication/reclamation runs independently of bounded per-pod mailbox workers.

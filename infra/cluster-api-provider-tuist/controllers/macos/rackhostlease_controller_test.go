@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
@@ -83,17 +85,25 @@ func tailscaleSecret() *corev1.Secret {
 
 func newLeaseReconciler(t *testing.T, objs ...runtime.Object) (*RackHostLeaseReconciler, *pushes) {
 	t.Helper()
+	return newLeaseReconcilerWith(t, nil, objs...)
+}
+
+func newLeaseReconcilerWith(t *testing.T, intercept func(client.Client) interceptor.Funcs, objs ...runtime.Object) (*RackHostLeaseReconciler, *pushes) {
+	t.Helper()
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{corev1.AddToScheme, infrav1.AddToScheme, rbacv1.AddToScheme, clusterv1.AddToScheme} {
 		if err := add(scheme); err != nil {
 			t.Fatal(err)
 		}
 	}
-	c := fake.NewClientBuilder().
+	builder := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackHostLease{}).
-		Build()
+		WithStatusSubresource(&infrav1.RackHostLease{})
+	var c client.Client = builder.Build()
+	if intercept != nil {
+		c = interceptor.NewClient(c.(client.WithWatch), intercept(c))
+	}
 	p := &pushes{}
 	return &RackHostLeaseReconciler{
 		Client:   c,
@@ -223,8 +233,8 @@ func TestBorrowerTakesTheHostOverWithItsOwnRuntime(t *testing.T) {
 		t.Fatalf("pushes = %d, want 1", len(p.configs))
 	}
 	cfg := p.configs[0]
-	if cfg.RuntimeOwner != "staging" || !cfg.TailscaleForceReauth {
-		t.Fatalf("owner = %q, forceReauth = %v; want staging with a fresh tailnet login", cfg.RuntimeOwner, cfg.TailscaleForceReauth)
+	if cfg.RuntimeOwner != "staging" || !cfg.TakeOver {
+		t.Fatalf("owner = %q, forceReauth = %v; want staging with a fresh tailnet login", cfg.RuntimeOwner, cfg.TakeOver)
 	}
 	if cfg.NodeName != borrowedNode || cfg.NodeLabels["tuist.dev/fleet"] != borrowerFleet {
 		t.Fatalf("node %q labels %v, want this env's", cfg.NodeName, cfg.NodeLabels)
@@ -270,8 +280,8 @@ func TestBorrowerRollsItsDeployToTheHost(t *testing.T) {
 	if len(p.configs) != 2 {
 		t.Fatalf("pushes = %d, want the deploy rolled", len(p.configs))
 	}
-	if cfg := p.configs[1]; cfg.TailscaleForceReauth || cfg.TartVersion != "2.42.0" || cfg.RuntimeOwner != "staging" {
-		t.Fatalf("drift push = reauth %v tart %q owner %q", cfg.TailscaleForceReauth, cfg.TartVersion, cfg.RuntimeOwner)
+	if cfg := p.configs[1]; cfg.TakeOver || cfg.TartVersion != "2.42.0" || cfg.RuntimeOwner != "staging" {
+		t.Fatalf("drift push = reauth %v tart %q owner %q", cfg.TakeOver, cfg.TartVersion, cfg.RuntimeOwner)
 	}
 	if lease.Status.HostConfigHash == before {
 		t.Fatal("the stamped hash did not move with the deploy")
@@ -627,5 +637,88 @@ func TestBorrowerReachesTheHostBeforeDrainingThePreviousNode(t *testing.T) {
 	reconcileLease(t, r)
 	if len(p.configs) != 1 {
 		t.Fatalf("pushes = %d once reachable, want the takeover", len(p.configs))
+	}
+}
+
+const previousNode = "tuist-tuist-rack-fleet-mini-01"
+
+// deadNode has not heartbeated for longer than a Node's tart-kubelet can be
+// gone and come back.
+func deadNode(name string) *corev1.Node {
+	lost := metav1.NewTime(time.Now().Add(-20 * time.Minute))
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type: corev1.NodeReady, Status: corev1.ConditionUnknown, LastHeartbeatTime: lost, LastTransitionTime: lost,
+		}}},
+	}
+}
+
+func runnerOn(name, node, heartbeat string) *corev1.Pod {
+	pod := runnerPodOn(name, node)
+	pod.Annotations = map[string]string{"tuist.dev/runner-heartbeat-state": heartbeat}
+	pod.Finalizers = []string{"tart-kubelet.tuist.dev/vm-cleanup"}
+	return pod
+}
+
+// A Node whose tart-kubelet is gone can never finish its pods: their
+// vm-cleanup finalizer waits for that kubelet. A warm runner that was
+// polling when it went has no job to wait for, and the takeover's
+// tart-kubelet reaps its VM, so the borrower does not wait for it and lets
+// the pod go after taking the host over. On 2026-10-20 two such pods held
+// ber1-runner-b01's handover until a person removed their finalizers.
+func TestBorrowerDoesNotWaitForIdleRunnersOnADeadNode(t *testing.T) {
+	idle := runnerOn("idle", previousNode, "polling")
+	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), deadNode(previousNode), idle)
+	grant(t, r, reconcileLease(t, r))
+
+	lease := reconcileLease(t, r)
+	if len(p.configs) != 1 || lease.Status.State != infrav1.LeaseActive {
+		t.Fatalf("pushes = %d, state = %s; want the takeover past the idle runner", len(p.configs), lease.Status.State)
+	}
+	if err := r.Get(context.Background(), types.NamespacedName{Namespace: idle.Namespace, Name: idle.Name}, &corev1.Pod{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("the stranded runner pod survived the takeover (err %v)", err)
+	}
+}
+
+// A runner that had claimed a job may still be running it in its VM even with
+// its Node gone, so the borrower waits for it, and says what to do.
+func TestBorrowerWaitsForAClaimedRunnerOnADeadNode(t *testing.T) {
+	busy := runnerOn("busy", previousNode, "claimed")
+	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), deadNode(previousNode), busy)
+	grant(t, r, reconcileLease(t, r))
+
+	lease := reconcileLease(t, r)
+	if len(p.configs) != 0 {
+		t.Fatal("took the host over under a runner that had claimed a job")
+	}
+	if msg := conditions.GetMessage(lease, BootstrappedCondition); !strings.Contains(msg, "tuist-runners/busy") {
+		t.Fatalf("condition message %q does not name the claimed runner", msg)
+	}
+}
+
+// The lease's status is one write: a reconcile reading it between a write of
+// its conditions and one of the rest would see the host taken over with no
+// runtime stamped, and push it all again.
+func TestBorrowerStampsTheTakeoverInOneWrite(t *testing.T) {
+	var torn []string
+	r, p := newLeaseReconcilerWith(t, func(c client.Client) interceptor.Funcs {
+		return interceptor.Funcs{SubResourcePatch: func(ctx context.Context, cl client.Client, sub string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+			if err := cl.SubResource(sub).Patch(ctx, obj, patch, opts...); err != nil {
+				return err
+			}
+			stored := &infrav1.RackHostLease{}
+			if err := cl.Get(ctx, client.ObjectKeyFromObject(obj), stored); err == nil &&
+				conditions.IsTrue(stored, BootstrappedCondition) && stored.Status.HostConfigHash == "" {
+				torn = append(torn, "Bootstrapped=True with no hostConfigHash")
+			}
+			return nil
+		}}
+	}, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	grant(t, r, reconcileLease(t, r))
+	reconcileLease(t, r)
+
+	if len(p.configs) != 1 || len(torn) != 0 {
+		t.Fatalf("pushes = %d, torn writes = %v", len(p.configs), torn)
 	}
 }

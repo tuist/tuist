@@ -74,6 +74,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := firstHost.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("successful job"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +109,13 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := otherHost.Attach(context.Background(), other, otherMount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, otherMount)
 	if data, err := os.ReadFile(filepath.Join(otherMount, "payload")); err != nil || string(data) != "successful job" {
 		t.Fatal("cross-host master changed", string(data), err)
+	}
+	// A job that only read the volume leaves nothing to save.
+	if err := otherHost.Seal(other, otherMount); !errors.Is(err, ErrUnchanged) {
+		t.Fatal("a job that only read the volume would save it:", err)
 	}
 	// Discarding a private branch must leave the saved master usable.
 	if err := firstHost.Delete(warm, warmMount); err != nil {
@@ -147,6 +153,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("saved contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -250,6 +257,7 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 	if err := b.Attach(context.Background(), seed, path); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, path)
 	if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte("published"), 0644); err != nil {
 		t.Fatal(err)
 	}

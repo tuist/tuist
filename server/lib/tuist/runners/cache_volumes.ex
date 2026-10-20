@@ -285,7 +285,8 @@ defmodule Tuist.Runners.CacheVolumes do
         image_digest: usage.image_digest,
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
-        uid: volume.uid
+        uid: volume.uid,
+        volume_bytes: volume_bytes(volume)
       }
     end)
   end
@@ -297,11 +298,17 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   # The job's runner profile decides which GitHub branches save. Without a
-  # profile, the repository's default branch saves, as it does for the other
-  # providers.
+  # profile, a new profile's policy applies. The other providers save from the
+  # default branch.
   defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
     if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, profile.id},
+      else: :denied
+  end
+
+  defp writer_grant(%{provider: "github"} = identity, nil) do
+    if writer_allowed?(%Profile{}, identity.trusted, Map.get(identity, :writer_branch)),
+      do: {:ok, nil},
       else: :denied
   end
 
@@ -328,12 +335,20 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   Revokes pending saves granted under a runner profile's previous policy that
-  its current policy no longer allows. A deleted profile falls back to the
-  default branch. Call inside the transaction that updated or deleted the
+  its current policy no longer allows. A deleted profile falls back to a new
+  profile's policy. Call inside the transaction that updated or deleted the
   profile row, after the row was written. Additions only affect new attachments.
   """
-  def revoke_profile_writers({:deleted, %Profile{} = profile}),
-    do: revoke_profile_writers(%{profile | cache_writer_default_branch: true, cache_writer_branches: nil})
+  def revoke_profile_writers({:deleted, %Profile{} = profile}) do
+    default = %Profile{}
+
+    revoke_profile_writers(%{
+      profile
+      | cache_writer_all_branches: default.cache_writer_all_branches,
+        cache_writer_default_branch: default.cache_writer_default_branch,
+        cache_writer_branches: default.cache_writer_branches
+    })
+  end
 
   def revoke_profile_writers(%Profile{id: id} = profile) do
     revoked =
@@ -367,6 +382,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Uses allocated before uses recorded their profile, including by older pods
   # during a rollout, were default-branch grants without a recorded branch.
+  defp unrecorded_profile_writers(%Profile{cache_writer_all_branches: true}), do: []
   defp unrecorded_profile_writers(%Profile{cache_writer_default_branch: true}), do: []
 
   defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
@@ -386,6 +402,12 @@ defmodule Tuist.Runners.CacheVolumes do
       )
     )
   end
+
+  # Only same-repository jobs of qualifying events have a writer branch, so
+  # forks and pull_request_target never save. Uses recorded before writer
+  # branches were recorded only carry the default-branch flag.
+  defp writer_allowed?(%Profile{cache_writer_all_branches: true}, default_branch?, branch),
+    do: default_branch? or is_binary(branch)
 
   defp writer_allowed?(%Profile{} = profile, default_branch?, branch) do
     (default_branch? and profile.cache_writer_default_branch) or
@@ -657,6 +679,43 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
+  # The Xcode compilation cache outgrows other volumes; hosts admit up to 32 GB.
+  @volume_bytes 20_000_000_000
+  @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000}
+
+  @doc """
+  The size a host creates the volume's image at.
+  """
+  def volume_bytes(%{key: key}), do: Map.get(@managed_volume_bytes, key, @volume_bytes)
+
+  @doc """
+  The lineage scopes of the custom volumes that jobs of `repository` attached
+  since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
+  attaches its volumes at runtime, so this history is how dispatch predicts the
+  volumes a queued job will attach.
+  """
+  def recent_job_scopes(account_id, repository, %DateTime{} = since)
+      when is_integer(account_id) and is_binary(repository) do
+    from(v in Volume,
+      join: u in Usage,
+      on: u.volume_id == v.id,
+      join: j in WorkflowJob,
+      on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+      where:
+        v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at) and u.inserted_at >= ^since,
+      distinct: true,
+      select: {j.workflow_name, j.job_name, v.id, v.generation}
+    )
+    |> Repo.all()
+    |> Enum.group_by(
+      fn {workflow_name, job_name, _id, _generation} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, id, generation} -> scope(%{id: id, generation: generation}) end
+    )
+  end
+
+  def recent_job_scopes(_account_id, _repository, _since), do: %{}
+
   @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since
   `since`, most recently used first. Each is the identity a host restores and
@@ -702,7 +761,8 @@ defmodule Tuist.Runners.CacheVolumes do
           scope: scope(volume),
           generation: generation,
           image_digest: digest,
-          content_digest: content
+          content_digest: content,
+          volume_bytes: volume_bytes(volume)
         }
       ]
     else

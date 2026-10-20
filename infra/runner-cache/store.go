@@ -32,6 +32,22 @@ type Identity struct {
 	// host-built master of its volume's clear Generation and is never published.
 	Kind       string `json:"kind,omitempty"`
 	Generation int64  `json:"generation,omitempty"`
+	// VolumeBytes is the size the server allocated the volume at. Zero from a
+	// server that predates per-volume sizes.
+	VolumeBytes int64 `json:"volume_bytes"`
+}
+
+// MaxVolumeBytes bounds the size a server may allocate a volume at, so a
+// host can admit and restore any volume it is handed.
+const MaxVolumeBytes = 32_000_000_000
+
+// VolumeSize is the size the volume's image is created at: the allocated size,
+// or defaultBytes when the server did not send one.
+func (i Identity) VolumeSize(defaultBytes int64) int64 {
+	if i.VolumeBytes > 0 {
+		return i.VolumeBytes
+	}
+	return defaultBytes
 }
 
 const KindCheckout = "checkout"
@@ -138,7 +154,7 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && validHead(identity) && validKind(identity)
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity) && validKind(identity)
 }
 func validKind(identity Identity) bool {
 	switch identity.Kind {
@@ -284,6 +300,9 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 	if mounted, ok := s.backend.(interface{ MountedGeneration(Slot) int64 }); ok {
 		slot.MountedGeneration = mounted.MountedGeneration(slot)
 	}
+	if cold, ok := s.backend.(interface{ Cold(Slot) bool }); ok && cold.Cold(slot) {
+		slot.Warm = false
+	}
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 	}
@@ -372,7 +391,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) {
+		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
 			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
 				return err
 			}

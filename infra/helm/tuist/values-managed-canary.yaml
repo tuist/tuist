@@ -698,6 +698,10 @@ ovhFleets:
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:
@@ -827,14 +831,6 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxReplicas: 2
-    # `tuist-canary-macos` resolves to 26.6, which the runners acceptance gate
-    # targets on every deploy, so one guest stays warm for it.
-    xcodeOverrides:
-      "26.6":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxReplicas: 2
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

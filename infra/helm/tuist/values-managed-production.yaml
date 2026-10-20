@@ -1595,6 +1595,10 @@ rackLinuxFleet:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # Off the processor pool, which has no memory to spare beside the processor.
   operatorNodeSelector:
     node.cluster.x-k8s.io/pool: general
@@ -2123,10 +2127,19 @@ runnersFleet:
 # total. The operator's pre-order job for production already
 # tracks the macos + runners side; bump it by 2 ahead of the
 # `helm upgrade` that applies this replica count.
+#
+# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
+# to a new macOS release" in vm-image-builder.md. The two Tahoe builders
+# keep their own os pin and runner labels. Machines created from here on
+# adopt a Golden Gates host and register without `vm-image-builder`, so
+# they take no image jobs until that label is added to their runner.
 buildersFleet:
   enabled: true
-  replicas: 2
+  replicas: 3
   adoptPoolPrefix: "tuist-pool-"
+  ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
+  machine:
+    os: "Golden Gates"
   externalSecrets:
     enabled: true
 

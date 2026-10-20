@@ -217,6 +217,7 @@
                   <span data-part="title">{dgettext("dashboard_runners", "Save cache from")}</span>
                   <span :if={not @form_cache_saving_expanded} data-part="summary">
                     {cache_saving_summary(
+                      @form_cache_writer_all_branches,
                       @form_cache_writer_default_branch,
                       @form_cache_writer_branches
                     )}
@@ -232,6 +233,26 @@
                 hidden={not @form_cache_saving_expanded}
               >
                 <.toggle
+                  id={"runner-profile-cache-limit-branches-#{not @form_cache_writer_all_branches}"}
+                  label={dgettext("dashboard_runners", "Limit to specific branches")}
+                  description={
+                    if @form_cache_writer_all_branches,
+                      do:
+                        dgettext(
+                          "dashboard_runners",
+                          "Every successful job from the repository saves its changes, including pull requests. Forks never save."
+                        ),
+                      else:
+                        dgettext(
+                          "dashboard_runners",
+                          "Only jobs on the branches below save their changes."
+                        )
+                  }
+                  checked={not @form_cache_writer_all_branches}
+                  phx-click="toggle_cache_writer_all_branches"
+                />
+                <.toggle
+                  :if={not @form_cache_writer_all_branches}
                   id={"runner-profile-cache-default-branch-#{@form_cache_writer_default_branch}"}
                   label={dgettext("dashboard_runners", "Default branch")}
                   description={
@@ -243,7 +264,7 @@
                   checked={@form_cache_writer_default_branch}
                   phx-click="toggle_cache_writer_default_branch"
                 />
-                <div data-part="additional-branches">
+                <div :if={not @form_cache_writer_all_branches} data-part="additional-branches">
                   <span data-part="subtitle">
                     {dgettext("dashboard_runners", "Additional branches")}
                   </span>

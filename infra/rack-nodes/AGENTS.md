@@ -1048,26 +1048,33 @@ How it works is "A host lent to another env" in
 **Once per borrowing env** (remote, by a person: it writes a credential into
 1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
 and canary do), which renders the `rack-lender` identity production's operator
-writes that env's leases with. With `S` the borrowing cluster's context, `N`
-its namespace and `E` its name:
+writes that env's leases with. With `C` the borrowing cluster's context, `N`
+its namespace and `E` its name. Every variable is quoted, since zsh does not
+word-split an unquoted one, and each step runs only if the one before it
+succeeded:
 
 ```
-S="--context kube-staging.tuist.dev"; N=tuist-staging; E=STAGING
+C=kube-staging.tuist.dev; N=tuist-staging; E=STAGING
 umask 077; d="$(mktemp -d)"
-kubectl $S -n $N get secret tuist-tuist-rack-lender-token -o json >"$d/s.json"
-server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
-printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' \
-  "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
-jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
-op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+kubectl --context "$C" -n "$N" get secret tuist-tuist-rack-lender-token -o json >"$d/s.json" && server="$(kubectl --context "$C" -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')" && test -n "$server" && test -n "$(jq -r .data.token "$d/s.json")" && printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig" && KUBECONFIG="$d/kubeconfig" kubectl auth whoami && jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json" && op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
 ```
 
-Then set `kubeconfigItem` on the env's entry in `rackFleet.borrowers` in
-values-managed-production.yaml and deploy. Rotating it is deleting the token
-Secret in the borrowing env (its next deploy makes a new one), storing the new
-kubeconfig under the same item, and waiting for ESO's five-minute refresh.
+`kubectl auth whoami` must print
+`system:serviceaccount:<N>:tuist-tuist-rack-lender` before anything is stored.
+To replace an item that exists already, run the same with `op item edit <item>
+--vault tuist-k8s-production --template "$d/item.json"` in place of `op item
+create`.
 
-**Lend a host** (remote):
+Staging's and canary's entries in `rackFleet.borrowers` in
+values-managed-production.yaml name their items already; a new borrowing env
+needs an entry with its `kubeconfigItem`, and a production deploy. Rotating it
+is deleting the token Secret in the borrowing env (its next deploy makes a new
+one), storing the new kubeconfig under the same item, and waiting for ESO's
+five-minute refresh.
+
+**Lend a host** (remote). Only a host production has bootstrapped: production
+does not bootstrap a host while it lends it, so a new one joins production
+first.
 
 1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
    deploy. A host not on that list is refused.
@@ -1081,9 +1088,11 @@ kubeconfig under the same item, and waiting for ESO's five-minute refresh.
 
 **Return it**: drop `lendTo` in production and deploy. The borrower drains its
 Node, so its running jobs finish, and releases the host; production then takes
-the runtime back and bootstraps its own (Returning, then Reclaimed). Remove the
-host from `rackFleet.borrow.hosts` afterwards. A borrower that is gone cannot
-release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+the runtime back and bootstraps its own (Returning, then Reclaimed). It also
+deletes the tailnet devices the host ran as; if its tailnet API cannot, a
+`TailnetCleanupFailed` event names them for the Tailscale admin console.
+Remove the host from `rackFleet.borrow.hosts` afterwards. A borrower that is
+gone cannot release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
 in production takes it back without it (whatever the borrower ran there is
 lost), and remove the annotation once the host is back.
 
@@ -1142,11 +1151,12 @@ host's own listeners, its sibling guests and the tailnet: the VM egress
 firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
 translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
 `vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
-from a VM on the host it lands on; run it on a host before lending it to an
-env, and after a change to either. The one rack target a guest reaches on
-purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
-probe's cluster DNS check fails on a host lent by hand, which has no route to
-the borrowing cluster's Service CIDR.
+from a VM on the host it lands on (`environment` picks staging's or canary's
+runners); run it on a host before lending it to an env, and after a change to
+either. The one rack target a guest reaches on purpose is the site's Kura
+gateway (`rackFleet.vmCacheGatewayCIDRs`). The probe's cluster DNS check fails
+on a host lent by hand, which has no route to the borrowing cluster's Service
+CIDR.
 
 ## Tests
 

@@ -615,6 +615,48 @@ detach_cache_image() {
   return 1
 }
 
+# stop_tuist_launch_agents boots out the launch agents the Tuist CLI installed
+# during the job: the compilation-cache proxy, the retired per-project cache
+# daemons, the metrics sampler. The runner reaps only its own process tree, so
+# they outlive the job, still holding files open on the volumes teardown is
+# about to detach. The proxy holds the compilation-cache store in the cache
+# image, and a Tuist installed onto a custom volume (mise's install directory,
+# for example) runs every one of them from that volume. A busy cache image is
+# force-detached; a busy custom volume is not published at all. Booting out, and
+# not killing, because the agents restart on an unsuccessful exit.
+#
+# `launchctl bootout` returns before the process exits, so this then waits up to
+# TUIST_AGENT_STOP_TIMEOUT for each one that was running to be gone.
+#
+# Labels starting `tuist.` are the CLI's; the image's own agents, this script's
+# among them, are `dev.tuist.`.
+TUIST_AGENT_STOP_TIMEOUT=10
+stop_tuist_launch_agents() {
+  local domain agents pid label pids="" polls=0
+  domain="gui/$(id -u)"
+  agents=$(launchctl list 2>/dev/null | awk 'NR > 1 && $3 ~ /^tuist\./ { print $1, $3 }')
+  [ -n "${agents}" ] || return 0
+  while read -r pid label; do
+    if launchctl bootout "${domain}/${label}" 2>/dev/null; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: stopped launch agent ${label}"
+      case "${pid}" in ''|*[!0-9]*) ;; *) pids="${pids} ${pid}" ;; esac
+    else
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not stop launch agent ${label}"
+    fi
+  done <<EOF_AGENTS
+${agents}
+EOF_AGENTS
+  for pid in ${pids}; do
+    while kill -0 "${pid}" 2>/dev/null && [ "${polls}" -lt $((TUIST_AGENT_STOP_TIMEOUT * 5)) ]; do
+      sleep 0.2
+      polls=$((polls + 1))
+    done
+    if kill -0 "${pid}" 2>/dev/null; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING launch agent process ${pid} still running after ${TUIST_AGENT_STOP_TIMEOUT}s"
+    fi
+  done
+}
+
 # mark_cache_not_promotable withdraws this job's cache image from both promotion
 # and publication. An image we could not detach may be mid-write, and there is
 # no way to tell from here — so the account keeps its existing master (this job
@@ -2304,6 +2346,8 @@ HOOK
       #      the account wedges. After the drain (a prune must not delete an
       #      object the spool still owed) and before the fill sample (so the
       #      gauge describes the image that gets published);
+      #   0c. stop the Tuist CLI's launch agents, which the drain and the prune
+      #      still needed, so nothing holds the volumes busy at detach;
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
@@ -2351,6 +2395,9 @@ HOOK
         stage_cache_limits teardown
         prune_cas_stores teardown
       fi
+      # After the drain and the prune, which both ask the proxy, and before any
+      # detach, which a still-running agent would hold busy.
+      stop_tuist_launch_agents
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting
       # that would authorize a promote is skipped. report_cache_dirty writes the

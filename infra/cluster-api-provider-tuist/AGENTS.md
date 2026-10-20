@@ -443,8 +443,12 @@ picks the lend up rather than bootstrapping over it.
 1. The lender creates the lease (`spec.phase: Offered`) with the host's
    address, serial, site, SSH user, edges (`sshIngressAllowCIDRs`), the host
    key it pinned and its sizing. Until the borrower accepts, the host keeps
-   serving the lender, but the lender pushes no drift to it: a host lent by
-   hand runs the borrower's runtime already.
+   serving the lender, but the lender pushes nothing to it: no drift, and no
+   bootstrap even for a new Machine, since the host may run the borrower's
+   runtime already (lent by hand, or mid-handover). On 2026-10-20 a Machine
+   replaced mid-handover bootstrapped ber1-runner-b01 with production's
+   runtime and took it out of staging's cluster. So a new host is
+   bootstrapped before it is lent.
 2. The borrower accepts a host listed in its `--rack-lease-hosts` by minting a
    key of its own (`rack-lease-<host>-ssh`) and publishing the public half in
    `status.sshPublicKey`; any other host it refuses.
@@ -455,19 +459,37 @@ picks the lend up rather than bootstrapping over it.
    the borrower and authorizes the borrower's key, then sets `spec.phase: Lent`
    with the key's fingerprint.
 4. The borrower first drains the Node the host had in its cluster under the
-   lender's name, if any (`spec.previousNodeName`: a host lent by hand), then
-   pushes its runtime with `bootstrap.UpdateTartKubelet`: its own node
-   identity, Node name (`<rackFleet.name>-<host>`) and fleet label, its cache
-   volume server and a fresh tailnet login (`TailscaleForceReauth`), which
-   moves the host's device to the borrower's tags. From then on its drift loop
-   keeps the host converged, and `status.state` is Active.
+   lender's name, if any (`spec.previousNodeName`: a host lent by hand). It
+   does not wait for warm runners stranded there: polling for a job when that
+   Node's tart-kubelet stopped reporting over ten minutes ago
+   (`strandedRunners`). Their `vm-cleanup` finalizer waits for a tart-kubelet
+   that is gone, and they had no job. It waits for a runner that had claimed
+   one, which may still be running it in its VM, and says so. It then pushes
+   its runtime with `bootstrap.UpdateTartKubelet` as a takeover
+   (`PerHost.TakeOver`): its own node identity, Node name
+   (`<rackFleet.name>-<host>`) and fleet label, its cache volume server, a
+   fresh tailnet login, which moves the host's device to the borrower's tags,
+   and none of the cache-volume usage reports tart-kubelet queued for the
+   lender's server, which the borrower's would answer 425 for good. Then it
+   deletes the old Node and lets the stranded runners go, whose VMs the new
+   tart-kubelet's orphan collector reaps. From then on its drift loop keeps
+   the host converged, and `status.state` is Active. The lease's status is one
+   write per reconcile, not the CAPI patch helper's separate one for
+   conditions: a reconcile reading it between the two saw the host taken over
+   with no runtime stamped and pushed it all again.
 
 **Returning** (clearing `lendTo`) runs Returning, Released, Reclaimed. The
 lender sets `spec.phase: Returning`; the borrower cordons its Node, waits for
 its jobs, revokes the identity, deletes the Node and reports Released. Only
 then does the lender take the runtime back: it removes the borrower's key and
-moves the marker home, marks the Machine not bootstrapped, deletes the lease,
-and bootstrap pushes its own runtime with a fresh tailnet login. A borrower
+moves the marker home, deletes the tailnet devices the host ran as in both
+envs (each takeover logs it in as a new device, and the old one would keep
+the name its next login wants, leaving it `<name>-1`, which no egress Service
+addresses), marks the Machine not bootstrapped, deletes the lease, and
+bootstrap pushes its own runtime as a takeover. The devices go through the
+rack's tailnet API (`--rack-linux-tailscale-secret-name`); one it cannot
+delete is named in a `TailnetCleanupFailed` event for a person and never holds
+the return. A borrower
 that stops listing the host releases it the same way, and the lender takes it
 back. `tuist.dev/reclaim-runtime=true` on the RackHost takes it back without
 the borrower, for one that is gone; whatever it ran on the host is lost.
@@ -2169,8 +2191,12 @@ selects it, so a rollback never needs an image build. Before adding a release,
 check its changelog against "Tart versions" in
 [`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md).
 
-Staging's operator manages the BER1 rack hosts, including one lent to canary,
-so a staging value reaches that host too.
+Tart is part of the runner runtime, so a lent rack host runs the borrowing
+env's Tart: its `macosFleet.tart.version`, or a `tuist.dev/tart-version`
+annotation on the `RackHostLease` in the borrowing cluster (see "A host lent to
+another env"). An annotation on the lender's RackAppleSiliconMachine has no
+effect on a lent host, so BER1 runs one Tart only when staging, canary and
+production all select it.
 
 ## Module layout
 

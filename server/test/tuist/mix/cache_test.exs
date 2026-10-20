@@ -328,6 +328,36 @@ defmodule Tuist.Mix.CacheTest do
     assert summary.read_bytes == 2_000
   end
 
+  test "up-to-date outputs count as local hits without inferred savings or I/O", context do
+    current = %{event("current", "local_hit") | reason: "up_to_date", key: ""}
+    {:ok, id} = insert(context, false, [current, event("compiled", "miss")])
+    summary = Cache.build_summary(context.project.id, id)
+    assert summary.local_hits == 1
+    assert summary.remote_hits == 0
+    assert summary.hit_rate == 50
+    assert is_nil(summary.saved_duration_ms)
+    assert is_nil(summary.read_bytes)
+    assert is_nil(summary.write_bytes)
+
+    assert [%{reason: "up_to_date"}] =
+             Enum.filter(Cache.build_events(context.project.id, id).rows, &(&1.dependency == "current"))
+
+    assert Cache.summary(context.project.id, context.opts).hit_rate == 50
+    assert Cache.hit_rate_analytics(context.project.id, context.opts).metrics.avg == 50
+
+    for invalid <- [
+          %{current | key: String.duplicate("a", 64)},
+          %{current | reason: ""},
+          %{current | outcome: "miss"},
+          %{current | outcome: "remote_hit"},
+          %{current | saved_duration_ms: 1},
+          Map.merge(current, %{read_bytes: 0, read_duration_us: 0, read_source: "local"}),
+          Map.merge(current, %{write_bytes: 0, write_duration_us: 0, write_source: "local"})
+        ] do
+      assert {:error, :invalid_dependency_cache} = Mix.create_build(attributes(context, false, [invalid]))
+    end
+  end
+
   test "retains I/O provenance and rejects mismatched or orphaned sources", context do
     remote = Map.merge(event("remote", "remote_hit", 0), %{read_bytes: 123, read_duration_us: 1, read_source: "remote"})
     local = Map.merge(event("local", "local_hit", 0), %{read_bytes: 0, read_duration_us: 0, read_source: "local"})

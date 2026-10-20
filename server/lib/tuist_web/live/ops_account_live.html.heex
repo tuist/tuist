@@ -131,6 +131,9 @@
         <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
           <.text_cell label={format_number(origin.demand_count)} />
         </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Hits")}>
+          <.text_cell label={format_number(origin.hit_count)} />
+        </:col>
         <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
           <.text_cell label={Timex.from_now(origin.last_seen_on)} />
         </:col>

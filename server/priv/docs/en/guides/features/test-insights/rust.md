@@ -2,77 +2,78 @@
 {
   "title": "Rust Test Insights",
   "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
-  "description": "Track nextest test results, durations, failures, skipped tests, and retries in the Tuist dashboard."
+  "description": "Track Cargo test results, including Rust doctests, in the Tuist dashboard."
 }
 ---
 # Rust test insights {#rust-test-insights}
 
-Tuist reports the results of `cargo nextest run` using nextest's test inventory and JUnit report. No Rust dependency or separate Tuist executable is required.
+Tuist reports individual test results from `cargo test`, including unit tests, integration tests, and doctests. No Rust dependency or additional test runner is required.
 
 > [!IMPORTANT] Requirements
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link>.
-> - Install [cargo-nextest](https://nexte.st/docs/installation/).
 
 ## Report your test runs {#report-your-test-runs}
 
 ```sh
-tuist cargo nextest run --workspace
+tuist cargo test --workspace
 ```
 
-Keep using your normal nextest arguments, features, filtersets, and profiles:
+With the mise Cargo wrapper configured, you can keep typing `cargo test`. Cargo still compiles and runs your tests, with its usual arguments, output, and exit code. Reporting failures do not change the result of your tests.
+
+You can select a package or filter tests as usual:
 
 ```sh
-tuist cargo nextest run --profile ci -E 'test(authentication)'
+tuist cargo test -p store
+tuist cargo test authentication
 ```
 
-Tuist adds its JUnit configuration through a nextest tool configuration. Your selected profile and any existing JUnit destination are respected. Existing reports are not deleted; Tuist only uploads a report if it can verify that the invocation wrote a fresh one. Reporting does not alter nextest's exit status.
+## What Tuist tracks {#what-is-tracked}
 
-## What is tracked {#what-is-tracked}
-
-- Per-test status and duration, including reported failures and skipped cases.
-- Failure messages and retry attempts, when present in the JUnit report.
-- The nextest binary ID, Rust module path, and test name.
+- Passed, failed, and ignored tests from completed test suites.
+- Unit tests, integration tests, and doctests.
+- Whole-suite durations.
 - Available branch, commit, CI, and runner metadata.
-- An inventory of discovered tests, separate from the tests actually executed.
 
-Tests omitted after fail-fast are not reported as passing. Discovery alone is not evidence of execution. Nextest runs appear under **Tests**, not build-duration metrics.
+Filtered tests and tests not executed after a failure are never reported as passing. Results appear under **Tests** in the dashboard.
 
-## Binaries, modules, and test cases {#test-hierarchy}
+## Packages, modules, and test cases {#test-hierarchy}
 
-Nextest executes **test binaries**. Each binary contains named tests such as `api::authentication::rejects_invalid_token`.
-
-The shared dashboard currently calls these levels:
+Tuist groups results by Cargo package and target. Rust module paths group individual tests within a target:
 
 | Dashboard label | Rust meaning | Example |
 | --- | --- | --- |
-| Modules | Nextest test binaries | `store::test/api` |
+| Modules | Cargo package and target | `store::api` |
 | Test Suites | Rust module paths | `api::authentication` |
 | Test Cases | Individual tests | `rejects_invalid_token` |
 
-Binary IDs, not artifact hashes or checkout paths, identify the executable-level units. <.localized_link href="/guides/features/test-sharding/rust">Test sharding</.localized_link> assigns whole binaries, while Rust module paths group test cases for browsing.
+Doctests use a separate module such as `store::doctest/store`. Their names include the source location, so moving an example can change its identity.
 
-Test-case durations describe individual work. Binary and module-path timings use reported execution windows when available, so overlapping tests are not treated as sequential work. They can include scheduling gaps and retry delays. Missing timestamps fall back to a bounded duration estimate and are not used to calibrate shard concurrency.
+## Doctests and durations {#cargo-test}
 
-## Plain Cargo tests and doctests {#cargo-test}
-
-`tuist cargo test` remains Cargo/libtest. Tuist never silently converts it into nextest, and it does not produce nextest's per-test telemetry.
-
-Nextest does not execute doctests. Run them separately:
+Doctests run with your usual test command, including `compile_fail`, `should_panic`, and `no_run` examples. To run only doctests:
 
 ```sh
 tuist cargo test --doc
 ```
 
+Stable libtest reports whole-suite time but not individual test durations. Unavailable timings are excluded from per-case duration histories and duration analytics, while test outcomes still contribute to reliability and run counts.
+
+## Reporting limits {#reporting-limits}
+
+Individual results are collected from Cargo/libtest's default output. Commands using `--no-run`, `--list`, quiet or Cargo-verbose output, alternate formats, or uncaptured test output run normally without individual test reporting. Custom harnesses, incomplete summaries, ambiguous target attribution, and oversized reports are not uploaded.
+
+If workspace packages have identically named integration targets, select one with `-p <package>`. Reporting supports exact workspace package names; dependency packages, version-qualified selectors, and globs execute normally but are not reported. Absolute doctest paths are omitted to keep checkout paths out of test identities.
+
+Tuist streams output while collecting results. This can affect automatic color detection. Background processes that keep output pipes open after Cargo exits can cause the report to be omitted, but do not change Cargo's exit status.
+
 ## Reliability and selection {#reliability-and-selection}
 
-Use <.localized_link href="/guides/features/test-insights/flaky-tests/rust">flaky test detection</.localized_link> to investigate unstable tests. Dashboard quarantine state does not currently mute or skip nextest execution. Coverage ingestion and coverage-based test selection are not enabled for Cargo.
+Use <.localized_link href="/guides/features/test-insights/flaky-tests/rust">flaky test detection</.localized_link> to investigate unstable tests. Dashboard quarantine does not currently mute or skip Cargo tests. Coverage ingestion, coverage-based test selection, and build-once sharding are not available for plain Cargo test runs.
 
 ## Troubleshooting {#troubleshooting}
 
 If a test run doesn't appear in the dashboard, enable debug output to see why its report wasn't sent:
 
 ```sh
-TUIST_DEBUG=1 tuist cargo nextest run --profile ci
+TUIST_DEBUG=1 tuist cargo test --workspace
 ```
-
-Reporting doesn't change the result of your tests.

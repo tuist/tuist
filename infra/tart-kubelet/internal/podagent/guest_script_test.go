@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // guestShellFunction returns a function's definition from the runner's
@@ -678,5 +680,93 @@ func TestGuestRefusesToPromoteAnImageOverItsBudget(t *testing.T) {
 				t.Fatalf("staged fill %q (%v), want %d", fill, err, tc.percent)
 			}
 		})
+	}
+}
+
+// The Tuist CLI's launch agents outlive the runner, which reaps only its own
+// process tree, and hold the volumes busy: a Tuist installed onto a custom
+// volume runs the compilation-cache proxy from it. Teardown boots out every
+// `tuist.` agent, never the image's own `dev.tuist.` ones, and waits for each
+// process to exit, because `launchctl bootout` returns before it does.
+func TestGuestStopsTheTuistLaunchAgentsBeforeDetaching(t *testing.T) {
+	start := func() *exec.Cmd {
+		t.Helper()
+		cmd := exec.Command("/bin/sleep", "60")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		return cmd
+	}
+	proxy, image := start(), start()
+	bin, calls := t.TempDir(), filepath.Join(t.TempDir(), "calls")
+	fake := fmt.Sprintf(`#!/bin/bash
+case "$1" in
+  list)
+    printf 'PID\tStatus\tLabel\n%d\t0\ttuist.cas-proxy\n-\t0\ttuist.cache.tuist_tuist\n%d\t0\tdev.tuist.runner\n-\t0\tcom.apple.Finder\n'
+    ;;
+  bootout)
+    echo "$2" >> %s
+    if [ "$2" = "gui/$(id -u)/tuist.cas-proxy" ]; then
+      ( sleep 2; kill %d ) </dev/null >/dev/null 2>&1 &
+    fi
+    ;;
+esac
+`, proxy.Process.Pid, image.Process.Pid, calls, proxy.Process.Pid)
+	if err := os.WriteFile(filepath.Join(bin, "launchctl"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = proxy.Wait(); close(exited) }()
+
+	cmd := exec.Command("/bin/bash", "-c", guestShellScript(t, "stop_tuist_launch_agents", "stop_tuist_launch_agents"))
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "TUIST_AGENT_STOP_TIMEOUT=10")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("stop_tuist_launch_agents: %v\n%s", err, out)
+	}
+
+	raw, _ := os.ReadFile(calls)
+	uid := os.Getuid()
+	want := fmt.Sprintf("gui/%d/tuist.cas-proxy\ngui/%d/tuist.cache.tuist_tuist\n", uid, uid)
+	if string(raw) != want {
+		t.Fatalf("booted out %q; want %q\n%s", raw, want, out)
+	}
+	select {
+	case <-exited:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("returned before the proxy exited\n%s", out)
+	}
+	if err := image.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("stopped the image's own agent: %v", err)
+	}
+}
+
+// The drain and the prune need the proxy, and every detach needs it gone.
+func TestGuestStopsTheTuistLaunchAgentsBetweenThePruneAndTheDetaches(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
+	if err != nil {
+		t.Fatalf("read dispatch-poll.sh: %v", err)
+	}
+	lines := strings.Split(string(b), "\n")
+	last := -1
+	for _, call := range []string{
+		"if ! drain_cas_publications && [ \"${CACHE_PASSED}\" = \"1\" ]; then",
+		"prune_cas_stores teardown",
+		"stop_tuist_launch_agents",
+		"if ! detach_cache_image; then",
+		"if ! /usr/local/bin/tuist-cache-volume --detach-all; then",
+	} {
+		at := -1
+		for i, line := range lines {
+			if strings.TrimSpace(line) == call {
+				at = i
+				break
+			}
+		}
+		if at == -1 || at < last {
+			t.Fatalf("%q is missing or out of order", call)
+		}
+		last = at
 	}
 }

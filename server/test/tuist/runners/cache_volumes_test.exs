@@ -87,6 +87,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     profile
   end
 
+  test "allocations carry the size the host creates the volume at", %{job: job} do
+    assert {:ok, %{volume_bytes: 20_000_000_000}} = CacheVolumes.allocate_for_job(job, identity(), attrs("custom"))
+
+    assert {:ok, %{volume_bytes: 30_000_000_000}} =
+             CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("xcode"), :key, "tuist-xcode"))
+  end
+
   test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
     {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
@@ -442,7 +449,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
                scope: ^scope,
                generation: 1,
                image_digest: image_digest,
-               content_digest: content_digest
+               content_digest: content_digest,
+               volume_bytes: 20_000_000_000
              }
            ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
 
@@ -1257,13 +1265,15 @@ defmodule Tuist.Runners.CacheVolumesTest do
       other_account = AccountsFixtures.account_fixture()
       stub(Catalog, :shapes, fn _ -> [%{vcpus: 4, memory_gb: 16}] end)
 
+      # Limited to the default branch, so each test can widen it explicitly.
       profile =
         Repo.insert!(%Profile{
           account_id: account.id,
           name: "ci-#{System.unique_integer([:positive])}",
           platform: :linux,
           vcpus: 4,
-          memory_gb: 16
+          memory_gb: 16,
+          cache_writer_all_branches: false
         })
 
       %{
@@ -1273,7 +1283,80 @@ defmodule Tuist.Runners.CacheVolumesTest do
       }
     end
 
-    test "by default the repository's default branch saves", %{job: job, account: account, profile: profile} do
+    test "by default every successful job from the repository saves, forks never", %{job: job, account: account} do
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "default-policy", platform: :linux, vcpus: 4, memory_gb: 16})
+
+      job = %{job | requested_dispatch_label: Profile.dispatch_label(profile)}
+
+      for {identity, pod} <- [
+            {main_identity(), "main"},
+            {branch_identity("feature/x"), "feature"},
+            {branch_identity("release/1.0"), "release"}
+          ] do
+        assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, identity, attrs(pod))
+      end
+
+      fork = %{branch_identity("feature/x") | same_repository: false, writer_branch: nil}
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, fork, attrs("fork"))
+
+      assert {:ok, %{can_publish: false}} =
+               CacheVolumes.allocate_for_job(job, branch_identity(nil), attrs("pull-request-target"))
+    end
+
+    test "limiting a profile to specific branches revokes pending saves from other branches", %{
+      job: job,
+      account: account
+    } do
+      profile =
+        Repo.insert!(%Profile{account_id: account.id, name: "limited", platform: :linux, vcpus: 4, memory_gb: 16})
+
+      job = %{job | requested_dispatch_label: Profile.dispatch_label(profile)}
+      {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
+      {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
+      assert main.can_publish and feature.can_publish
+
+      set_policy(profile, %{cache_writer_all_branches: false})
+
+      assert Repo.get!(Usage, main.id).can_publish
+      refute Repo.get!(Usage, feature.id).can_publish
+
+      assert {:ok, %{can_publish: false}} =
+               CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature-again"))
+    end
+
+    test "jobs without a profile follow the default policy", %{job: job} do
+      for label <- ["shape-linux-4vcpu-16gb", ""] do
+        legacy = %{job | requested_dispatch_label: label}
+
+        assert {:ok, %{can_publish: true}} =
+                 CacheVolumes.allocate_for_job(legacy, branch_identity("feature"), attrs("feature-#{label}"))
+
+        fork = %{branch_identity("feature") | same_repository: false, writer_branch: nil}
+        assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(legacy, fork, attrs("fork-#{label}"))
+      end
+    end
+
+    test "deleting a narrowed profile falls back to the default policy", %{job: job, profile: profile} do
+      {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
+      refute feature.can_publish
+      {:ok, release} = CacheVolumes.allocate_for_job(job, branch_identity("release"), attrs("release"))
+      profile = set_policy(profile, %{cache_writer_branches: ["release"]})
+      {:ok, release_again} = CacheVolumes.allocate_for_job(job, branch_identity("release"), attrs("release-again"))
+      assert release_again.can_publish
+      refute Repo.get!(Usage, release.id).can_publish
+
+      assert {:ok, _} = Profiles.delete(profile)
+
+      assert Repo.get!(Usage, release_again.id).can_publish
+      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("after"))
+    end
+
+    test "a profile narrowed to the default branch saves only that branch", %{
+      job: job,
+      account: account,
+      profile: profile
+    } do
       assert {:ok, %{can_publish: true} = main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
 
       assert %{writer_profile_id: profile_id, writer_default_branch: true, writer_branch: "main"} =
@@ -1347,15 +1430,16 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("none"))
     end
 
-    test "jobs outside the profile never receive its grants", %{
+    test "jobs outside the profile follow the default policy, not the profile's", %{
       job: job,
       profile: profile,
       other_account: other
     } do
-      set_policy(profile, %{cache_writer_branches: ["*"]})
+      set_policy(profile, %{cache_writer_default_branch: false, cache_writer_branches: nil})
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("profile"))
 
       for {label, pod} <- [{"shape-linux-4vcpu-16gb", "legacy"}, {"", "unlabelled"}] do
-        assert {:ok, %{can_publish: false}} =
+        assert {:ok, %{can_publish: true}} =
                  CacheVolumes.allocate_for_job(
                    %{job | requested_dispatch_label: label},
                    branch_identity("feature"),
@@ -1365,7 +1449,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       other_job = %{job | account_id: other.id, workflow_job_id: System.unique_integer([:positive])}
 
-      assert {:ok, %{can_publish: false}} =
+      assert {:ok, %{can_publish: true}} =
                CacheVolumes.allocate_for_job(other_job, branch_identity("feature"), attrs("other-account"))
 
       buildkite =
@@ -1442,7 +1526,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, %{action: "delete"}} = publish_report("node", legacy.id)
     end
 
-    test "additions and reordering keep pending saves; deleting the profile falls back to the default branch",
+    test "additions and reordering keep pending saves; deleting the profile falls back to the default policy",
          %{job: job, account: account, profile: profile} do
       legacy = %{job | requested_dispatch_label: ""}
       {:ok, legacy_main} = CacheVolumes.allocate_for_job(legacy, main_identity(), attrs("legacy-main"))
@@ -1464,10 +1548,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, _} = Profiles.delete(profile)
       assert Repo.get!(Usage, legacy_main.id).can_publish
       assert Repo.get!(Usage, main.id).can_publish
-      refute Repo.get!(Usage, retained.id).can_publish
+      assert Repo.get!(Usage, retained.id).can_publish
+      refute Repo.get!(Usage, removed.id).can_publish
       complete(job)
       assert {:ok, %{action: "keep"}} = publish_report("node", main.id)
-      assert {:ok, %{action: "delete"}} = publish_report("node", retained.id)
       assert volume(account).head_id == main.id
     end
   end

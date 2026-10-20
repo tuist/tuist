@@ -4,13 +4,14 @@ set -euo pipefail
 plugin_config=${BUILDKITE_PLUGIN_CONFIGURATION:-}
 # Parse data as JSON, never shell code. Validate every entry before attaching any.
 config=$(jq -ce '
+  def valid: type == "string" and length > 0 and (test("[\u0000-\u001f]") | not);
   select(type == "object" and (keys == ["volumes"])) |
   select(.volumes | type == "array" and length > 0 and length <= 8) |
   select(all(.volumes[];
-    type == "object" and (keys == ["key", "path"]) and
-    all(.[]; type == "string" and length > 0 and (test("[\u0000-\u001f]") | not))))
+    type == "object" and (keys == ["key", "path"]) and (.key | valid) and
+    (.path | if type == "array" then length > 0 and all(.[]; valid) else valid end)))
 ' <<< "$plugin_config") || {
-  echo "Tuist cache volumes: expected one to eight key/path pairs." >&2
+  echo "Tuist cache volumes: expected one to eight volumes, each with a key and one or more paths." >&2
   exit 1
 }
 command -v tuist-cache-volume >/dev/null || {
@@ -20,6 +21,9 @@ command -v tuist-cache-volume >/dev/null || {
 count=$(jq '.volumes | length' <<< "$config")
 for ((index = 0; index < count; index++)); do
   key=$(jq -r --argjson index "$index" '.volumes[$index].key' <<< "$config")
-  path=$(jq -r --argjson index "$index" '.volumes[$index].path' <<< "$config")
-  tuist-cache-volume --key "$key" --path "$path"
+  arguments=(--key "$key")
+  while IFS= read -r path; do
+    arguments+=(--path "$path")
+  done < <(jq -r --argjson index "$index" '.volumes[$index].path | if type == "array" then .[] else . end' <<< "$config")
+  tuist-cache-volume "${arguments[@]}"
 done
