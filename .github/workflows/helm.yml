@@ -145,8 +145,6 @@ jobs:
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
-      - name: Test cluster cookie ownership and managed environment wiring
-        run: python3 infra/helm/tuist/test-cluster-cookie.py
       - name: Install kubeconform
         run: |
           set -euo pipefail
@@ -236,6 +234,9 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+      # Check cookie ownership after the full manifest render validation.
+      - name: Test cluster cookie ownership and managed environment wiring
+        run: python3 infra/helm/tuist/test-cluster-cookie.py
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.
