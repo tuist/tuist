@@ -15,6 +15,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -283,6 +284,53 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _second} = PlacementProposals.sweep(@today)
 
       assert Repo.aggregate(from(p in PlacementProposal, where: p.status == :open), :count) == 1
+    end
+
+    test "moves the primary to the held region serving the hits for an account reading them" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      insert_server!(account, "us-west", held_for_days: 60)
+      seed_rollups(account, "us-east", 28, 100)
+      seed_rollups(account, "us-west", 28, 30_000)
+      FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "us-west", evidence: evidence} =
+               PlacementProposals.open_proposal_for(account)
+
+      assert evidence["signal"] == "majority_of_hits_moved"
+    end
+
+    test "reads no hits for an account outside the rollout" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      insert_server!(account, "us-west", held_for_days: 60)
+      seed_rollups(account, "us-east", 28, 100)
+      seed_rollups(account, "us-west", 28, 30_000)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+    end
+
+    test "does not reopen a region the account gave up on what it served" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      seed_runs(account, "US-VA", 30, 100)
+      seed_runs(account, "FR", 30, 60)
+      seed_rollups(account, "us-east", 28, 30_000)
+      FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
+
+      Repo.insert!(%PlacementProposal{
+        account_id: account.id,
+        kind: :retire,
+        from_region: "eu-west",
+        evidence: %{"signal" => "hits_below_floor"},
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -10 * 86_400, :second), :second)
+      })
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
     end
 
     test "reads an account the backfill never reached from its live instances" do
@@ -606,5 +654,24 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       end
 
     Repo.insert_all(OriginRollup, rows)
+  end
+
+  defp seed_rollups(account, region, days, hits_per_day) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      for offset <- 0..(days - 1) do
+        %{
+          account_id: account.id,
+          region: region,
+          date: Date.add(@today, -offset),
+          snapshot_count: 1,
+          hit_count: hits_per_day,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(StorageRollup, rows)
   end
 end

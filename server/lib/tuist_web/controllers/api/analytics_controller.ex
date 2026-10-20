@@ -5,6 +5,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Regions
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -30,6 +31,8 @@ defmodule TuistWeb.API.AnalyticsController do
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
+
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
   plug(
@@ -62,6 +65,7 @@ defmodule TuistWeb.API.AnalyticsController do
     summary: "Create a a new command analytics event",
     operation_id: "createCommandEvent",
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       project_id: [
         in: :query,
         type: :string,
@@ -547,7 +551,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
-        case create_test_run_from_command_event(body_params, selected_project) do
+        case create_test_run_from_command_event(body_params, selected_project, Tuist.ReportActor.attributes(conn)) do
           {:ok, test_run} -> test_run.id
           {:error, _} -> nil
         end
@@ -590,6 +594,7 @@ defmodule TuistWeb.API.AnalyticsController do
         build_run_id: build_run_id,
         test_run_id: test_run_id
       }
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
       |> CommandEvents.create_command_event()
       |> case do
         {:ok, command_event} ->
@@ -607,7 +612,13 @@ defmodule TuistWeb.API.AnalyticsController do
     # endpoint resolutions are cached by the client for an hour and refreshed
     # by an idle launch agent, so counting those would let both biases move
     # servers.
-    if cache_run?(cache_metadata, body_params) do
+    #
+    # A run whose cache traffic went to a private runner cache is not counted:
+    # its origin is the runner site's egress, and no public region served it,
+    # so counting it would pull the account's public regions toward the
+    # runners rather than toward anyone using them.
+    if cache_run?(cache_metadata, body_params) and
+         not Regions.private_endpoint?(Map.get(body_params, :cache_endpoint)) do
       Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
     end
 
@@ -728,10 +739,10 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp create_test_run_from_command_event(body_params, project) do
+  defp create_test_run_from_command_event(body_params, project, actor) do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
-    Tests.create_test(%{
+    attrs = %{
       id: UUIDv7.generate(),
       duration: body_params.duration,
       macos_version: body_params.macos_version,
@@ -748,7 +759,9 @@ defmodule TuistWeb.API.AnalyticsController do
       ran_at: date(body_params),
       test_modules: [],
       test_cases: []
-    })
+    }
+
+    Tests.create_test(Map.merge(attrs, actor))
   end
 
   defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do

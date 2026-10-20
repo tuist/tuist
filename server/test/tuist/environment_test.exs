@@ -3,6 +3,20 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "network_trusted_report_publishing_enabled?/2" do
+    test "self-hosted publishing requires an explicitly enabled runtime boolean" do
+      assert Environment.network_trusted_report_publishing_enabled?(false, true)
+
+      for disabled <- [false, nil, "true", "false", "1", 1] do
+        refute Environment.network_trusted_report_publishing_enabled?(false, disabled)
+      end
+    end
+
+    test "hosted deployments cannot enable credential-free reporting" do
+      refute Environment.network_trusted_report_publishing_enabled?(true, true)
+    end
+  end
+
   describe "parse_runners_site_pools/1" do
     test "reads each pool's site and platform" do
       assert Environment.parse_runners_site_pools("tuist-runner-pool-ber1=ber1:macos, pool-x=ams1:linux") == %{
@@ -14,6 +28,14 @@ defmodule Tuist.EnvironmentTest do
     test "leaves out entries it cannot read rather than guessing" do
       assert Environment.parse_runners_site_pools("") == %{}
       assert Environment.parse_runners_site_pools("pool=ber1:windows,pool-y=ber1,=ber1:macos,pool-z=:macos") == %{}
+    end
+  end
+
+  describe "runners_rented_macos_fleet?/1" do
+    test "rents a macOS fleet unless the deployment says it has none" do
+      assert Environment.runners_rented_macos_fleet?(%{})
+      assert Environment.runners_rented_macos_fleet?(%{"TUIST_RUNNERS_RENTED_MACOS_FLEET" => "true"})
+      refute Environment.runners_rented_macos_fleet?(%{"TUIST_RUNNERS_RENTED_MACOS_FLEET" => "false"})
     end
   end
 

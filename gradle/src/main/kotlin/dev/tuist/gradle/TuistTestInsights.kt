@@ -384,6 +384,7 @@ abstract class TuistTestInsightsService :
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
         val actorId: Property<String>
+        val networkTrustedPublishing: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -498,15 +499,23 @@ abstract class TuistTestInsightsService :
         }
     }
 
+    private val httpClients: TuistHttpClients by lazy {
+        TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+    }
+
+    private val configurationProvider: ReportConfigurationProvider by lazy {
+        ReportConfigurationProvider(
+            project = parameters.project.orNull,
+            serverUrl = parameters.url.get(),
+            projectDir = parameters.projectDir.asFile.get(),
+            httpClients = httpClients,
+            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+        )
+    }
+
     private val httpClient: TuistHttpClient by lazy {
-        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         TuistHttpClient(
-            configurationProvider = DefaultConfigurationProvider(
-                project = parameters.project.orNull,
-                serverUrl = parameters.url.get(),
-                projectDir = parameters.projectDir.asFile.get(),
-                httpClients = httpClients
-            ),
+            configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
@@ -528,7 +537,7 @@ abstract class TuistTestInsightsService :
      */
     internal fun publishGitHistory(): CollectedGitHistory? =
         try {
-            gitHistoryPublisher.publish()
+            if (configurationProvider.getConfiguration().token.isBlank()) null else gitHistoryPublisher.publish()
         } catch (e: Exception) {
             logger.info("Tuist: The run's Git history could not be published: ${e.message}")
             null
@@ -557,7 +566,7 @@ abstract class TuistTestInsightsService :
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
             val connection = httpClient.openConnection(url, config)
             try {
@@ -569,7 +578,13 @@ abstract class TuistTestInsightsService :
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
+                    val outgoingReport = if (config.token.isBlank()) report.copy(
+                        gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                        gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                        isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                        historySource = null, historyFallbackReason = null
+                    ) else report
+                    Gson().toJson(outgoingReport, writer)
                 }
 
                 when (connection.responseCode) {
@@ -630,6 +645,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             config.actorId?.let { parameters.actorId.set(it) }
+            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())
@@ -664,6 +680,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
                 parameters.useEnvironmentProxy.set(config.network.proxy)
+                parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
                 parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {

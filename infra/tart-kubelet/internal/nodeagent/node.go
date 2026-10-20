@@ -88,6 +88,15 @@ type Maintainer struct {
 	// scheduling until released (see PrewarmGate). nil never taints, and
 	// either way a leftover prewarm taint is removed.
 	PrewarmGate *PrewarmGate
+
+	// RuntimeVersion, when non-nil, reports the Tart version the host runs.
+	// It is published as the Node's container runtime version
+	// (`tart://2.41.1`), which is where an in-place Tart upgrade shows it has
+	// reached a host. Read every heartbeat, since the operator replaces Tart
+	// under a running agent; a failed read keeps the last version read.
+	RuntimeVersion func(ctx context.Context) (string, error)
+
+	runtimeVersion string
 }
 
 // LabelAdvertisement is one named source of dynamic Node labels. The name is
@@ -147,6 +156,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
 		}
+		m.readRuntimeVersion(ctx)
 		m.configureNode(node, m.evalDynamicLabels(ctx))
 		return m.Client.Create(ctx, node)
 	}
@@ -184,6 +194,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// metadata/spec first (merge patch persists label deletions as null),
 	// then update status.
 	base := node.DeepCopy()
+	m.readRuntimeVersion(ctx)
 	m.configureNode(node, m.evalDynamicLabels(ctx))
 
 	// configureNode just set this Node's desired status (Ready=True,
@@ -385,6 +396,9 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 	node.Status.NodeInfo.Architecture = "arm64"
 	node.Status.NodeInfo.KubeletVersion = "tart-kubelet-v0"
 	node.Status.NodeInfo.ContainerRuntimeVersion = "tart"
+	if m.runtimeVersion != "" {
+		node.Status.NodeInfo.ContainerRuntimeVersion = "tart://" + m.runtimeVersion
+	}
 
 	if m.NodeIP != "" {
 		// Replace, not merge: a kubelet restart with a new NodeIP
@@ -445,4 +459,16 @@ func (m *Maintainer) decidePrewarm(created bool) {
 	if m.PrewarmGate != nil {
 		m.PrewarmGate.decide(created)
 	}
+}
+
+func (m *Maintainer) readRuntimeVersion(ctx context.Context) {
+	if m.RuntimeVersion == nil {
+		return
+	}
+	version, err := m.RuntimeVersion(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "read tart version")
+		return
+	}
+	m.runtimeVersion = version
 }

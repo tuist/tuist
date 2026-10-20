@@ -325,15 +325,17 @@ defmodule Tuist.Runners.JobLogsTest do
                15 => {45, 45}
              }
 
-      assert Enum.map(lines_for_step(ranges, job_id, 5), & &1.message) == [
-               "Prepare all required actions",
-               "##[group]Run ./.github/actions/simulator-workaround",
-               "##[endgroup]",
-               "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]",
-               "##[group]Run echo workaround",
-               "##[endgroup]",
-               "##[error]Process completed with exit code 26.",
-               "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]"
+      # Numbered like GitHub's step view: the hidden `##[endgroup]` and
+      # `##[end-action]` delimiters don't take a line number.
+      assert Enum.map(lines_for_step(ranges, job_id, 5), &{&1.line_number, &1.message}) == [
+               {1, "Prepare all required actions"},
+               {2, "##[group]Run ./.github/actions/simulator-workaround"},
+               {nil, "##[endgroup]"},
+               {3, "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]"},
+               {4, "##[group]Run echo workaround"},
+               {nil, "##[endgroup]"},
+               {5, "##[error]Process completed with exit code 26."},
+               {nil, "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]"}
              ]
     end
 

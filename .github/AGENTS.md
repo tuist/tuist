@@ -57,6 +57,9 @@ simulator app in a separate step without the 1Password token. PR/fork builds nev
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
+The publication job installs its own Java runtime and Android build-tools, even
+though it only consumes prebuilt APKs: Tuist needs `aapt2` for metadata inspection.
+SDK setup from Android build jobs does not carry across to the macOS publisher.
 
 ## Community notifications
 

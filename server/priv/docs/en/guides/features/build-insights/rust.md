@@ -26,7 +26,7 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 ## Find what slows a build down {#explore-your-builds}
 
-Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds.
+Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds. Builds and their cache counters are also available through `tuist build cargo list` and `tuist build cargo show`, `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, and the `list_cargo_builds` and `get_cargo_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 
@@ -43,6 +43,8 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 ## Read cache measurements {#cache-measurements}
 
 `tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
+
+Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
 
 Open a build's **Cache** tab to see task hits, task misses, hit rate, and downloaded and uploaded bytes. The tab appears when the build reports cache data.
 

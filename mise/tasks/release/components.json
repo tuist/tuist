@@ -142,6 +142,21 @@
       ]
     },
     {
+      "name": "runner-caches",
+      "tag_prefix": "runner-caches@",
+      "tag_regex": "^runner-caches@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/runner-caches/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/xcode-cache/**/*",
+        ".github/actions/module-cache/**/*",
+        ".github/actions/gradle-cache/**/*",
+        "ci/runner-caches/**/*",
+        ".github/workflows/runner-cache-actions.yml",
+        "ci/cache-volume/publish.sh"
+      ]
+    },
+    {
       "name": "install-action",
       "tag_prefix": "install-action@",
       "tag_regex": "^install-action@[0-9]+\\.[0-9]+\\.[0-9]+$",

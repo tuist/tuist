@@ -81,7 +81,8 @@ func main() {
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
-		tartTarballPath              string
+		tartReleasesDir              string
+		tartVersion                  string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
 		hostSensorsBinaryPath        string
@@ -151,10 +152,15 @@ func main() {
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
-	flag.StringVar(&tartTarballPath, "tart-tarball-path",
-		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
-		"Local path of the upstream tart.app tarball baked into this image. "+
-			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
+	flag.StringVar(&tartReleasesDir, "tart-releases-dir",
+		envOrDefault("CAPI_TART_RELEASES_DIR", "/opt/tart"),
+		"Directory of the upstream tart.app tarballs baked into this image, one per version as <version>/tart.tar.gz. "+
+			"The Dockerfile's TART_RELEASES pins them.")
+	flag.StringVar(&tartVersion, "tart-version",
+		envOrDefault("CAPI_TART_VERSION", ""),
+		"Tart version every Mac mini runs, one of the releases in --tart-releases-dir. A Machine annotated "+
+			"tuist.dev/tart-version runs that release instead. Changing it upgrades or rolls back Tart in place "+
+			"through the host-config drift loop. The image sets CAPI_TART_VERSION to the Dockerfile's TART_DEFAULT_VERSION.")
 	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
 		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
 		"Local path of the gzipped tarball containing the darwin/arm64 "+
@@ -372,6 +378,28 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
 		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
 			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	var rackEnv string
+	flag.StringVar(&rackEnv, "rack-env", "",
+		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
+			"and the lender a RackHostLease it writes names. Empty claims and lends nothing.")
+	rackLeaseBorrowers := map[string]string{}
+	flag.Func("rack-lease-borrower",
+		"<env>=<secret>: an env RackHost.spec.lendTo may name, and the Secret in --secrets-namespace holding the kubeconfig "+
+			"(`kubeconfig`) and namespace (`namespace`) of that env's RackHostLeases. Repeatable.",
+		func(v string) error {
+			env, secret, ok := strings.Cut(v, "=")
+			if !ok || env == "" || secret == "" {
+				return fmt.Errorf("want <env>=<secret>, got %q", v)
+			}
+			rackLeaseBorrowers[env] = secret
+			return nil
+		})
+	var rackLeaseFleetName, rackLeaseHostsRaw string
+	flag.StringVar(&rackLeaseFleetName, "rack-lease-fleet-name", "",
+		"The fleet rack hosts lent to this env join: the prefix of their Nodes' names and their tuist.dev/fleet label. "+
+			"Empty turns the borrowing side (RackHostLease) off.")
+	flag.StringVar(&rackLeaseHostsRaw, "rack-lease-hosts", "",
+		"Comma-separated RackHost names this env runs when another env lends them. A RackHostLease for any other host is refused.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -497,13 +525,20 @@ func main() {
 	binarySHA := sha256Hex(tartKubeletBinary)
 	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
 
-	tartTarball, err := os.ReadFile(tartTarballPath)
+	tartReleases, err := bootstrap.LoadTartReleases(tartReleasesDir)
 	if err != nil {
-		setupLog.Error(err, "read tart tarball", "path", tartTarballPath)
+		setupLog.Error(err, "read tart releases", "dir", tartReleasesDir)
 		os.Exit(1)
 	}
-	tartTarballSHA := sha256Hex(tartTarball)
-	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
+	for version, tarball := range tartReleases {
+		setupLog.Info("loaded tart release", "version", version, "bytes", len(tarball), "sha", sha256Hex(tarball))
+	}
+	tartTarball, ok := tartReleases[tartVersion]
+	if !ok {
+		setupLog.Error(fmt.Errorf("no such release"), "--tart-version names no Tart release in this image",
+			"version", tartVersion, "dir", tartReleasesDir)
+		os.Exit(1)
+	}
 
 	// Tailscale binaries tarball and node_exporter binary are both
 	// optional: an empty path means the chart didn't wire the tailnet
@@ -568,6 +603,7 @@ func main() {
 	fleetConfig := bootstrap.Config{
 		TartKubeletBinary:  tartKubeletBinary,
 		TartTarball:        tartTarball,
+		TartVersion:        tartVersion,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
 		HostSensorsBinary:  hostSensorsBinary,
@@ -696,6 +732,7 @@ func main() {
 		Kubeconfig:                    kubeconfigBuilder,
 		TartKubeletBinarySHA:          binarySHA,
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		VMCachePNName:                 vmCachePNName,
 		VPC:                           vpcClient,
@@ -789,6 +826,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// A rack host this operator lends reaches the borrowing env's cluster
+	// through the kubeconfig Secret its --rack-lease-borrower names.
+	var rackBorrowers macos.BorrowerClients
+	if len(rackLeaseBorrowers) > 0 {
+		rackBorrowers = &macos.SecretBorrowerClients{
+			Reader:    mgr.GetClient(),
+			Namespace: secretsNamespace,
+			Secrets:   rackLeaseBorrowers,
+			Scheme:    mgr.GetScheme(),
+		}
+	}
+
 	if err := (&macos.RackAppleSiliconMachineReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
@@ -799,6 +848,7 @@ func main() {
 		// rented one run the same host config, which is what lets one workload
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
 		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
@@ -814,9 +864,44 @@ func main() {
 		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
 		Power:                         powerRegistry,
 		SecretsNamespace:              secretsNamespace,
+		Env:                           rackEnv,
+		Borrowers:                     rackBorrowers,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
+	}
+
+	// Rack hosts another env lends this one: the borrowing side, which runs
+	// their runner runtime from this operator's fleet config.
+	if rackLeaseFleetName != "" {
+		if rackEnv == "" {
+			setupLog.Error(fmt.Errorf("--rack-env is empty"), "--rack-lease-fleet-name needs --rack-env, the runtime owner its pushes claim")
+			os.Exit(1)
+		}
+		if err := (&macos.RackHostLeaseReconciler{
+			Client:                        mgr.GetClient(),
+			Scheme:                        mgr.GetScheme(),
+			Recorder:                      mgr.GetEventRecorderFor("rackhostlease-controller"),
+			CredentialsManager:            credsManager,
+			Kubeconfig:                    kubeconfigBuilder,
+			Env:                           rackEnv,
+			FleetName:                     rackLeaseFleetName,
+			Hosts:                         parseCommaList(rackLeaseHostsRaw),
+			FleetConfig:                   fleetConfig,
+			TartReleases:                  tartReleases,
+			VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+			ImageMirrors:                  rackHostImageMirrors,
+			DefaultGuestCapacity:          tartKubeletGuestCapacity,
+			TartKubeletBinarySHA:          binarySHA,
+			TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+			TartKubeletTerminalRetryAfter: terminalRetryAfter,
+			EgressNamespace:               egressNamespace,
+			EgressProxyGroup:              egressProxyGroup,
+			EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup RackHostLeaseReconciler")
+			os.Exit(1)
+		}
 	}
 
 	var rackTailnet linux.TailnetAPI
