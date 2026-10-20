@@ -2128,10 +2128,10 @@ runnersFleet:
 # tracks the macos + runners side; bump it by 2 ahead of the
 # `helm upgrade` that applies this replica count.
 #
-# The fleet is moving to macOS 27 (Golden Gate), see "Moving the fleet
+# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
 # to a new macOS release" in vm-image-builder.md. The two Tahoe builders
 # keep their own os pin and runner labels. Machines created from here on
-# adopt a Golden Gate host and register without `vm-image-builder`, so
+# adopt a Golden Gates host and register without `vm-image-builder`, so
 # they take no image jobs until that label is added to their runner.
 buildersFleet:
   enabled: true
@@ -2139,7 +2139,7 @@ buildersFleet:
   adoptPoolPrefix: "tuist-pool-"
   ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
   machine:
-    os: "Golden Gate"
+    os: "Golden Gates"
   externalSecrets:
     enabled: true
 

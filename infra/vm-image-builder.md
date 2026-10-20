@@ -305,8 +305,10 @@ short.
    adoptable by this fleet. Reinstall it from the Scaleway console and
    rename it to `tuist-pool-<anything>` once the reinstall finishes.
 2. **Add a builder.** Set `buildersFleet.machine.os` to the new family
-   (`Golden Gate` is macOS 27), set `ghRunnerLabels` to a set without
-   `vm-image-builder` (for example `self-hosted,macos,bare-metal,macos-27`),
+   exactly as Scaleway reports it in `os.family` (`scw apple-silicon
+   server get`): macOS 27 is `Golden Gates`. Set `ghRunnerLabels` to a
+   set without `vm-image-builder` (for example
+   `self-hosted,macos,bare-metal,macos-27`),
    and raise `replicas` by one. Only the new Machine picks either up. No
    workflow matches a runner without `vm-image-builder`, so it takes no
    jobs yet.
