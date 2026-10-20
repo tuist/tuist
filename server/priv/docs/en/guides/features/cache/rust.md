@@ -32,7 +32,7 @@ For each eligible compilation, Tuist:
 2. On a local miss, queries Kura through the Remote Execution API (REAPI), downloads any missing content, and verifies the outputs before restoring them.
 3. On a cache miss, runs the compiler normally. After a successful compilation, it stores the outputs locally and uploads them to Kura through REAPI when authorized. The remote cache entry is published only after all of its referenced content is available.
 
-Local and CI builds use the same remote cache protocol. Read and write access come from Tuist's server-issued cache credentials and your account's <.localized_link href="/guides/features/cache#restrict-uploads-to-ci">cache upload policy</.localized_link>. An account can allow developers to download while restricting uploads to CI and account tokens.
+Local and CI builds use the same remote cache protocol. Read and write access come from Tuist's server-issued cache credentials and your account's <.localized_link href="/guides/features/cache#restrict-uploads-to-ci">cache upload policy</.localized_link>. An account can allow developers to download while restricting uploads to CI and account tokens. Cache writers are trusted code producers: cached compiler outputs are executable code, so only grant write access to machines and tokens you trust.
 
 If remote setup fails, local caching remains available. Unavailable, missing, or corrupt cache entries fall back to compilation. An upload failure doesn't fail the build or discard its local cache entry.
 
@@ -47,10 +47,11 @@ The following still build normally:
 - Executables, test binaries, native linking, and C/C++ compilations.
 - Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
 - Metadata-only `cargo check` invocations.
+- Compilations that emit rendered diagnostics or unexpected compiler output.
 
 A pre-existing global compiler wrapper disables Tuist's compilation cache and compiler observer. Custom workspace wrappers also bypass caching. See <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">compiler tool compatibility</.localized_link>.
 
-Cache keys include the package contents, compiler and toolchain, arguments, working directory, and effective environment. Keep these inputs and their absolute paths consistent when testing reuse. Remote transport support does not make outputs relocatable between different checkout paths.
+Cache keys include the package contents, compiler and toolchain, arguments, working directory, and build environment. Credentials, Tuist reporting settings, and recognized CI run metadata don't invalidate entries. Crates that read those excluded variables during compilation aren't cached. Keep the other inputs and their absolute paths consistent when testing reuse. Remote transport support does not make outputs relocatable between different checkout paths.
 
 ## Verify reuse {#verify-reuse}
 
@@ -62,7 +63,7 @@ cargo clean
 tuist cargo build --release
 ```
 
-Eligible libraries can be restored on the second build; unsupported crates still compile. Removing Cargo's outputs doesn't remove Tuist's separate local cache. This checks reuse, not necessarily remote downloads: a local hit doesn't need a transfer from Kura.
+Eligible libraries can be restored on the second build; unsupported crates still compile. Removing Cargo's outputs doesn't remove Tuist's separate local cache. This checks reuse, not necessarily remote downloads: a local hit doesn't need a transfer from Kura. Input validation and cache operations add overhead, so avoiding compilation doesn't guarantee faster builds for small crates.
 
 ## Inspect cache activity {#inspect-cache-activity}
 
