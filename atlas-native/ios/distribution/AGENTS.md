@@ -6,10 +6,15 @@ use macOS `security`, `plutil`, PlistBuddy and `codesign` rather than a separate
 profile-validation framework.
 
 - Keep private keys in a temporary keychain and remove credentials on exit.
-  Never mutate Once's cached output or import keys into the login keychain.
+  `keychain.sh` adds it to the user search list for signing and restores the exact
+  original list before deletion, including on failure. `codesign --keychain` alone
+  does not make it available for certificate-chain lookup. Never import keys into
+  the login keychain or mutate Once's cached output.
 - Check the Atlas app identity, ad-hoc profile expiration and matching signing
   certificate. Use the profile's entitlements with Atlas-only Keychain access.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
-- Validate with `bash -n`, ShellCheck and an actual signing run. Signature
-  verification does not establish installation on a registered physical device.
+- Validate with `python3 ios/distribution/keychain_test.py`, `bash -n`, ShellCheck
+  and an actual signing run. The credential-free tests cover ordered search-list
+  restoration, paths with spaces, an empty list, and setup/import failures.
+  Signature verification does not establish installation on a registered physical device.
