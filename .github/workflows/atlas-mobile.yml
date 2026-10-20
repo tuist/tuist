@@ -250,7 +250,7 @@ jobs:
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" delivery/ios/Atlas.app
           xcrun simctl launch "$device" dev.tuist.atlas
-          mise exec -- tuist share delivery/ios/Atlas.app --track nightly
+          TUIST_PREVIEW_BUILD_VERSION=$(date +%s) mise exec -- tuist share delivery/ios/Atlas.app --track nightly
           mise exec -- tuist inspect bundle delivery/ios/Atlas.app
       - name: Publish iOS device preview
         run: |

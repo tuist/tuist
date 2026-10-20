@@ -2068,6 +2068,23 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
+    # The rented fleet's probe pool for the Runners Acceptance workflow
+    # (`runs-on: tuist-runners-acceptance`). An account on the `runner_site`
+    # flag has its profiles routed to the rack first, so no profile label lands
+    # on this fleet deterministically. No `site`, so its jobs take the
+    # scw-fr-par-runners cache like the fleet's other jobs. The `macos-` name
+    # prefix is what makes the server treat it as a macOS pool on the cluster
+    # network (`Catalog.fleet_platform/1`). Autoscaled from zero so it shares
+    # the fleet's guest slots through the allocator; one probe job at a time.
+    - name: macos-acceptance
+      platform: macos
+      xcodeVersion: "26.6"
+      dispatchLabel: tuist-runners-acceptance
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+        holdRecentPeak: false
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
