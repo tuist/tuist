@@ -28,9 +28,11 @@ packer {
 #  6. tart-kubelet observes the VM stop, transitions the Pod to
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
-# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
-# certs all live in the macos-tahoe-xcode base; this build just adds
+# Builds on top of `ghcr.io/tuist/macos-<codename>-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`): `macos-tahoe-xcode` for a macOS 26
+# guest, `macos-golden-gate-xcode` for a macOS 27 one. The template is the
+# same for both. Xcode + dev tools + WWDR
+# certs all live in the macos-<codename>-xcode base; this build just adds
 # the GitHub Actions runner agent, the dispatch loop, and the runner
 # user / launchd wiring. Splitting the slow Xcode install out means
 # a rebuild on every runner-image commit costs ~2 min instead of
@@ -96,7 +98,7 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
+  description = "Base Tart image (ghcr.io/tuist/macos-<codename>-xcode:<xcode-version-dashes>, e.g. `macos-tahoe-xcode:26-5` or `macos-golden-gate-xcode:27-1`). Bump this to roll the fleet onto a new Xcode."
   default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
@@ -551,8 +553,10 @@ build {
   # the auto-login session, write the rows into the database tccd
   # made, and reboot once more to assert they survive a boot. Runs
   # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
-  # it cannot dispatch from. See AGENTS.md for why each row has the
-  # shape it has.
+  # it cannot dispatch from. Every step runs as runner, which is what
+  # lets tcc-approvals.sh find the database macOS 27 keeps in a data
+  # container rather than runner's home. See AGENTS.md for why each row
+  # has the shape it has.
   provisioner "file" {
     source      = "${path.root}/tcc-approvals.sh"
     destination = "/tmp/tcc-approvals.sh"
@@ -576,8 +580,8 @@ build {
     pause_before = "45s"
     inline = [
       "set -euo pipefail",
-      "sudo /opt/tuist/tcc-approvals.sh wait",
-      "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
+      "sudo -u runner -H /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner -H /opt/tuist/tcc-approvals.sh seed"
     ]
   }
 
@@ -591,8 +595,8 @@ build {
     pause_before = "45s"
     inline = [
       "set -euo pipefail",
-      "sudo /opt/tuist/tcc-approvals.sh wait",
-      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
+      "sudo -u runner -H /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner -H /opt/tuist/tcc-approvals.sh check"
     ]
   }
 

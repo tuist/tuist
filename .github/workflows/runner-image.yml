@@ -12,8 +12,11 @@ name: Runner Image
 # until its first release exists. Do not rebuild the same Xcode/SHA
 # while that bootstrap tag is pinned; record its digest in the PR.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
-# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
+# Builds on top of `ghcr.io/tuist/macos-<codename>-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`), the chain of the profile's guest macOS
+# (`.github/scripts/macos-image-names.sh`): `27.1` builds on
+# `macos-tahoe-xcode:27-1`, `golden-gate-27.1` on `macos-golden-gate-xcode:27-1`
+# and only on a builder labelled `macos-27`. Xcode + dev tools + WWDR certs
 # live in the base; this build just adds the GitHub Actions runner
 # agent and dispatch loop on top, so a rebuild is ~2 min instead of
 # the ~30 min an all-in-one rebuild used to cost.
@@ -26,15 +29,11 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's not in profiles.json without cutting a release."
+        description: "Runner image profile to (re)build: the Xcode version for a macOS 26 guest (e.g. 26.5, 27.0-beta-6), `<codename>-<xcode>` for another (e.g. golden-gate-27.1). Use this to refresh a profile that's not in profiles.json without cutting a release."
         required: true
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
         required: false
-      stacked:
-        description: "Build the runner layer as a stacked image on the macOS 27 builder (`macos-27` label) and push it as `:macos-<dashes>-<git-sha>-stacked`. Only macOS 27 hosts with Tart 2.36 or newer can run it."
-        type: boolean
-        default: false
 
 concurrency:
   group: runner-image
@@ -45,14 +44,33 @@ permissions:
   packages: write
 
 jobs:
+  names:
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      runs_on: ${{ steps.names.outputs.runs_on }}
+      base_image: ${{ steps.names.outputs.base_image }}
+      profile: ${{ steps.names.outputs.runner_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: names
+        env:
+          PROFILE: ${{ inputs.xcode_version }}
+        run: |
+          set -euo pipefail
+          .github/scripts/macos-image-names.sh profile "$PROFILE" | tee names
+          cat names >> "$GITHUB_OUTPUT"
+          echo "base_image=$(sed -n 's/^xcode_repository=//p' names):$(sed -n 's/^xcode_tag=//p' names)" >> "$GITHUB_OUTPUT"
+
   build:
-    runs-on: ${{ inputs.stacked && fromJSON('["self-hosted", "macos", "bare-metal", "macos-27"]') || fromJSON('["self-hosted", "macos", "bare-metal", "vm-image-builder"]') }}
+    needs: names
+    runs-on: ${{ fromJSON(needs.names.outputs.runs_on) }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base authenticates. The registry is
+      # macos-<codename>-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
       # reads as well as writes.
       - name: Log in to GHCR (crane)
@@ -77,19 +95,14 @@ jobs:
         working-directory: infra/runner-image
         env:
           XCODE: ${{ inputs.xcode_version }}
+          BASE_IMAGE: ${{ needs.names.outputs.base_image }}
+          PROFILE: ${{ needs.names.outputs.profile }}
           RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
-          STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
-          BASE_TAG="${XCODE//./-}"
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-          PROFILE="macos-${BASE_TAG}"
-          echo "Xcode:      ${XCODE}"
+          echo "Profile:    ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
-          echo "Profile:    ${PROFILE}"
-          if [ "$STACKED" = "true" ]; then
-            export PATH="$PWD/stacked-tart:$PATH"
-          fi
+          echo "Tag:        ${PROFILE}"
           # `runner_version` is passed only when the dispatch input is
           # non-empty; otherwise packer falls back to the Renovate-tracked
           # default in runner.pkr.hcl. Duplicating that default here is how
@@ -97,14 +110,13 @@ jobs:
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
-            -var "stacked=${STACKED}" \
             ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
       - name: Restore nvram.bin if missing
         env:
-          XCODE: ${{ inputs.xcode_version }}
+          BASE_IMAGE: ${{ needs.names.outputs.base_image }}
         # packer-plugin-tart v1.20.0 builds leave the VM bundle
         # without `nvram.bin`, so the very next `tart push` uploads
         # config + disk successfully then fails with
@@ -118,8 +130,6 @@ jobs:
           echo "pre-push bundle contents:"
           ls -la "$BUNDLE"
           if [ ! -f "$BUNDLE/nvram.bin" ]; then
-            BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
             echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
             tart delete nvram-restore 2>/dev/null || true
             tart clone "$BASE_IMAGE" nvram-restore
@@ -130,13 +140,9 @@ jobs:
 
       - name: Resolve image tag
         id: image-tag
-        env:
-          STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
-          suffix=""
-          if [ "$STACKED" = "true" ]; then suffix="-stacked"; fi
-          echo "value=${GITHUB_SHA::8}${suffix}" >> "$GITHUB_OUTPUT"
+          echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
 
       - name: Push image to GHCR
         timeout-minutes: 90

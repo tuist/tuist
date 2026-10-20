@@ -1,8 +1,10 @@
 # macOS + Xcode Image
 
-In-house replacement for `ghcr.io/cirruslabs/macos-tahoe-xcode:N`.
-A Tart VM image that bundles macOS Tahoe + a **single** Xcode +
-the dev tools customer iOS/macOS workflows expect.
+In-house replacement for `ghcr.io/cirruslabs/macos-<codename>-xcode:N`.
+A Tart VM image that bundles macOS + a **single** Xcode + the dev
+tools customer iOS/macOS workflows expect. Everything below about
+tags, channels and promotion is written for macOS 26 (Tahoe), which
+every customer pool runs; "Guest macOS majors" covers macOS 27.
 
 Built by `.github/workflows/macos-xcode-image.yml` on
 workflow_dispatch (we trigger it whenever Apple ships a new Xcode
@@ -64,6 +66,45 @@ ghcr.io/tuist/macos-tahoe-xcode:26-4-1       <- same Layer 1
 ghcr.io/tuist/tuist-xcresult-processor:<server-semver>
                                               <- runs on internal macOS fleet
 ```
+
+## Guest macOS majors
+
+Each guest macOS major has its own chain, named after its codename
+by `.github/scripts/macos-image-names.sh` (and, in step with it, the
+chart's `tuist.macosCodename`):
+
+| Major | Vendor base                                  | This image                                |
+|-------|----------------------------------------------|-------------------------------------------|
+| 26    | `ghcr.io/cirruslabs/macos-tahoe-base`        | `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` |
+| 27    | `ghcr.io/cirruslabs/macos-golden-gate-base`  | `ghcr.io/tuist/macos-golden-gate-xcode:<dashes>` |
+
+The template is the same for both, because cirruslabs builds both
+bases from one template (`admin`, brew, `~/.zprofile`, the
+`/Users/runner` symlink). The 27 base ships an ASIF disk where the 26
+one is RAW; Tart resizes it to `disk_size_gb` all the same. cirruslabs
+creates its 27 vanilla image with macOS 27's guest provisioning
+(`VZMacGuestProvisioningOptions`, Tart's `--provisioning-opts`, Tart
+2.33+): first-boot user, auto-login and SSH without driving Setup
+Assistant. We start from their base and never create a VM from an IPSW,
+so nothing here depends on it.
+
+```
+gh workflow run macos-xcode-image.yml -f xcode_version=27.1 -f macos_version=27
+```
+
+A guest builds and boots only on a host on its major or newer. A 27
+build therefore runs only on a builder carrying both `vm-image-builder`
+and `macos-27`: the fleet's Golden Gates hosts, once promoted
+("Moving the fleet to a new macOS release" in
+`infra/vm-image-builder.md`). Until one is, it waits in the queue. The runner image profile on top is
+`golden-gate-<xcode>` (see `infra/runner-image/AGENTS.md`). The
+xcresult-processor stays on the 26 chain: it runs on the rented
+macOS 26 `macosFleet`.
+
+Measured on a BER1 M5 Pro (macOS 27.0, Tart 2.32.1, 2026-10-19): the
+27.1 image built in 12.5 min from a cold base pull.
+
+## Why a separate layer
 
 Why split this layer out: the Xcode install is ~30 min of work
 (unxip, license accept, runFirstLaunch, downloadAllPlatforms, and

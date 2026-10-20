@@ -6,7 +6,7 @@ name: Runner Image Release
 # tags `runner-image@<semver>`, and dispatches Server Production Deployment
 # so the fleet rolls through the canary cascade.
 #
-# Dispatch with no inputs to reconcile after a macos-tahoe-xcode base moves;
+# Dispatch with no inputs to reconcile after a macos-<codename>-xcode base moves;
 # macos-xcode-image.yml does this for bases of active profiles.
 
 on:
@@ -93,10 +93,13 @@ jobs:
         run: .github/scripts/runner-image-release-plan.sh
 
   build:
-    name: Build runner image (Xcode ${{ matrix.xcode }})
+    name: Build runner image (${{ matrix.xcode }})
     needs: plan
     if: needs.plan.outputs.release == 'true' && needs.plan.outputs.build-count != '0'
-    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    # A guest builds and boots only on a host on its macOS major or newer, so a
+    # profile past macOS 26 carries the `macos-<major>` builder label too
+    # (.github/scripts/macos-image-names.sh).
+    runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 150
     strategy:
       fail-fast: true

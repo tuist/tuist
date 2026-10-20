@@ -140,8 +140,10 @@ fleet is what keeps the autoscaling arithmetic right: the runners-controller
 apportions a capacity domain across the pools sharing an OS and
 `fleetSelector`, so the rack's pools split the rack's guest slots and the
 rented fleet's split the rented fleet's, and neither counts the other's
-memory. The image and runner labels are the Xcode's, the same on every
-placement; pod sizing is the shape's unless the rack gives that shape a bigger
+memory. The runner labels are the Xcode's, the same on every placement, and so
+is the image unless a rack placement runs the Xcode on a newer guest
+(`rackFleet.runners.xcodeOverrides[].guestMacOS`, see `tuist.macosRunnerImage`);
+pod sizing is the shape's unless the rack gives that shape a bigger
 guest (`rackFleet.runners.guestShapes`); replicas, autoscaling and rollout are
 the placement's own (`runnersFleet.xcodeOverrides` for the rented fleet,
 `rackFleet.runners` for the rack). The server routes an account's profile to
@@ -247,7 +249,6 @@ shape fails the render, since a job would get less than its profile names.
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
 {{- $xcodeTag := $xcodeVersion | replace "." "-" }}
 {{- $imageOverride := dig $xcodeVersion (dict) $overrides }}
-{{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
 {{- $runnerLabels := dig "runnerLabels" $defaultRunnerLabels $imageOverride }}
 {{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $imageOverride }}
 {{- $podMem := dig "pod" "memoryMB" $defaultMem $imageOverride }}
@@ -260,6 +261,8 @@ shape fails the render, since a job would get less than its profile names.
 {{- end }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
+{{- $guestMacOS := ternary "26" (dig "guestMacOS" "26" $override | toString) (eq $site "") }}
+{{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion "guestMacOS" $guestMacOS "guestOverride" $override) }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
 {{- $replicas := dig "replicas" 0 $override }}
 {{- $autoscaling := $override.autoscaling | default $placement.autoscaling }}
@@ -296,6 +299,9 @@ metadata:
     {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
+    {{- end }}
+    {{- if ne $guestMacOS "26" }}
+    tuist.dev/guest-macos: {{ $guestMacOS | quote }}
     {{- end }}
     {{- with $site }}
     tuist.dev/site: {{ . | quote }}
@@ -378,6 +384,9 @@ metadata:
     {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
+    {{- end }}
+    {{- if ne $guestMacOS "26" }}
+    tuist.dev/guest-macos: {{ $guestMacOS | quote }}
     {{- end }}
     {{- with $site }}
     tuist.dev/site: {{ . | quote }}

@@ -1854,14 +1854,15 @@ rackFleet:
   # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
   # entry renders a second macOS pool, on the catalog's default shape, that
   # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
-  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # with the same image as the rented fleet's pool for that Xcode unless its
+  # `xcodeOverrides` entry picks a newer guest (`guestMacOS`). Accounts on
   # the server's `runner_site` flag have their profiles routed to these pools,
   # and the server falls back to the rented fleet for a profile the site has no
   # pool for. The pools select only this fleet, so the runners-controller
   # apportions this fleet's guest slots among them and among any explicit
   # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
-  # cannot be newer than its host: every catalog image has to fit the hosts'
-  # macOS.
+  # cannot be newer than its host: every image these pools run has to fit the
+  # hosts' macOS.
   runners:
     enabled: false
     # Run each Xcode's stacked runner image (`runnersFleet
@@ -1881,10 +1882,20 @@ rackFleet:
     # rollout:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
-    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
-    # from `guestShapes` below.
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The runner labels and pod
+    # sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart from
+    # `guestShapes` below, and so is the image unless `guestMacOS` names a
+    # newer guest macOS major than the catalog's 26. The pool then runs the
+    # `<codename>-<xcode>` runner image profile (`golden-gate-27.1` for 27, see
+    # `tuist.macosCodename`), which has to be in the deployed release's
+    # `infra/runner-image/profiles.json`, or pinned with this entry's own
+    # `imageTag` (a tag pinned in `runnersFleet.xcodeOverrides` names the
+    # macOS 26 guest and is not used). The pool keeps its name, so profiles
+    # route to it as before; a job that spills to the rented fleet runs on its
+    # macOS 26 guest.
     xcodeOverrides: {}
+    #   "27.1":
+    #     guestMacOS: 27
     # A bigger guest on this fleet for a catalog shape, keyed
     # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
     # shape still route to it and its jobs are recorded, billed and counted

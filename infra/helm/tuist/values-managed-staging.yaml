@@ -900,7 +900,20 @@ runnersFleet:
   # (server-deployment.yml passes it, and each profile's digest in
   # `runnerImageDigests`, via --set).
   runnerImageSemver: ""
-  pools: []
+  # Temporary, removed before review: reaches the macOS 27 guest on
+  # ber1-runner-b01 with `runs-on: tuist-staging-macos-27`.
+  pools:
+    - name: ber1-golden-gate
+      site: ber1
+      platform: macos
+      runnerImage: ghcr.io/tuist/tuist-runner:macos-golden-gate-27-1-a201421d
+      dispatchLabel: tuist-staging-macos-27
+      fleetSelector: tuist-staging-rack-fleet
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 2
+        holdRecentPeak: false
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
 # Tart images are global GHCR artifacts, so only the production fleet
@@ -1052,3 +1065,8 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 2
+      # Xcode 27.1 on a macOS 27 guest, pinned to the image built on
+      # ber1-runner-b01 until a release carries the `golden-gate-27.1` profile.
+      "27.1":
+        guestMacOS: 27
+        imageTag: macos-golden-gate-27-1-a201421d
