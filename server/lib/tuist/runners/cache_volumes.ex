@@ -211,7 +211,8 @@ defmodule Tuist.Runners.CacheVolumes do
         image_digest: usage.image_digest,
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
-        uid: volume.uid
+        uid: volume.uid,
+        volume_bytes: volume_bytes(volume)
       }
     end)
   end
@@ -600,6 +601,15 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
+  # The Xcode compilation cache outgrows other volumes; hosts admit up to 32 GB.
+  @volume_bytes 20_000_000_000
+  @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000}
+
+  @doc """
+  The size a host creates the volume's image at.
+  """
+  def volume_bytes(%{key: key}), do: Map.get(@managed_volume_bytes, key, @volume_bytes)
+
   @doc """
   The lineage scopes of the custom volumes that jobs of `repository` attached
   since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
@@ -673,7 +683,8 @@ defmodule Tuist.Runners.CacheVolumes do
           scope: scope(volume),
           generation: generation,
           image_digest: digest,
-          content_digest: content
+          content_digest: content,
+          volume_bytes: volume_bytes(volume)
         }
       ]
     else

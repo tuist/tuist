@@ -66,8 +66,10 @@ Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
-Cold creation reserves one 20 GB image. Restoration and prefetch retain the
-40 GB budget for the archive and expanded image. Applying that restore budget
+Each volume is created at the size the server allocates it (`volume_bytes`: 30 GB
+for `tuist-xcode`, 20 GB otherwise; hosts accept up to 32 GB). Cold creation
+reserves one image of that size. Restoration and prefetch retain the
+budget of twice that size for the archive and expanded image. Applying that restore budget
 to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
 with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
 even though a 20 GB image fits. Both the backend's eviction/admission check and
