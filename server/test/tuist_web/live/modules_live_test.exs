@@ -296,10 +296,10 @@ defmodule TuistWeb.ModulesLiveTest do
     # Every reason is wired to the event. The items render into a portal
     # template, which element/2 cannot reach, so the event goes straight to the
     # view and the markup is checked separately.
-    html = render(lv)
+    html = lv |> render() |> Floki.parse_document!()
 
     for reason <- ~w(all changed upstream cold evicted) do
-      assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
+      assert Floki.find(html, ~s([phx-click="select_miss_reason"][phx-value-type="#{reason}"])) != []
     end
 
     render_click(lv, "select_miss_reason", %{"type" => "changed"})

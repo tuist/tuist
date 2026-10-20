@@ -484,10 +484,10 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     refute render(lv) =~ ~s(phx-click="select_cache_count")
 
     # Every reason, including the total, is wired to the event.
-    html = render(lv)
+    html = lv |> render() |> Floki.parse_document!()
 
     for reason <- ~w(all changed upstream cold evicted) do
-      assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
+      assert Floki.find(html, ~s([phx-click="select_miss_reason"][phx-value-type="#{reason}"])) != []
     end
 
     render_click(lv, "select_miss_reason", %{"type" => "changed"})
