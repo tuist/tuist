@@ -65,6 +65,11 @@ COPY noora /noora
 RUN aube run build
 WORKDIR /app
 
+# Empty by default. CI can supply a production Mix snapshot with
+# --build-context mix-cache=<directory>, without sharing test builds or host ABIs.
+FROM ${BUILDER_IMAGE} AS mix-cache
+RUN mkdir /deps /_build
+
 # ========================================
 # Stage 2: Base dependencies builder
 # ========================================
@@ -94,6 +99,9 @@ ENV HEX_HTTP_TIMEOUT=120
 # runner mid-build ("lost communication"). 2 each = 4 total still saturates
 # the cores, without the memory spike.
 ENV ELIXIR_ERL_OPTIONS="+S 2"
+
+COPY --from=mix-cache /deps/ deps/
+COPY --from=mix-cache /_build/ _build/
 
 COPY server/mix.exs server/mix.lock ./
 COPY server/mise/tasks/cldr mise/tasks/cldr
@@ -151,7 +159,7 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 # ========================================
 # Stage 3: Main application builder
 # ========================================
-FROM deps-builder AS builder
+FROM deps-builder AS compiled
 
 COPY tuist_common /tuist_common
 COPY tuist_ex /tuist_ex
@@ -168,6 +176,13 @@ COPY examples/xcode priv/examples/xcode
 COPY server/lib lib
 
 RUN mix compile --warnings-as-errors
+
+# Export before assets/release so the snapshot never contains an old release.
+FROM scratch AS mix-cache-export
+COPY --from=compiled /app/deps/ /deps/
+COPY --from=compiled /app/_build/ /_build/
+
+FROM compiled AS builder
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
