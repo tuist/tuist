@@ -71,6 +71,15 @@ struct CargoTestReportTests {
         #expect(cases[0]["status"] as? String == (passed == 1 ? "success" : failed == 1 ? "failure" : "skipped"))
     }
 
+    @Test(arguments: ["passed", "failed", "ignored"])
+    func rejectsUnrepresentableSummaryTotals(outcome: String) {
+        let count = outcome == "passed" ? 1 : 0
+        let output = summary("test only ... ok", passed: 1).replacingOccurrences(
+            of: "\(count) \(outcome)", with: String(repeating: "9", count: 100) + " " + outcome
+        )
+        #expect(read(output, "Running unittests src/lib.rs (target/debug/deps/store-0123456789abcdef)") == nil)
+    }
+
     @Test func attributesIntegrationTestsUsingMetadataNotArtifactHashes() throws {
         let output = summary("test authentication::passes ... ok", passed: 1)
         for hash in ["0123456789abcdef", "fedcba9876543210"] {

@@ -185,9 +185,12 @@ struct CargoTestReport {
                     counts[test.status, default: 0] += 1
                 }
                 guard let count = expected, tests.count == count,
-                      Int(values[1]) == counts["success", default: 0],
-                      Int(values[2]) == counts["failure", default: 0],
-                      Int(values[3]) == counts["skipped", default: 0],
+                      let passed = Int(values[1], radix: 10),
+                      let failed = Int(values[2], radix: 10),
+                      let ignored = Int(values[3], radix: 10),
+                      passed == counts["success", default: 0],
+                      failed == counts["failure", default: 0],
+                      ignored == counts["skipped", default: 0],
                       (values[0] == "FAILED") == (counts["failure", default: 0] > 0),
                       let seconds = Double(values[4]), seconds.isFinite, seconds <= Double(Int32.max) / 1000,
                       total + tests.count <= 100_000, sections.count < 1000 else { return nil }
