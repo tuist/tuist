@@ -252,14 +252,15 @@ backward-compatibility gate's CLI knows it. The test runs pass no
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
 to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
 `mise.toml` pins one with it the runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending), and only `cli.yml`'s
-`tuist cache --coverage` warms the coverage variant; after that the plain
-`tuist cache` warms it too and that step is redundant. Plain environment
-variables never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones
-do), so they cannot flip the CLI's own unit tests. Every `tuist test` that uploads coverage
-passes `--derived-data-path`, because the coverage export reads the test
-products and the profile from derived data, and the result-bundle fallback it
-takes without one never covers cached code.
+(`tuist coverage complete` leaves the commit pending). `cli.yml`'s single
+`tuist cache` on main warms the variant those settings select: plain binaries
+before that pin, the coverage variant after it. Plain environment variables
+never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so
+they cannot flip the CLI's own unit tests. The coverage runs pass no
+`--derived-data-path`: the CLI locates Xcode's derived data itself
+(`DerivedDataLocator`). If a run's export can't find it, it falls back to the
+result bundle's xccov report, which never covers cached code; the server shows
+that run's `coverage_tool` as `xccov`.
 
 ## Restore drills
 

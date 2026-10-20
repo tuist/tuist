@@ -161,10 +161,7 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: tuist-macos-27-0
-    # Two warms: the plain one and the coverage one below, which builds every
-    # changed repository target a second time, with coverage and without the
-    # compilation cache's replay.
-    timeout-minutes: 90
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
@@ -192,18 +189,10 @@ jobs:
         uses: tuist/install@v1
         with:
           cache-key: cli-macos-workspace-${{ github.job }}
+      # With mise.toml's TUIST_COVERAGE_ENABLED, CLIs with tuist/tuist#14404
+      # warm the coverage variant the coverage runs read; older ones warm plain.
       - name: Cache
         run: tuist cache
-      # The coverage variant of the binary cache, read by the runs that collect
-      # coverage. Only repository-owned targets are built again, with coverage
-      # counters; external packages are the plain warm's. Once mise.toml pins a
-      # CLI with tuist/tuist#14404, the coverage settings in mise.toml's [env]
-      # make the warm above fill this variant too, with prefix mapping, and this
-      # step becomes redundant; dropping it goes with turning the option on in
-      # Tuist.swift. Until then the pinned CLI ignores those settings and only
-      # this step warms the variant.
-      - name: Cache with coverage
-        run: tuist cache --coverage
 
   cli-unit-tests:
     name: Unit Tests
@@ -243,12 +232,9 @@ jobs:
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
       # Coverage comes from mise.toml's [env]: the scheme leaves its test
       # action's coverage unset, so it follows TUIST_COVERAGE_ENABLED, which CLIs
-      # before tuist/tuist#14404 ignore. The derived data path is where the
-      # coverage export finds the test products and the run's profile; cached
-      # binaries only show up in the coverage when it reads them, never in the
-      # result bundle's own report.
+      # before tuist/tuist#14404 ignore.
       - name: Run tests
-        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4
+        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests

@@ -3,10 +3,10 @@ name: Coverage
 # Gathers Xcode code coverage from full test runs on main, so the coverage
 # trend has complete runs to plot. Pull request runs use selective testing,
 # which leaves tests unrun, so their coverage is partial and stays out of the
-# trend. The runs here read the binary cache: cli.yml warms a coverage variant
-# of it on main (`tuist cache --coverage`), whose binaries carry coverage
-# counters and record their files under a placeholder the export resolves, so a
-# cached target is measured like one built from source. The test targets link
+# trend. The runs here read the binary cache's coverage variant, which cli.yml's
+# `tuist cache` warms on main (TUIST_COVERAGE_ENABLED in mise.toml); its
+# binaries carry coverage counters and record their files under a placeholder
+# the export resolves, so a cached target is measured like one built from source. The test targets link
 # TestCoverageAttribution, so each run also records which files every test
 # executed, and the last job tells the server the commit's runs are all in.
 #
@@ -155,25 +155,21 @@ jobs:
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       # Every test runs: selective testing would skip tests. Repository targets
-      # come from the coverage variant of the binary cache (`tuist cache
-      # --coverage` in cli.yml), built with coverage counters, when their hash
+      # come from the coverage variant of the binary cache when their hash
       # matches what an earlier commit's warm stored; this commit's own warm runs
       # at the same time, so the targets it changed are built from source.
       # The coverage settings come from mise.toml's [env], which CLIs before
       # tuist/tuist#14404 ignore, so until one is pinned these runs collect no
       # coverage and `tuist coverage complete` leaves the commit pending: the
       # schemes leave their test action's coverage unset and follow
-      # TUIST_COVERAGE_ENABLED. The derived data path is where the export
-      # finds the test products and the run's profile: without it the CLI falls
-      # back to the result bundle's own report, which never covers cached code.
-      # The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
+      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
       # tests run in parallel in one process, and plain increments lose counts.
       # TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
       # builds, so the compilation cache replays across runners; the CLI maps the
       # covered paths back (llvm-cov export plus each target's
       # compilation-prefix-map.json).
       - name: Run tests with coverage
-        run: tuist test TuistUnitTests --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4
+        run: tuist test TuistUnitTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 4
 
   app-tests:
     name: App Tests
@@ -225,7 +221,7 @@ jobs:
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       - name: Run tests with coverage
-        run: tuist test TuistApp --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp --no-selective-testing -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   # Only a complete commit joins the coverage trend. A CLI release older than
   # `tuist coverage complete` skips the signal, and the commit stays in progress.
