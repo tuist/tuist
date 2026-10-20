@@ -114,7 +114,10 @@ func schemes() -> [Scheme] {
                     + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
-                ]
+                ],
+                // Explicit, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on: the tests mostly
+                // exercise nested xcodebuild processes, which coverage doesn't measure.
+                options: .options(coverage: false)
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -196,8 +199,10 @@ func schemes() -> [Scheme] {
             postActions: [
                 inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
             ],
+            // Explicit, like TuistAcceptanceTests, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on.
             options: .options(
-                language: "en"
+                language: "en",
+                coverage: false
             )
         ),
         runAction: .runAction(
