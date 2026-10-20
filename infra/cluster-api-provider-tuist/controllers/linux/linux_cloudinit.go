@@ -129,6 +129,27 @@ RuntimeWatchdogSec=30s
 RebootWatchdogSec=5min
 `
 
+	// sshServiceDropInContent and sshSocketDropInContent take sshd out of
+	// systemd's start rate limit. Ubuntu 24.04 socket-activates sshd, and
+	// openssh-server's maintainer scripts restart ssh.service several times in a
+	// few seconds on every unattended upgrade. Five starts within 10s trip the
+	// default limit: ssh.service fails with start-limit-hit, ssh.socket fails with
+	// service-start-limit-hit, and nothing listens on :22 again until someone runs
+	// reset-failed, while kubelet stays Ready. That host then takes no config the
+	// operator pushes over SSH. RestartSec spaces out the restarts the vendor
+	// unit's Restart=on-failure makes, so an sshd that cannot start retries every
+	// 5s instead of spinning.
+	sshServiceDropInPath    = "/etc/systemd/system/ssh.service.d/10-tuist-no-start-limit.conf"
+	sshServiceDropInContent = `[Unit]
+StartLimitIntervalSec=0
+[Service]
+RestartSec=5s
+`
+	sshSocketDropInPath    = "/etc/systemd/system/ssh.socket.d/10-tuist-no-start-limit.conf"
+	sshSocketDropInContent = `[Unit]
+StartLimitIntervalSec=0
+`
+
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
 	// anonymous pull rate limit. Written to
@@ -351,7 +372,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[8]s
 %[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
 %[9]s
-%[2]ssystemctl daemon-reexec || true
+%[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
@@ -386,7 +407,18 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuota, kataSetup)
+		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile))
+}
+
+// sshStartLimitDropIns writes the sshd start-limit drop-ins. The caller reloads
+// systemd afterwards. Shared by the self-join and the kubelet config re-push,
+// which is how nodes joined before the drop-ins existed receive them.
+func sshStartLimitDropIns(sudo string, writeFile func(producer, path string) string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s %[3]s\n%[4]s\n%[5]s\n",
+		sudo, path.Dir(sshServiceDropInPath), path.Dir(sshSocketDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshServiceDropInContent), sshServiceDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshSocketDropInContent), sshSocketDropInPath),
+	)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
