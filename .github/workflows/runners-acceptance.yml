@@ -46,6 +46,8 @@ jobs:
       server: ${{ steps.plan.outputs.server }}
       macos: ${{ steps.plan.outputs.macos }}
       linux: ${{ steps.plan.outputs.linux }}
+      volume_label: ${{ steps.plan.outputs.volume_label }}
+      probe_jobs: ${{ steps.plan.outputs.probe_jobs }}
     steps:
       - id: plan
         env:
@@ -60,23 +62,32 @@ jobs:
         # there deterministically.
         run: |
           set -euo pipefail
+          #
+          # The cache volume round trip runs on canary only. Canary has one
+          # rack host, so the verify job lands where the seed job published;
+          # on production's multi-host fleets it would wait on convergence.
           case "${ENVIRONMENT}" in
             canary)
               server=https://canary.tuist.dev
               macos='[{"name":"BER1 rack","label":"tuist-canary-macos","cache_host":""}]'
               linux='[{"name":"default","label":"tuist-canary-linux"}]'
+              volume_label=tuist-canary-macos
               ;;
             production)
               server=https://tuist.dev
               macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
               linux='[{"name":"default","label":"tuist-linux"}]'
+              volume_label=""
               ;;
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
           esac
+          probe_jobs=$(( $(jq length <<< "${macos}") + $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 1 : 0) ))
           {
             echo "server=${server}"
             echo "macos=${macos}"
             echo "linux=${linux}"
+            echo "volume_label=${volume_label}"
+            echo "probe_jobs=${probe_jobs}"
           } >> "$GITHUB_OUTPUT"
 
   dispatch-watchdog:
@@ -99,6 +110,9 @@ jobs:
           # pull the golden image takes minutes before the VM boots.
           MACOS_PICKUP_MINUTES: 15
           LINUX_PICKUP_MINUTES: 10
+          # The volume verify job only exists once the seed job finishes, so
+          # the watchdog keeps watching until every expected probe has started.
+          EXPECTED_PROBE_JOBS: ${{ needs.plan.outputs.probe_jobs }}
         run: .github/scripts/runners-acceptance/dispatch-watchdog.sh
 
   macos:
@@ -138,6 +152,18 @@ jobs:
           sparse-checkout: |
             .github
             mise
+      - uses: tuist/cache-volume@v1
+        if: matrix.target.label == needs.plan.outputs.volume_label
+        id: volume
+        with:
+          key: runners-acceptance-probe
+          path: ~/runners-acceptance-volume
+      - name: Seed the cache volume
+        if: matrix.target.label == needs.plan.outputs.volume_label
+        timeout-minutes: 2
+        env:
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: .github/scripts/runners-acceptance/volume.sh seed "$HOME/runners-acceptance-volume"
       - name: Kura round trip
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh
@@ -151,6 +177,37 @@ jobs:
       - name: Xcode cache hits
         timeout-minutes: 10
         run: .github/scripts/runners-acceptance/xcode-cache.sh
+
+  # The host publishes a finished job's volume on a worker that runs every 30
+  # seconds, so this job waits before attaching. It runs on the same label as
+  # the seed job and requires the copy that job saved.
+  macos-volume:
+    name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
+    needs: [plan, macos]
+    if: needs.plan.outputs.volume_label != '' && needs.macos.result == 'success'
+    runs-on: ${{ needs.plan.outputs.volume_label }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      PUBLISH_WAIT_SECONDS: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Wait for the seed job's copy to be published
+        run: sleep "${PUBLISH_WAIT_SECONDS}"
+      - uses: tuist/cache-volume@v1
+        id: volume
+        with:
+          key: runners-acceptance-probe
+          path: ~/runners-acceptance-volume
+      - name: Verify the cache volume
+        timeout-minutes: 2
+        env:
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: .github/scripts/runners-acceptance/volume.sh verify "$HOME/runners-acceptance-volume"
 
   linux:
     name: Linux ${{ matrix.target.name }} (${{ matrix.target.label }})

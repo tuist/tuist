@@ -6,7 +6,9 @@
 # watchdog cancels the run after reporting.
 #
 # Env: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT,
-# MACOS_PICKUP_MINUTES, LINUX_PICKUP_MINUTES.
+# MACOS_PICKUP_MINUTES, LINUX_PICKUP_MINUTES, and EXPECTED_PROBE_JOBS, the number
+# of probe jobs the run creates. Jobs that wait on another job only appear once
+# it finishes, so the watchdog keeps watching until all of them exist.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
@@ -38,7 +40,7 @@ while :; do
   fi
 
   count="$(jq '.count' <<< "${report}")"
-  if [ "${count}" -gt 0 ] && [ "$(jq '.waiting | length' <<< "${report}")" -eq 0 ]; then
+  if [ "${count}" -ge "${EXPECTED_PROBE_JOBS:-1}" ] && [ "$(jq '.waiting | length' <<< "${report}")" -eq 0 ]; then
     jq -r '.started[] | "\(.name): picked up after \(.waited | floor)s"' <<< "${report}" | while read -r line; do pass "${line}"; done
     exit 0
   fi
