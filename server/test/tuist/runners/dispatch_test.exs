@@ -988,6 +988,18 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
       assert pool_name == "#{prefix}-26-6"
     end
+
+    test "an account on the site flag waits at a site that is down when the env rents no macOS fleet", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-ber1-26-6"
+    end
   end
 
   describe "match_pool/1" do

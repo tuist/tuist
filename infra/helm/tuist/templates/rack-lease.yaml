@@ -1,0 +1,117 @@
+{{- /*
+Lending rack hosts between envs ("A host lent to another env" in
+infra/cluster-api-provider-tuist/AGENTS.md). The env that owns the rack lends
+a host's runner runtime with `lendTo` on its entry in `rackFleet.hosts`, and
+its operator writes a RackHostLease into the borrowing env's cluster. These are
+the two halves of the one credential that takes.
+*/ -}}
+{{- if and .Values.capi.enabled .Values.macosFleet.enabled .Values.rackFleet.enabled }}
+{{- range $env, $borrower := .Values.rackFleet.borrowers }}
+{{- if $borrower.kubeconfigItem }}
+{{- $name := include "tuist.rackBorrowerSecret" (dict "root" $ "env" $env) }}
+---
+# The lending half: the borrowing chart's rack-lender identity (below), stored
+# once per borrowing env in this env's vault. It can read and write
+# RackHostLeases in that env's namespace and nothing else.
+#
+# A hook, like the CAPI kubeconfig's, because Helm waits on no hook but a Job
+# or a Pod: the item is made after the borrowing env first deploys its
+# identity, and a deploy here must not wait on a person. Until it syncs, the
+# operator leaves the hosts lent to that env as they are. Orphan and Retain
+# keep the synced Secret across the hook's delete-and-create on every deploy.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Short, so a lend waiting on a new item starts minutes after it is stored.
+  refreshInterval: 5m
+  secretStoreRef:
+    name: {{ $.Values.rackFleet.sshExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $.Values.rackFleet.sshExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $name }}
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        kubeconfig: "{{ `{{ .kubeconfig }}` }}"
+        namespace: {{ required (printf "rackFleet.borrowers.%s.namespace is required: the namespace %s's operator watches RackHostLeases in" $env $env) $borrower.namespace | quote }}
+  data:
+    - secretKey: kubeconfig
+      remoteRef:
+        key: "{{ $borrower.kubeconfigItem }}/kubeconfig"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.capi.enabled .Values.macosFleet.enabled .Values.rackFleet.borrow.enabled }}
+{{- if .Values.rackFleet.enabled }}
+{{- fail "rackFleet.borrow is for an env that runs rack hosts another env owns; an env with rackFleet.enabled owns its rack" }}
+{{- end }}
+{{- $name := include "tuist.rackLenderName" . }}
+---
+# The borrowing half: the identity the env that owns the rack writes this env's
+# RackHostLeases with. A person builds a kubeconfig from its token once and
+# stores it in the lending env's vault (`rackFleet.borrowers` there).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-lender
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-lender
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: [rackhostleases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: [rackhostleases/status]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-lender
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: {{ $name }}-token
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-lender
+{{- end }}

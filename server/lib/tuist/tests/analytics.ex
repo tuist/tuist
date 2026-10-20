@@ -21,6 +21,17 @@ defmodule Tuist.Tests.Analytics do
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
+  defmacrop measured_case_duration(duration, scheme) do
+    quote do
+      fragment(
+        "if(? = 'cargo test' OR startsWith(?, 'cargo test · '), NULL, toNullable(?))",
+        unquote(scheme),
+        unquote(scheme),
+        unquote(duration)
+      )
+    end
+  end
+
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
@@ -1312,7 +1323,7 @@ defmodule Tuist.Tests.Analytics do
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
-          value: avg(tcr.duration)
+          value: avg(measured_case_duration(tcr.duration, tcr.scheme))
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
@@ -1350,9 +1361,9 @@ defmodule Tuist.Tests.Analytics do
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
-          p50: fragment("quantile(0.5)(?)", tcr.duration),
-          p90: fragment("quantile(0.9)(?)", tcr.duration),
-          p99: fragment("quantile(0.99)(?)", tcr.duration)
+          p50: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+          p90: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+          p99: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
@@ -1490,10 +1501,10 @@ defmodule Tuist.Tests.Analytics do
                 tcr.is_flaky,
                 tcr.is_quarantined
               ),
-            avg_duration: avg(tcr.duration),
-            p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
-            p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
-            p99_duration: fragment("quantile(0.99)(?)", tcr.duration)
+            avg_duration: avg(measured_case_duration(tcr.duration, tcr.scheme)),
+            p50_duration: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p90_duration: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p99_duration: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
           }
         ),
         opts
@@ -1567,10 +1578,10 @@ defmodule Tuist.Tests.Analytics do
           group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
           select: %{
             date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
-            avg: avg(tcr.duration),
-            p50: fragment("quantile(0.5)(?)", tcr.duration),
-            p90: fragment("quantile(0.9)(?)", tcr.duration),
-            p99: fragment("quantile(0.99)(?)", tcr.duration)
+            avg: avg(measured_case_duration(tcr.duration, tcr.scheme)),
+            p50: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p90: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p99: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
           }
         ),
         Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime)

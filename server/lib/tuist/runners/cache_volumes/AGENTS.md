@@ -3,8 +3,20 @@
 `../cache_volumes.ex` owns allocation, publication, invalidation and analytics;
 these schemas persist volume identities and per-job uses.
 
-- Account-scope all browser reads and writes. Agent reports are separately
-  authenticated and bound to the node that received the allocation.
+- Account-scope all browser reads and writes. Agent reports, uploads and
+  publications are separately authenticated and bound to the node that received
+  the allocation. Read-only image `retain` and `download` requests may name a use
+  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
+  listed by `VolumePrefetch`) under the use that published it.
+- `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
+  affinity: the lineage scopes jobs of the same repository, workflow name and job
+  name attached since a cutoff. It starts from the account's volumes so the uses
+  `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
+  account and repository.
+- A report's `mounted_generation` records the older saved generation a macOS host
+  mounted when the use's base was not local; only values below the base are kept.
+  Such uses may still publish (last publication wins). `older_copy?/1` drives the
+  "Older copy" dashboard badge and the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -24,6 +36,11 @@ these schemas persist volume identities and per-job uses.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;
   unknown/closed sessions and denied provider identities remain unavailable.
+  An unbound session also enqueues `ExecutionLookupWorker`, which reads the
+  runner's `in_progress` job from GitHub's API and records it through
+  `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  An agent that is still answered 425 at its deadline reports `execution_pending`
+  (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
@@ -99,6 +116,12 @@ these schemas persist volume identities and per-job uses.
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
+- `FeatureFlags.runner_opt_in_caches_enabled?/1` puts `automatic_caches: false`
+  in macOS dispatch responses. The guest then exposes the built-in caches only
+  through the module-cache and xcode-cache actions, Buildkite plugins and GitLab
+  snippets, and a job
+  that uses neither sends no `Builtin` report. Storage identity is unchanged.
+
 - `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
   host-audience endpoint. Resolve job/account/repository from the executed session
   on the authenticated node. `builtin_name` selects the existing storage identity;
@@ -112,6 +135,6 @@ these schemas persist volume identities and per-job uses.
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
 
-- The GitHub writer policy is the job's runner profile, resolved from `requested_dispatch_label`. A missing profile or a legacy pool label means the repository's default branch saves (`trusted`). On a profile, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to the default branch) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Other provider and built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
+- The GitHub writer policy is the job's runner profile, resolved from `requested_dispatch_label`. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Other provider and built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
 
 - There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.

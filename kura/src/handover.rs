@@ -436,27 +436,12 @@ async fn prepare_live_destination(
         receipt: None,
     };
     let _preparation = state.runtime.authority.handover_preparation.lock().await;
-    loop {
-        require_current_preparation(state, &request, preparation.epoch)?;
-        let before = state
-            .store
-            .handover_eviction_generation
-            .load(Ordering::Acquire);
-        reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
-        require_current_preparation(state, &request, preparation.epoch)?;
-        if before
-            == state
-                .store
-                .handover_eviction_generation
-                .load(Ordering::Acquire)
-        {
-            // Writes and eviction remain possible. Quiescing must still repair,
-            // take both holds, verify every retained record and revoke the source.
-            return Ok(());
-        }
-        tracing::info!(event.name="kura.handover.preparation_revisit", id=%preparation.intent.id,
-            "Revisiting live standby preparation after retained-record eviction");
-    }
+    require_current_preparation(state, &request, preparation.epoch)?;
+    reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
+    // A live cache may evict on every walk. Waiting for an eviction-free pass
+    // can starve until the deadline while the source keeps accepting writes.
+    // Quiescing still repairs, atomically freezes and verifies the full corpus.
+    require_current_preparation(state, &request, preparation.epoch)
 }
 
 async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
@@ -1555,18 +1540,57 @@ mod tests {
             &target.state,
             format!("http://{}", listener.local_addr().unwrap()),
         );
-        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
         let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.phase = "Serving".into();
+        target
+            .state
+            .runtime
+            .authority
+            .install(grant.clone())
+            .unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        // Live preparation is a scheduling hint. Real concurrent evictions must
+        // not make it wait for a quiet window while the source keeps writing.
+        let preparation = Preparation {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            epoch: grant.epoch,
+            complete: false,
+            error: None,
+        };
+        tokio::time::timeout(
+            Duration::from_secs(3),
+            prepare_live_destination(&target.state, &preparation),
+        )
+        .await
+        .expect("live preparation must finish despite concurrent eviction")
+        .unwrap();
+        assert!(walks.load(Ordering::SeqCst) > 0);
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+
+        // The exact same churn must still prevent the final frozen-corpus hold.
+        let preparation_walks = walks.load(Ordering::SeqCst);
+        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
+        grant.phase = "Quiescing".into();
         grant.handover = Some(request.intent.clone());
         target.state.runtime.authority.install(grant).unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let error =
             tokio::time::timeout(Duration::from_secs(5), verify_inner(&target.state, request))
                 .await
                 .unwrap()
                 .unwrap_err();
         assert!(
-            walks.load(Ordering::SeqCst) > 1,
+            walks.load(Ordering::SeqCst) > preparation_walks + 1,
             "must exercise repeat walks"
         );
         assert!(error.contains("deadline mismatch"), "{error}");

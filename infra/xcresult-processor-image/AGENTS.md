@@ -47,6 +47,14 @@ action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
 
+The production cascade's `build-xcresult-processor-release` job also builds
+the macOS release on a `tuist-macos-27-0` runner for every deploy and pushes
+it as an OCI artifact to `ghcr.io/tuist/tuist-xcresult-processor-release:sha-<12>`,
+the server image's tag. The artifact has one `release.tar.gz` layer, so the
+layer digest is the tarball's sha256. Its step summary lists the Mach-O
+libraries the release loads from outside itself and the OS. Nothing boots
+from this artifact yet, and the job does not fail the run.
+
 Locally:
 
 ```bash

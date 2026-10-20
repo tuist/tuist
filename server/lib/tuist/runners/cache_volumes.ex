@@ -22,6 +22,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
@@ -73,12 +74,17 @@ defmodule Tuist.Runners.CacheVolumes do
   # webhook arrives.
   defp executing_job(pod, node) do
     case execution_binding(pod, node) do
-      {job, platform} ->
+      {job, %RunnerSession{platform: platform} = session} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
           case job do
-            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
-            nil -> {:error, :pending}
-            _ -> {:error, :unavailable}
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) ->
+              {:ok, job, platform}
+
+            nil ->
+              await_execution(session)
+
+            _ ->
+              {:error, :unavailable}
           end
         else
           {:error, :unavailable}
@@ -88,6 +94,15 @@ defmodule Tuist.Runners.CacheVolumes do
         {:error, :unavailable}
     end
   end
+
+  # Without a binding, ask GitHub directly rather than wait for an
+  # `in_progress` delivery that can lag the job's start by minutes.
+  defp await_execution(%RunnerSession{executed_workflow_job_id: nil} = session) do
+    {:ok, _job} = ExecutionLookupWorker.enqueue(session)
+    {:error, :pending}
+  end
+
+  defp await_execution(%RunnerSession{}), do: {:error, :pending}
 
   defp execution_binding(pod, node) do
     Repo.one(
@@ -99,7 +114,7 @@ defmodule Tuist.Runners.CacheVolumes do
         where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: {j, s.platform}
+        select: {j, s}
       )
     )
   end
@@ -208,11 +223,17 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   # The job's runner profile decides which GitHub branches save. Without a
-  # profile, the repository's default branch saves, as it does for the other
-  # providers.
+  # profile, a new profile's policy applies. The other providers save from the
+  # default branch.
   defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
     if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, profile.id},
+      else: :denied
+  end
+
+  defp writer_grant(%{provider: "github"} = identity, nil) do
+    if writer_allowed?(%Profile{}, identity.trusted, Map.get(identity, :writer_branch)),
+      do: {:ok, nil},
       else: :denied
   end
 
@@ -239,12 +260,20 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   Revokes pending saves granted under a runner profile's previous policy that
-  its current policy no longer allows. A deleted profile falls back to the
-  default branch. Call inside the transaction that updated or deleted the
+  its current policy no longer allows. A deleted profile falls back to a new
+  profile's policy. Call inside the transaction that updated or deleted the
   profile row, after the row was written. Additions only affect new attachments.
   """
-  def revoke_profile_writers({:deleted, %Profile{} = profile}),
-    do: revoke_profile_writers(%{profile | cache_writer_default_branch: true, cache_writer_branches: nil})
+  def revoke_profile_writers({:deleted, %Profile{} = profile}) do
+    default = %Profile{}
+
+    revoke_profile_writers(%{
+      profile
+      | cache_writer_all_branches: default.cache_writer_all_branches,
+        cache_writer_default_branch: default.cache_writer_default_branch,
+        cache_writer_branches: default.cache_writer_branches
+    })
+  end
 
   def revoke_profile_writers(%Profile{id: id} = profile) do
     revoked =
@@ -278,6 +307,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Uses allocated before uses recorded their profile, including by older pods
   # during a rollout, were default-branch grants without a recorded branch.
+  defp unrecorded_profile_writers(%Profile{cache_writer_all_branches: true}), do: []
   defp unrecorded_profile_writers(%Profile{cache_writer_default_branch: true}), do: []
 
   defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
@@ -297,6 +327,12 @@ defmodule Tuist.Runners.CacheVolumes do
       )
     )
   end
+
+  # Only same-repository jobs of qualifying events have a writer branch, so
+  # forks and pull_request_target never save. Uses recorded before writer
+  # branches were recorded only carry the default-branch flag.
+  defp writer_allowed?(%Profile{cache_writer_all_branches: true}, default_branch?, branch),
+    do: default_branch? or is_binary(branch)
 
   defp writer_allowed?(%Profile{} = profile, default_branch?, branch) do
     (default_branch? and profile.cache_writer_default_branch) or
@@ -409,6 +445,13 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
+  @doc """
+  Whether a use mounted an older saved generation because its base was not on
+  its runner host.
+  """
+  def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
+    do: is_integer(mounted) and is_integer(base) and mounted < base
+
   def scope(volume) do
     :sha256 |> :crypto.hash("#{volume.id}:#{volume.generation}") |> Base.encode16(case: :lower)
   end
@@ -477,6 +520,13 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # Only an older generation of the use's own base is meaningful; anything else
+  # is ignored rather than failing an otherwise valid report.
+  defp mounted_generation(usage, %{"mounted_generation" => generation})
+       when is_integer(generation) and generation > 0 and generation < usage.base_generation, do: generation
+
+  defp mounted_generation(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -492,6 +542,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Map.merge(metrics, %{
           last_reported_at: now,
           warm: params["warm"],
+          mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status)
         })
@@ -549,11 +600,92 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
+  @doc """
+  The lineage scopes of the custom volumes that jobs of `repository` attached
+  since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
+  attaches its volumes at runtime, so this history is how dispatch predicts the
+  volumes a queued job will attach.
+  """
+  def recent_job_scopes(account_id, repository, %DateTime{} = since)
+      when is_integer(account_id) and is_binary(repository) do
+    from(v in Volume,
+      join: u in Usage,
+      on: u.volume_id == v.id,
+      join: j in WorkflowJob,
+      on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+      where:
+        v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at) and u.inserted_at >= ^since,
+      distinct: true,
+      select: {j.workflow_name, j.job_name, v.id, v.generation}
+    )
+    |> Repo.all()
+    |> Enum.group_by(
+      fn {workflow_name, job_name, _id, _generation} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, id, generation} -> scope(%{id: id, generation: generation}) end
+    )
+  end
+
+  def recent_job_scopes(_account_id, _repository, _since), do: %{}
+
+  @doc """
+  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
+  `since`, most recently used first. Each is the identity a host restores and
+  then retains its master under: the use that published the HEAD.
+  """
+  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
+    since = DateTime.truncate(since, :second)
+
+    from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
+      where:
+        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at),
+      group_by: v.id,
+      order_by: [desc: max(u.inserted_at)],
+      limit: ^limit,
+      select: v
+    )
+    |> Repo.all()
+    |> Enum.flat_map(&head_identity/1)
+  end
+
+  defp head_identity(volume) do
+    with %{generation: generation, tree_digest: digest, content_digest: content}
+         when generation > 0 and is_binary(digest) and is_binary(content) <-
+           VolumeHeads.get_head(volume.account_id, storage_name(volume)),
+         id when is_binary(id) <-
+           Repo.one(
+             from(u in Usage,
+               where:
+                 u.volume_id == ^volume.id and u.generation == ^volume.generation and
+                   u.published_generation == ^generation and u.status == "published",
+               limit: 1,
+               select: u.id
+             )
+           ) do
+      [
+        %{
+          kind: "custom",
+          id: id,
+          account_id: volume.account_id,
+          scope: scope(volume),
+          generation: generation,
+          image_digest: digest,
+          content_digest: content
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
   # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
   # reclamation. The custom-volume lock also serializes clearing with publication.
   def image(node, id, params) do
     with {:ok, id} <- Ecto.UUID.cast(id),
-         %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
+         %Usage{} = usage <- image_usage(id, node, params) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
         if volume.builtin_name, do: Repo.rollback(:unsupported)
@@ -565,6 +697,14 @@ defmodule Tuist.Runners.CacheVolumes do
       _ -> {:error, :not_found}
     end
   end
+
+  # Retaining a master and downloading a saved master only read the lineage, so a
+  # host may name a use allocated elsewhere: the server lists HEADs for hosts to
+  # prefetch under the use that published them. Writes stay bound to the node.
+  defp image_usage(id, _node, %{"operation" => operation}) when operation in ["retain", "download"],
+    do: Repo.get(Usage, id)
+
+  defp image_usage(id, node, _params), do: Repo.get_by(Usage, id: id, node_name: node)
 
   # A host validates each local master against the HEAD. The HEAD digests let it
   # name the newer master it can refresh into before discarding the stale one.
@@ -776,7 +916,17 @@ defmodule Tuist.Runners.CacheVolumes do
         else: where(query, [v], ilike(v.key, ^"%#{search}%") or ilike(v.repository, ^"%#{search}%"))
 
     query = if name = opts[:name], do: where(query, [v], v.key == ^name), else: query
-    if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    query = if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    exclude_builtin(query, opts)
+  end
+
+  # Dashboards hide the built-in volume from accounts that still get it
+  # automatically; it is shown once the account opts in to cache steps.
+  # Expects the volume as the query's last binding.
+  defp exclude_builtin(query, opts) do
+    if Keyword.get(opts, :include_builtin, true),
+      do: query,
+      else: where(query, [..., v], is_nil(v.builtin_name))
   end
 
   def history_count(account_id, volume_id) do
@@ -896,13 +1046,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Roll up per-copy changes before summing: summing measurement rows would count
   # every historical report as additional storage. Older reports seed the window.
-  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil)
+  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil, opts \\ [])
 
-  def storage_history(account_id, %DateTime{} = now, volume_id) do
-    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id)
+  def storage_history(account_id, %DateTime{} = now, volume_id, opts) do
+    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id, opts)
   end
 
-  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id) do
+  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id, opts) do
     result =
       Ecto.Adapters.SQL.query!(
         Repo,
@@ -918,11 +1068,13 @@ defmodule Tuist.Runners.CacheVolumes do
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND m.observed_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
           UNION ALL
           SELECT 0, u.id, u.volume_id, u.inserted_at, 0, 0, 1, 0, 0
           FROM runner_cache_volume_uses u
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND u.inserted_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
         ), changes AS (
           SELECT volume_id, CASE WHEN observed_at <= $3 THEN $3::timestamptz
             ELSE LEAST($2::timestamptz, date_trunc('hour', observed_at) + interval '1 hour') END AS bucket,
@@ -959,7 +1111,13 @@ defmodule Tuist.Runners.CacheVolumes do
         WINDOW timeline AS (ORDER BY bucket)
         ORDER BY bucket
         """,
-        [account_id, now, start, if(volume_id, do: Ecto.UUID.dump!(volume_id))]
+        [
+          account_id,
+          now,
+          start,
+          if(volume_id, do: Ecto.UUID.dump!(volume_id)),
+          Keyword.get(opts, :include_builtin, true)
+        ]
       )
 
     points =
@@ -982,7 +1140,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}) do
+  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -998,6 +1156,7 @@ defmodule Tuist.Runners.CacheVolumes do
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
+    mounts = exclude_builtin(mounts, opts)
 
     rows =
       Repo.all(
@@ -1057,9 +1216,10 @@ defmodule Tuist.Runners.CacheVolumes do
     :ok
   end
 
-  def for_job(account_id, workflow_run_id, workflow_job_id) do
+  def for_job(account_id, workflow_run_id, workflow_job_id, opts \\ []) do
     Usage
     |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
+    |> exclude_builtin(opts)
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

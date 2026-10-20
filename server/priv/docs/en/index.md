@@ -7,7 +7,7 @@
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects. Available features depend on your toolchain: Rust projects get Cargo build insights, nextest test insights, flaky test detection, compile-once test sharding, and experimental compilation caching.
+**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching.
 
 Start by <.localized_link href="/guides/install-tuist">installing the Tuist command-line interface</.localized_link>, then follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system.
 

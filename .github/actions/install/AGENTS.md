@@ -10,9 +10,9 @@ Source for the standalone `tuist/install` composite action. See
   ManifestFilesLocator. Prefer Tuist/Package.swift, retain package-relative .build,
   and explicitly pass scratch/cache paths. Reject SWIFTPM_BUILD_DIR overrides.
 - Inputs reach scripts through quoted environment variables. Never eval them.
-- Default keys include job, actual toolchain, relative package path and manifest
-  contents; never checkout location or volatile CI metadata. Volume keys exclude
-  lockfiles. Archive keys append platform/architecture and lockfile hash, with a
+- Default keys are stable names: job plus the relative package path when it is not
+  the checkout root. Never include toolchain versions, manifest or lockfile
+  contents, checkout location or volatile CI metadata. Archive keys append platform/architecture and lockfile hash, with a
   compatible restore prefix; keep archive paths relative and escape glob syntax.
 - Always force pinned installation, including hits and forks. Publication is a
   server decision; snapshots must contain only contributor-readable data.

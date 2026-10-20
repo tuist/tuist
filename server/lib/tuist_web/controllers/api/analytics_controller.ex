@@ -5,6 +5,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Regions
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -611,7 +612,13 @@ defmodule TuistWeb.API.AnalyticsController do
     # endpoint resolutions are cached by the client for an hour and refreshed
     # by an idle launch agent, so counting those would let both biases move
     # servers.
-    if cache_run?(cache_metadata, body_params) do
+    #
+    # A run whose cache traffic went to a private runner cache is not counted:
+    # its origin is the runner site's egress, and no public region served it,
+    # so counting it would pull the account's public regions toward the
+    # runners rather than toward anyone using them.
+    if cache_run?(cache_metadata, body_params) and
+         not Regions.private_endpoint?(Map.get(body_params, :cache_endpoint)) do
       Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
     end
 
@@ -656,6 +663,7 @@ defmodule TuistWeb.API.AnalyticsController do
     |> put_status(:ok)
     |> json(%{
       id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,

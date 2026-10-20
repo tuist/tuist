@@ -62,13 +62,24 @@ defmodule TuistEx.DependencyCache do
       CompileReporter.build_id(reporter),
       analytics_options,
       fn remote ->
-        pending =
-          Enum.reduce(dependencies, [], fn dependency, pending ->
+        dependencies_by_app = Map.new(dependencies, &{&1.app, &1})
+
+        {pending, _support} =
+          Enum.reduce(dependencies, {[], %{}}, fn dependency, {pending, support} ->
             dependency = Mix.Dep.check_lock(dependency)
 
             cond do
               not Mix.Dep.compilable?(dependency) ->
-                pending
+                support =
+                  record_current_dependency(
+                    dependency,
+                    dependencies_by_app,
+                    options,
+                    reporter,
+                    support
+                  )
+
+                {pending, support}
 
               selected?(dependency, options) ->
                 compile_dependencies(Enum.reverse(pending))
@@ -76,13 +87,13 @@ defmodule TuistEx.DependencyCache do
                 observation = compile(dependency, dependencies, context, options, remote)
                 CompileReporter.record_cache(reporter, observation)
                 Mix.Dep.load_and_cache()
-                []
+                {[], %{}}
 
               local_chain?(dependency, dependencies) ->
-                pending
+                {pending, support}
 
               true ->
-                [dependency | pending]
+                {[dependency | pending], support}
             end
           end)
 
@@ -90,6 +101,69 @@ defmodule TuistEx.DependencyCache do
         Mix.Dep.load_and_cache()
       end
     )
+  end
+
+  defp record_current_dependency(dependency, dependencies, options, reporter, support) do
+    started = now()
+
+    if Mix.Dep.ok?(dependency) and selected?(dependency, options) and
+         not Enum.any?(Code.compiler_options()[:tracers] || [], &(&1 != CompileProfile)) do
+      {supported?, support} =
+        Enum.reduce_while(
+          [dependency | closure(dependency, dependencies, MapSet.new())],
+          {true, support},
+          fn dep, {true, support} ->
+            {config, support} = current_dependency_config(dep, support)
+            if config, do: {:cont, {true, support}}, else: {:halt, {false, support}}
+          end
+        )
+
+      if supported? and
+           valid_application?(
+             dependency.opts[:build],
+             dependency,
+             support[dependency.app][:version]
+           ) do
+        # Mix reused installed outputs, not a keyed snapshot. Do not hash their
+        # inputs or invent an artifact key, transfer metrics or original duration.
+        CompileReporter.record_cache(
+          reporter,
+          observation(dependency, "local_hit", "up_to_date", "", now() - started, nil)
+        )
+      end
+
+      support
+    else
+      support
+    end
+  rescue
+    error ->
+      Report.debug("tuist cache: cannot observe current dependency: #{inspect(error)}")
+      support
+  catch
+    :unmodeled_input ->
+      Report.debug("tuist cache: cannot observe current dependency: unsupported source tree")
+      support
+  end
+
+  defp current_dependency_config(dependency, support) do
+    case Map.fetch(support, dependency.app) do
+      {:ok, config} ->
+        {config, support}
+
+      :error ->
+        config =
+          if dependency.scm.fetchable?() and dependency.manager == :mix and
+               is_nil(dependency.opts[:compile]) do
+            config = dependency_config(dependency)
+
+            if not unsupported_config?(config) and
+                 not Enum.any?(Key.paths(dependency.opts[:dest]), &unsupported_source?/1),
+               do: config
+          end
+
+        {config, Map.put(support, dependency.app, config)}
+    end
   end
 
   defp compile(dependency, dependencies, context, options, remote) do
@@ -186,9 +260,12 @@ defmodule TuistEx.DependencyCache do
   end
 
   defp valid_application?(staging, dependency) do
+    valid_application?(staging, dependency, dependency_config(dependency)[:version])
+  end
+
+  defp valid_application?(staging, dependency, version) do
     app = dependency.app
     path = Path.join([staging, "ebin", "#{app}.app"])
-    version = dependency_config(dependency)[:version]
 
     with {:ok, [{:application, ^app, properties}]} <- :file.consult(String.to_charlist(path)),
          true <- Keyword.keyword?(properties),
@@ -343,23 +420,23 @@ defmodule TuistEx.DependencyCache do
   end
 
   defp unsupported_sources?(sources) do
-    Enum.any?(sources, fn entry ->
-      path = elem(entry, 0)
+    Enum.any?(sources, &unsupported_source?(elem(&1, 0)))
+  end
 
-      Path.extname(path) in [
-        ".erl",
-        ".xrl",
-        ".yrl",
-        ".c",
-        ".cc",
-        ".cpp",
-        ".rs",
-        ".so",
-        ".dylib",
-        ".dll"
-      ] or
-        Path.basename(path) in ["Makefile", "makefile", "rebar.config", "CMakeLists.txt"]
-    end)
+  defp unsupported_source?(path) do
+    Path.extname(path) in [
+      ".erl",
+      ".xrl",
+      ".yrl",
+      ".c",
+      ".cc",
+      ".cpp",
+      ".rs",
+      ".so",
+      ".dylib",
+      ".dll"
+    ] or
+      Path.basename(path) in ["Makefile", "makefile", "rebar.config", "CMakeLists.txt"]
   end
 
   defp capture_context(options) do

@@ -189,7 +189,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
-            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            gitRemoteURLOrigin: nil,
             isCI: Environment.current.isCI,
             issues: log.issues,
             modelIdentifier: machineEnvironment.modelIdentifier(),

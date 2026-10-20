@@ -21,6 +21,7 @@ pub mod endpoint;
 pub mod proxy;
 pub mod proxy_failure;
 pub mod proxy_proto;
+pub mod proxy_upgrade;
 pub mod prefetch;
 pub mod reapi;
 pub mod chunk_cache;

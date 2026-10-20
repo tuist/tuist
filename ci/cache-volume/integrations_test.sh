@@ -20,7 +20,13 @@ jq -se '.[0] == ["--key","gradle;$(touch should-not-exist)","--path","cache dire
 echo 'ok: Buildkite mounts multiple volumes with literal arguments'
 
 rm "$CALL_LOG"
-for config in '{}' '{"volumes":[]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"bad"}]}' '{"volumes":[{"key":"x","path":"a\nb"}]}' "$(jq -cn '{volumes: [range(9) | {key:"x",path:"p"}]}')"; do
+export BUILDKITE_PLUGIN_CONFIGURATION='{"volumes":[{"key":"shared","path":[".npm","cache $(literal)","~/.cache/pip"]},{"key":"single","path":["only"]}]}'
+bash "$source_dir/buildkite/hooks/pre-command"
+jq -se '.[0] == ["--key","shared","--path",".npm","--path","cache $(literal)","--path","~/.cache/pip"] and .[1] == ["--key","single","--path","only"] and length == 2' "$CALL_LOG" >/dev/null
+echo 'ok: Buildkite passes every path of a volume to one client call'
+
+rm "$CALL_LOG"
+for config in '{}' '{"volumes":[]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"bad"}]}' '{"volumes":[{"key":"x","path":"a\nb"}]}' '{"volumes":[{"key":"x","path":[]}]}' '{"volumes":[{"key":"x","path":["a",""]}]}' '{"volumes":[{"key":"x","path":["a","b\nc"]}]}' '{"volumes":[{"key":"x","path":[1]}]}' '{"volumes":[{"key":"x","path":{"a":"b"}}]}' "$(jq -cn '{volumes: [range(9) | {key:"x",path:"p"}]}')"; do
   if BUILDKITE_PLUGIN_CONFIGURATION="$config" bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/error" 2>&1; then
     echo 'FAIL: accepted invalid Buildkite configuration' >&2; exit 1
   fi
@@ -56,3 +62,16 @@ if TUIST_VOLUME_KEY='' TUIST_VOLUME_PATH=cache bash -e "$fixture/gitlab.sh" > "$
 fi
 [[ ! -e "$CALL_LOG" ]]
 echo 'ok: GitLab rejects missing inputs before calling the client'
+
+rm -f "$CALL_LOG"
+TUIST_VOLUME_KEY=shared TUIST_VOLUME_PATH=$'  .npm\n\n\t~/.cache/pip  \r\n   \n cache $(literal) \n' bash -e "$fixture/gitlab.sh"
+jq -se 'length == 1 and .[0] == ["--key","shared","--path",".npm","--path","~/.cache/pip","--path","cache $(literal)"]' "$CALL_LOG" >/dev/null
+echo 'ok: GitLab passes each nonblank line as one trimmed path'
+
+rm "$CALL_LOG"
+if TUIST_VOLUME_KEY=cache TUIST_VOLUME_PATH=$' \n\t\n' bash -e "$fixture/gitlab.sh" > "$fixture/error" 2>&1; then
+  echo 'FAIL: GitLab accepted blank paths' >&2; exit 1
+fi
+[[ ! -e "$CALL_LOG" ]]
+grep -q 'at least one path' "$fixture/error"
+echo 'ok: GitLab rejects blank paths before calling the client'

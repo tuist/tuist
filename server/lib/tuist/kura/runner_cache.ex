@@ -1,17 +1,27 @@
 defmodule Tuist.Kura.RunnerCache do
   @moduledoc """
   Keeps a private runner-cache Kura node provisioned for exactly the
-  accounts that can use hosted runners.
+  accounts whose hosted runner jobs run beside it.
 
   The identity rule converges both directions every tick, per private
   region:
 
     * an account with at least one Runner Profile whose platform the
       region serves (`Regions.runner_platforms`) AND
-      `Tuist.FeatureFlags.runners_enabled?/1` returning true should have exactly one
-      non-destroyed Kura server in that region, and
-    * an account with no such profiles — or without runner access — should
-      have none there.
+      `Tuist.FeatureFlags.runners_enabled?/1` returning true AND whose jobs run
+      beside the region should have exactly one non-destroyed Kura server in
+      that region, and
+    * any other account should have none there.
+
+  Whose jobs run beside a region depends on the region. A site's region
+  (`Regions.site/1`) takes the accounts dispatch routes to the site or the site
+  cache flag enables. A region without a site sits beside the rented fleet,
+  and takes the accounts that claimed a job of its platforms on a rented pool
+  in the last seven days. Dispatch sends an account's job to the rented fleet
+  when it is not on a site, when the site racks no pool for the job, or when
+  the site is down, so only the jobs know which accounts the rented fleet
+  serves. An account whose jobs stopped coming has its node torn down, and
+  its next rented job provisions one again.
 
   Runner Profiles are auto-created for every account, so profiles identify the
   platform whose cache is needed rather than providing a second entitlement.
@@ -62,12 +72,14 @@ defmodule Tuist.Kura.RunnerCache do
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Profile
+  alias Tuist.Runners.WorkflowJob
 
   require Logger
 
   @max_teardowns_per_reconcile 100
   @max_unsettled_servers_per_region 10
   @retry_backoff_seconds [60, 300, 900, 3600]
+  @rented_job_window_days 7
 
   @doc """
   Converges runner-cache nodes with runner availability. Safe to call on every
@@ -132,12 +144,31 @@ defmodule Tuist.Kura.RunnerCache do
   # A site's region serves only the pools racked there, so it holds nodes for
   # the accounts whose jobs run there (`runner_site`) or that the site cache
   # flag enables, rather than for every account with runners. An account both
-  # flags drop has its node torn down.
+  # flags drop has its node torn down. A region without a site serves the
+  # rented fleet, so it holds nodes for the accounts with recent jobs there.
   defp admitted_account_ids(%Regions{} = region, account_ids) do
     case Regions.site(region) do
-      nil -> account_ids
+      nil -> MapSet.intersection(account_ids, rented_job_account_ids(region))
       _site -> MapSet.filter(account_ids, &site_account?(%Account{id: &1}))
     end
+  end
+
+  # A job claimed in the window was also updated in it, so `updated_at`, which
+  # is indexed, bounds the scan to the window's jobs.
+  defp rented_job_account_ids(%Regions{} = region) do
+    since = DateTime.add(DateTime.utc_now(), -@rented_job_window_days * 86_400, :second)
+    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
+    site_pools = Map.keys(Environment.runners_site_pools())
+
+    from(j in WorkflowJob,
+      where: j.updated_at >= ^since and j.claimed_at >= ^since,
+      where: j.platform in ^platforms,
+      where: j.fleet_name not in ^site_pools,
+      distinct: true,
+      select: j.account_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   defp site_account?(account) do
@@ -465,7 +496,10 @@ defmodule Tuist.Kura.RunnerCache do
   defp tear_down(%Server{} = server) do
     case Kura.destroy_server(server) do
       {:ok, _server} ->
-        Logger.info("[Kura.RunnerCache] tearing down runner-cache node #{server.id} (runners disabled)")
+        Logger.info(
+          "[Kura.RunnerCache] tearing down runner-cache node #{server.id} (its region no longer serves the account)"
+        )
+
         :ok
 
       {:error, reason} ->

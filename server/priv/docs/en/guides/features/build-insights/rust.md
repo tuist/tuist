@@ -26,7 +26,7 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 ## Find what slows a build down {#explore-your-builds}
 
-Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds.
+Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds. Builds and their cache counters are also available through `tuist build cargo list` and `tuist build cargo show`, `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, and the `list_cargo_builds` and `get_cargo_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 
@@ -60,9 +60,7 @@ If detailed records are missing or incomplete, the page shows a notice. The summ
 
 ### Builds that run tests {#builds-that-run-tests}
 
-`tuist cargo test` reports the duration of the whole command, including its tests. Use <.localized_link href="/guides/features/test-insights/rust">nextest Test Insights</.localized_link> to track individual test results. Nextest runs appear under **Tests**, not in build-duration charts.
-
-For <.localized_link href="/guides/features/test-sharding/rust">test sharding</.localized_link>, `tuist cargo test-build` reports the time spent compiling and archiving the tests.
+`tuist cargo test` reports the duration of the whole command, including its tests. It also reports individual test outcomes, including doctests, through <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link>. Individual test results appear under **Tests**; the command duration appears in build insights.
 
 ## Other compiler tools {#other-compiler-tools}
 

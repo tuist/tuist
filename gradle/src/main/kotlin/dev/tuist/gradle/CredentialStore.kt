@@ -5,6 +5,10 @@ import com.google.gson.annotations.SerializedName
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
+import java.nio.file.NoSuchFileException
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.Locale
 
 data class Credentials(
@@ -27,7 +31,7 @@ class CredentialStore(
     private fun read(serverURL: URI, rejectInvalid: Boolean): Credentials? {
         val hostname = serverURL.host ?: return null
         val credFile = credentialFile(hostname)
-        if (!credFile.exists()) return null
+        if (!exists(credFile)) return null
         return try {
             val credentials = Gson().fromJson(credFile.readText(), Credentials::class.java)
             if (rejectInvalid && (credentials?.accessToken.isNullOrBlank() || credentials?.rejected == true)) {
@@ -53,14 +57,39 @@ class CredentialStore(
     private fun credentialFile(hostname: String): File {
         val host = hostname.lowercase(Locale.ROOT).trimEnd('.')
         val normalized = File(credentialsDir, "$host.json")
-        if (normalized.exists()) return normalized
-        val files = credentialsDir.listFiles()
-        if (files == null && credentialsDir.exists()) {
-            throw IllegalStateException("Could not inspect existing Tuist credentials in $credentialsDir; fix directory access before publishing.")
+        try {
+            val directory = credentialsDir.toPath().toAbsolutePath()
+            var ancestor = directory.root
+            for (component in directory) {
+                ancestor = ancestor.resolve(component)
+                val attributes = try {
+                    Files.readAttributes(ancestor, BasicFileAttributes::class.java, NOFOLLOW_LINKS)
+                } catch (_: NoSuchFileException) {
+                    return normalized
+                }
+                val target = if (attributes.isSymbolicLink) {
+                    Files.readAttributes(ancestor, BasicFileAttributes::class.java)
+                } else attributes
+                check(target.isDirectory) { "Tuist credentials ancestor $ancestor is not a directory" }
+            }
+            if (exists(normalized)) return normalized
+            return Files.newDirectoryStream(directory).use { files ->
+                files.map { it.toFile() }.sortedBy { it.name }.firstOrNull {
+                    it.name.endsWith(".json") && it.name.removeSuffix(".json").lowercase(Locale.ROOT).trimEnd('.') == host
+                } ?: normalized
+            }
+        } catch (e: Exception) {
+            throw IllegalStateException("Could not inspect existing Tuist credentials in $credentialsDir; fix directory access before publishing.", e)
         }
-        return files?.sortedBy { it.name }?.firstOrNull {
-            it.name.endsWith(".json") && it.name.removeSuffix(".json").lowercase(Locale.ROOT).trimEnd('.') == host
-        } ?: normalized
+    }
+
+    private fun exists(file: File): Boolean = try {
+        Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, NOFOLLOW_LINKS)
+        true
+    } catch (_: NoSuchFileException) {
+        false
+    } catch (e: Exception) {
+        throw IllegalStateException("Could not inspect Tuist credentials in $file; fix directory access before publishing.", e)
     }
 
     companion object {

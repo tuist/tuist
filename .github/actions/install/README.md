@@ -42,10 +42,12 @@ The action follows Tuist's root markers (`Tuist/`, `Tuist.swift`, `tuist.toml`,
 `Package.swift`. For a standalone project without a root marker, `path` must
 contain `Package.swift`. It retains `.build` beside the selected package.
 
-The default key hashes the job name, actual Swift/Xcode toolchain versions,
-checkout-relative package location, and `Package.swift` contents, with a layout
-version prefix. It excludes the lockfile, branch, run ID, and absolute checkout
-path. Volume storage also scopes keys by repository, account, platform,
+The default key is `tuist-install-v1-<job>`, followed by the package's
+checkout-relative location when it is not the checkout root, for example
+`tuist-install-v1-build-Tuist`. It excludes the toolchain, `Package.swift`, the
+lockfile, branch, run ID, and absolute checkout path: `tuist install` and SwiftPM
+update the retained state when dependencies or the toolchain change. Clear a
+volume from the Tuist dashboard to start it fresh. Volume storage also scopes keys by repository, account, platform,
 architecture, and execution user. Keep the default key unless jobs intentionally
 share compatible workspace state. GitHub archive keys additionally include OS,
 architecture, and a lockfile hash; the restore prefix omits only the lockfile hash
@@ -57,10 +59,10 @@ base namespace, while GitHub's platform/lockfile suffixes still apply.
 - uses: tuist/install@v1
   with:
     path: apps/ios
-    cache-key: ios-dependencies-xcode-27-v1
+    cache-key: ios-dependencies
 ```
 
-With an explicit key, you own toolchain/package compatibility and key rotation.
+Use a stable name for an explicit key, not a content hash.
 Paths and keys are passed as literal arguments, not evaluated as shell code.
 
 ## Automatic cache selection
