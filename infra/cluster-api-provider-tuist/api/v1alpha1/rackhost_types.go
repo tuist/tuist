@@ -396,6 +396,12 @@ type RackHostLending struct {
 	// +optional
 	KeyFingerprint string `json:"keyFingerprint,omitempty"`
 
+	// BorrowerNode is the Node the borrower runs the host as, which is also
+	// the host's tailnet device name while it is lent. Taking the host back
+	// clears that device.
+	// +optional
+	BorrowerNode string `json:"borrowerNode,omitempty"`
+
 	// Since is when State last changed.
 	// +optional
 	Since *metav1.Time `json:"since,omitempty"`
