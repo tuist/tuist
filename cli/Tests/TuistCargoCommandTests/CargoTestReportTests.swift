@@ -60,6 +60,17 @@ struct CargoTestReportTests {
         #expect(cases.allSatisfy { $0["duration"] as? Int == 0 })
     }
 
+    @Test(arguments: [("ok", 1, 0, 0), ("FAILED", 0, 1, 0), ("ignored", 0, 0, 1)])
+    func validatesSummariesWithOnlyOneOutcome(status: String, passed: Int, failed: Int, ignored: Int) throws {
+        let report = try #require(read(
+            summary("test only ... \(status)", passed: passed, failed: failed, ignored: ignored),
+            "Running unittests src/lib.rs (target/debug/deps/store-0123456789abcdef)"
+        ))
+        let cases = try #require(report.modules[0]["test_cases"] as? [[String: Any]])
+        #expect(cases.count == 1)
+        #expect(cases[0]["status"] as? String == (passed == 1 ? "success" : failed == 1 ? "failure" : "skipped"))
+    }
+
     @Test func attributesIntegrationTestsUsingMetadataNotArtifactHashes() throws {
         let output = summary("test authentication::passes ... ok", passed: 1)
         for hash in ["0123456789abcdef", "fedcba9876543210"] {

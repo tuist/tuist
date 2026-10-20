@@ -45,8 +45,7 @@ struct CargoTestTarget {
                 index += 2
                 continue
             }
-            if argument.hasPrefix("--package=") { packages.append(String(argument.dropFirst("--package=".count))) }
-            else if argument.hasPrefix("-p"), argument.count > 2 { packages.append(String(argument.dropFirst(2))) }
+            if argument.hasPrefix("--package=") { packages.append(String(argument.dropFirst("--package=".count))) } else if argument.hasPrefix("-p"), argument.count > 2 { packages.append(String(argument.dropFirst(2))) }
             index += 1
         }
         return packages
@@ -177,11 +176,15 @@ struct CargoTestReport {
                     status: values[1] == "ok" ? "success" : values[1] == "FAILED" ? "failure" : "skipped"
                 ))
             } else if let values = captures(summaryPattern, line) {
+                var counts: [String: Int] = [:]
+                for test in tests {
+                    counts[test.status, default: 0] += 1
+                }
                 guard let count = expected, tests.count == count,
-                      Int(values[1]) == tests.filter({ $0.status == "success" }).count,
-                      Int(values[2]) == tests.filter({ $0.status == "failure" }).count,
-                      Int(values[3]) == tests.filter({ $0.status == "skipped" }).count,
-                      (values[0] == "FAILED") == tests.contains(where: { $0.status == "failure" }),
+                      Int(values[1]) == counts["success", default: 0],
+                      Int(values[2]) == counts["failure", default: 0],
+                      Int(values[3]) == counts["skipped", default: 0],
+                      (values[0] == "FAILED") == (counts["failure", default: 0] > 0),
                       let seconds = Double(values[4]), seconds.isFinite, seconds <= Double(Int32.max) / 1000,
                       total + tests.count <= 100_000, sections.count < 1000 else { return nil }
                 total += tests.count
