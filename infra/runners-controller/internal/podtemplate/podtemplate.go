@@ -372,7 +372,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// ever stops shipping externals.
 			initContainers = append(initContainers, corev1.Container{
 				Name:    "dind-externals",
-				Image:   pool.Spec.Image,
+				Image:   pool.PodImage(),
 				Command: []string{"sh", "-c"},
 				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
 				VolumeMounts: []corev1.VolumeMount{
@@ -461,7 +461,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:          "metrics",
-			Image:         pool.Spec.Image,
+			Image:         pool.PodImage(),
 			Command:       []string{"/usr/local/bin/metrics-sampler.sh"},
 			Env:           metricsEnv,
 			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
@@ -488,7 +488,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "shell",
-			Image:   pool.Spec.Image,
+			Image:   pool.PodImage(),
 			Command: []string{"sh", "-c"},
 			Args: []string{
 				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
@@ -513,7 +513,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// container did before the split.
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "poller",
-			Image:   pool.Spec.Image,
+			Image:   pool.PodImage(),
 			Command: []string{"/usr/local/bin/dispatch-poll.sh"},
 			Env:     pollerEnv,
 			VolumeMounts: []corev1.VolumeMount{
@@ -637,7 +637,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			Containers: []corev1.Container{
 				{
 					Name:         "runner",
-					Image:        pool.Spec.Image,
+					Image:        pool.PodImage(),
 					Command:      runnerCommand,
 					Resources:    resources,
 					VolumeMounts: runnerMounts,
@@ -706,8 +706,32 @@ const goldenNodeLabelPrefix = "tuist.dev/golden-"
 // of the image ref that tart-kubelet embeds in the golden VM name, so both
 // sides derive an identical key from the same digest-pinned ref.
 func GoldenNodeAffinityKey(image string) string {
+	return goldenNodeLabelPrefix + imageHash(image)
+}
+
+// IsGoldenNodeLabel reports whether a Node label key advertises a golden base.
+func IsGoldenNodeLabel(key string) bool {
+	return strings.HasPrefix(key, goldenNodeLabelPrefix)
+}
+
+// PrewarmImageAnnotationPrefix namespaces the Node annotations through which
+// the runners-controller asks a host to hold an image's golden base: the
+// value is the image ref, and tart-kubelet downloads it in the background
+// and keeps it on disk while the annotation stays.
+//
+// CONTRACT: must match tart-kubelet's `podagent.prewarmImageAnnotationPrefix`,
+// with the same image hash as GoldenNodeAffinityKey.
+const PrewarmImageAnnotationPrefix = "tuist.dev/prewarm-image-"
+
+// PrewarmImageAnnotationKey is the Node annotation key asking a host to hold
+// `image`'s golden base.
+func PrewarmImageAnnotationKey(image string) string {
+	return PrewarmImageAnnotationPrefix + imageHash(image)
+}
+
+func imageHash(image string) string {
 	sum := sha256.Sum256([]byte(image))
-	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
+	return hex.EncodeToString(sum[:8])
 }
 
 // runnerAffinity returns soft node-affinity steering a pool's Pods toward
@@ -738,7 +762,7 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 				Weight: 100,
 				Preference: corev1.NodeSelectorTerm{
 					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
+						Key:      GoldenNodeAffinityKey(pool.PodImage()),
 						Operator: corev1.NodeSelectorOpExists,
 					}},
 				},

@@ -47,6 +47,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   tens of GB) and the taint lifts after an hour regardless; a leftover taint is
   removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading.
+- After that, `Prewarmer` reads its own Node every minute and downloads, one at
+  a time, the images named by `tuist.dev/prewarm-image-<hash>` annotations
+  (value = image ref, hash = `goldenVMName`'s) that it does not hold, through
+  `ensureGolden`, below the same 30% disk floor. The runners-controller sets
+  them to stage a new runner image before pools switch to it and to keep a
+  pool's image on a few hosts between sessions (see "macOS image staging" in
+  `infra/runners-controller/AGENTS.md`). The joining host's prewarm pulls each
+  pool's `status.servingImage`, falling back to `spec.image`.
+- The GC counts annotated images as referenced. On a host whose fleet a
+  RunnerPool serves, an unreferenced golden whose image no pool names in
+  `spec.image` or `status.servingImage` is reaped at once instead of after the
+  24h retention; other hosts (other Tart workloads) keep the retention.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared

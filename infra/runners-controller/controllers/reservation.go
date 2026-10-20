@@ -503,7 +503,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		return nil, nil
 	}
 
-	golden := podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)
+	golden := podtemplate.GoldenNodeAffinityKey(pool.PodImage())
 	sort.Slice(candidates, func(a, b int) bool {
 		if owned[candidates[a].Name] != owned[candidates[b].Name] {
 			return owned[candidates[a].Name] < owned[candidates[b].Name]

@@ -799,6 +799,15 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 	return name, true, nil
 }
 
+// hasGolden reports whether this host already holds image's golden base.
+func (r *Reconciler) hasGolden(ctx context.Context, image string) (bool, error) {
+	vm, err := r.Tart.Get(ctx, goldenVMName(image))
+	if err != nil {
+		return false, err
+	}
+	return vm != nil, nil
+}
+
 // pullGoldenImage pulls image from the first rack image cache that holds it,
 // by the digest the cache served, and from image's own registry when none
 // does or a cache's pull fails. The golden keeps the name image gives it, so
