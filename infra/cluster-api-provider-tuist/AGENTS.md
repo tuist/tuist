@@ -2169,8 +2169,12 @@ selects it, so a rollback never needs an image build. Before adding a release,
 check its changelog against "Tart versions" in
 [`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md).
 
-Staging's operator manages the BER1 rack hosts, including one lent to canary,
-so a staging value reaches that host too.
+Tart is part of the runner runtime, so a lent rack host runs the borrowing
+env's Tart: its `macosFleet.tart.version`, or a `tuist.dev/tart-version`
+annotation on the `RackHostLease` in the borrowing cluster (see "A host lent to
+another env"). An annotation on the lender's RackAppleSiliconMachine has no
+effect on a lent host, so BER1 runs one Tart only when staging, canary and
+production all select it.
 
 ## Module layout
 

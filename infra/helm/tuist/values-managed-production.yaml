@@ -1595,6 +1595,10 @@ rackLinuxFleet:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # Off the processor pool, which has no memory to spare beside the processor.
   operatorNodeSelector:
     node.cluster.x-k8s.io/pool: general
