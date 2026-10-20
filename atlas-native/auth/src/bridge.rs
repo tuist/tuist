@@ -1,4 +1,4 @@
-use crate::{PendingLogin, Registration, Session, begin, complete, error, restore};
+use crate::{LoginProvider, PendingLogin, Registration, Session, begin, complete, error, restore};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::ffi::{CStr, CString, c_char};
@@ -9,6 +9,7 @@ enum Command {
     Begin {
         server: String,
         registration: Option<Registration>,
+        provider: Option<LoginProvider>,
     },
     Complete {
         pending: PendingLogin,
@@ -39,7 +40,8 @@ pub fn execute(input: &str) -> String {
             Command::Begin {
                 server,
                 registration,
-            } => serde_json::to_value(begin(&server, registration)?),
+                provider,
+            } => serde_json::to_value(begin(&server, registration, provider)?),
             Command::Complete { pending, callback } => {
                 serde_json::to_value(complete(pending, &callback)?)
             }

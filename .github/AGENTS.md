@@ -9,6 +9,9 @@ start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
 latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
+The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
+check all managed environment cookie references and Secret ownership without
+reading 1Password or logging rendered cookie values.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -418,7 +421,8 @@ covered only by the production schedule.
 - On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
   custom cache volume: the probe job seeds it with its run id through
   `tuist/cache-volume`, and `macos-volume` attaches it after
-  `PUBLISH_WAIT_SECONDS` and requires that run id. Canary has one rack host, so
+  `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
+  overlapping probe runs share the volume. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make
   it depend on convergence. Both jobs require a real APFS mount, because an
   unavailable volume falls back to a job-local directory and still succeeds.

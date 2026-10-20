@@ -179,6 +179,7 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Docker builds use the repository root context and `Dockerfile.dockerignore`, not `server/.dockerignore`. Keep every Dockerfile COPY input allowed, and exclude nested dependency/build directories and credentials. The fetched dependency stage copies only local package manifests and skips local compilation; local sources compile in the application stage. Preserve per-commit runtime security updates. Explicitly retain the public `priv/static/server/self-host/.env.example` after the general `.env*` exclusion; the Docker smoke test asserts it ships. Bare parent negations re-include their entire subtree, so keep the context allowlist narrow.
 
 ## Related Context (Downlinks)
+- Isolated cluster discovery checks: `verification/cluster_formation.exs`, see `verification/AGENTS.md`.
 - Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
