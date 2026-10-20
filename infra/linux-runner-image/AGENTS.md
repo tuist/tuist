@@ -297,3 +297,21 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
   intact for all other commands and preserve the clean-detach publication gate.
+
+## Cached checkouts
+
+- The job-start hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  when cache volumes are routed (15 s on the host, 20 s in the client). When the
+  agent answers with a mounted clone, the client checks its `.tuist-volume`
+  proof and asks the broker to bind `<scope>/checkout` at the workspace, in the
+  runner's namespace and the DinD sidecar's (dockerd resolves `/__w` there for
+  container jobs). The broker accepts a workspace only as a clean path relative
+  to the work directory whose inode is the client's target, and refuses
+  non-empty targets in either namespace. Any miss leaves the workspace empty, so
+  actions/checkout clones as before; it never fails the job.
+- When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
+  hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
+  outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
+  the job's checkout added in `/home/runner/work/_tuist_checkout_export`
+  (hard-linking LFS objects where it can) and streams it as a tar to the agent's
+  `/checkout-export` (60 s). The runner never gets a writable host directory.

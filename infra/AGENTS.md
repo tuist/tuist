@@ -327,7 +327,9 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   idempotent provisioning init container for the bounded reflink filesystem.
   Host preparation and agent readiness precede volume attachment; runner scheduling
   only prefers ready hosts so ordinary jobs remain available. See
-  [workflow setup and rollout](runners-controller/cache-volumes.md).
+  [workflow setup and rollout](runners-controller/cache-volumes.md). The same agent builds and
+  serves cached checkouts (`checkout` volumes) with the shared runner-cache
+  populator.
 
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility

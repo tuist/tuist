@@ -411,3 +411,32 @@ queued-out refresh, or a HEAD that is already local, falls back to removing the
 replica. A refreshed replica keeps its previous last-use time so unused volumes
 stop being refreshed after a day. Watch `operation="refresh"` results against
 `attach{source="local"}`.
+
+## Cached checkouts
+
+Accounts with `:runner_cached_checkouts` get a per-repository `checkout` volume
+on Linux too, built by the same shared populator as on macOS
+(`../runner-cache/checkout.go`, `Ext4CheckoutImages`). The agent:
+
+- answers `POST /checkout` (15 s) for the live runner pod at the caller's
+  address: it allocates through the server's `/checkout`, then, when it holds a
+  master for the volume's clear generation, admits and mounts a reflink clone at
+  `pods/<uid>/<scope>` like a custom volume, with the tree in `checkout/` owned
+  by the job's UID. Without a master it answers `cold`, ends the use, and
+  restores the volume's HEAD in the background when there is one.
+- takes `POST /checkout-export` once per granted pod: a tar the runner streams
+  after its job, unpacked by `cachevolumes.ReceiveCheckoutExport` into
+  `checkouts/.incoming/<uid>` and verified again by the build (`git index-pack
+  --strict`, LFS SHA-256, the host writes the tree and index). A master only
+  starts from, and only advances to, a default-branch commit with all its LFS
+  objects; other exports only add objects. A master that advanced is published
+  as the volume's HEAD.
+- keeps masters under `<root>/checkouts`, on the dedicated filesystem. Builds
+  reserve room above the job reserve and that room is held back from what job
+  admission sees as free; jobs that need room evict idle checkout masters first.
+  Masters are evicted after seven days without a clone, on clear, or under
+  pressure.
+- needs git and git-lfs, which the agent image installs. Without them it logs
+  "cached checkouts unavailable on this host" every 10 minutes, reports
+  `tuist_runner_cached_checkouts_ready 0`, and answers `denied`, so runners
+  export nothing.

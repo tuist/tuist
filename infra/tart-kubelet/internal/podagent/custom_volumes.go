@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/go-logr/logr"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 	"golang.org/x/sys/unix"
@@ -34,7 +36,7 @@ type CustomVolumes struct {
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
 	Builtins                                   *VolumeManager
-	Checkouts                                  *Checkouts
+	Checkouts                                  *cachevolumes.Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
@@ -46,7 +48,7 @@ type CustomVolumes struct {
 	tokenUntil                                 time.Time
 	checkoutReserved                           uint64
 	checkoutMu                                 sync.Mutex
-	checkoutJobs                               map[string]checkoutTask
+	checkoutJobs                               map[string]cachevolumes.CheckoutTask
 	// spare cancels the running background prefetch; guarded by Builtins.mu.
 	spare context.CancelCauseFunc
 }
@@ -147,8 +149,10 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
+		c.Checkouts.Observe = observeCustomCache
+		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.
-		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: checkoutCapacity + 1_000_000_000, Token: c.token}
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token}
 	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }

@@ -43,6 +43,9 @@ type agent struct {
 	runtime                                runtimeapi.RuntimeServiceClient
 	observe                                cachevolumes.Observer
 	prefetch                               *prefetcher
+	checkouts                              *cachevolumes.Checkouts
+	grants                                 checkoutGrants
+	exports                                chan struct{}
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -53,7 +56,14 @@ type request struct {
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" || r.URL.Path != "/acquire" {
+	switch {
+	case r.Method == "POST" && r.URL.Path == "/checkout":
+		a.serveCheckout(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/checkout-export":
+		a.serveCheckoutExport(w, r)
+		return
+	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
 		return
 	}
@@ -78,9 +88,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
-	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, input.PodName, metav1.GetOptions{})
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || pod.Spec.NodeName != a.node || string(pod.UID) != input.PodUID || pod.Status.PodIP != ip || ip == "" || pod.Labels["tuist.dev/runner"] != "true" || pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
 		http.Error(w, "unavailable", 403)
 		return
 	}
@@ -139,6 +147,8 @@ func (a *agent) reconcile() error {
 	for _, pod := range pods.Items {
 		live[string(pod.UID)] = true
 	}
+	a.grants.forget(live)
+	a.checkouts.Maintain()
 	if err := a.store.CleanPods(func(uid string) (bool, error) {
 		if live[uid] {
 			return false, nil
@@ -217,6 +227,13 @@ func main() {
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
+	// Checkout masters share the cache filesystem, its reserve and this agent.
+	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Observe: metrics.observe, Log: metrics.logger,
+		// Checkout images are larger than custom ones, so their archives get their own bound.
+		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000}}
+	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
+	checkouts.Room = space.room
+	backend.Seed, backend.FreeBytesContext, backend.Reclaim = checkouts.Seed, space.free, space.reclaim
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)
@@ -236,7 +253,7 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{checkouts: checkouts, exports: make(chan struct{}, 2), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -249,11 +266,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("runtime teardown verification unavailable: %v", err)
 	}
+	// Without git and git-lfs the worker logs why and retries; the host answers
+	// denied meanwhile, so runners export nothing.
+	go checkouts.Start(context.Background())
 	go func() {
 		for {
 			start := time.Now()
 			err := a.reconcile()
 			metrics.observe(cachevolumes.Observation{Operation: "maintenance", Source: "none", Duration: time.Since(start), Err: err})
+			metrics.checkouts.Set(map[bool]float64{true: 1}[checkouts.Ready()])
 			if available, capacity, e := cachevolumes.FilesystemSpace(*root); e == nil {
 				metrics.free.Set(float64(available))
 				metrics.capacity.Set(float64(capacity))
@@ -316,4 +337,12 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&result)
 	return result.Action, err
+}
+
+// runnerPod reports whether the request comes from the live runner pod it names
+// on this node: the caller's address must be that pod's.
+func (a *agent) runnerPod(ctx context.Context, r *http.Request, name, uid string) bool {
+	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, name, metav1.GetOptions{})
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return err == nil && pod.Spec.NodeName == a.node && string(pod.UID) == uid && pod.Status.PodIP == ip && ip != "" && pod.Labels["tuist.dev/runner"] == "true" && pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning
 }

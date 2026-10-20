@@ -71,6 +71,8 @@ type LocalImages struct {
 	// Displace, when set, cancels speculative work that holds space on this
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
+	// Seed clones the host-built master of a checkout slot to the given path.
+	Seed      func(context.Context, Slot, string) error
 	Displace  func(context.Context) bool
 	refresh   refresher
 	locks     sync.Map
@@ -334,6 +336,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
+		} else if slot.Kind == KindCheckout {
+			// Never fall back to an empty image: the guest mounts it over its workspace.
+			if b.Seed == nil {
+				err = errors.New("checkout seeding unavailable")
+			} else {
+				source = "local"
+				err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
+			}
 		} else {
 			var f *os.File
 			f, err = os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

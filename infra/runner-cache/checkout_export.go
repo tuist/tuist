@@ -1,6 +1,7 @@
-package podagent
+package cachevolumes
 
 import (
+	"archive/tar"
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,14 +19,14 @@ import (
 // boundary (`shallow`) and the LFS objects it fetched (`lfs/<oid>`). Everything
 // in it is untrusted: the host reads it without following links, bounds every
 // size, lets git hash-check the pack and hashes LFS objects itself.
-const checkoutExportDir = "checkout-export"
+const CheckoutExportDir = "checkout-export"
 
 const (
 	checkoutHeadMax    = 128
 	checkoutShallowMax = 64 << 10
 	// An export never exceeds half an image: the image holds its objects and the
 	// files checked out from them.
-	checkoutExportMax = checkoutCapacity / 2
+	checkoutExportMax = CheckoutCapacity / 2
 	checkoutLFSMax    = 200_000
 )
 
@@ -204,4 +205,76 @@ func lfsPointers(listing []byte) []string {
 		}
 	}
 	return oids
+}
+
+// ReceiveCheckoutExport writes an export a guest streamed as a tar archive to
+// dst. It takes only the export's own entries: regular files named head,
+// shallow, pack or lfs/<oid>, within the export's bounds. Anything else refuses
+// the whole stream, and nothing is left at dst unless it was complete.
+func ReceiveCheckoutExport(stream io.Reader, dst string) (err error) {
+	tmp := dst + ".part"
+	_ = os.RemoveAll(tmp)
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(tmp)
+		}
+	}()
+	if err := os.MkdirAll(filepath.Join(tmp, "lfs"), 0700); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(tmp)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	archive := tar.NewReader(stream)
+	seen := map[string]bool{}
+	var total int64
+	objects := 0
+	for {
+		header, err := archive.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		name := header.Name
+		limit := int64(checkoutExportMax)
+		switch {
+		case name == "head":
+			limit = checkoutHeadMax
+		case name == "shallow":
+			limit = checkoutShallowMax
+		case name == "pack":
+		case strings.HasPrefix(name, "lfs/") && checkoutOID.MatchString(strings.TrimPrefix(name, "lfs/")):
+			objects++
+		default:
+			return errors.New("unexpected checkout export entry")
+		}
+		if header.Typeflag != tar.TypeReg || seen[name] || objects > checkoutLFSMax || header.Size < 0 || header.Size > limit || total+header.Size > checkoutExportMax {
+			return errors.New("checkout export entry out of bounds: " + name)
+		}
+		seen[name] = true
+		total += header.Size
+		file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		n, err := io.Copy(file, io.LimitReader(archive, header.Size))
+		if closeErr := file.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return err
+		}
+		if n != header.Size {
+			return errors.New("checkout export entry truncated: " + name)
+		}
+	}
+	if !seen["head"] || !seen["pack"] {
+		return errors.New("checkout export is incomplete")
+	}
+	_ = os.RemoveAll(dst)
+	return checkoutRename(tmp, dst)
 }

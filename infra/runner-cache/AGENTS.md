@@ -108,3 +108,23 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `Checkouts` (`checkout.go`) is the one populator for both hosts: it builds,
+  ingests, publishes, restores and evicts checkout masters, and the host only
+  wires it to its admission (`Room`), transfer and tools. `CheckoutImages` is the
+  only platform part. `APFSCheckoutImages` (macOS) keeps the tree at the image
+  root and leaves ownership to the guest's `-owners off` attach.
+  `Ext4CheckoutImages` (Linux) formats sparse ext4 with inode tables and journal
+  zeroed at mkfs (free on a sparse file, and no clone's mount starts the
+  kernel's background zeroing), clones with `cp --reflink=always`, loop-mounts
+  builds in the agent, keeps the tree in `checkout/` beside the volume's own
+  files, and chowns it to the job's UID. git runs as root on that tree, so the
+  populator passes `safe.directory=*` per command. A Linux checkout slot is
+  seeded through `LocalImages.Seed`, never formatted.
+- `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
+  share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
+  within the export bounds, written through `os.Root`, else the whole stream is
+  refused. `openCheckoutExport` validates it again before a build.
+- Run the real-tools checkout test with `TUIST_CHECKOUT_E2E=1 go test -run
+  CheckoutMasterEndToEnd .`; on Linux it runs as root with
+  `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
+  in runners-controller provides one).

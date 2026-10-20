@@ -39,9 +39,9 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 	if err != nil {
 		return map[string]any{"error": "unavailable", "reason": "denied"}
 	}
-	task := checkoutTask{
+	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -78,11 +78,11 @@ func (c *CustomVolumes) endUse(ctx context.Context, id string) {
 	_, _ = c.request(ctx, "report", map[string]any{"id": id, "node_name": c.Node, "state": "deleted", "gone": true, "warm": false, "size_bytes": 0, "capacity_bytes": 0, "attach_ms": nil}, &struct{}{})
 }
 
-func (c *CustomVolumes) rememberCheckout(podUID string, task checkoutTask) {
+func (c *CustomVolumes) rememberCheckout(podUID string, task cachevolumes.CheckoutTask) {
 	c.checkoutMu.Lock()
 	defer c.checkoutMu.Unlock()
 	if c.checkoutJobs == nil {
-		c.checkoutJobs = map[string]checkoutTask{}
+		c.checkoutJobs = map[string]cachevolumes.CheckoutTask{}
 	}
 	c.checkoutJobs[podUID] = task
 }
@@ -98,7 +98,7 @@ func (c *CustomVolumes) collectCheckout(podUID string) {
 	if !ok || !c.Checkouts.Ready() {
 		return
 	}
-	src := filepath.Join(c.Root, "pods", podUID, checkoutExportDir)
+	src := filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir)
 	if info, err := os.Lstat(src); err != nil || !info.IsDir() {
 		return
 	}
