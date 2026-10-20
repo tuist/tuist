@@ -38,6 +38,12 @@ pub struct Session {
     expires_at: u64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginProvider {
+    Google,
+}
+
 #[derive(Serialize)]
 pub struct Login {
     authorization_url: String,
@@ -138,8 +144,18 @@ fn validate_registration(registration: &Registration) -> Result<Url> {
     Ok(server)
 }
 
-pub fn begin(server: &str, saved: Option<Registration>) -> Result<Login> {
-    begin_using(&Network, server, saved)
+pub fn begin(
+    server: &str,
+    saved: Option<Registration>,
+    provider: Option<LoginProvider>,
+) -> Result<Login> {
+    let mut login = begin_using(&Network, server, saved)?;
+    if let Some(LoginProvider::Google) = provider {
+        let mut url = Url::parse(&login.authorization_url).map_err(|_| invalid())?;
+        url.query_pairs_mut().append_pair("provider", "google");
+        login.authorization_url = url.to_string();
+    }
+    Ok(login)
 }
 
 fn begin_using(

@@ -216,8 +216,8 @@ fn rejects_unsafe_server_addresses_and_cross_origin_endpoints() {
 
 #[test]
 fn reused_registration_builds_unique_pkce_logins_without_network() {
-    let first = begin("https://atlas.example", Some(registration())).unwrap();
-    let second = begin("https://atlas.example", Some(registration())).unwrap();
+    let first = begin("https://atlas.example", Some(registration()), None).unwrap();
+    let second = begin("https://atlas.example", Some(registration()), None).unwrap();
     assert_ne!(first.pending.state, second.pending.state);
     assert_ne!(first.pending.verifier, second.pending.verifier);
     assert_eq!(first.pending.verifier.len(), 43);
@@ -233,7 +233,7 @@ fn reused_registration_builds_unique_pkce_logins_without_network() {
 
 #[test]
 fn callback_checks_origin_state_duplicates_expiry_and_denial() {
-    let login = begin("https://atlas.example", Some(registration())).unwrap();
+    let login = begin("https://atlas.example", Some(registration()), None).unwrap();
     let mut pending = login.pending;
     let callback = format!("{REDIRECT_URI}?state={}&code=a%2Bb%26c", pending.state);
     assert_eq!(callback_code(&pending, &callback).unwrap(), "a+b&c");
@@ -250,6 +250,49 @@ fn callback_checks_origin_state_duplicates_expiry_and_denial() {
     }
     pending.created_at = now() - 601;
     assert!(callback_code(&pending, &callback).is_err());
+}
+
+#[test]
+fn google_login_uses_the_same_authorization_endpoint_and_pkce_flow() {
+    let request = json!({
+        "operation": "begin",
+        "server": "https://atlas.example",
+        "registration": registration(),
+        "provider": "google"
+    });
+    let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+    let login = &response["ok"];
+    let url = Url::parse(login["authorization_url"].as_str().unwrap()).unwrap();
+    assert_eq!(url.origin().ascii_serialization(), "https://atlas.example");
+    assert_eq!(url.path(), "/oauth2/authorize");
+    let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
+    assert_eq!(query["provider"], "google");
+    assert_eq!(query["client_id"], "native-client");
+    assert_eq!(query["redirect_uri"], REDIRECT_URI);
+    assert_eq!(query["state"], login["pending"]["state"].as_str().unwrap());
+    assert_eq!(query["code_challenge_method"], "S256");
+    assert_eq!(
+        query["code_challenge"],
+        URL_SAFE_NO_PAD.encode(Sha256::digest(
+            login["pending"]["verifier"].as_str().unwrap().as_bytes()
+        ))
+    );
+}
+
+#[test]
+fn the_bridge_preserves_default_login_and_rejects_unknown_providers() {
+    let mut request = json!({
+        "operation": "begin",
+        "server": "https://atlas.example",
+        "registration": registration()
+    });
+    let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+    let url = Url::parse(response["ok"]["authorization_url"].as_str().unwrap()).unwrap();
+    assert!(!url.query_pairs().any(|(key, _)| key == "provider"));
+
+    request["provider"] = json!("https://untrusted.example");
+    let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+    assert_eq!(response["error"]["kind"], "invalid_response");
 }
 
 #[test]

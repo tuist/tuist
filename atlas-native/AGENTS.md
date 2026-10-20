@@ -23,7 +23,9 @@ may require a separate browser sign-in. Personal settings are native and use the
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
-  the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
+  the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
+  iOS also offers Sign in with Google using the shared Rust provider hint and the
+  same PKCE browser flow, not a Google SDK or a separate token exchange. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
   restore button.
 - `ios/distribution/`: post-build ad-hoc device signing and IPA packaging; see

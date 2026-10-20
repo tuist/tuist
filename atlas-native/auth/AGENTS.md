@@ -2,8 +2,12 @@
 
 This crate owns OAuth discovery (RFC 8414), dynamic public-client registration
 (RFC 7591), authorization code + S256 PKCE, callback validation, token exchange,
-and refresh. Atlas already provides the required endpoints; native apps use the
-existing server login page rather than implementing Google sign-in themselves.
+and refresh. Atlas provides the required endpoints; native apps use server-owned
+browser authentication rather than implementing Google sign-in themselves. The
+optional `begin` command's `provider: "google"` appends an allowlisted provider hint
+to the discovered authorization URL, skipping the server's provider-selection page.
+It never changes the origin, issuing client, callback, state, or PKCE requirements;
+omitting it preserves generic browser login, including self-hosted providers.
 
 ## Boundaries
 

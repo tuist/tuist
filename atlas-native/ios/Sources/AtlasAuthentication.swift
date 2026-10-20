@@ -9,6 +9,10 @@ struct AtlasAuthenticationError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+enum AtlasLoginProvider: String {
+    case google
+}
+
 enum AtlasAuthBridge {
     static func execute(_ input: String) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
@@ -66,7 +70,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
     }
 
-    func signIn(selfHosted: Bool = false) async {
+    func signIn(selfHosted: Bool = false, provider: AtlasLoginProvider? = nil) async {
         guard !busy, server == nil else { return }
         busy = true
         errorMessage = nil
@@ -74,6 +78,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         do {
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
+            if let provider { request["provider"] = provider.rawValue }
             if let saved = try AtlasSecureStorage.load("registration") { request["registration"] = try object(saved) }
             let login = try await command(request)
             guard let authorizationURL = login["authorization_url"] as? String,

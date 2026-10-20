@@ -11,6 +11,9 @@ Run `python3 atlas-native/resources/generate_login_assets.py` from the repositor
 root with Pillow and `rsvg-convert` installed when the source branding changes.
 Commit the generated assets. Normal builds must not run the generator or depend
 on image tooling. Assets are declared native build inputs, not Rust inputs.
+The iOS `GoogleLogo.imageset` is copied from the Tuist iOS app's existing asset
+catalog and rendered in its original colors; the generator does not own that
+provider logo.
 
 `generate_app_icons.py` uses the same white mark on Atlas's `#087CAA` azure for
 opaque iOS icons, Android density-specific launcher icons and adaptive layers.
