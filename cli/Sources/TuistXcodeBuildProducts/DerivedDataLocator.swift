@@ -49,7 +49,7 @@ public struct DerivedDataLocator: DerivedDataLocating {
 
         let name = xcodeDerivedDataPrefix(for: projectPath)
         if usesHash {
-            let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
+            let hash = try XcodeProjectPathHasher.hashString(for: Self.xcodeStandardizedPath(projectPath))
             return root.appending(component: "\(name)-\(hash)")
         } else {
             return root.appending(component: name)
@@ -58,6 +58,20 @@ public struct DerivedDataLocator: DerivedDataLocating {
 
     private func xcodeDerivedDataPrefix(for projectPath: AbsolutePath) -> String {
         projectPath.basenameWithoutExt.replacingOccurrences(of: " ", with: "_")
+    }
+
+    /// Xcode standardizes the workspace path before hashing it, which drops the `/private` prefix of
+    /// `/private/tmp`, `/private/var` and `/private/etc` (the targets of the `/tmp`, `/var` and `/etc`
+    /// symlinks), so a workspace under `/private/tmp/x` gets the derived data folder of `/tmp/x`.
+    private static func xcodeStandardizedPath(_ projectPath: AbsolutePath) -> String {
+        let path = projectPath.pathString
+        for directory in ["tmp", "var", "etc"] {
+            let privatePrefix = "/private/\(directory)"
+            if path == privatePrefix || path.hasPrefix("\(privatePrefix)/") {
+                return String(path.dropFirst("/private".count))
+            }
+        }
+        return path
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.
