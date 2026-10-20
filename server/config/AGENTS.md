@@ -24,4 +24,4 @@ This directory holds Phoenix configuration for the server.
 
 ## Replica-safety rollout
 
-Distribution is enabled only with an explicit cookie and fixed validated listener. Reject a multi-replica runtime without clustering. Configuring cluster discovery is not limited to Tuist-hosted mode.
+Distributed release startup requires an explicit private cookie and a numeric fixed listener in 1–65535; remote commands keep ephemeral listeners. The Helm chart rejects multi-replica web configurations without clustering; runtime cannot infer a replica count outside the chart. Configuring discovery is not limited to Tuist-hosted mode. DNS discovers peers but must not explicitly disconnect established connections on failed or partial DNS answers; the BEAM failure detector and node shutdown own connection loss, with OTP partition prevention unchanged. The shared Secret spans image versions, so upgrades form mixed-version clusters; the first migration from image-baked cookies temporarily forms separate old/new islands. Complete and observe OAuth invalidation removal before enabling that overlap.

@@ -1,15 +1,31 @@
 defmodule Tuist.Application.RuntimeChildrenTest do
   use ExUnit.Case, async: true
 
+  alias Cluster.Strategy.Kubernetes.DNS
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Environment
 
   describe "cluster/1" do
     test "starts discovery whenever a topology is configured" do
-      topologies = [kubernetes: [strategy: Cluster.Strategy.Kubernetes.DNS]]
+      topologies = [kubernetes: [strategy: DNS]]
+
+      assert [{Cluster.Supervisor, [configured, [name: Tuist.ClusterSupervisor]]}] = RuntimeChildren.cluster(topologies)
+      assert configured[:kubernetes][:strategy] == DNS
+      assert configured[:kubernetes][:disconnect] == {RuntimeChildren, :retain_cluster_node, []}
+      assert RuntimeChildren.retain_cluster_node(:discovery_peer) == true
+    end
+
+    test "preserves unrelated discovery strategies" do
+      topologies = [static: [strategy: Cluster.Strategy.Epmd, config: [hosts: [:peer]]]]
 
       assert RuntimeChildren.cluster(topologies) ==
                [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+    end
+
+    test "DNS cannot reintroduce explicit disconnects through a custom topology" do
+      topologies = [kubernetes: [strategy: DNS, disconnect: {:erlang, :disconnect_node, []}]]
+      [{Cluster.Supervisor, [configured, _]}] = RuntimeChildren.cluster(topologies)
+      assert configured[:kubernetes][:disconnect] == {RuntimeChildren, :retain_cluster_node, []}
     end
 
     test "does not start discovery without a topology" do

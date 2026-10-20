@@ -44,6 +44,30 @@ Check all web replicas, background workers, scheduled jobs and separately pinned
 >
 > Rolling back further requires stopping and draining **all** no-invalidation OAuth consumers, then clearing or replacing **every** retained Boruta cache participant before starting any cache-reading consumer. Prevent retained participants from rejoining. Draining only ingress or restarting only web replicas is insufficient; coordinate this recovery with your Tuist support contact rather than clearing caches or rolling back database migrations automatically.
 
+## Multi-replica clustering {#multi-replica-clustering}
+
+Supported multi-replica web deployments require Erlang clustering for cross-replica Phoenix PubSub and Oban PG notifications, not as an authority for authentication. The chart rejects multiple replicas, including an autoscaler that can grow beyond one replica, when `server.cluster.enabled` is false. Previously accepted unclustered deployments must plan this upgrade rather than bypassing the guard. Complete the <.localized_link href="/guides/server/self-host/server#oauth-upgrade-and-rollback-boundary">OAuth upgrade sequence</.localized_link>, including the invalidation removal, before changing membership.
+
+Create a private cookie Secret in the release namespace using your secret manager, then configure its name and key:
+
+```yaml
+server:
+  replicaCount: 2
+  cluster:
+    enabled: true
+    distributionPort: 9100
+    cookieExistingSecret: tuist-server-cluster
+    cookieExistingSecretKey: release-cookie
+```
+
+The cookie must be high-entropy and shared by all participating web replicas. Never use the cookie embedded in a published image: possession of a distribution cookie grants remote execution on its nodes. Distributed release startup now refuses a missing private `RELEASE_COOKIE` or an invalid port. Non-chart deployments must also configure `TUIST_CLUSTER_DNS_SERVICE`, `TUIST_CLUSTER_APP_NAME` and the pod IP/node name consistently. Discovery currently uses IPv4 A records.
+
+With ordinary server-connected `helm upgrade`, leaving `cookieExistingSecret` empty creates a cookie Secret and reuses its current value on later upgrades. Offline `helm template`, Argo CD and other GitOps renderers without live Secret lookup cannot preserve that generated value; they must use `cookieExistingSecret` backed by a separately managed, stable Secret. Do not change the cookie key to rotate a live cluster implicitly. Cookie rotation needs a coordinated migration/restart of every participant; updating a Secret alone does not update existing processes.
+
+The first rollout from image-baked cookies forms separate old/new membership islands until all web replicas use the private Secret. Plan a migration window for realtime updates. Subsequent rolling deployments form mixed-version clusters, so qualify PubSub, Oban notifications and peer replacement across the actual old/new versions. These notifications are not durable delivery guarantees. Keep an authoritative-reading rollback image and preserve the same private cookie when rolling back a compatible version.
+
+Allow EPMD (TCP 4369) and the configured distribution port only between trusted server peers, never from tenant workloads or the public network. Verify actual ingress/egress isolation in your environment; rendering a NetworkPolicy does not prove enforcement or backend reachability. A two-replica canary under continuous load must pass joining, rolling replacement and failure/recovery before promotion. DNS is used to discover peers, not to disconnect healthy nodes on a transient failed or partial answer; real node loss and OTP partition prevention still apply.
+
 ## Continuous deployment {#continuous-deployment}
 
 We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.

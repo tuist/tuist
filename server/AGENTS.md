@@ -1,6 +1,4 @@
-# Tuist Server
-
-- `verification/cluster_formation.exs` provides isolated two-node discovery checks; see `verification/AGENTS.md`. (Elixir/Phoenix)
+# Tuist Server (Elixir/Phoenix)
 
 This node covers the Tuist Server application under `server/`. Follow downlinks for subsystem boundaries.
 
@@ -171,6 +169,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Isolated cluster discovery checks: `verification/cluster_formation.exs`, see `verification/AGENTS.md`.
 - Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
