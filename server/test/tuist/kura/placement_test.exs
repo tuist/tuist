@@ -789,6 +789,132 @@ defmodule Tuist.Kura.PlacementTest do
     end
   end
 
+  describe "origin hits" do
+    test "opens a region a real share of the account's hits come from" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "projected_hits"
+      assert evidence["share"] == 0.25
+    end
+
+    test "does not open a region on runs a sliver of the hits contradict" do
+      # Thirty runs a day from Paris clears the runs floor; Paris is 2% of the
+      # account's hits, and a fraction of what the region would reserve.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups:
+            daily("US-VA", 30, 1_500) ++
+              daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 19_600) ++ daily_hits("FR", 14, 400),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "opens a cheap region on its rate when its share is small" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 18_500) ++ daily_hits("FR", 14, 1_500),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 8},
+          projected_gib: %{"eu-west" => 8}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["share"] < 0.1
+    end
+
+    test "reads runs while too few of the account's hits carry an origin" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 30, 100) ++ daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "sustained_local_demand"
+    end
+
+    test "moves the primary to a region it does not hold once most hits come from nearer it" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("FR", 14, 15_000) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "majority_of_origin_hits_moved"
+      assert evidence["share"] == 0.75
+    end
+
+    test "does not move the primary on runs the hits contradict" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5) ++ daily_hits("US-VA", 14, 20_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 16},
+          projected_gib: %{"eu-west" => 16}
+        )
+
+      assert {:relocate, "us-east", "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not reopen a region the hits closed, whatever its origins project" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128},
+          given_up: %{"eu-west" => Date.add(@today, -30)}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+  end
+
   defp context(overrides) do
     Enum.into(overrides, %{
       plan: :air,
@@ -812,6 +938,11 @@ defmodule Tuist.Kura.PlacementTest do
 
   defp rollup(origin, date, runs) do
     %{origin: origin, date: date, run_count: runs, demand_count: 0}
+  end
+
+  defp daily_hits(origin, days, hits) do
+    for offset <- 0..(days - 1),
+        do: %{origin: origin, date: Date.add(@today, -offset), run_count: 0, demand_count: 0, hit_count: hits}
   end
 
   defp served_daily(days, hits) do

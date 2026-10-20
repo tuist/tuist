@@ -225,6 +225,7 @@ defmodule Tuist.Kura.PlacementProposals do
 
     reserved = reserved_gib(accounts, account_ids)
     given_up = given_up(account_ids, today, served_policy)
+    accounts_by_id = Map.new(accounts, &{&1.id, &1})
 
     Map.new(account_ids, fn account_id ->
       account_rollups = Map.get(rollups, account_id, [])
@@ -240,8 +241,21 @@ defmodule Tuist.Kura.PlacementProposals do
            |> Enum.filter(&(&1.snapshot_count > 0))
            |> Enum.group_by(& &1.region, & &1.date),
          reserved_gib: Map.get(reserved, account_id, %{}),
+         projected_gib: projected_gib(Map.fetch!(accounts_by_id, account_id)),
          given_up: Map.get(given_up, account_id, %{})
        }}
+    end)
+  end
+
+  # What each public region would reserve for the account at its current claim,
+  # which is what opening a secondary there would cost.
+  defp projected_gib(account) do
+    claim = Tuist.Kura.effective_storage_claim(account)
+
+    Regions.all()
+    |> Enum.reject(&Regions.private?/1)
+    |> Map.new(fn region ->
+      {region.id, Capacity.resident_gib(region, %Server{region: region.id, storage_claim_size: claim, account: account})}
     end)
   end
 

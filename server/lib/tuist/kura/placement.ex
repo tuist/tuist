@@ -35,10 +35,15 @@ defmodule Tuist.Kura.Placement do
   whether it made eight requests or thousands, and machines that report a
   build are not always the machines pulling from the cache. So the primary
   follows the hits to a region the account holds, and a secondary retires once
-  what it served stops paying for the claim it reserves. Runs still open
-  regions, because a region the account does not hold has served it nothing,
-  as a trial the retirement rung judges on what the region then serves, and
-  never into a region the hits closed recently.
+  what it served stops paying for the claim it reserves.
+
+  A region the account does not hold has served it nothing to read, so it is
+  read from where the account's hits come from: the signed origin each request
+  carries, mapped through `OriginMap` like a run's. Where at least half the
+  account's hits carry one, origins open regions and move the primary to one it
+  does not hold, against floors well above the retirement ones. Elsewhere runs
+  still do, as a trial the retirement rung judges on what the region then
+  serves. Neither reopens a region the hits closed recently.
   """
 
   alias Tuist.Kura.OriginMap
@@ -128,7 +133,14 @@ defmodule Tuist.Kura.Placement do
   @served_policy %{
     relocate: %{window_days: 14, majority_share: 0.6, min_active_days: 5, min_hits_per_day: 1_000},
     retire: %{window_days: 28, max_share: 0.03, max_hits_per_gib_day: 25, min_reported_days: 21},
-    expand: %{reopen_after_days: 90}
+    expand: %{
+      window_days: 14,
+      min_active_days: 7,
+      min_share: 0.1,
+      min_hits_per_gib_day: 100,
+      reopen_after_days: 90
+    },
+    origin: %{min_coverage: 0.5}
   }
 
   def default_policy, do: @default_policy
@@ -180,12 +192,13 @@ defmodule Tuist.Kura.Placement do
     * `:relocations_in_window` - applied relocations inside the cap's window
     * `:today` - the evaluation date
 
-  And, when the account reads served hits, all four of:
+  And, when the account reads served hits, all five of:
 
     * `:served` - the hits each public region it holds served, per day
     * `:reported` - the days each of those regions delivered a usage report,
       which is what tells a day with no hits from a day nobody heard from
     * `:reserved_gib` - what each region it holds reserves
+    * `:projected_gib` - what each public region would reserve if it held it
     * `:given_up` - the regions it left within the reopening window, with the
       date it left them
 
@@ -194,11 +207,12 @@ defmodule Tuist.Kura.Placement do
   """
   def evaluate(context, policy \\ @default_policy, served_policy \\ @served_policy) do
     plan_policy = Map.get(policy, context.plan, policy.air)
-    runs = runs_by_region_and_date(context)
+    runs = by_region_and_date(context, :run_count)
     served = served(context)
 
     correct_initial(context, plan_policy, runs) ||
       relocate_to_hits(context, plan_policy, served, served_policy) ||
+      relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
       relocate(context, plan_policy, runs, served, served_policy) ||
       expand(context, plan_policy, runs, served, served_policy) ||
       retire_idle(context, served, served_policy) ||
@@ -209,8 +223,10 @@ defmodule Tuist.Kura.Placement do
   defp served(%{served: served} = context) do
     %{
       hits: served,
+      origin_hits: by_region_and_date(context, :hit_count),
       reported: Map.get(context, :reported, %{}),
       reserved_gib: Map.get(context, :reserved_gib, %{}),
+      projected_gib: Map.get(context, :projected_gib, %{}),
       given_up: Map.get(context, :given_up, %{})
     }
   end
@@ -219,17 +235,17 @@ defmodule Tuist.Kura.Placement do
 
   # Origins are mapped here rather than at write time, so a corrected mapping
   # table re-reads the history it was wrong about.
-  defp runs_by_region_and_date(context) do
+  defp by_region_and_date(context, count) do
     permitted = context.permitted
 
     context.rollups
     |> Enum.flat_map(fn rollup ->
       case OriginMap.preferred(rollup.origin, permitted) do
         nil -> []
-        region -> [{region, rollup.date, rollup.run_count}]
+        region -> [{region, rollup.date, Map.get(rollup, count, 0)}]
       end
     end)
-    |> Enum.group_by(fn {region, _date, _runs} -> region end, fn {_region, date, runs} -> {date, runs} end)
+    |> Enum.group_by(fn {region, _date, _count} -> region end, fn {_region, date, count} -> {date, count} end)
   end
 
   # Corrects a first placement, which is a guess rather than a decision.
@@ -307,11 +323,11 @@ defmodule Tuist.Kura.Placement do
   # The primary follows the hits to a region the account already holds.
   #
   # The destination is warm, so the move costs no refill. A region the account
-  # does not hold has served nothing to read, so a move there stays with the
-  # runs rung.
+  # does not hold has served nothing to read, so a move there is read from the
+  # origins of the hits, or from runs where too few of them carry one.
   #
-  # It spends the same quarterly relocation as the runs rung, so the two cannot
-  # take turns moving an account back and forth.
+  # It spends the same quarterly relocation as the other relocation rungs, so
+  # they cannot take turns moving an account back and forth.
   defp relocate_to_hits(_context, _plan_policy, nil, _served_policy), do: nil
   defp relocate_to_hits(%{primary: nil}, _plan_policy, _served, _served_policy), do: nil
 
@@ -348,6 +364,59 @@ defmodule Tuist.Kura.Placement do
     end
   end
 
+  # The primary moves to a region the account does not hold once the majority
+  # of its hits come from origins nearer that region. The same rung as the runs
+  # one, read in hits: a build that made forty thousand requests weighs forty
+  # thousand, not one.
+  defp relocate_to_origin_hits(_context, _plan_policy, nil, _served_policy), do: nil
+  defp relocate_to_origin_hits(%{primary: nil}, _plan_policy, _served, _served_policy), do: nil
+
+  defp relocate_to_origin_hits(context, plan_policy, served, served_policy) do
+    rung = served_policy.relocate
+
+    if context.relocations_in_window >= plan_policy.max_relocations_per_window or
+         not attributed?(context, served, served_policy) do
+      nil
+    else
+      window = window_range(context.today, rung.window_days)
+      totals = totals_in(served.origin_hits, window)
+      total = totals |> Map.values() |> Enum.sum()
+
+      candidate =
+        totals
+        |> Enum.reject(fn {region, _hits} -> region in context.serving end)
+        |> Enum.max_by(fn {_region, hits} -> hits end, fn -> nil end)
+
+      with {region, region_hits} <- candidate,
+           true <- total >= rung.min_hits_per_day * rung.window_days,
+           true <- region_hits / total >= rung.majority_share,
+           active = active_days(served.origin_hits, region, window),
+           true <- active >= rung.min_active_days do
+        evidence =
+          "majority_of_origin_hits_moved"
+          |> served_evidence(rung.window_days, region_hits, total, active)
+          |> Map.put("retire_source", idle?(context, served, served_policy.retire, context.primary))
+          |> Map.put("origin_map_version", OriginMap.version())
+
+        {:relocate, context.primary, region, evidence}
+      else
+        _ -> nil
+      end
+    end
+  end
+
+  # Whether enough of the account's hits carry the origin they came from for
+  # origins to stand for the account: placement reads them in place of runs
+  # only then. Requests from clients that predate signed origins carry none, and
+  # an account mostly made of those is read from its runs as before.
+  defp attributed?(context, served, served_policy) do
+    window = window_range(context.today, served_policy.expand.window_days)
+    served_total = served.hits |> totals_in(window) |> Map.values() |> Enum.sum()
+    attributed_total = served.origin_hits |> totals_in(window) |> Map.values() |> Enum.sum()
+
+    served_total > 0 and attributed_total / served_total >= served_policy.origin.min_coverage
+  end
+
   defp relocate(_context, %{relocate: nil}, _runs, _served, _served_policy), do: nil
 
   # Nothing to relocate from. Reachable only for an account whose every
@@ -356,7 +425,8 @@ defmodule Tuist.Kura.Placement do
   defp relocate(%{primary: nil}, _plan_policy, _runs, _served, _served_policy), do: nil
 
   defp relocate(context, plan_policy, runs, served, served_policy) do
-    if context.relocations_in_window >= plan_policy.max_relocations_per_window do
+    if context.relocations_in_window >= plan_policy.max_relocations_per_window or
+         (served != nil and attributed?(context, served, served_policy)) do
       nil
     else
       rung = plan_policy.relocate
@@ -444,43 +514,97 @@ defmodule Tuist.Kura.Placement do
   defp expand(_context, %{expand: nil}, _runs, _served, _served_policy), do: nil
 
   defp expand(context, plan_policy, runs, served, served_policy) do
-    if length(context.serving) >= plan_policy.max_instances do
-      nil
-    else
-      rung = plan_policy.expand
-      window = window_range(context.today, rung.window_days)
-      totals = totals_in(runs, window)
-      total = totals |> Map.values() |> Enum.sum()
+    cond do
+      length(context.serving) >= plan_policy.max_instances ->
+        nil
 
-      candidate =
-        totals
-        |> Enum.reject(fn {region, _runs} -> region in context.serving end)
-        |> Enum.filter(fn {region, region_runs} ->
-          region_runs >= rung.min_runs_per_day * rung.window_days and
-            active_days(runs, region, window) >= rung.min_active_days and
-            not recently_given_up?(context, served, served_policy.expand, region)
-        end)
-        |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
+      served != nil and attributed?(context, served, served_policy) ->
+        expand_on_origin_hits(context, served, served_policy)
 
-      case candidate do
-        nil ->
-          nil
-
-        {region, region_runs} ->
-          {:expand, region,
-           evidence("sustained_local_demand", rung, region_runs, total, active_days(runs, region, window))}
-      end
+      true ->
+        expand_on_runs(context, plan_policy, runs, served, served_policy)
     end
   end
 
-  # A region the account does not hold has served it nothing, so runs are the
-  # only thing that can open one, and the opening is a trial the retirement
+  defp expand_on_runs(context, plan_policy, runs, served, served_policy) do
+    rung = plan_policy.expand
+    window = window_range(context.today, rung.window_days)
+    totals = totals_in(runs, window)
+    total = totals |> Map.values() |> Enum.sum()
+
+    candidate =
+      totals
+      |> Enum.reject(fn {region, _runs} -> region in context.serving end)
+      |> Enum.filter(fn {region, region_runs} ->
+        region_runs >= rung.min_runs_per_day * rung.window_days and
+          active_days(runs, region, window) >= rung.min_active_days and
+          not recently_given_up?(context, served, served_policy.expand, region)
+      end)
+      |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
+
+    case candidate do
+      nil ->
+        nil
+
+      {region, region_runs} ->
+        {:expand, region, evidence("sustained_local_demand", rung, region_runs, total, active_days(runs, region, window))}
+    end
+  end
+
+  # Opens a region once the hits from origins nearer it would keep it well clear
+  # of retirement: a tenth of the account's attributed hits, or four times the
+  # hits per reserved GiB a secondary retires under, against what the region
+  # would reserve. The gap to the retirement floors is what stops a region
+  # opened on this evidence being retired by the rung that judges it next.
+  defp expand_on_origin_hits(context, served, served_policy) do
+    rung = served_policy.expand
+    window = window_range(context.today, rung.window_days)
+    totals = totals_in(served.origin_hits, window)
+    total = totals |> Map.values() |> Enum.sum()
+
+    totals
+    |> Enum.reject(fn {region, _hits} -> region in context.serving end)
+    |> Enum.filter(fn {region, region_hits} ->
+      active_days(served.origin_hits, region, window) >= rung.min_active_days and
+        not recently_given_up?(context, served, rung, region) and
+        earns_a_claim?(served, rung, region, region_hits, total, window)
+    end)
+    |> Enum.max_by(fn {_region, region_hits} -> region_hits end, fn -> nil end)
+    |> case do
+      nil ->
+        nil
+
+      {region, region_hits} ->
+        evidence =
+          "projected_hits"
+          |> served_evidence(rung.window_days, region_hits, total, active_days(served.origin_hits, region, window))
+          |> Map.merge(%{
+            "projected_gib" => Map.get(served.projected_gib, region),
+            "hits_per_active_day" => hits_per_active_day(served, region_hits, window),
+            "origin_map_version" => OriginMap.version()
+          })
+
+        {:expand, region, evidence}
+    end
+  end
+
+  defp earns_a_claim?(served, rung, region, region_hits, total, window) do
+    region_hits / total >= rung.min_share or
+      case Map.get(served.projected_gib, region) do
+        nil -> false
+        gib -> hits_per_active_day(served, region_hits, window) >= rung.min_hits_per_gib_day * gib
+      end
+  end
+
+  # A region the hits closed stays shut for the reopening window, whichever
+  # evidence would reopen it. Leaving it was decided on what it served, which
+  # outranks a projection from runs or from origins: both read the region
+  # through `OriginMap`, and a client the map places near a region is not always
+  # one DNS routes to it. Without this the rungs undo each other a month apart.
+  #
+  # Where runs are what opens a region, the opening is a trial the retirement
   # rung judges on what the region then serves. Run share forecasts that poorly
   # in both directions, so it does not gate the opening.
-  #
-  # A region the hits closed stays shut for the reopening window: leaving it was
-  # decided on what it served, which outranks the runs that would reopen it,
-  # and without this the two rungs undo each other a month apart.
   defp recently_given_up?(_context, nil, _rung, _region), do: false
 
   defp recently_given_up?(context, served, rung, region) do

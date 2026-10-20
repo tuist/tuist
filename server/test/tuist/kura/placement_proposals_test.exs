@@ -302,6 +302,23 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert evidence["signal"] == "majority_of_hits_moved"
     end
 
+    test "opens a region from the origins of the hits for an account reading them" do
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 60)
+      seed_rollups(account, "us-east", 28, 20_000)
+      seed_origin_hits(account, "US-VA", 14, 15_000)
+      seed_origin_hits(account, "FR", 14, 5_000)
+      FunWithFlags.enable(:kura_placement_served_signal, for_actor: account)
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :expand, to_region: "eu-west", evidence: evidence} =
+               PlacementProposals.open_proposal_for(account)
+
+      assert evidence["signal"] == "projected_hits"
+      assert is_integer(evidence["projected_gib"]) and evidence["projected_gib"] > 0
+    end
+
     test "reads no hits for an account outside the rollout" do
       account = paid_account()
       insert_server!(account, "us-east", held_for_days: 60)
@@ -648,6 +665,26 @@ defmodule Tuist.Kura.PlacementProposalsTest do
           date: Date.add(@today, -offset),
           run_count: runs_per_day,
           demand_count: 0,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(OriginRollup, rows)
+  end
+
+  defp seed_origin_hits(account, origin, days, hits_per_day) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      for offset <- 0..(days - 1) do
+        %{
+          account_id: account.id,
+          origin: origin,
+          date: Date.add(@today, -offset),
+          run_count: 0,
+          demand_count: 0,
+          hit_count: hits_per_day,
           inserted_at: now,
           updated_at: now
         }
