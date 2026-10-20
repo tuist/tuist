@@ -1,54 +1,61 @@
 import XCTest
 
 final class AtlasWorkspaceUITests: XCTestCase {
-    @MainActor func testDomainDrillDownAndBrowserFallbackOnSelectedServer() throws {
+    @MainActor func testStableTabsNativeBrowseAndProfile() throws {
         let app = launch()
         defer { app.terminate() }
-        XCTAssertTrue(app.navigationBars["Atlas"].waitForExistence(timeout: 10))
-        attach(app, "ios-workspace-home")
+        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.tabBars.buttons.count, 5)
+        XCTAssertFalse(app.tabBars.buttons["More"].exists)
+        attach(app, "ios-workspace-tasks")
+        app.tabBars.buttons["Accounts"].tap()
+        XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
+        attach(app, "ios-workspace-accounts")
+        app.tabBars.buttons["Finance"].tap()
+        XCTAssertTrue(app.staticTexts["Monthly invoice totals"].waitForExistence(timeout: 5))
+        attach(app, "ios-workspace-finance")
+        app.tabBars.buttons["Browse"].tap()
+        XCTAssertTrue(app.navigationBars["Browse"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["workspace-group-engineering"].exists)
+        attach(app, "ios-workspace-browse")
         try tap("workspace-group-commercial", in: app)
-        XCTAssertTrue(app.navigationBars["Commercial"].exists)
         try tap("workspace-group-sales", in: app)
-        XCTAssertTrue(app.navigationBars["Sales"].exists)
-        attach(app, "ios-workspace-sales")
         try tap("workspace-section-accounts", in: app)
-        XCTAssertTrue(app.alerts["Link preview"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.alerts.staticTexts["https://atlas.example.org/commercial/sales/accounts"].exists)
-        app.alerts.buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["Link preview"].exists)
+        app.tabBars.buttons["Profile"].tap()
+        XCTAssertTrue(app.staticTexts["Taylor Morgan"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["0.7.2"].exists)
+        XCTAssertTrue(app.staticTexts["https://atlas.example.org"].exists)
+        attach(app, "ios-workspace-profile")
+        try tap("Claude", in: app)
+        XCTAssertTrue(app.secureTextFields["claude-token"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["Commercial"].exists)
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["Atlas"].exists)
-        try tap("workspace-group-people", in: app)
-        try tap("workspace-section-time-off", in: app)
-        XCTAssertTrue(app.navigationBars["Time off"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["People"].exists)
-        try tap("workspace-settings", in: app)
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.navigationBars["People"].exists)
+        try tap("ChatGPT", in: app)
+        XCTAssertTrue(app.buttons["Sign in with ChatGPT"].waitForExistence(timeout: 5))
     }
 
-    @MainActor func testGlobalFeatureSearchInDarkAccessibilityText() throws {
+    @MainActor func testNativeSearchInDarkAccessibilityText() throws {
         let app = launch(arguments: ["--dark", "--large-text"])
         defer { app.terminate() }
-        XCTAssertTrue(app.navigationBars["Atlas"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 10))
+        attach(app, "ios-workspace-tasks-large-dark")
+        app.tabBars.buttons["Browse"].tap()
         let search = app.searchFields.firstMatch
         if !search.isHittable { app.swipeDown() }
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("vendor")
-        let result = try visible("workspace-section-vendors", in: app)
-        XCTAssertGreaterThanOrEqual(result.frame.height, 44)
-        attach(app, "ios-workspace-search-large-dark")
-        result.tap()
-        XCTAssertTrue(app.alerts["Link preview"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.alerts.staticTexts["https://atlas.example.org/commercial/finance/vendors"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["workspace-section-vendors"].exists)
+        search.tap()
+        search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "holiday")
+        try tap("workspace-section-time-off", in: app)
+        XCTAssertTrue(app.navigationBars["Time off"].waitForExistence(timeout: 5))
+        attach(app, "ios-workspace-time-off-large-dark")
     }
 
     @MainActor private func launch(arguments: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
         return app
