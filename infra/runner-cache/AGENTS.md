@@ -54,7 +54,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
   detached branch's `.usage` before sealing so a withheld branch still reports its size.
-- `prefetch` downloads into `staging/` and takes the scope lock only to install;
+- `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
+  `Range` requests: a fresh link per attempt, at most five attempts, an attempt
+  abandoned after two minutes without bytes, `DownloadClient` without a whole-
+  transfer timeout. A context that ends while bytes arrive returns
+  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
+  restore is deleted. Callers resume only by passing the same path again.
+- `prefetch` downloads into `staging/<scope>-<generation>-<content digest>.img`
+  and takes the scope lock only to install;
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.

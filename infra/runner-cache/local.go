@@ -737,15 +737,12 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
 	if err := os.MkdirAll(staging, 0700); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(staging, slot.Scope+"-*.img")
-	if err != nil {
-		return err
-	}
-	download := file.Name()
-	_ = file.Close()
+	// One name per saved version, so the next attempt resumes the archive an
+	// interrupted one left beside it. Maintenance removes it once abandoned.
+	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
 	_ = os.Remove(download)
 	defer os.Remove(download)
-	if err = b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
 		return err
 	}
 	unlock, err := b.lockContext(ctx, slot.Scope)
