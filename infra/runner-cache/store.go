@@ -28,6 +28,10 @@ type Identity struct {
 	ContentDigest  string `json:"content_digest"`
 	CanPublish     bool   `json:"can_publish"`
 	UID            int    `json:"uid"`
+	// Kind is set by the host, never by a guest. A checkout starts from the
+	// host-built master of its volume's clear Generation and is never published.
+	Kind       string `json:"kind,omitempty"`
+	Generation int64  `json:"generation,omitempty"`
 	// VolumeBytes is the size the server allocated the volume at. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`
@@ -45,6 +49,12 @@ func (i Identity) VolumeSize(defaultBytes int64) int64 {
 	}
 	return defaultBytes
 }
+
+const KindCheckout = "checkout"
+
+// CheckoutGrowthBytes is what a checkout clone is admitted with: it shares the
+// master's blocks, so only the job's writes to its workspace take new space.
+const CheckoutGrowthBytes = 8_000_000_000
 
 type Slot struct {
 	Identity
@@ -144,7 +154,17 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity)
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity) && validKind(identity)
+}
+func validKind(identity Identity) bool {
+	switch identity.Kind {
+	case "":
+		return identity.Generation == 0
+	case KindCheckout:
+		return identity.Generation >= 0 && identity.BaseGeneration == 0 && !identity.CanPublish
+	default:
+		return false
+	}
 }
 func validHead(identity Identity) bool {
 	if identity.BaseGeneration == 0 {
@@ -242,7 +262,8 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 			}
 		}
 	}
-	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.BaseGeneration > 0, UsedAt: time.Now().UTC()}
+	// A checkout is only acquired once its host-built master exists.
+	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.BaseGeneration > 0 || identity.Kind == KindCheckout, UsedAt: time.Now().UTC()}
 	if active >= s.MaxSlots || perPod >= 8 {
 		// The server already allocated this use and pinned its parent. No local
 		// storage exists yet, but its deletion acknowledgement must survive a

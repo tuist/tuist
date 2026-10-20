@@ -73,6 +73,15 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account's GitHub jobs get a cached checkout: a `checkout` volume the
+  runner host fills from GitHub and mounts at the job's workspace. Off unless the
+  `:runner_cached_checkouts` FunWithFlags toggle is enabled for the account.
+  """
+  def runner_cached_checkouts_enabled?(account) do
+    FunWithFlags.enabled?(:runner_cached_checkouts, for: account)
+  end
+
+  @doc """
   Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
   for the given account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so

@@ -101,3 +101,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.
+
+- `Identity.Kind` is set by the host agent, never decoded from a guest or
+  trusted from a custom allocation. `checkout` identities carry their volume's
+  clear `Generation`, have no HEAD, can never publish, and their branches are
+  seeded from a host-built master; attach fails rather than format an empty image.
+  The host publishes and restores checkout masters itself, with `CompressImage`
+  and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.

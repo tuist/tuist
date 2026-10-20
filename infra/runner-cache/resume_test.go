@@ -39,7 +39,7 @@ func newObjectServer(t *testing.T) *objectServer {
 	if err := os.WriteFile(filepath.Join(dir, "image"), image, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, digest, err := compressImage(filepath.Join(dir, "image"), filepath.Join(dir, "image.zst"))
+	_, digest, err := CompressImage(filepath.Join(dir, "image"), filepath.Join(dir, "image.zst"))
 	if err != nil {
 		t.Fatal(err)
 	}
