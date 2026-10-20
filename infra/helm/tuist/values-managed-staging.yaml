@@ -1033,6 +1033,8 @@ rackFleet:
   joiningNodes: []
   runners:
     enabled: true
+    # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
     # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
     guestShapes:

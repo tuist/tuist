@@ -1864,6 +1864,13 @@ rackFleet:
   # macOS.
   runners:
     enabled: false
+    # Run each Xcode's stacked runner image (`runnersFleet
+    # .runnerImageStackedDigests`) on this fleet, so a release on an unchanged
+    # base pulls only its overlay. Every host of the fleet, and every host it
+    # borrows, must run macOS 27 and Tart 2.36 or newer: older hosts can pull a
+    # stacked image but not boot it. An Xcode without a stacked digest, or with
+    # an `imageTag` override, keeps its standalone image.
+    stackedImages: false
     # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
     # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
     # guestCapacity); the allocator caps the pools' joint sum.
@@ -2751,6 +2758,12 @@ runnersFleet:
   # releases. Tart-kubelet names goldens after the ref string and the
   # runners-controller rolls Pods whose ref differs from the pool's.
   runnerImageDigests: {}
+  # Manifest digest of each Xcode's stacked image
+  # (`macos-<xcode-dashes>-<runnerImageSemver>-stacked`), keyed by
+  # `xcodeVersion`, for the rack pools `rackFleet.runners.stackedImages`
+  # turns on. `server-deployment.yml` resolves the ones the release
+  # published. An Xcode with no entry runs its standalone image everywhere.
+  runnerImageStackedDigests: {}
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.

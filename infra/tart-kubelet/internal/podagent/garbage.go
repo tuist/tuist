@@ -179,9 +179,12 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 	// frees only metadata — the ~68 GiB of backing blocks stay alive as long
 	// as the OCI entry references them. Aggressive mode also evicts the OCI
 	// cache (reconstructible by re-pull), so the golden and its source both
-	// go and the blocks are actually released. The referenced-golden reclaim
-	// below then handles the bases keepGolden pins. A probe error just skips
-	// the escalation this pass (the periodic retention behaviour still runs).
+	// go and the blocks are actually released. A stacked golden holds only a
+	// manifest and an overlay; its base lives in Tart's content store, which
+	// collectContent releases once neither a golden nor a cached image
+	// references it. The referenced-golden reclaim below then handles the
+	// bases keepGolden pins. A probe error just skips the escalation this pass
+	// (the periodic retention behaviour still runs).
 	floor := c.goldenReclaimFreeFloor()
 	free, freeErr := c.hostDiskFree()
 	underPressure := freeErr == nil && free < floor
@@ -244,6 +247,9 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			}
 			droppedImages++
 		}
+	}
+	if droppedGoldens > 0 {
+		c.collectContent(ctx)
 	}
 	if droppedClones > 0 || droppedImages > 0 || droppedGoldens > 0 {
 		logger.Info("reclaimed disk",
@@ -339,6 +345,7 @@ func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expecte
 		}
 		c.forgetGolden(name)
 		reaped++
+		c.collectContent(ctx)
 		if f, ferr := c.hostDiskFree(); ferr == nil {
 			free = f
 		}
@@ -553,4 +560,15 @@ func ociRepository(ref string) string {
 		ref = ref[:i]
 	}
 	return ref
+}
+
+// collectContent releases what reaped goldens leave in Tart's content store.
+// A stacked golden is a manifest and a small overlay over a read-only base the
+// store holds once for every VM and cached image built on it, and deleting the
+// golden does not collect the base, so without this a reaped stacked golden
+// frees almost nothing. Tart releases that predate the store collect nothing.
+func (c *Collector) collectContent(ctx context.Context) {
+	if err := c.Tart.CollectContent(ctx); err != nil {
+		log.FromContext(ctx).WithName("gc").Error(err, "collect tart content store")
+	}
 }

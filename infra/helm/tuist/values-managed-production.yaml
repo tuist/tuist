@@ -1450,6 +1450,8 @@ rackFleet:
   # `tuist-macos` resolves there; the rest start cold.
   runners:
     enabled: true
+    # Every BER1 host runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     guestShapes:
       6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
