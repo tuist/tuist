@@ -816,7 +816,7 @@ jobs:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    runs-on: tuist-linux-large
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
