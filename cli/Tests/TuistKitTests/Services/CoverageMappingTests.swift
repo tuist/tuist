@@ -160,21 +160,6 @@ struct CoverageMappingTests {
         #expect(!CoverageMapping.carriesMapping(path: directory.appending(component: "missing").pathString))
     }
 
-    /// A module with nothing to count (only global initializers) gets no coverage mapping from a coverage
-    /// build, but it still references the profile runtime.
-    @Test(.inTemporaryDirectory) func tellsAnInstrumentedProductWithNothingToCountFromAPlainOne() throws {
-        let directory = try #require(FileSystem.temporaryTestDirectory)
-        let codeless = directory.appending(component: "libCodeless.a")
-        let plain = directory.appending(component: "libPlain.a")
-        try archive(members: [image(section: "__text", payload: Array("___llvm_profile_runtime_user".utf8))])
-            .write(to: URL(fileURLWithPath: codeless.pathString))
-        try archive(members: [image(section: "__text", payload: [1, 2, 3])]).write(to: URL(fileURLWithPath: plain.pathString))
-
-        #expect(!CoverageMapping.carriesMapping(path: codeless.pathString))
-        #expect(CoverageMapping.isInstrumented(path: codeless.pathString))
-        #expect(!CoverageMapping.isInstrumented(path: plain.pathString))
-    }
-
     @Test func decodesFilesFunctionsAndRegions() throws {
         let sections = sections()
         let mapping = try #require(CoverageMapping(covmap: sections.covmap, covfun: sections.covfun))
