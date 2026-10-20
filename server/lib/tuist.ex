@@ -196,6 +196,7 @@ defmodule Tuist do
       Authorization,
       Guardian,
       OIDC,
+      OIDC.JWKSCache,
       Authorization.Checks,
       Billing,
       Billing.Entitlements,

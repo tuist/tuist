@@ -5,6 +5,7 @@
 - `Tuist.Application.prep_stop/1` calls `EndpointDrainer` before the application supervision tree stops. It drains Phoenix sockets and Bandit connections while Oban and endpoint configuration remain available.
 - Drain socket transports before the Bandit servers, following Phoenix's shutdown order. Terminate children through their supervisor so they are not restarted; leave endpoint configuration alive for Oban's subsequent job drain.
 - `RuntimeChildren` derives role-specific children without starting processes.
+- Start the disposable, size-limited `Tuist.OIDC.JWKSCache` next to the shared cache and before the endpoint in every mode that serves workload token exchanges.
 - Start the disposable `Tuist.OpenGraphImages` generation cache before the endpoint. Its Cachex data and per-key claims owner restart together; a restart may fail cold requests transiently, but published images remain available from shared storage.
 - Startup references across the application boundary require exports in `Tuist`,
   including `ClickHouseRepo.PromExPlugin` for read-telemetry attachment.

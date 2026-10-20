@@ -163,6 +163,14 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     end
   end
 
+  test "unmatched or malformed audiences are rejected before fetching keys", %{conn: conn, key: key, account: account} do
+    for audience <- ["other", nil, ["other"], ["tuist", 123], %{"aud" => "tuist"}] do
+      assert conn |> exchange(sign(key, %{"aud" => audience}), account) |> json_response(:unauthorized)
+    end
+
+    refute_receive {:jwks_fetch, _, _}
+  end
+
   test "accepts audience lists and precisely bounded nbf skew", %{conn: conn, key: key, account: account} do
     now = DateTime.to_unix(DateTime.utc_now())
     stub(DateTime, :utc_now, fn -> DateTime.from_unix!(now) end)
@@ -225,6 +233,50 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert [] == Projects.projects_by_oidc_grants(identity)
     {:ok, _} = Projects.delete_oidc_trust_policy(project, policy.id)
     assert [] == Projects.projects_by_oidc_grants(identity)
+  end
+
+  test "unrelated audiences cannot exhaust the JWKS URL budget", %{
+    conn: conn,
+    key: key,
+    account: account,
+    project: project
+  } do
+    for i <- 1..2 do
+      {:ok, _} =
+        Projects.create_oidc_trust_policy(project, %{
+          @attrs
+          | name: "Other audience #{i}",
+            audience: "other-#{i}",
+            jwks_url: "https://other#{i}.example/jwks"
+        })
+    end
+
+    response = conn |> exchange(sign(key), account) |> json_response(:ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert claims["project_ids"] == [project.id]
+    expected_url = @attrs.jwks_url
+    assert_receive {:jwks_fetch, ^expected_url, _}
+    refute_receive {:jwks_fetch, _, _}
+  end
+
+  test "unrelated audiences cannot exhaust the matching policy budget", %{
+    conn: conn,
+    key: key,
+    account: account,
+    project: project
+  } do
+    for i <- 1..19 do
+      {:ok, _} = Projects.create_oidc_trust_policy(project, %{@attrs | name: "Other #{i}", audience: "other"})
+    end
+
+    sibling = ProjectsFixtures.project_fixture(account: project.account)
+    {:ok, _} = Projects.create_oidc_trust_policy(sibling, %{@attrs | audience: "other"})
+    response = conn |> exchange(sign(key, %{"aud" => ["tuist", "another"]}), account) |> json_response(:ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert claims["project_ids"] == [project.id]
+    expected_url = @attrs.jwks_url
+    assert_receive {:jwks_fetch, ^expected_url, _}
+    refute_receive {:jwks_fetch, _, _}
   end
 
   test "bounds distinct JWKS URLs before any fetch", %{conn: conn, key: key, account: account, project: project} do
@@ -341,6 +393,64 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     {:ok, _} = Projects.delete_oidc_trust_policy(project, policy.id)
     assert conn |> exchange(token, account) |> json_response(:unauthorized)
     refute_receive :successful_fetch
+  end
+
+  test "caches only bounded, key-type-specific public fields", %{
+    conn: conn,
+    key: key,
+    account: account,
+    project: project,
+    policy: policy
+  } do
+    policy = Repo.update!(Ecto.Changeset.change(policy, jwks_url: "https://keys.example/normalized/#{project.id}"))
+
+    stub(KeyValueStore, :get_or_update, fn cache_key, opts, fetch ->
+      Mimic.call_original(KeyValueStore, :get_or_update, [cache_key, opts, fetch])
+    end)
+
+    keys = [
+      {key, ~w(n e), %{"x" => String.duplicate("b", 10_000), "crv" => String.duplicate("c", 10_000)}},
+      {JOSE.JWK.generate_key({:ec, "P-256"}), ~w(crv x y), %{"n" => "unused", "e" => "unused"}},
+      {JOSE.JWK.generate_key({:okp, :Ed25519}), ~w(crv x), %{"y" => "unused", "n" => "unused"}}
+    ]
+
+    {padded, normalized} =
+      keys
+      |> Enum.map(fn {key, fields, extra} ->
+        %{"keys" => [public]} = JSON.decode!(jwks(key))
+        padded = Map.merge(public, Map.merge(extra, %{"padding" => String.duplicate("a", 10_000), "d" => "private"}))
+        {padded, Map.take(public, ~w(kty kid alg) ++ fields)}
+      end)
+      |> Enum.unzip()
+
+    stub(JWKSClient, :get, fn _, _ -> {:ok, %{status: 200, body: JSON.encode!(%{"keys" => padded})}} end)
+
+    assert conn |> exchange(sign(key), account) |> json_response(:ok)
+    cache_key = ["oidc", "workload-jwks", policy.jwks_url]
+    assert KeyValueStore.get(cache_key, cache: :oidc_jwks) == %{"keys" => normalized}
+    assert KeyValueStore.get(cache_key) == nil
+  end
+
+  test "rejects unbounded or malformed key identifiers before caching", %{conn: conn, key: key, account: account} do
+    parent = self()
+
+    stub(KeyValueStore, :get_or_update, fn _, _, fetch ->
+      value = fetch.()
+      send(parent, {:cache_fill, value})
+      value
+    end)
+
+    for kid <- [String.duplicate("a", 257), %{"padded" => "identifier"}, 123, nil] do
+      stub(JWKSClient, :get, fn _, _ -> {:ok, %{status: 200, body: jwks(key, %{"kid" => kid})}} end)
+      assert conn |> exchange(sign(key), account) |> json_response(:unauthorized)
+      assert_receive {:cache_fill, nil}
+    end
+  end
+
+  test "accepts key identifiers at the byte limit", %{conn: conn, key: key, account: account} do
+    kid = String.duplicate("a", 256)
+    stub(JWKSClient, :get, fn _, _ -> {:ok, %{status: 200, body: jwks(key, %{"kid" => kid})}} end)
+    assert conn |> exchange(sign(key, %{}, %{"kid" => kid}), account) |> json_response(:ok)
   end
 
   test "rejects critical headers and symmetric or unsigned algorithms before fetching", %{

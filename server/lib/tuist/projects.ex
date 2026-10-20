@@ -834,13 +834,16 @@ defmodule Tuist.Projects do
   # Unsigned hints only bound verification work; they never grant access.
   def oidc_trust_candidates(issuer, account_handle, claims) do
     scalar_claims = Map.filter(claims, fn {_, value} -> is_binary(value) or is_integer(value) or is_boolean(value) end)
+    audiences = List.wrap(claims["aud"])
+    audiences = if Enum.all?(audiences, &is_binary/1), do: audiences, else: []
 
     Repo.all(
       from policy in OIDCTrustPolicy,
         join: project in assoc(policy, :project),
         join: account in assoc(project, :account),
         where: policy.issuer == ^issuer,
-        where: fragment("lower(?) = lower(?)", account.name, ^account_handle),
+        where: account.name == ^account_handle,
+        where: policy.audience in ^audiences,
         where: fragment("? @> ?", type(^scalar_claims, :map), policy.claims),
         order_by: policy.id,
         limit: 21
@@ -856,7 +859,7 @@ defmodule Tuist.Projects do
           join: project in assoc(policy, :project),
           join: account in assoc(project, :account),
           where: policy.id in ^policy_ids,
-          where: fragment("lower(?) = lower(?)", account.name, ^account_handle),
+          where: account.name == ^account_handle,
           preload: [project: :account]
       )
 

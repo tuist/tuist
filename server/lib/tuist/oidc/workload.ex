@@ -1,8 +1,8 @@
 defmodule Tuist.OIDC.Workload do
   @moduledoc false
 
-  alias Tuist.KeyValueStore
   alias Tuist.OAuth2.SSRFGuard
+  alias Tuist.OIDC.JWKSCache
   alias Tuist.OIDC.JWKSClient
   alias Tuist.Projects
   alias Tuist.Projects.OIDCTrustPolicy
@@ -52,7 +52,7 @@ defmodule Tuist.OIDC.Workload do
   end
 
   defp fetch_jwks(url) do
-    KeyValueStore.get_or_update(["oidc", "workload-jwks", url], [ttl: to_timeout(minute: 15)], fn ->
+    JWKSCache.get_or_update(url, fn ->
       # The stream task bounds total duration, not just idle time between chunks.
       [url]
       |> Task.async_stream(&request_jwks/1, timeout: 8_000, on_timeout: :kill_task)
@@ -80,7 +80,7 @@ defmodule Tuist.OIDC.Workload do
          true <- byte_size(body) <= @maximum_response_bytes,
          {:ok, %{"keys" => keys}} when is_list(keys) and length(keys) in 1..20 <- JSON.decode(body),
          keys when keys != [] <- Enum.filter(keys, &eligible_key?/1) do
-      %{"keys" => keys}
+      %{"keys" => Enum.map(keys, &normalize_key/1)}
     else
       _ -> nil
     end
@@ -135,8 +135,22 @@ defmodule Tuist.OIDC.Workload do
   defp coordinate?(_, _), do: false
 
   defp signing_key?(key) do
-    Map.get(key, "use", "sig") == "sig" and Map.get(key, "alg", "RS256") in @algorithms and
+    key_id_valid?(key) and Map.get(key, "use", "sig") == "sig" and Map.get(key, "alg", "RS256") in @algorithms and
       (not Map.has_key?(key, "key_ops") or (is_list(key["key_ops"]) and "verify" in key["key_ops"]))
+  end
+
+  defp key_id_valid?(%{"kid" => kid}), do: is_binary(kid) and byte_size(kid) <= 256
+  defp key_id_valid?(_), do: true
+
+  defp normalize_key(key) do
+    fields =
+      case key["kty"] do
+        "RSA" -> ~w(n e)
+        "EC" -> ~w(crv x y)
+        "OKP" -> ~w(crv x)
+      end
+
+    Map.take(key, ~w(kty kid alg) ++ fields)
   end
 
   defp verify(token, header, keys) do
