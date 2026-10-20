@@ -104,6 +104,10 @@ runs the mixed-version latency expression through promtool.
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
   Keep unavailable service separate from the 30-minute redundancy warning.
+- `k8s-monitoring/test-pod-log-processing.sh` runs rendered pod-log stages with
+  the deployed Alloy version and local fixtures. Run it after changing log
+  filters: Helm and `alloy validate` do not parse match-stage LogQL. Filters
+  require double-quoted strings even though Loki accepts backticks.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - The managed production overlay enables the browser RUM gateway; the chart default remains disabled. Roll back by disabling that production override, restoring the direct Alloy backend and `/collect` rewrite.
 - When filtering metrics, preserve every side of absence-based alerts. The
