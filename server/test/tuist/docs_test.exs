@@ -79,7 +79,9 @@ defmodule Tuist.DocsTest do
       assert sharding =~ "without recompiling"
       tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
       assert tests =~ "does not execute doctests"
-      assert tests =~ "never silently converts"
+      assert tests =~ "does not replace it with nextest"
+      assert tests =~ "tuist cargo test --doc"
+      assert tests =~ "excluded from per-case duration histories"
       refute tests =~ "stale, or oversized report"
       flaky = Docs.get_page("/en/guides/features/test-insights/flaky-tests/rust").markdown
 
