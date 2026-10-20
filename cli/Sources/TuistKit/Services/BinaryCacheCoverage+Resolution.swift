@@ -24,7 +24,13 @@ extension BinaryCacheCoverage {
         if Environment.current.variables[enabledVariable] != nil {
             return Environment.current.isVariableTruthy(enabledVariable) ? .on : .off
         }
-        return config.project.generatedProject?.generationOptions.coverage.enabled == true ? .on : .off
+        return BinaryCacheCoverage(config: config)
+    }
+
+    /// The variant the config carries: `Tuist.swift`'s option, or the one a generator factory resolved
+    /// (`Tuist.resolvingCoverage`).
+    init(config: Tuist) {
+        self = config.project.generatedProject?.generationOptions.coverage.enabled == true ? .on : .off
     }
 }
 

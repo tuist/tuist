@@ -284,7 +284,7 @@ You can override the option for a single command or job, highest precedence firs
 Overriding to off reads the plain variant, which a cache warmed with coverage on doesn't fill, so those targets build from source. `tuist cache --coverage` on a Release configuration fails; when the option or the environment variable turns coverage on, a Release warm warms plain binaries.
 
 > [!IMPORTANT] KEEP THE VALUES THE SAME EVERYWHERE
-> `enabled` and `prefixMapping` change the build settings and cache keys of your project's targets. Set them to the same value on every machine that shares the cache, and don't derive them from the environment (for example from `Environment.isCI`): a value that differs between CI and local machines gives them different keys.
+> `enabled` and `prefixMapping` change the build settings and cache keys of your project's targets, and the selective-testing hashes of its test targets. Set them to the same value on every machine that shares the cache, and don't derive them from the environment (for example from `Environment.isCI`): a value that differs between CI and local machines gives them different keys. The same goes for the overrides: a run with `--no-coverage` or `TUIST_COVERAGE_ENABLED=0` doesn't reuse the binaries or the selective-testing results of runs with coverage on.
 
 Keep in mind:
 
