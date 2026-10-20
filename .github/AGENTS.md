@@ -297,6 +297,15 @@ passes `--derived-data-path`, because the coverage export reads the test
 products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.
 
+`server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
+benchmark seeds equivalent registry caches and compares a single identical app
+change on fresh large runners, requiring a real cross-job Mix snapshot restore.
+Only manually dispatched jobs get package-write permissions, and all writes go
+to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
+tags. Count restore/export and asynchronous publication separately; a compilation
+speedup alone does not establish a net win. Production workflows must not adopt
+the bridge before those measurements justify it.
+
 The Docker smoke eval also runs the shipped activity-log parser with no arguments
 and requires its usage message and exit code 2. Keep that assertion: app startup
 alone does not check the parser's executable permissions or Swift runtime linkage.

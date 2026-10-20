@@ -1,0 +1,138 @@
+name: Server Docker Mix Cache
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/server-docker-mix-cache*
+      - .github/scripts/server-docker-mix-benchmark.sh
+      - .github/workflows/server-docker-mix-cache.yml
+      - server/Dockerfile
+  workflow_dispatch:
+    inputs:
+      baseline_commit:
+        description: Full immutable commit SHA providing the before Dockerfile
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# The benchmark's seed and consumers share a deliberately isolated cache key.
+concurrency:
+  group: server-docker-mix-cache
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test cache lifecycle
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/server-docker-mix-cache.test.sh
+
+  seed:
+    name: Seed equivalent production build caches
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist'
+    runs-on: tuist-linux-large
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      TUIST_BENCHMARK_BASELINE: ${{ inputs.baseline_commit }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Attach the isolated production Mix snapshot
+        uses: tuist/cache-volume@v1
+        with:
+          key: server-image-prod-amd64-mix-benchmark-v1
+          path: ${{ runner.temp }}/server-docker-mix-cache
+      - name: Seed both registry caches and the production Mix snapshot
+        run: bash .github/scripts/server-docker-mix-benchmark.sh seed
+
+  benchmark:
+    name: Measure ${{ matrix.variant }}
+    needs: seed
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
+    strategy:
+      max-parallel: 1
+      matrix:
+        variant: [before, after]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      TUIST_BENCHMARK_BASELINE: ${{ inputs.baseline_commit }}
+      TUIST_BENCHMARK_VARIANT: ${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Start foreground measurement
+        run: echo "TUIST_BENCHMARK_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Restore the independently published production Mix snapshot
+        if: matrix.variant == 'after'
+        id: mix-cache
+        uses: tuist/cache-volume@v1
+        with:
+          key: server-image-prod-amd64-mix-benchmark-v1
+          path: ${{ runner.temp }}/server-docker-mix-cache
+      - name: Require an actual cross-job cache restore
+        if: matrix.variant == 'after'
+        run: |
+          test "$CACHE_HIT" = true
+          bash .github/scripts/server-docker-mix-cache.sh prepare
+        env:
+          CACHE_HIT: ${{ steps.mix-cache.outputs.cache-hit }}
+      - name: Measure the same application source change
+        id: measure
+        run: bash .github/scripts/server-docker-mix-benchmark.sh measure
+      - name: Verify the resulting parser runs as the runtime user
+        env:
+          IMAGE: ${{ steps.measure.outputs.image }}
+        run: |
+          docker run --rm --entrypoint /app/bin/tuist \
+            --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
+            --env TUIST_DEPLOY_ENV=prod \
+            --env TUIST_HOSTED=1 \
+            --env TUIST_OBJECT_STORAGE_PROVIDER=azure_blob \
+            "$IMAGE" eval '
+            parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
+            {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)
+            true = String.starts_with?(usage, "usage: xcactivitylog-parser ")
+          '
+      - name: Record measured foreground costs
+        run: |
+          {
+            echo '## Controlled application-change benchmark'
+            echo 'Same checkout, MIX_ENV=prod, TUIST_HOSTED=1, per-build runtime package refresh and runner size.'
+            echo 'Each variant starts on a new runner and imports its independently seeded registry cache.'
+            echo 'The after result includes volume restore and compiled-output export, but not asynchronous volume publication.'
+            echo 'Inspect publication metadata separately; foreground time alone is not the total cost.'
+            echo 'This is one synthetic source-change pair, not a general speedup estimate.'
+            echo '```json'
+            cat "$RUNNER_TEMP/result.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-mix-benchmark-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/result.json
+            ${{ runner.temp }}/build.log
+          retention-days: 7
