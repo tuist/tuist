@@ -35,6 +35,16 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Server production deployment
+
+`workflows/server-production-deployment.yml` decides whether a push deploys by
+diffing the deployable paths from the commit production last deployed, not from
+the push's `before`. Queued runs collapse, so a deployable commit whose run was
+replaced by a non-deployable push must still deploy. That commit is the newest
+run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
+job. Do not use the deployments API: other workflows record deployments to the
+same environment. When the base cannot be resolved, the push deploys.
+
 ## Atlas native
 
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once

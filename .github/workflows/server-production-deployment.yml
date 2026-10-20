@@ -58,6 +58,9 @@ on:
   workflow_dispatch:
 
 permissions:
+  # check-releases reads this workflow's previous runs to find the commit
+  # production last deployed.
+  actions: read
   contents: write
   pull-requests: read
   statuses: write
@@ -177,22 +180,75 @@ jobs:
         # metrics-server) deploy on merge via platform-install — without it a
         # platform-only change skips build and the whole cascade, merging green
         # but never reaching the cluster.
+        #
+        # Compared against the commit production last deployed rather than
+        # the push's `before`: queued runs of this workflow collapse, so a
+        # deployable commit whose run was replaced by a newer push must still
+        # deploy even when that newer push alone is not deployable. The base
+        # is the newest run of this workflow in HEAD's history whose
+        # production deploy job ("… / Deploy to tuist", either leg) succeeded.
+        # GitHub's deployments API is not usable here: other workflows record
+        # deployments to the same environment without deploying the server.
+        # Anything that cannot be resolved deploys.
         env:
-          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          base="$BEFORE"
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            # No reliable base (new branch / force-push): deploy to be safe.
-            echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
+          deployable() {
+            echo "deployable-changed=$1" >> "$GITHUB_OUTPUT"
             exit 0
+          }
+          # A dispatch redeploys main's head (e.g. runner-image-release.yml
+          # rolling the fleet onto a new image).
+          if [ "$EVENT_NAME" != "push" ]; then
+            deployable true
           fi
-          if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
-            echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
+          if ! runs="$(gh api "repos/$REPO/actions/workflows/server-production-deployment.yml/runs?branch=main&status=completed&per_page=100" \
+            --jq '.workflow_runs[] | select(.conclusion != "cancelled" and .conclusion != "skipped") | "\(.id) \(.head_sha)"')"; then
+            echo "::warning::Could not list previous runs; treating the push as deployable."
+            deployable true
           fi
+          base=""
+          while read -r run_id sha; do
+            if [ -z "$run_id" ] || [ "$run_id" = "$RUN_ID" ]; then
+              continue
+            fi
+            if ! git merge-base --is-ancestor "$sha" "$HEAD_SHA" 2>/dev/null; then
+              continue
+            fi
+            if ! deployed="$(gh api "repos/$REPO/actions/runs/$run_id/jobs?per_page=100" \
+              --jq 'any(.jobs[]; .conclusion == "success" and (.name | endswith("Deploy to tuist")))')"; then
+              echo "::warning::Could not read jobs of run $run_id; treating the push as deployable."
+              deployable true
+            fi
+            if [ "$deployed" = "true" ]; then
+              base="$sha"
+              echo "Production last deployed $base (run $run_id)."
+              break
+            fi
+          done <<< "$runs"
+          if [ -z "$base" ]; then
+            echo "::warning::No production deploy found in the history of $HEAD_SHA; treating the push as deployable."
+            deployable true
+          fi
+          # Captured rather than piped into `grep -q`: an early grep exit
+          # would SIGPIPE `git diff` and fail the pipeline under pipefail.
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          # Docs under k8s-monitoring are in paths-ignore and never deploy.
+          deployable_paths="$(printf '%s\n' "$changed" \
+            | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
+            || true)"
+          if [ -n "$deployable_paths" ]; then
+            echo "Deployable paths changed since $base:"
+            printf '%s\n' "$deployable_paths"
+            deployable true
+          fi
+          deployable false
       - id: kura
         # Compared against the newest canary rather than the previous push:
         # queued runs of this workflow collapse, and a Kura change in a
