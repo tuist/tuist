@@ -45,7 +45,11 @@ struct CargoTestTarget {
                 index += 2
                 continue
             }
-            if argument.hasPrefix("--package=") { packages.append(String(argument.dropFirst("--package=".count))) } else if argument.hasPrefix("-p"), argument.count > 2 { packages.append(String(argument.dropFirst(2))) }
+            if argument.hasPrefix("--package=") {
+                packages.append(String(argument.dropFirst("--package=".count)))
+            } else if argument.hasPrefix("-p"), argument.count > 2 {
+                packages.append(String(argument.dropFirst(2)))
+            }
             index += 1
         }
         return packages
