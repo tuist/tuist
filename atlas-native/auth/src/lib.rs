@@ -264,18 +264,13 @@ fn callback_code(pending: &PendingLogin, callback: &str) -> Result<String> {
             "The sign-in callback used an unexpected path. Start a new sign-in and try again.",
         ));
     }
-    if url.fragment().is_some() {
-        return Err(error(
-            "invalid_callback",
-            "The sign-in callback included an unexpected fragment. Start a new sign-in and try again.",
-        ));
-    }
     if now().saturating_sub(pending.created_at) > 600 {
         return Err(error(
             "invalid_callback",
             "Sign-in expired after ten minutes. Start a new sign-in and try again.",
         ));
     }
+    // Code-flow responses use only the query; ignore browser-supplied fragments.
     let pairs: Vec<_> = url.query_pairs().collect();
     let values = |key: &str| -> Vec<String> {
         pairs
