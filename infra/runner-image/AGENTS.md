@@ -273,6 +273,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   cannot be created, the job keeps automatic caches. A workflow's relative
   `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
   contract in step with these exports. Run `runner-caches_test.sh`.
+  **Managed cache volumes.** When the response also carries
+  `"managed_cache_volumes": true`, the job never attaches the built-in image.
+  `stage_managed_cache_volumes` writes `<cache>.volume` (key and path:
+  `tuist-xcode` at `MANAGED_XCODE_CACHE`, `tuist-module` at
+  `MANAGED_MODULE_CACHE`), the environment pointing each cache there, and its own
+  xcconfig bounding the compilation cache to `MANAGED_XCODE_CACHE_LIMIT_BYTES`.
+  `tuist-runner-cache activate` attaches the volume with `tuist-cache-volume`
+  once per job (`<cache>.attached`) before printing the environment, and exits 3
+  without exporting anything when the attach fails. At teardown, a job that used
+  the compilation cache drains its publications from that store (every job) and
+  prunes it (successful jobs) through `CAS_STORE_ROOT` before
+  `tuist-cache-volume --detach-all`; an undrained store withholds the job's
+  volumes. The server sizes `tuist-xcode` at 30 GB and `tuist-module` at 20 GB;
+  keep the limits under the 99% fill at which a volume is no longer saved.
   Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
   reached the caches, not the runner's exit status. `run.sh` folds
@@ -899,6 +913,17 @@ semantics; this doc is just about the VM image.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  before the first step. It mounts the job's cached checkout at the workspace
+  only when the host serves one and the workspace is empty, and otherwise leaves
+  it untouched, so actions/checkout clones as before. It never fails the job.
+  When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
+  it records the workspace and the mounted master's commit and LFS objects in
+  `/Users/runner/.tuist-checkout.json`. The teardown then runs
+  `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
+  and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  for the host to verify and build from. Neither step fails the job.
 
 - `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
   size, mount time/duration and host-staged warm/cold source. Stage once at attach

@@ -89,6 +89,9 @@ on:
       xcresult_processor_image_tag:
         description: Pre-built xcresult processor Tart image tag to pin (e.g. `d0d53abc`, built by xcresult-processor-image.yml); wins over the resolved `xcresult-processor-image@*` semver. Use to validate an in-flight processor change on staging before tagging a release.
         required: false
+      xcresult_processor_release_digest:
+        description: Layer digest (`sha256:...`) of the `tuist-xcresult-processor-release` artifact the processor boots; wins over the release published for the server image tag
+        required: false
   workflow_call:
     inputs:
       staging_platform_revision:
@@ -200,6 +203,16 @@ on:
           the deploy job resolves the latest `xcresult-processor-image@*`
           semver tag. Use to validate an in-flight processor change on
           staging before tagging a release.
+        required: false
+        type: string
+      xcresult_processor_release_digest:
+        description: >-
+          Layer digest (`sha256:...`) of the `tuist-xcresult-processor-release`
+          artifact the xcresult processor boots. The production cascade passes
+          the release it built for this commit. When unset, a deploy that
+          builds its own image builds and pins the release too, and a deploy
+          of a pre-built image pins the release published for its tag, or
+          keeps the one the processor runs when that tag has none.
         required: false
         type: string
 
@@ -368,6 +381,30 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             MIX_ENV=prod
+
+  # The macOS server release the xcresult processor boots, built alongside a
+  # server image this workflow builds itself. A pre-built image already has
+  # its release, published by whichever run built that image.
+  build-xcresult-processor-release:
+    name: Build xcresult processor release
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    outputs:
+      tarball_digest: ${{ steps.release.outputs.tarball-digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - id: release
+        uses: ./.github/actions/xcresult-processor-release
+        with:
+          revision: ${{ env.DEPLOY_SHA }}
+          registry-username: ${{ github.actor }}
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   build-kura-runtime:
     # The kura runtime image (the Rust mesh node, not the controller) is
@@ -725,12 +762,14 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-kura-runtime, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
     # deploy pins kuraRuntime.image.tag to the sha image it pushes, so it must
     # finish cleanly first. Treat success-or-skipped as OK.
+    # `build-xcresult-processor-release` follows the same rule: it runs with
+    # `build` and the deploy pins the release it pushes.
     # `platform-install` brings up CRDs (cert-manager, ESO,
     # cloudnative-pg) the Tuist chart consumes; if it fails the chart
     # deploy would silently no-op on those resources, so block.
@@ -742,7 +781,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -779,6 +818,7 @@ jobs:
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
       EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
       XCRESULT_PROCESSOR_IMAGE_TAG_INPUT: ${{ inputs.xcresult_processor_image_tag }}
+      XCRESULT_PROCESSOR_RELEASE_DIGEST_INPUT: ${{ inputs.xcresult_processor_release_digest != '' && inputs.xcresult_processor_release_digest || needs.build-xcresult-processor-release.outputs.tarball_digest }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -1004,6 +1044,40 @@ jobs:
           codebase_search_image_tag="${current_image#"$image_prefix"}"
           echo "CODEBASE_SEARCH_IMAGE_TAG=$codebase_search_image_tag" >> "$GITHUB_ENV"
           echo "Codebase search: preserving deployed image tag ${codebase_search_image_tag}"
+      - name: Resolve xcresult processor release
+        # The processor's Tart guest downloads the server release it boots by
+        # this layer digest, so the processor runs the same commit as the
+        # server. A pre-built image is matched to the release published for
+        # its tag; one with none keeps the release the processor runs. Still
+        # empty fails the processor chart's render, when it renders.
+        run: |
+          set -euo pipefail
+
+          if [ -n "$XCRESULT_PROCESSOR_RELEASE_DIGEST_INPUT" ]; then
+            echo "XCRESULT_PROCESSOR_RELEASE_DIGEST=$XCRESULT_PROCESSOR_RELEASE_DIGEST_INPUT" >> "$GITHUB_ENV"
+            echo "xcresult processor release: ${XCRESULT_PROCESSOR_RELEASE_DIGEST_INPUT}"
+            exit 0
+          fi
+
+          repository=tuist/tuist-xcresult-processor-release
+          if digest="$(.github/scripts/ghcr-artifact-layer-digest.sh "$repository" "$IMAGE_TAG")"; then
+            echo "XCRESULT_PROCESSOR_RELEASE_DIGEST=$digest" >> "$GITHUB_ENV"
+            echo "xcresult processor release: ghcr.io/${repository}:${IMAGE_TAG} is ${digest}"
+            exit 0
+          fi
+
+          digest="$(
+            kubectl -n "$NAMESPACE" get deployments \
+              -l app.kubernetes.io/component=xcresult-processor \
+              -o jsonpath='{.items[0].spec.template.spec.containers[0].env[?(@.name=="TUIST_XCRESULT_PROCESSOR_RELEASE_DIGEST")].value}' \
+              2>/dev/null || true
+          )"
+          if [ -n "$digest" ]; then
+            echo "XCRESULT_PROCESSOR_RELEASE_DIGEST=$digest" >> "$GITHUB_ENV"
+            echo "xcresult processor release: no release for ${IMAGE_TAG}; preserving deployed ${digest}"
+          else
+            echo "xcresult processor release: no release for ${IMAGE_TAG} and none deployed."
+          fi
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -1169,6 +1243,7 @@ jobs:
             xcresult_processor_image_tag="${XCRESULT_PROCESSOR_TAG:-}"
           fi
           add_set "xcresultProcessor.image.tag" "$xcresult_processor_image_tag"
+          add_set "xcresultProcessor.release.digest" "${XCRESULT_PROCESSOR_RELEASE_DIGEST:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           if [ -n "${RUNNER_IMAGE_DIGESTS:-}" ]; then
             while IFS=$'\t' read -r xcode digest; do

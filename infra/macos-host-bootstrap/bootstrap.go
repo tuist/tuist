@@ -604,6 +604,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
+	// Last and best-effort: the tools only enable cached checkouts, so a slow
+	// or failed install must never cost the host anything else.
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -754,6 +759,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -894,6 +902,7 @@ func hostConfigMaterial(cfg Config) string {
 		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
+		{"command-line-tools", renderCommandLineToolsScript()},
 		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"host-sensors", renderHostSensorsScript(cfg)},
@@ -1605,6 +1614,35 @@ sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -i
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
 	return RunCommand(ctx, client, script)
+}
+
+func installCommandLineTools(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderCommandLineToolsScript())
+}
+
+// renderCommandLineToolsScript installs Apple's Command Line Tools when the host
+// has no working git. A rack host has none: /usr/bin/git is only a shim there.
+// tart-kubelet builds cached checkouts with it and keeps them off without it.
+// softwareupdate offers the tools only while the install-on-demand marker
+// exists. The step never fails the bootstrap; a host without the tools runs
+// jobs exactly as before.
+func renderCommandLineToolsScript() string {
+	return `set -uo pipefail
+# Without the tools, /usr/bin/git is a stub that asks a GUI to install them.
+if xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version >/dev/null 2>&1; then
+  exit 0
+fi
+marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+sudo touch "$marker"
+label="$(softwareupdate --list 2>/dev/null | sed -n 's/^\* Label: \(Command Line Tools.*\)$/\1/p' | tail -n 1)"
+if [ -n "$label" ]; then
+  sudo softwareupdate --install "$label" --agree-to-license >/dev/null 2>&1 || echo "command line tools install failed" >&2
+else
+  echo "command line tools not offered by softwareupdate" >&2
+fi
+sudo rm -f "$marker"
+exit 0
+`
 }
 
 func installSoftwareUpdatePolicy(ctx context.Context, client *ssh.Client) error {

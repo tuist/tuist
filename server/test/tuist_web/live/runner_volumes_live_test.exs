@@ -563,4 +563,11 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, can_manage: true}}
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
   end
+
+  test "names the managed cache volumes" do
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-xcode"}) == "Xcode cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
+  end
 end

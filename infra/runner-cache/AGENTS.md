@@ -60,6 +60,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
+- `Identity.VolumeBytes` is the size the server allocated the volume at; zero
+  means the host default (`SizeGB`). `valid` rejects sizes above
+  `MaxVolumeBytes`. Create, admission and guest usage validation all use
+  `volumeBytes(slot)`; never size an image from `SizeGB` directly.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes, `DownloadClient` without a whole-
@@ -73,6 +77,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
+  scope>` label per lineage with an installed `*.img` master. tart-kubelet
+  publishes it on the node heartbeat and the Linux agent merges it into its Node
+  patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
   the background (one at a time, prefetch admission) before removing it.
   Maintenance and admission skip the scope a refresh download holds. Only a
@@ -93,3 +101,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.
+
+- `Identity.Kind` is set by the host agent, never decoded from a guest or
+  trusted from a custom allocation. `checkout` identities carry their volume's
+  clear `Generation`, have no HEAD, can never publish, and their branches are
+  seeded from a host-built master; attach fails rather than format an empty image.
+  The host publishes and restores checkout masters itself, with `CompressImage`
+  and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.

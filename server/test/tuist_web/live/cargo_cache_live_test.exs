@@ -117,7 +117,7 @@ defmodule TuistWeb.CargoCacheLiveTest do
     html = render_async(view, 5000)
     assert html =~ "Something went wrong"
     assert has_element?(view, "#cargo-cache-environment")
-    assert has_element?(view, "a[href='/en/docs/guides/features/build-insights/rust#cache-measurements']")
+    assert has_element?(view, "a[href='/en/docs/guides/features/cache/rust']")
 
     stub(Cache, :hit_rate_analytics, fn project, opts ->
       Mimic.call_original(Cache, :hit_rate_analytics, [project, opts])

@@ -25,7 +25,11 @@ defmodule Tuist.DocsTest do
       cache = Docs.get_page("/en/guides/features/cache").markdown
       assert cache =~ "Rust cache (experimental)"
       assert cache =~ "supported_for=\"rust\""
-      assert cache =~ "/guides/features/build-insights/rust#cache-measurements"
+      assert cache =~ "/guides/features/cache/rust"
+
+      assert Docs.get_page("/en/guides/features/cache/rust").markdown =~
+               "/guides/features/build-insights/rust#cache-measurements"
+
       guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
       assert guide =~ "{#cache-measurements}"
       assert guide =~ "registry leaf libraries"

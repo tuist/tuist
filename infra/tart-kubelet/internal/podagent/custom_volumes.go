@@ -34,6 +34,7 @@ type CustomVolumes struct {
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
 	Builtins                                   *VolumeManager
+	Checkouts                                  *Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
@@ -43,6 +44,9 @@ type CustomVolumes struct {
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
+	checkoutReserved                           uint64
+	checkoutMu                                 sync.Mutex
+	checkoutJobs                               map[string]checkoutTask
 	// spare cancels the running background prefetch; guarded by Builtins.mu.
 	spare context.CancelCauseFunc
 }
@@ -135,11 +139,17 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: 21_000_000_000, Token: c.token},
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: cachevolumes.MaxVolumeBytes, Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	if c.Checkouts != nil {
+		backend.Seed = c.Checkouts.Seed
+		c.Checkouts.Room = c.reserveCheckout
+		// Checkout images are larger than custom ones, so their archives get their own bound.
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: checkoutCapacity + 1_000_000_000, Token: c.token}
+	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
@@ -177,11 +187,16 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
 	}, backend.HasMaster)
 	c.prefetch.Store(prefetch)
+	var builds sync.WaitGroup
 	defer func() {
 		c.prefetch.Store(nil)
 		stopPrefetch()
 		prefetch.wait.Wait()
+		builds.Wait()
 	}()
+	if c.Checkouts != nil {
+		builds.Go(func() { c.Checkouts.Start(prefetchCtx) })
+	}
 	requests := time.NewTicker(time.Second)
 	defer requests.Stop()
 	reports := time.NewTicker(30 * time.Second)
@@ -270,7 +285,7 @@ func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
 		return 0, err
 	}
 	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	reserved += c.reservedBytes()
+	reserved += c.reservedBytes() + c.checkoutReserved
 	if c.Builtins.converging != nil {
 		reserved += c.Builtins.converging.remaining()
 	}
@@ -324,12 +339,17 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
+	c.Checkouts.Maintain()
 	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
 		if err != nil {
 			return false, err
 		}
-		return c.gone(string(name), uid)
+		gone, err := c.gone(string(name), uid)
+		if err == nil && gone {
+			c.collectCheckout(uid)
+		}
+		return gone, err
 	})
 	if err != nil {
 		return err
@@ -388,19 +408,45 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key string `json:"key"`
-			UID int    `json:"uid"`
+			Key      string `json:"key"`
+			UID      int    `json:"uid"`
+			Checkout bool   `json:"checkout"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
 		if err != nil {
 			continue
 		}
-		deadline := time.Now().Add(customAcquireBudget)
-		if requestDeadline := info.ModTime().Add(customAcquireBudget); requestDeadline.Before(deadline) {
+		// A checkout never makes a job wait longer than a cold checkout would cost.
+		budget := customAcquireBudget
+		if input.Checkout {
+			budget = 15 * time.Second
+		}
+		deadline := time.Now().Add(budget)
+		if requestDeadline := info.ModTime().Add(budget); requestDeadline.Before(deadline) {
 			deadline = requestDeadline
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
+		if input.Checkout {
+			response := map[string]any{"error": "unavailable", "reason": "error"}
+			if c.Checkouts != nil {
+				response = c.checkout(acquireCtx, pod, input.UID)
+			}
+			cancel()
+			if response == nil {
+				continue
+			}
+			data, _ := json.Marshal(response)
+			if published, err := publishResponse(root, name+".response", data); err != nil {
+				return err
+			} else if !published {
+				continue
+			}
+			if _, err := root.Stat(name); os.IsNotExist(err) {
+				_ = root.Remove(name + ".response")
+			}
+			continue
+		}
 		var identity cachevolumes.Identity
 		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
@@ -416,6 +462,8 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 				break
 			}
 		}
+		// The reserved checkout name is only ever allocated through the checkout path.
+		identity.Kind, identity.Generation = "", 0
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
 		if errors.Is(err, cachevolumes.ErrExecutionPending) {
 			response["reason"] = "execution_pending"

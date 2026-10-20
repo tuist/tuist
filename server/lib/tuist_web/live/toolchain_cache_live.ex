@@ -178,8 +178,7 @@ defmodule TuistWeb.ToolchainCacheLive do
     do: ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/mix-cache" <> "?" <> query
 
   defp configuration(:cargo) do
-    {Tuist.Cargo.Cache, "cargo-cache", dgettext("dashboard", "Cargo Cache"),
-     "/en/docs/guides/features/build-insights/rust#cache-measurements",
+    {Tuist.Cargo.Cache, "cargo-cache", dgettext("dashboard", "Cargo Cache"), "/en/docs/guides/features/cache/rust",
      dgettext(
        "dashboard_cache",
        "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."

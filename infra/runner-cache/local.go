@@ -114,6 +114,11 @@ func (b *LocalImages) operation(operation, source string, work func() error) err
 	return err
 }
 func (b *LocalImages) image(slot Slot) string { return filepath.Join(b.Root, "images", slot.ID+".img") }
+
+// volumeBytes is the size of the slot's image: its allocation, else the host default.
+func (b *LocalImages) volumeBytes(slot Slot) int64 {
+	return slot.VolumeSize(int64(b.SizeGB) * 1_000_000_000)
+}
 func (b *LocalImages) master(slot Slot) string {
 	return filepath.Join(b.Root, "masters", slot.Scope, fmt.Sprintf("%020d-%s.img", slot.BaseGeneration, slot.ContentDigest))
 }
@@ -333,7 +338,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 			var f *os.File
 			f, err = os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 			if err == nil {
-				err = f.Truncate(int64(b.SizeGB) * 1_000_000_000)
+				err = f.Truncate(b.volumeBytes(slot))
 				closeErr := f.Close()
 				if err == nil {
 					err = closeErr
@@ -491,7 +496,7 @@ func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")
-	digest, content, err := compressImage(b.image(slot), archive)
+	digest, content, err := CompressImage(b.image(slot), archive)
 	compressDone(err)
 	if err != nil {
 		return err

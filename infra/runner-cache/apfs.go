@@ -19,7 +19,9 @@ import (
 // Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
-	Create  func(context.Context, string, int64) error
+	Create func(context.Context, string, int64) error
+	// Seed clones the host-built master of a checkout slot to the given path.
+	Seed    func(context.Context, Slot, string) error
 	Reserve func(context.Context, Slot) (func(bool), error)
 	Verify  func(string) error
 	Detach  func(string) error
@@ -56,7 +58,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
 		// A job never downloads: it clones a local copy or starts empty, so one
 		// image of room is enough either way.
-		minimum := uint64(b.SizeGB) * 1_000_000_000
+		minimum := uint64(b.volumeBytes(slot))
+		if slot.Kind == KindCheckout {
+			minimum = CheckoutGrowthBytes
+		}
 		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
@@ -94,8 +99,17 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 				return err
 			}
 		}
-		if cold {
-			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, int64(b.SizeGB)*1_000_000_000) }); err != nil {
+		if cold && slot.Kind == KindCheckout {
+			// Never fall back to an empty image: the guest mounts it over its workspace.
+			if b.Seed == nil {
+				return errors.New("checkout seeding unavailable")
+			}
+			source = "local"
+			if err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) }); err != nil {
+				return err
+			}
+		} else if cold {
+			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
 				return err
 			}
 		}
@@ -157,7 +171,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 	data, err := os.ReadFile(b.image(slot) + ".metrics")
 	if os.IsNotExist(err) && APFSMarker(path, ".detached", slot.ID) {
-		usage, usageErr := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
+		usage, usageErr := APFSUsage(path, slot.ID, b.volumeBytes(slot))
 		return usage.Used, usage.Capacity, usageErr
 	}
 	if err != nil {
@@ -180,7 +194,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) {
 		return ErrWithheld
 	}
-	usage, err := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
+	usage, err := APFSUsage(path, slot.ID, b.volumeBytes(slot))
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPoisoned, err)
 	}

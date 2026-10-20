@@ -35,6 +35,16 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   Reading the host's own scan makes all four moot.
 
+  ## Custom volumes
+
+  Hosts on both platforms also advertise one `tuist.dev/cache-volume-<scope
+  prefix>` label per custom volume lineage they hold a master of. A job attaches
+  its custom volumes at runtime, so which ones a queued job will attach is
+  predicted from history: the custom volumes that jobs with the same account,
+  repository, workflow name and job name attached in the last week. A candidate
+  counts as resident when the node holds any of them, under the same starvation
+  bound. Residency still comes only from the host; history only predicts.
+
   ## Why a node-pull dispatch is enough
 
   The server cannot place a job on a host of its choosing; it can only answer
@@ -46,12 +56,20 @@ defmodule Tuist.Runners.VolumeAffinities do
   """
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.VolumeHeads
 
   require Logger
 
   @cache_master_label_prefix "tuist.dev/cache-master-"
   @repository_volumes_label "tuist.dev/cache-volumes-per-repository"
+  @custom_volume_label_prefix "tuist.dev/cache-volume-"
+  @custom_volume_label_scope_length 48
+
+  # Which custom volumes a job attaches is only known from history, and a
+  # workflow's volumes change on the order of commits, not polls.
+  @custom_volume_history to_timeout(week: 1)
+  @custom_volume_prediction_ttl to_timeout(minute: 1)
 
   # A node advertises on a 30s heartbeat and masters change on the order of a
   # job, so a few seconds of staleness costs at most one cold materialize. This
@@ -111,14 +129,18 @@ defmodule Tuist.Runners.VolumeAffinities do
       no_cache_volumes()
   end
 
-  defp no_cache_volumes, do: %{masters: MapSet.new(), repository_volumes?: false}
+  defp no_cache_volumes, do: %{masters: MapSet.new(), custom: MapSet.new(), repository_volumes?: false}
 
   @doc """
   The masters a Node's labels advertise as resident, as `{account_id, volume_name}`
   pairs, and whether its tart-kubelet reads the Pod's cache volume label.
   """
   def cache_volumes_from_node_labels(labels) when is_map(labels) do
-    %{masters: masters_from_labels(labels), repository_volumes?: labels[@repository_volumes_label] == "true"}
+    %{
+      masters: masters_from_labels(labels),
+      custom: custom_volumes_from_labels(labels),
+      repository_volumes?: labels[@repository_volumes_label] == "true"
+    }
   end
 
   def cache_volumes_from_node_labels(_labels), do: no_cache_volumes()
@@ -134,6 +156,18 @@ defmodule Tuist.Runners.VolumeAffinities do
   end
 
   defp masters_from_labels(_labels), do: MapSet.new()
+
+  # The custom volume lineages the host holds a master of, as the scope prefix it
+  # advertises.
+  defp custom_volumes_from_labels(labels) do
+    for {key, "true"} <- labels,
+        String.starts_with?(key, @custom_volume_label_prefix),
+        prefix = String.replace_prefix(key, @custom_volume_label_prefix, ""),
+        Regex.match?(~r/\A[0-9a-f]{48}\z/, prefix),
+        into: MapSet.new() do
+      prefix
+    end
+  end
 
   defp master_from_label(suffix) do
     case Integer.parse(suffix) do
@@ -186,10 +220,10 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   def select_candidate([head | _] = candidates, node_name, opts) do
     tolerance_seconds = Keyword.fetch!(opts, :tolerance_seconds)
-    resident = resident_masters(node_name)
+    resident = node_cache_volumes(node_name)
 
     cond do
-      MapSet.size(resident) == 0 ->
+      MapSet.size(resident.masters) == 0 and MapSet.size(resident.custom) == 0 ->
         {head, :no_residency}
 
       # Checked before the starvation bound: an overdue head is handed out
@@ -206,12 +240,42 @@ defmodule Tuist.Runners.VolumeAffinities do
     end
   end
 
-  defp resident?(resident, %{account_id: account_id} = candidate) do
+  defp resident?(resident, candidate) do
+    builtin_resident?(resident.masters, candidate) or custom_resident?(resident.custom, candidate)
+  end
+
+  defp builtin_resident?(masters, %{account_id: account_id} = candidate) do
     volume_name = VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
 
-    MapSet.member?(resident, {account_id, volume_name}) or
-      MapSet.member?(resident, {account_id, VolumeHeads.reserved_tuist_cache()})
+    MapSet.member?(masters, {account_id, volume_name}) or
+      MapSet.member?(masters, {account_id, VolumeHeads.reserved_tuist_cache()})
   end
+
+  # A candidate is resident when the node holds a lineage of any custom volume a
+  # recent job of the same workflow and job attached.
+  defp custom_resident?(custom, candidate) do
+    MapSet.size(custom) > 0 and
+      candidate |> predicted_custom_volumes() |> Enum.any?(&MapSet.member?(custom, &1))
+  end
+
+  defp predicted_custom_volumes(%{account_id: account_id, repository: repository} = candidate)
+       when is_integer(account_id) and is_binary(repository) do
+    scopes =
+      KeyValueStore.get_or_update(
+        [:runner_custom_volume_predictions, account_id, repository],
+        [ttl: @custom_volume_prediction_ttl],
+        fn ->
+          since = DateTime.add(DateTime.utc_now(), -@custom_volume_history, :millisecond)
+          CacheVolumes.recent_job_scopes(account_id, repository, since)
+        end
+      )
+
+    scopes
+    |> Map.get({Map.get(candidate, :workflow_name), Map.get(candidate, :job_name)}, [])
+    |> Enum.map(&String.slice(&1, 0, @custom_volume_label_scope_length))
+  end
+
+  defp predicted_custom_volumes(_candidate), do: []
 
   # Nothing resident is queued, so the head goes out and the tolerance was never
   # in play. Reported apart from `:head_overdue` so that outcome counts only the
