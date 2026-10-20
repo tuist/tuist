@@ -281,6 +281,8 @@ You can override the option for a single command or job, highest precedence firs
 2. The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`).
 3. `coverage: .coverage(enabled:)` in `Tuist.swift`.
 
+`prefixMapping` (see the <.localized_link href="/guides/features/cache/xcode-cache#coverage-with-prefix-mapping">Xcode cache</.localized_link>) has its own override: the `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `coverage: .coverage(prefixMapping:)`.
+
 Overriding to off reads the plain variant, which a cache warmed with coverage on doesn't fill, so those targets build from source. `tuist cache --coverage` on a Release configuration fails; when the option or the environment variable turns coverage on, a Release warm warms plain binaries.
 
 > [!IMPORTANT] KEEP THE VALUES THE SAME EVERYWHERE

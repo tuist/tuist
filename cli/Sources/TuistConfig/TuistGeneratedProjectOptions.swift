@@ -101,7 +101,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             /// Whether the project's own targets read and warm the instrumented variant of the binary cache.
             /// Generators read the value the run resolved (`--coverage` > `TUIST_COVERAGE_ENABLED` > the manifest).
             public var enabled: Bool
-            public let prefixMapping: Bool
+            public var prefixMapping: Bool
 
             public init(enabled: Bool = false, prefixMapping: Bool = false) {
                 self.enabled = enabled

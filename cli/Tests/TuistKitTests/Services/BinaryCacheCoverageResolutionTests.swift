@@ -59,4 +59,21 @@ struct BinaryCacheCoverageResolutionTests {
         #expect(got.project.generatedProject?.generationOptions.coverage.enabled == (coverage == .on))
         #expect(BinaryCacheCoverage(config: got) == coverage)
     }
+
+    @Test(.withMockedEnvironment(), arguments: [
+        // TUIST_COVERAGE_PREFIX_MAPPING, Tuist.swift, expected
+        (String?.none, false, false),
+        (nil, true, true),
+        ("1", false, true),
+        ("0", true, false),
+    ])
+    func resolvingCoverage_appliesThePrefixMappingVariable(variable: String?, option: Bool, expected: Bool) throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_COVERAGE_PREFIX_MAPPING"] = variable
+        let config = Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(prefixMapping: option)))))
+
+        let got = config.resolvingCoverage(.off)
+
+        #expect(got.project.generatedProject?.generationOptions.coverage.prefixMapping == expected)
+    }
 }

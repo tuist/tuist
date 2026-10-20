@@ -68,6 +68,7 @@ extension Tuist {
             /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
             /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
             /// each binary's target-specific `compilation-prefix-map.json`. Requires `enableCaching`.
+            /// The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable takes precedence over this value.
             public var prefixMapping: Bool
 
             /// Creates coverage options.
