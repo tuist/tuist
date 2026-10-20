@@ -15,8 +15,10 @@ defmodule Tuist.Kura.PlacementProposals do
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.OriginRollup
   alias Tuist.Kura.Placement
   alias Tuist.Kura.PlacementProposal
@@ -24,19 +26,20 @@ defmodule Tuist.Kura.PlacementProposals do
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
 
   @doc """
   Evaluates every placeable account and converges its proposal. Returns
   `{:ok, %{evaluated: n, open: n}}`.
   """
-  def sweep(today \\ Date.utc_today(), policy \\ Placement.default_policy()) do
+  def sweep(today \\ Date.utc_today(), policy \\ Placement.default_policy(), served_policy \\ Placement.served_policy()) do
     accounts = placeable_accounts()
-    inputs = sweep_inputs(accounts, today, policy)
+    inputs = sweep_inputs(accounts, today, policy, served_policy)
 
     open =
       accounts
-      |> Enum.map(&converge_account(&1, inputs, today, policy))
+      |> Enum.map(&converge_account(&1, inputs, today, {policy, served_policy}))
       |> Enum.count(&(&1 == :open))
 
     {:ok, %{evaluated: length(accounts), open: open}}
@@ -167,8 +170,12 @@ defmodule Tuist.Kura.PlacementProposals do
     resolve_if_open(proposal, :superseded, resolved_by)
   end
 
-  defp sweep_inputs(accounts, today, policy) do
+  defp sweep_inputs(accounts, today, policy, served_policy) do
     account_ids = Enum.map(accounts, & &1.id)
+
+    served_account_ids =
+      for account <- accounts, FeatureFlags.kura_placement_served_signal_enabled?(account), do: account.id
+
     since = Date.add(today, -(Placement.window_days(policy) + 1))
 
     rollups =
@@ -196,8 +203,89 @@ defmodule Tuist.Kura.PlacementProposals do
       open_proposals: open_proposals,
       live_regions: live_regions(account_ids),
       instance_ages: instance_ages(account_ids),
-      relocations: relocation_counts(account_ids, today, policy)
+      relocations: relocation_counts(account_ids, today, policy),
+      served: served_inputs(accounts, served_account_ids, today, served_policy)
     }
+  end
+
+  # What placement reads about what the account's public regions served. Only
+  # for accounts opted into it, so an account outside the rollout is evaluated
+  # exactly as before.
+  defp served_inputs(_accounts, [], _today, _served_policy), do: %{}
+
+  defp served_inputs(accounts, account_ids, today, served_policy) do
+    since = Date.add(today, -(Placement.served_window_days(served_policy) - 1))
+
+    rollups =
+      StorageRollup
+      |> where([rollup], rollup.account_id in ^account_ids and rollup.date >= ^since and rollup.date <= ^today)
+      |> where([rollup], rollup.region in ^public_region_ids())
+      |> Repo.all()
+      |> Enum.group_by(& &1.account_id)
+
+    reserved = reserved_gib(accounts, account_ids)
+    given_up = given_up(account_ids, today, served_policy)
+
+    Map.new(account_ids, fn account_id ->
+      account_rollups = Map.get(rollups, account_id, [])
+
+      {account_id,
+       %{
+         served:
+           account_rollups
+           |> Enum.filter(&(&1.hit_count > 0))
+           |> Enum.group_by(& &1.region, &{&1.date, &1.hit_count}),
+         reported:
+           account_rollups
+           |> Enum.filter(&(&1.snapshot_count > 0))
+           |> Enum.group_by(& &1.region, & &1.date),
+         reserved_gib: Map.get(reserved, account_id, %{}),
+         given_up: Map.get(given_up, account_id, %{})
+       }}
+    end)
+  end
+
+  # What each public region the account holds reserves on its disk, which is
+  # what a secondary costs.
+  defp reserved_gib(accounts, account_ids) do
+    accounts_by_id = Map.new(accounts, &{&1.id, &1})
+
+    Server
+    |> where([server], server.account_id in ^account_ids)
+    |> where([server], server.region in ^public_region_ids())
+    |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses() and server.move_phase == :none)
+    |> Repo.all()
+    |> Enum.group_by(& &1.account_id)
+    |> Map.new(fn {account_id, servers} ->
+      {account_id,
+       servers
+       |> Enum.group_by(& &1.region)
+       |> Map.new(fn {region, region_servers} ->
+         {region,
+          region_servers
+          |> Enum.map(
+            &Capacity.resident_gib(Regions.get(region), %{&1 | account: Map.fetch!(accounts_by_id, account_id)})
+          )
+          |> Enum.sum()}
+       end)}
+    end)
+  end
+
+  # The regions each account gave up inside the reopening window, with the day
+  # it did: a retirement, or the source a relocation or correction left behind.
+  defp given_up(account_ids, today, served_policy) do
+    since = today |> Date.add(-served_policy.expand.reopen_after_days) |> DateTime.new!(~T[00:00:00])
+
+    PlacementProposal
+    |> where([proposal], proposal.account_id in ^account_ids and proposal.status == :applied)
+    |> where([proposal], proposal.kind in [:retire, :relocate, :correct] and proposal.resolved_at >= ^since)
+    |> Repo.all()
+    |> Enum.filter(&(&1.kind != :relocate or Map.get(&1.evidence, "retire_source", true)))
+    |> Enum.group_by(& &1.account_id, &{&1.from_region, DateTime.to_date(&1.resolved_at)})
+    |> Map.new(fn {account_id, entries} ->
+      {account_id,
+       Enum.reduce(entries, %{}, fn {region, date}, acc -> Map.update(acc, region, date, &Enum.max([&1, date], Date)) end)}
+    end)
   end
 
   # The oldest live instance per account-region, which is how long the account
@@ -216,12 +304,12 @@ defmodule Tuist.Kura.PlacementProposals do
     |> Map.new(fn {account_id, entries} -> {account_id, Map.new(entries)} end)
   end
 
-  defp converge_account(account, inputs, today, policy) do
+  defp converge_account(account, inputs, today, policies) do
     open = Map.get(inputs.open_proposals, account.id)
     plan = AccountPolicies.sizing_plan(account)
 
     if placeable?(account) and known_regions?(account, inputs) do
-      converge_placeable_account(account, open, plan, inputs, today, policy)
+      converge_placeable_account(account, open, plan, inputs, today, policies)
     else
       # An account resolution refuses has nowhere to be placed, and the
       # lifecycle will never provision for it. Deciding anything for one would
@@ -247,7 +335,7 @@ defmodule Tuist.Kura.PlacementProposals do
     placer_rows |> serving_from(live) |> Enum.all?(&Regions.exists?/1)
   end
 
-  defp converge_placeable_account(account, open, plan, inputs, today, policy) do
+  defp converge_placeable_account(account, open, plan, inputs, today, policies) do
     placer_rows = Map.get(inputs.placer_regions, account.id, [])
     live = Map.get(inputs.live_regions, account.id, [])
     serving = serving_from(placer_rows, live)
@@ -276,7 +364,10 @@ defmodule Tuist.Kura.PlacementProposals do
       today: today
     }
 
-    case Placement.evaluate(context, policy) do
+    context = Map.merge(context, Map.get(inputs.served, account.id, %{}))
+    {policy, served_policy} = policies
+
+    case Placement.evaluate(context, policy, served_policy) do
       :none ->
         if open, do: supersede(open, "sweep")
         :none

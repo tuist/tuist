@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
@@ -39,7 +40,7 @@ type CustomVolumes struct {
 	Running                                    func(context.Context, string) (bool, error)
 	shareMu                                    sync.Mutex
 	reservations                               map[string]cachevolumes.Slot
-	prefetch                                   *customPrefetcher
+	prefetch                                   atomic.Pointer[customPrefetcher]
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
@@ -142,6 +143,8 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
 	}
+	// A superseded master stays mountable until its successor is downloaded here.
+	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
 	c.Builtins.mu.Unlock()
@@ -169,14 +172,20 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return err
 	}
 	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
-	c.prefetch = &customPrefetcher{slots: make(chan struct{}, 1), budget: 2 * time.Minute, restore: backend.Prefetch}
+	prefetch := newCustomPrefetcher(prefetchCtx, func(ctx context.Context, slot cachevolumes.Slot, requested bool) error {
+		if requested {
+			return backend.Prefetch(ctx, slot)
+		}
+		return backend.PrefetchSpare(ctx, slot)
+	}, backend.HasMaster)
+	c.prefetch.Store(prefetch)
 	var builds sync.WaitGroup
 	defer func() {
+		c.prefetch.Store(nil)
 		stopPrefetch()
-		c.prefetch.wait.Wait()
+		prefetch.wait.Wait()
 		builds.Wait()
 	}()
-	c.prefetch.ctx = prefetchCtx
 	if c.Checkouts != nil {
 		builds.Go(func() { c.Checkouts.Start(prefetchCtx) })
 	}
@@ -311,7 +320,7 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	var result struct {
 		Action string `json:"action"`
 	}
-	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil}, &result)
+	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
 	return result.Action, err
 }
 
@@ -397,7 +406,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		// A checkout never makes a job wait longer than a cold checkout would cost.
-		budget := 25 * time.Second
+		budget := customAcquireBudget
 		if input.Checkout {
 			budget = 15 * time.Second
 		}
@@ -427,20 +436,41 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var identity cachevolumes.Identity
-		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
-		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
-			cancel()
-			continue
+		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
+		status, err := c.request(acquireCtx, "authorize", body, &identity)
+		// 425 means GitHub has not yet reported which job this runner executes.
+		for status == http.StatusTooEarly {
+			select {
+			case <-acquireCtx.Done():
+			case <-time.After(customAuthorizeRetry):
+				status, err = c.request(acquireCtx, "authorize", body, &identity)
+			}
+			if acquireCtx.Err() != nil && status != http.StatusOK {
+				err = cachevolumes.ErrExecutionPending
+				break
+			}
 		}
 		// The reserved checkout name is only ever allocated through the checkout path.
 		identity.Kind, identity.Generation = "", 0
-		response := map[string]any{"error": "unavailable"}
-		if err == nil {
+		response := map[string]any{"error": "unavailable", "reason": "denied"}
+		if errors.Is(err, cachevolumes.ErrExecutionPending) {
+			response["reason"] = "execution_pending"
+			log.FromContext(ctx).Info("custom cache volume not authorized in time: GitHub has not reported the job running on this pod; job continues cold", "pod", pod.Name)
+		} else if err != nil {
+			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
+		} else {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
-			} else if errors.Is(err, context.DeadlineExceeded) {
-				c.prefetch.start(identity)
+				// A job that mounted an older generation leaves its HEAD to the background.
+				c.prefetch.Load().start(identity, true)
+			} else {
+				if errors.Is(err, context.DeadlineExceeded) {
+					c.prefetch.Load().start(identity, true)
+				}
+				response["reason"] = cachevolumes.Result(err)
+				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
+					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
 			}
 		}
 		cancel()
@@ -491,4 +521,13 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+// mountedGeneration is the older generation a job mounted, or nil when it got
+// its base.
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
 }

@@ -765,14 +765,18 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet — sibling of macosFleet.
-# Canary keeps one warm runner so the production rollout can be
-# validated on the same substrate first.
+# Canary rents no Scaleway hosts for its macOS runners: they run on the BER1
+# rack host production lends it (`rackFleet`), and every canary account runs
+# there (`runner_site`). `enabled` stays on, since it also renders the runners
+# controller, the runner namespace and the rack's RunnerPools. With
+# `hostCount: 0` the chart renders no rented macOS pools, and the
+# MachineDeployment stays at zero, so a host released from it goes back to
+# the `tuist-pool-` pool.
 runnersFleet:
   customCacheVolumes:
     enabled: true
   enabled: true
-  hostCount: 1
+  hostCount: 0
   # Pre-ordered pool. Operator pre-orders Mac minis named with the
   # `tuist-pool-` prefix; the CAPI controller adopts them on demand.
   # No auto-order fallback — see values.yaml for the full workflow.
@@ -783,64 +787,42 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
-  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
-  # template merges each catalog entry with its override at render
-  # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's guest-slot budget
-  # across all macOS pools using the three-tier (floor / load /
-  # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; the sum across overrides must stay ≤ `hostCount`.
-  xcodeOverrides:
-    "27.2-beta":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.0":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.6":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 1
-        maxReplicas: 1
-    "26.5":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.4.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.3":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.1.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.0.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
+
+# BER1 rack host borrowed from production ("Lending a host to another env" in
+# infra/rack-nodes/AGENTS.md): ber1-runner-b02 stays in production's rack fleet
+# but registers its Node here, so canary's runner pools and server drive its
+# guests and the deploy cascade's runners acceptance gate runs on rack hardware.
+# Canary has no ber1-runners Kura region, so these jobs get no private cache
+# endpoint and resolve canary's public cache. The fleet itself stays disabled:
+# production owns the host's Machine, power and bootstrap.
+rackFleet:
+  enabled: false
+  name: tuist-canary-rack-fleet
+  site: ber1
+  joiningNodes:
+    - tuist-tuist-rack-fleet-ber1-runner-b02
+  runners:
+    enabled: true
+    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
+    # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # One host, two guest slots.
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 2
+    # `tuist-canary-macos` resolves to 26.6, which the runners acceptance gate
+    # targets on every deploy, so one guest stays warm for it.
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

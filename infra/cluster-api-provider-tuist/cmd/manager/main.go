@@ -81,7 +81,8 @@ func main() {
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
-		tartTarballPath              string
+		tartReleasesDir              string
+		tartVersion                  string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
 		hostSensorsBinaryPath        string
@@ -151,10 +152,15 @@ func main() {
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
-	flag.StringVar(&tartTarballPath, "tart-tarball-path",
-		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
-		"Local path of the upstream tart.app tarball baked into this image. "+
-			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
+	flag.StringVar(&tartReleasesDir, "tart-releases-dir",
+		envOrDefault("CAPI_TART_RELEASES_DIR", "/opt/tart"),
+		"Directory of the upstream tart.app tarballs baked into this image, one per version as <version>/tart.tar.gz. "+
+			"The Dockerfile's TART_RELEASES pins them.")
+	flag.StringVar(&tartVersion, "tart-version",
+		envOrDefault("CAPI_TART_VERSION", ""),
+		"Tart version every Mac mini runs, one of the releases in --tart-releases-dir. A Machine annotated "+
+			"tuist.dev/tart-version runs that release instead. Changing it upgrades or rolls back Tart in place "+
+			"through the host-config drift loop. The image sets CAPI_TART_VERSION to the Dockerfile's TART_DEFAULT_VERSION.")
 	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
 		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
 		"Local path of the gzipped tarball containing the darwin/arm64 "+
@@ -497,13 +503,20 @@ func main() {
 	binarySHA := sha256Hex(tartKubeletBinary)
 	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
 
-	tartTarball, err := os.ReadFile(tartTarballPath)
+	tartReleases, err := bootstrap.LoadTartReleases(tartReleasesDir)
 	if err != nil {
-		setupLog.Error(err, "read tart tarball", "path", tartTarballPath)
+		setupLog.Error(err, "read tart releases", "dir", tartReleasesDir)
 		os.Exit(1)
 	}
-	tartTarballSHA := sha256Hex(tartTarball)
-	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
+	for version, tarball := range tartReleases {
+		setupLog.Info("loaded tart release", "version", version, "bytes", len(tarball), "sha", sha256Hex(tarball))
+	}
+	tartTarball, ok := tartReleases[tartVersion]
+	if !ok {
+		setupLog.Error(fmt.Errorf("no such release"), "--tart-version names no Tart release in this image",
+			"version", tartVersion, "dir", tartReleasesDir)
+		os.Exit(1)
+	}
 
 	// Tailscale binaries tarball and node_exporter binary are both
 	// optional: an empty path means the chart didn't wire the tailnet
@@ -568,6 +581,7 @@ func main() {
 	fleetConfig := bootstrap.Config{
 		TartKubeletBinary:  tartKubeletBinary,
 		TartTarball:        tartTarball,
+		TartVersion:        tartVersion,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
 		HostSensorsBinary:  hostSensorsBinary,
@@ -696,6 +710,7 @@ func main() {
 		Kubeconfig:                    kubeconfigBuilder,
 		TartKubeletBinarySHA:          binarySHA,
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		VMCachePNName:                 vmCachePNName,
 		VPC:                           vpcClient,
@@ -799,6 +814,7 @@ func main() {
 		// rented one run the same host config, which is what lets one workload
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
 		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),

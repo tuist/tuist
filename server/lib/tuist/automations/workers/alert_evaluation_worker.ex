@@ -435,6 +435,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
     from(r in TestCaseRun,
       where: r.project_id == ^project_id,
+      where: r.submission_auth != "network_trusted",
       where: fragment("? IN (?)", r.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})),
       where: r.ran_at > ^min_triggered_at,
       where:

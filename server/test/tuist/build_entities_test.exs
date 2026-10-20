@@ -11,6 +11,7 @@ defmodule Tuist.BuildEntitiesTest do
   alias Tuist.Mix
   alias Tuist.OnceEvents
   alias Tuist.Repo
+  alias Tuist.ReportActor
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
@@ -793,6 +794,72 @@ defmodule Tuist.BuildEntitiesTest do
       }
     end
 
+    test "explicit provenance separates verified actors from publishers and opaque claims", %{
+      project: project,
+      actor: publisher
+    } do
+      verified_actor = AccountsFixtures.user_fixture(preload: [:account])
+
+      for {system, kind} <- [{:gradle, "task"}, {:mix, "file"}, {:mix, "module"}, {:xcode, "module"}] do
+        create = fn attrs ->
+          case system do
+            :gradle ->
+              GradleFixtures.build_fixture([project_id: project.id, account_id: publisher.account.id] ++ attrs)
+
+            :mix ->
+              mix_build(project.id, publisher.account.id, Map.new(attrs))
+
+            :xcode ->
+              CommandEventsFixtures.command_event_fixture(
+                [project_id: project.id, name: "generate", user_id: publisher.id] ++ attrs
+              ).id
+          end
+        end
+
+        legacy = create.([])
+        verified = create.(submission_auth: "token", actor_account_id: verified_actor.account.id)
+        unknown = create.(submission_auth: "token")
+        reported = create.(submission_auth: "network_trusted", claimed_actor_id: "reported-person")
+        ids = [legacy, verified, unknown, reported]
+
+        assert BuildEntities.parent_actor_names(project.id, system, kind, ids) ==
+                 %{legacy => publisher.account.name, verified => verified_actor.account.name}
+
+        contexts = BuildEntities.parent_contexts(project.id, system, kind, ids)
+        assert ReportActor.actor(contexts[verified]).source == :verified
+        assert ReportActor.actor(contexts[unknown]).source == :unknown
+        assert ReportActor.actor(contexts[reported]).source == :reported
+        assert ReportActor.actor(contexts[reported]).name == "reported-person"
+        assert contexts[unknown].ran_by_name == nil
+        assert contexts[reported].ran_by_name == nil
+
+        {table, version, publisher_column, publisher_id} =
+          case system do
+            :gradle -> {"gradle_builds", "inserted_at", "account_id", publisher.account.id}
+            :mix -> {"mix_builds", "inserted_at", "account_id", publisher.account.id}
+            :xcode -> {"command_events", "updated_at", "user_id", publisher.id}
+          end
+
+        for id <- [verified, reported] do
+          IngestRepo.query!(
+            """
+            INSERT INTO #{table} (
+              id, project_id, #{publisher_column}, actor_account_id,
+              claimed_actor_id, submission_auth, #{version}
+            )
+            SELECT {id:UUID}, {project_id:Int64}, {publisher_id:Int64}, 0, '', 'token', now() + INTERVAL 1 DAY
+            """,
+            %{id: id, project_id: project.id, publisher_id: publisher_id}
+          )
+        end
+
+        assert BuildEntities.parent_actor_names(project.id, system, kind, [verified, reported]) == %{}
+        cleared = BuildEntities.parent_contexts(project.id, system, kind, [verified, reported])
+        assert ReportActor.actor(cleared[verified]).source == :unknown
+        assert ReportActor.actor(cleared[reported]).source == :unknown
+      end
+    end
+
     test "maps Gradle builds to the user account that ran them", context do
       %{project: project, actor: actor, actor_name: actor_name} = context
 
@@ -1051,15 +1118,20 @@ defmodule Tuist.BuildEntitiesTest do
     GradleFixtures.build_fixture(project_id: project_id, account_id: account_id)
   end
 
-  defp mix_build(project_id, account_id) do
+  defp mix_build(project_id, account_id, actor_attrs \\ %{}) do
     {:ok, id} =
-      Mix.create_build(%{
-        id: UUIDv7.generate(),
-        project_id: project_id,
-        account_id: account_id,
-        duration_ms: 10,
-        status: "success"
-      })
+      Mix.create_build(
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project_id,
+            account_id: account_id,
+            duration_ms: 10,
+            status: "success"
+          },
+          actor_attrs
+        )
+      )
 
     id
   end

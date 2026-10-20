@@ -50,6 +50,9 @@ type Slot struct {
 	SizeBytes     *int64    `json:"size_bytes"`
 	CapacityBytes *int64    `json:"capacity_bytes"`
 	UsedAt        time.Time `json:"used_at"`
+	// MountedGeneration is the older generation a branch was cloned from because
+	// its base was not on the host, or 0.
+	MountedGeneration int64 `json:"mounted_generation,omitempty"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -278,6 +281,9 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 	}
 	slot.State = "active"
 	slot.AttachMS = time.Since(start).Milliseconds()
+	if mounted, ok := s.backend.(interface{ MountedGeneration(Slot) int64 }); ok {
+		slot.MountedGeneration = mounted.MountedGeneration(slot)
+	}
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 	}

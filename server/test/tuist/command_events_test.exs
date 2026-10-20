@@ -180,6 +180,25 @@ defmodule Tuist.CommandEventsTest do
       assert event.user_id == command_event.user_id
     end
 
+    test "preloads the verified actor independently of legacy publisher attribution" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          actor_account_id: user.account.id,
+          claimed_actor_id: "workstation",
+          submission_auth: "token"
+        )
+
+      assert {:ok, reloaded} = CommandEvents.get_command_event_by_id(event.id)
+      assert reloaded.actor_account.id == user.account.id
+
+      assert %{source: :verified, verified_account_handle: name, claimed_actor_id: "workstation"} =
+               Tuist.ReportActor.actor(reloaded)
+
+      assert name == user.account.name
+    end
+
     test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
       # Given - a valid UUID that doesn't exist in the database
       non_existent_uuid = UUIDv7.generate()

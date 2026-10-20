@@ -41,9 +41,16 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
-- Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
-  bounded to two minutes with no queue and the same disk reserve. Never create
-  a private branch, publish, or extend the foreground budget from prefetch.
+- Linux may prefetch one immutable master after a timed-out warm acquisition,
+  bounded to two minutes with no queue and the same disk reserve. macOS queues
+  prefetches (see tart-kubelet). Never create a private branch, publish, or extend
+  the foreground budget from prefetch.
+- APFS `Attach` clones the newest older master of the same scope when the base is
+  not local, records it in `<image>.base` and `Slot.MountedGeneration`, and never
+  downloads in that case. With `Replace` set, maintenance keeps a superseded master
+  used in the last day while its successor is queued, instead of removing it.
+- `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
+  for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
   the background (one at a time, prefetch admission) before removing it.
   Maintenance and admission skip the scope a refresh download holds. Only a

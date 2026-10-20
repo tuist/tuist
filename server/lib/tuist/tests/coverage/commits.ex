@@ -293,7 +293,9 @@ defmodule Tuist.Tests.Coverage.Commits do
         from(t in Test,
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
-          having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
+          having:
+            fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true and
+              fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted",
           select: fragment("argMax(?, ?)", t.scheme, t.inserted_at)
         ),
         settings: [select_sequential_consistency: 1]
@@ -397,6 +399,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         group_by: t.id,
         having:
           fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
+            fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted" and
             fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         order_by: [asc: min(t.ran_at)],
         select: %{
@@ -796,6 +799,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           t.project_id == ^project_id and t.git_commit_sha in ^shas and
             t.id in subquery(from(c in subquery(totals), select: c.test_run_id)),
         group_by: t.id,
+        having: fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted",
         select: %{
           id: t.id,
           scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),

@@ -402,6 +402,8 @@ defmodule Tuist.BuildEntities do
       Once runs their safe `command_display`. Surfaces format commands.
     * `:ran_by_name` - the recorded actor, as described in
       `parent_actor_names/4`, or `nil`.
+    * Report actor fields for parents with explicit provenance, so shared
+      actor components distinguish verified identities from opaque claims.
     * `:tags` - Gradle only: the build's `custom_tags`.
     * `:command_arguments` - Xcode modules only: the command's recorded
       `command_arguments`, or `nil`, for native command rendering.
@@ -435,9 +437,10 @@ defmodule Tuist.BuildEntities do
   to the project's account or the viewer, and no recovery of credential
   details older reports never stored.
 
-    * Gradle tasks and Mix files and modules read the build's recorded
-      `account_id`.
-    * Xcode modules read the generate or cache command's attributed `user_id`.
+    * New Gradle, Mix and Xcode parents use the verified `actor_account_id`,
+      never their publisher. Opaque claims are not account names.
+    * Historical Gradle and Mix builds with empty provenance use `account_id`;
+      historical Xcode commands use the attributed `user_id`.
     * Once actions read the run's recorded credential `account_id`.
     * An unsupported system/kind pair returns `%{}` without querying.
 
@@ -519,24 +522,43 @@ defmodule Tuist.BuildEntities do
   # one tuple: a later version that cleared a nullable field must win.
   defp parent_records(project_id, :gradle_build, uuids) do
     project_id
-    |> latest_parent_rows("gradle_builds", "account_id, root_project_name, custom_tags", "inserted_at", uuids)
-    |> Enum.map(fn [id, account_id, root_project_name, tags] ->
-      {id, %{label: blank_to_nil(root_project_name), tags: tags || [], actor: account_actor(account_id)}}
+    |> latest_parent_rows(
+      "gradle_builds",
+      "account_id, root_project_name, custom_tags, actor_account_id, claimed_actor_id, submission_auth",
+      "inserted_at",
+      uuids
+    )
+    |> Enum.map(fn [id, account_id, root_project_name, tags, actor_id, claim, submission] ->
+      record = %{label: blank_to_nil(root_project_name), tags: tags || []}
+      {id, parent_actor(record, account_actor(account_id), actor_id, claim, submission)}
     end)
   end
 
   defp parent_records(project_id, :mix_build, uuids) do
     project_id
-    |> latest_parent_rows("mix_builds", "account_id", "inserted_at", uuids)
-    |> Enum.map(fn [id, account_id] -> {id, %{label: "mix compile", actor: account_actor(account_id)}} end)
+    |> latest_parent_rows(
+      "mix_builds",
+      "account_id, actor_account_id, claimed_actor_id, submission_auth",
+      "inserted_at",
+      uuids
+    )
+    |> Enum.map(fn [id, account_id, actor_id, claim, submission] ->
+      {id, parent_actor(%{label: "mix compile"}, account_actor(account_id), actor_id, claim, submission)}
+    end)
   end
 
   defp parent_records(project_id, :command_event, uuids) do
     project_id
-    |> latest_parent_rows("command_events", "user_id, name, command_arguments", "updated_at", uuids)
-    |> Enum.map(fn [id, user_id, name, command_arguments] ->
-      actor = if is_integer(user_id) and user_id > 0, do: {:user, user_id}
-      {id, %{label: blank_to_nil(name), command_arguments: blank_to_nil(command_arguments), actor: actor}}
+    |> latest_parent_rows(
+      "command_events",
+      "user_id, name, command_arguments, actor_account_id, claimed_actor_id, submission_auth",
+      "updated_at",
+      uuids
+    )
+    |> Enum.map(fn [id, user_id, name, command_arguments, actor_id, claim, submission] ->
+      legacy_actor = if is_integer(user_id) and user_id > 0, do: {:user, user_id}
+      record = %{label: blank_to_nil(name), command_arguments: blank_to_nil(command_arguments)}
+      {id, parent_actor(record, legacy_actor, actor_id, claim, submission)}
     end)
   end
 
@@ -554,6 +576,13 @@ defmodule Tuist.BuildEntities do
     |> Enum.map(fn {run_id, command_display, name} ->
       {run_id, %{label: blank_to_nil(command_display), actor: name && {:name, name}}}
     end)
+  end
+
+  defp parent_actor(record, legacy_actor, _actor_id, _claim, submission) when submission in [nil, ""],
+    do: Map.put(record, :actor, legacy_actor)
+
+  defp parent_actor(record, _legacy_actor, actor_id, claim, submission) do
+    Map.merge(record, %{actor: account_actor(actor_id), claimed_actor_id: claim, submission_auth: submission})
   end
 
   # Table, column and version names are fixed by `parent_records/3`;
@@ -598,7 +627,14 @@ defmodule Tuist.BuildEntities do
           nil -> nil
         end
 
-      {key, record |> Map.delete(:actor) |> Map.put(:ran_by_name, ran_by_name)}
+      record = Map.delete(record, :actor)
+
+      record =
+        if Map.get(record, :submission_auth, "") != "" and is_binary(ran_by_name),
+          do: Map.put(record, :actor_account, %Account{name: ran_by_name}),
+          else: record
+
+      {key, Map.put(record, :ran_by_name, ran_by_name)}
     end)
   end
 

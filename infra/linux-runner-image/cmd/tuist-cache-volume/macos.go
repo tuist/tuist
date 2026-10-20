@@ -28,6 +28,21 @@ type macResponse struct {
 	Reason    string `json:"reason"`
 }
 
+func macUnavailable(reason string) error {
+	switch reason {
+	case "timeout":
+		return errors.New("the saved volume is still downloading to this runner host; later jobs on this host will use it")
+	case "capacity":
+		return errors.New("this runner host has no room for the volume right now")
+	case "denied":
+		return errors.New("the Tuist server did not authorize a volume for this job")
+	case "execution_pending":
+		return errExecutionPending
+	default:
+		return errors.New("cache unavailable")
+	}
+}
+
 func acquireMac(key string) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -52,7 +67,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		return "", "", false, err
 	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
-		return "", "", false, errors.New("cache unavailable")
+		return "", "", false, macUnavailable(response.Reason)
 	}
 	base := filepath.Join(mountRoot, response.Directory)
 	shared := filepath.Join(share, response.Directory)

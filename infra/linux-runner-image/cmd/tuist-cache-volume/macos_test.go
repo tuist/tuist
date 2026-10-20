@@ -244,3 +244,24 @@ func TestMacCheckoutSanitizesHostReasons(t *testing.T) {
 		t.Fatal(result)
 	}
 }
+
+func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
+	for reason, want := range map[string]string{
+		"timeout":           "still downloading",
+		"capacity":          "no room",
+		"denied":            "did not authorize",
+		"execution_pending": "not yet reported which job",
+		"":                  "cache unavailable",
+	} {
+		share, mount := t.TempDir(), t.TempDir()
+		data, _ := json.Marshal(macResponse{Error: "unavailable", Reason: reason})
+		respondMac(t, share, data)
+		_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error {
+			t.Fatal("mounted an unavailable volume")
+			return nil
+		})
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatal(reason, err)
+		}
+	}
+}

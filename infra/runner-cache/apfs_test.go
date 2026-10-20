@@ -360,11 +360,60 @@ func TestAPFSPrefetchReservesOnceWithoutChangingTransferIdentity(t *testing.T) {
 	slot.BaseGeneration = 1
 	slot.ImageDigest = strings.Repeat("b", 40)
 	slot.ContentDigest = strings.Repeat("c", 64)
+	if b.HasMaster(slot.Identity) {
+		t.Fatal("reported a master before prefetch")
+	}
 	if err := b.Prefetch(context.Background(), slot); err != nil {
 		t.Fatal(err)
 	}
 	if reserved || remote.downloads != 1 || remote.lastID != slot.ID {
 		t.Fatal("prefetch reservation leaked", reserved, remote.downloads)
+	}
+	if !b.HasMaster(slot.Identity) {
+		t.Fatal("prefetched master not reported")
+	}
+	next := slot.Identity
+	next.BaseGeneration = 2
+	if b.HasMaster(next) || b.HasMaster(Identity{Scope: slot.Scope}) {
+		t.Fatal("reported a master for another generation or a cold identity")
+	}
+}
+
+func TestAPFSSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
+	b, _ := newAPFS(t)
+	remote := &cancelTransfer{ready: true}
+	b.Transfer = remote
+	resident := Slot{Identity: identity(first)}
+	resident.Scope = strings.Repeat("d", 64)
+	resident.BaseGeneration = 1
+	resident.ImageDigest = strings.Repeat("b", 40)
+	resident.ContentDigest = strings.Repeat("c", 64)
+	master := b.master(resident)
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("resident"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	free := uint64(30_000_000_000)
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+	wanted := Slot{Identity: identity(first)}
+	wanted.BaseGeneration = 1
+	wanted.ImageDigest = strings.Repeat("b", 40)
+	wanted.ContentDigest = strings.Repeat("c", 64)
+
+	if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
+		t.Fatal("speculative prefetch without room", err)
+	}
+	if !b.HasMaster(resident.Identity) || remote.downloads != 0 {
+		t.Fatal("speculative prefetch evicted a resident master or downloaded")
+	}
+	free = 50_000_000_000
+	if err := b.PrefetchSpare(context.Background(), wanted); err != nil {
+		t.Fatal(err)
+	}
+	if !b.HasMaster(wanted.Identity) || !b.HasMaster(resident.Identity) {
+		t.Fatal("speculative prefetch did not install beside the resident master")
 	}
 }
 

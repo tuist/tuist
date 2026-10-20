@@ -10,6 +10,14 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to placement reading what each region served, not
+  only where runs report from. Off, placement decides exactly as it did before.
+  """
+  def kura_placement_served_signal_enabled?(account) do
+    FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
+  end
+
+  @doc """
   Whether legacy endpoint discovery may hand out the stable hostname. Canary
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.
@@ -57,9 +65,11 @@ defmodule Tuist.FeatureFlags do
   job queued while the site is down moves to the rented fleet
   (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
   node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  Staging and canary run their macOS jobs at a site, so it is on for every
+  account there.
   """
   def runner_site_enabled?(account) do
-    FunWithFlags.enabled?(:runner_site, for: account)
+    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
   end
 
   @doc """
@@ -128,6 +138,18 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_cache_volumes_per_repository_enabled? do
     Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
+  end
+
+  @doc """
+  Whether the account's macOS runner jobs use the built-in Tuist and Xcode
+  caches only through the module-cache and xcode-cache GitHub actions, Buildkite
+  plugins and GitLab snippets.
+  Off, every job gets them automatically. Actor gates take precedence over the
+  boolean gate, so an account can be held on automatic caches after the flag is
+  enabled for everyone.
+  """
+  def runner_opt_in_caches_enabled?(account) do
+    FunWithFlags.enabled?(:runner_opt_in_caches, for: account)
   end
 
   @doc """

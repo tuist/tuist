@@ -78,6 +78,11 @@ type RackAppleSiliconMachineReconciler struct {
 	// which both the push and the hash go through.
 	FleetConfig bootstrap.Config
 
+	// TartReleases are the Tart tarballs the operator image carries, by version.
+	// A Machine pinned to one with TartVersionAnnotation runs it instead of
+	// FleetConfig.TartVersion.
+	TartReleases map[string][]byte
+
 	// VMCacheGatewayCIDRs are the rack's runner-cache gateways, which a rack
 	// host's Tart VMs may reach on TCP 443. Overlaid by rackFleetConfig, so
 	// the rented fleets sharing FleetConfig never pass them.
@@ -432,6 +437,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	reportUnavailableTartPin(machine, r.FleetConfig, r.TartReleases, r.Recorder)
 	desiredHash := r.desiredHostConfigHash(machine, host)
 	drift := hostConfigDrift(desiredHash, machine.Status.HostConfigHash)
 	terminal := machine.Status.FailureReason != nil
@@ -1033,6 +1039,7 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 	if gib := machine.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
 		sizing.RunnerCacheVolumeGiB = *gib
 	}
+	sizing.TartVersion, sizing.TartTarball = hostTart(machine, r.FleetConfig, r.TartReleases)
 	return sizing
 }
 

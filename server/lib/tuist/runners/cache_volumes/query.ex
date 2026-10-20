@@ -180,6 +180,13 @@ defmodule Tuist.Runners.CacheVolumes.Query do
   defp usage(use, volume) do
     {status, description} = status(use, volume)
 
+    description =
+      if CacheVolumes.older_copy?(use),
+        do:
+          description <>
+            " The job started from an older saved copy because the latest one was not on its runner host yet.",
+        else: description
+
     %{
       id: use.id,
       workflow_job_id: use.workflow_job_id,

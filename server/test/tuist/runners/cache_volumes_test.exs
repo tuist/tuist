@@ -20,6 +20,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -248,6 +249,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     }
 
     assert {:error, :pending} = CacheVolumes.allocate(params)
+    refute_enqueued(worker: ExecutionLookupWorker)
 
     row =
       Repo.insert!(
@@ -308,6 +310,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:error, :unavailable} = CacheVolumes.allocate(params)
       assert {:error, :pending} = CacheVolumes.allocate(params)
+      assert_enqueued(worker: ExecutionLookupWorker, args: %{session_id: session.id})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
       assert CacheVolumes.list(account.id).volumes == []
@@ -358,7 +361,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert is_nil(cold.content_digest)
   end
 
-  test "local replicas validate against the current head after private branches are reclaimed", %{
+  test "local replicas validate against the current head after private branches are reclaimed, from any host", %{
     job: job,
     account: account
   } do
@@ -370,7 +373,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:ok, %{action: "keep"}} = publish_report("node", next.id)
     assert {:ok, _} = CacheVolumes.report("node", first.id, %{"state" => "deleted"})
     assert {:ok, %{generation: 2}} = CacheVolumes.image("node", first.id, %{"operation" => "retain"})
-    assert {:error, :not_found} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
+    assert {:ok, %{generation: 2}} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
     CacheVolumes.delete(account.id, volume(account).id)
     assert {:error, :conflict} = CacheVolumes.image("node", next.id, %{"operation" => "retain"})
   end
@@ -385,7 +388,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     head = Repo.get!(Usage, next.id)
     name = CacheVolumes.storage_name(volume(account))
 
-    expect(Runners, :volume_master_download_url, fn account_id, ^name, digest, content ->
+    expect(Runners, :volume_master_download_url, 2, fn account_id, ^name, digest, content ->
       assert {account_id, digest, content} == {account.id, head.image_digest, head.content_digest}
       {:ok, "https://1.1.1.1/image"}
     end)
@@ -402,11 +405,79 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 3})
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 1})
 
-    assert {:error, :not_found} =
+    assert {:ok, %{generation: 2, download_url: "https://1.1.1.1/image"}} =
              CacheVolumes.image("third-node", first.id, %{"operation" => "download", "generation" => 2})
+
+    assert {:error, :not_found} =
+             CacheVolumes.image("third-node", first.id, %{
+               "operation" => "upload",
+               "image_digest" => String.duplicate("b", 40),
+               "content_digest" => String.duplicate("c", 64)
+             })
 
     CacheVolumes.delete(account.id, volume(account).id)
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
+  end
+
+  test "lists the saved heads of macOS custom volumes used on the given hosts", %{job: job, account: account} do
+    {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs("linux"))
+    {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("mac"), :platform, "macos"))
+
+    {:ok, unsaved} =
+      CacheVolumes.allocate_for_job(job, identity(), Map.put(%{attrs("unsaved") | key: "other"}, :platform, "macos"))
+
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", linux.id)
+    assert {:ok, %{action: "keep"}} = publish_report("node", mac.id)
+    since = DateTime.add(DateTime.utc_now(), -60, :second)
+    published = Repo.get!(Usage, mac.id)
+    mac_volume = Repo.get!(Volume, published.volume_id)
+    scope = CacheVolumes.scope(mac_volume)
+    account_id = account.id
+
+    assert [
+             %{
+               kind: "custom",
+               id: id,
+               account_id: ^account_id,
+               scope: ^scope,
+               generation: 1,
+               image_digest: image_digest,
+               content_digest: content_digest
+             }
+           ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
+
+    assert {id, image_digest, content_digest} == {mac.id, published.image_digest, published.content_digest}
+    refute Repo.get!(Usage, unsaved.id).status == "published"
+    assert [] = CacheVolumes.recent_macos_heads(["other-node"], since, 8)
+    assert [] = CacheVolumes.recent_macos_heads(["node"], DateTime.add(DateTime.utc_now(), 60, :second), 8)
+
+    CacheVolumes.delete(account.id, mac_volume.id)
+    assert [] = CacheVolumes.recent_macos_heads(["node"], since, 8)
+  end
+
+  test "records the older generation a host mounted, and only that", %{job: job} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, second} = CacheVolumes.allocate_for_job(job, identity(), attrs("second"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", second.id)
+    {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+    {:ok, current} = CacheVolumes.allocate_for_job(job, identity(), attrs("current"))
+    assert stale.base_generation == 2
+
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 1))
+    assert {:ok, _} = CacheVolumes.report("node", stale.id, Map.put(report("active", false), "mounted_generation", 0))
+    assert %Usage{mounted_generation: 1} = stale = Repo.get!(Usage, stale.id)
+    assert CacheVolumes.older_copy?(stale)
+
+    for generation <- [2, 5, "1"] do
+      assert {:ok, _} =
+               CacheVolumes.report("node", current.id, Map.put(report("active", false), "mounted_generation", generation))
+    end
+
+    assert %Usage{mounted_generation: nil} = current = Repo.get!(Usage, current.id)
+    refute CacheVolumes.older_copy?(current)
   end
 
   test "a job's download keeps its own base after the head advances", %{job: job, account: account} do

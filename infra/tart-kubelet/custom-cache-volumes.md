@@ -16,6 +16,13 @@ and `repo-*` HEADs, objects, local masters, capacities and retention remain in
 place. No migration deletes or renames them. Custom-volume clear affects only
 that custom identity; it does not clear the built-in Tuist or Xcode cache.
 
+The automatic wiring is being retired account by account. With the server's
+`:runner_opt_in_caches` flag on, the host still materializes and the guest still
+mounts the built-in image, but a job reaches it only through `tuist/module-cache`
+and `tuist/xcode-cache`; a job that uses neither is discarded and not reported.
+The storage identity, budgets and lifecycle are unchanged. See the "Opt-in
+caches" paragraph in `infra/runner-image/AGENTS.md`.
+
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
 scope hashes remain unchanged. Public HTTP/MCP/CLI responses already have a
@@ -207,11 +214,29 @@ reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
 
 Acquisition follows Linux's 25-second host budget and 30-second client budget.
-Cancellation reaches APFS creation/cloning, remote restore and admission waits;
-an expired response cannot trigger a guest mount. Like Linux, macOS can prefetch
-one immutable master after a restore timeout, with a two-minute budget, no queue,
-and a separate disk reservation for the archive and expanded image. Agent shutdown
-cancels and joins that worker. macOS custom volumes emit the shared
+A warm volume whose master does not arrive in time falls back to an empty
+directory, and its master is queued for background download ahead of any
+speculative prefetch so later jobs on the host find it. Cancellation
+reaches APFS creation/cloning, remote restore and admission waits; an expired
+response cannot trigger a guest mount. The unavailable response carries a bounded
+reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its warning.
+
+A job whose base master is not on the host mounts the newest older master of the
+same lineage, if any, instead of an empty directory, and its base is queued. The
+job's tools update the contents and it may still publish (last publication wins).
+The host reports the generation it mounted; the dashboard shows "Older copy".
+When the HEAD advances, a superseded master used in the last day is kept until
+its successor has been downloaded through the queue, so such a master usually
+exists while the new one arrives.
+
+One worker downloads masters in the background, each within five minutes and with a separate disk
+reservation for the archive and expanded image. Requests for the same master join.
+The converge worker also hands it the saved custom-volume HEADs the server lists
+for the host class: dispatch cannot know which custom volumes a job attaches, so
+every host of the class warms them. These speculative downloads use free space
+only and never evict a master. Read-only `retain` and `download` image requests
+may name a use allocated on another node, since such a master is held under the
+use that published it. Agent shutdown cancels and joins the worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.
 Custom admission counts outstanding built-in convergence downloads, and built-in
 convergence reserves space for live custom images before starting a download.
