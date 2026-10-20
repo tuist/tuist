@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "once-docs",
+  "compatibility_date": "2026-05-12",
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./.vitepress/dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "once.tuist.dev",
+      "custom_domain": true
+    }
+  ]
+}

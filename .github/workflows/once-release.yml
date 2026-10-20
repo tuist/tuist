@@ -1,0 +1,162 @@
+name: Once Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - once/**
+      - mise/tasks/release/components.json
+      - .github/workflows/once-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # Serialize once publishing through one ref-independent group: releasing
+  # derives the next version from the tag set and creates a tag, so two runs
+  # must never overlap. Queue rather than cancel so an in-flight publish is
+  # never torn.
+  group: once-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  # Restrict every job to installing only the tools it explicitly asks for.
+  # once/mise.toml pins tools that don't publish Windows or x86_64-macOS
+  # assets (blick, aube, opencode-ai, microsandbox), and a shim/task/exec
+  # under a matrix runner would otherwise trigger a full toolchain install
+  # and fail on those platforms.
+  MISE_AUTO_INSTALL: "false"
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+  MISE_NOT_FOUND_AUTO_INSTALL: "false"
+  MISE_EXEC_AUTO_INSTALL: "false"
+
+jobs:
+  check-releases:
+    name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.once-should-release }}
+      next-version: ${{ steps.check.outputs.once-next-version }}
+      next-version-number: ${{ steps.check.outputs.once-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run --skip-tools release:check once
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: check-releases
+    if: needs.check-releases.outputs.should-release == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: macos-15
+            target: aarch64-apple-darwin
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    defaults:
+      # mise-action provides Git Bash on Windows runners; using bash on every
+      # platform means the package script can stay one file.
+      run:
+        shell: bash
+        working-directory: once
+    env:
+      VERSION: ${{ needs.check-releases.outputs.next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust"
+          working_directory: once
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcap-ng-dev
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: once
+          shared-key: once-release-${{ matrix.target }}
+          cache-on-failure: true
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Package release archive
+        run: mise run release:package --target "${{ matrix.target }}" --version "$VERSION"
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: once-${{ matrix.target }}
+          path: once/dist/*
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - check-releases
+      - build
+    if: needs.check-releases.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: once
+    env:
+      TAG: ${{ needs.check-releases.outputs.next-version }}
+      VERSION: ${{ needs.check-releases.outputs.next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: once/dist
+          pattern: once-*
+          merge-multiple: true
+      - name: Generate release notes
+        # `notes.sh` passes --version straight into git-cliff's --tag flag, and
+        # once/cliff.toml's tag_pattern requires the once@ prefix, so pass the
+        # full tag ($TAG = once@X.Y.Z), not the bare version number.
+        run: mise run --skip-tools release:notes --version "$TAG" > /tmp/notes.md
+      - name: Tag the release
+        working-directory: .
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin"
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Once ${{ env.VERSION }}
+          body_path: /tmp/notes.md
+          files: |
+            once/dist/*
+          repository: tuist/tuist

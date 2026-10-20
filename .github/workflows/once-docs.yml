@@ -1,0 +1,74 @@
+name: Once Docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - once/docs/**
+      - once/mise.toml
+      - .github/workflows/once-docs.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - once/docs/**
+      - once/mise.toml
+      - .github/workflows/once-docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: once-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+jobs:
+  build:
+    name: Build docs
+    runs-on: ubuntu-24.04
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    defaults:
+      run:
+        working-directory: once/docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "node aube"
+          working_directory: once
+      - name: Install dependencies
+        run: aube ci
+      - name: Build docs
+        run: aube run build
+
+  deploy:
+    name: Deploy docs
+    needs: build
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: https://once.tuist.dev
+    defaults:
+      run:
+        working-directory: once/docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "node aube"
+          working_directory: once
+      - name: Install dependencies
+        run: aube ci
+      - name: Build docs
+        run: aube run build
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: once/docs

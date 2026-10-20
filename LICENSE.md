@@ -35,3 +35,7 @@ Content in the `server/` directory is licensed under a separate license. See [`s
 ## Kura Directory
 
 Content in the `kura/` directory is licensed under the GNU Affero General Public License, version 3 only. See [`kura/LICENSE.md`](kura/LICENSE.md) for details.
+
+## Once Directory
+
+Content in the `once/` directory is licensed under the MIT License as described in [`once/LICENSE`](once/LICENSE).

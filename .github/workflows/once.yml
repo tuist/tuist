@@ -1,0 +1,120 @@
+name: Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - once/**
+      - .github/workflows/once.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - once/**
+      - .github/workflows/once.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: once-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: once
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  CARGO_NET_RETRY: "10"
+  RUSTUP_MAX_RETRIES: "10"
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust"
+          working_directory: once
+      - run: mise exec -- cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust"
+          working_directory: once
+      - run: sudo apt-get update && sudo apt-get install -y libcap-ng-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: once
+          shared-key: once-clippy
+          cache-on-failure: true
+          cache-bin: false
+      - run: mise exec -- cargo clippy --workspace --all-targets -- -D warnings
+
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust shellspec"
+          working_directory: once
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcap-ng-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: once
+          shared-key: once-tests-${{ matrix.os }}
+          cache-on-failure: true
+          cache-bin: false
+      - name: Cargo test
+        run: mise exec -- cargo test --workspace --all-targets
+      - name: Release build for shellspec
+        run: mise exec -- cargo build --release
+      - name: Shellspec
+        run: mise exec -- shellspec
+
+  windows-build:
+    name: Windows build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    defaults:
+      run:
+        shell: bash
+        working-directory: once
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned rust
+        run: |
+          rust_version="$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)"
+          rustup toolchain install "$rust_version" --profile minimal --no-self-update
+          rustup default "$rust_version"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: once
+          shared-key: once-windows-build
+          cache-on-failure: true
+          cache-bin: false
+      - run: cargo build --workspace --all-targets
+      - run: cargo test -p once-cas

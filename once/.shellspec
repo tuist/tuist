@@ -1,0 +1,9 @@
+--require spec_helper
+--format documentation
+--shell bash
+# Random ordering catches accidental order-dependence between examples.
+--random examples
+# Sequential by default. Each example owns its tmp workspace and is
+# safe to parallelize, but shellspec's parallel-job output capture is
+# unreliable under load on CI runners (different tests fail each run).
+# Local devs can opt into parallelism with `mise exec -- shellspec --jobs N`.
