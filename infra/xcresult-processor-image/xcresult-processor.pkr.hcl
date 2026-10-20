@@ -19,12 +19,14 @@ packer {
 # (built by `infra/macos-xcode-image`). Xcode lives in the base —
 # the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 # ships in full Xcode (not the Command Line Tools), so the base
-# must carry the bundle. This build just lays the Erlang release
-# and the launchd unit on top.
+# must carry the bundle. This build lays Tailscale, the boot scripts
+# and the launchd unit on top. The server release is not part of the
+# image: fetch-release.sh downloads the one the Pod pins at boot.
 #
 # Image layout:
-#   /opt/tuist/release/        <- Erlang release (built upstream by CI)
-#   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
+#   /opt/tuist/release/          <- empty; fetch-release.sh installs the release here
+#   /opt/tuist/inject-env.sh     <- reads kubelet env mount into /etc/tuist.env
+#   /opt/tuist/fetch-release.sh  <- installs the pinned server release
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
 #   /Applications/Xcode_<version>.app <- inherited from the base
 #
@@ -43,11 +45,6 @@ variable "output_image" {
   type        = string
   description = "Output image name (e.g. tuist-xcresult-processor)."
   default     = "tuist-xcresult-processor"
-}
-
-variable "release_tarball" {
-  type        = string
-  description = "Path to the Erlang release tarball produced by the upstream macOS release build."
 }
 
 variable "cpu_count" {
@@ -130,18 +127,23 @@ build {
     ]
   }
 
+  # launchd sets the unit's WorkingDirectory before the boot chain runs, so
+  # the directory fetch-release.sh fills has to exist in the image.
+  provisioner "shell" {
+    inline = [
+      "mkdir -p /opt/tuist/release"
+    ]
+  }
+
   provisioner "file" {
-    source      = var.release_tarball
-    destination = "/tmp/release.tar.gz"
+    source      = "${path.root}/fetch-release.sh"
+    destination = "/tmp/fetch-release.sh"
   }
 
   provisioner "shell" {
     inline = [
-      "set -euo pipefail",
-      "mkdir -p /opt/tuist/release",
-      "tar -xzf /tmp/release.tar.gz -C /opt/tuist/release",
-      "rm -f /tmp/release.tar.gz",
-      "test -x /opt/tuist/release/bin/tuist || (echo 'release missing tuist binary' >&2 && exit 1)"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/fetch-release.sh /opt/tuist/fetch-release.sh",
+      "rm -f /tmp/fetch-release.sh"
     ]
   }
 
