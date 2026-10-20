@@ -301,8 +301,9 @@ products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.
 
 `server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
-benchmark seeds equivalent registry caches and compares a single identical app
-change on fresh large runners, requiring a real cross-job Mix snapshot restore.
+benchmark seeds one shared registry cache and compares the same Dockerfile and
+app change with/without project-build state on fresh large runners. Require a
+real cross-job snapshot restore whose `.run-id` matches the current run.
 Only manually dispatched jobs get package-write permissions, and all writes go
 to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
 tags. Count restore/export and asynchronous publication separately; a compilation

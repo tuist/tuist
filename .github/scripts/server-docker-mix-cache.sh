@@ -5,13 +5,19 @@ cache="${RUNNER_TEMP:?}/server-docker-mix-cache"
 
 case "${1:-}" in
   prepare)
-    mkdir -p "$cache/current/deps" "$cache/current/_build"
+    mkdir -p "$cache/current/_build"
     rm -rf "$cache/next"
     printf 'context=mix-cache=%s/current\n' "$cache" >> "${GITHUB_OUTPUT:?}"
     printf 'export=type=local,dest=%s/next\n' "$cache" >> "$GITHUB_OUTPUT"
     ;;
   commit)
-    if [[ "${TUIST_MIX_CACHE_EXPORTED:?}" == true && -d "$cache/next/deps" && -d "$cache/next/_build" ]]; then
+    complete="${TUIST_MIX_CACHE_EXPORTED:?}"
+    for project in tuist tuist_common tuist_ex noora; do
+      if [[ ! -d "$cache/next/_build/$project" ]]; then
+        complete=false
+      fi
+    done
+    if [[ "$complete" == true ]]; then
       rm -rf "$cache/current"
       mv "$cache/next" "$cache/current"
     else

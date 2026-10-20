@@ -7,19 +7,14 @@ on:
       - .github/scripts/server-docker-mix-benchmark.sh
       - .github/workflows/server-docker-mix-cache.yml
       - server/Dockerfile
-  workflow_dispatch:
-    inputs:
-      baseline_commit:
-        description: Full immutable commit SHA providing the before Dockerfile
-        required: true
-        type: string
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
 # The benchmark's seed and consumers share a deliberately isolated cache key.
 concurrency:
-  group: server-docker-mix-cache
+  group: server-docker-mix-cache-${{ github.event_name }}-${{ github.event.pull_request.number || 'benchmark' }}
   cancel-in-progress: false
 
 jobs:
@@ -32,7 +27,8 @@ jobs:
       - run: bash .github/scripts/server-docker-mix-cache.test.sh
 
   seed:
-    name: Seed equivalent production build caches
+    name: Seed registry and production project caches
+    needs: test
     if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist'
     runs-on: tuist-linux-large
     timeout-minutes: 45
@@ -41,7 +37,6 @@ jobs:
       packages: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      TUIST_BENCHMARK_BASELINE: ${{ inputs.baseline_commit }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -55,7 +50,7 @@ jobs:
         with:
           key: server-image-prod-amd64-mix-benchmark-v1
           path: ${{ runner.temp }}/server-docker-mix-cache
-      - name: Seed both registry caches and the production Mix snapshot
+      - name: Seed the shared registry cache and production project snapshot
         run: bash .github/scripts/server-docker-mix-benchmark.sh seed
 
   benchmark:
@@ -72,7 +67,6 @@ jobs:
       packages: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      TUIST_BENCHMARK_BASELINE: ${{ inputs.baseline_commit }}
       TUIST_BENCHMARK_VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@v4
@@ -95,6 +89,7 @@ jobs:
         if: matrix.variant == 'after'
         run: |
           test "$CACHE_HIT" = true
+          test "$(< "$RUNNER_TEMP/server-docker-mix-cache/current/.run-id")" = "$GITHUB_RUN_ID"
           bash .github/scripts/server-docker-mix-cache.sh prepare
         env:
           CACHE_HIT: ${{ steps.mix-cache.outputs.cache-hit }}
@@ -114,13 +109,15 @@ jobs:
             parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
             {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)
             true = String.starts_with?(usage, "usage: xcactivitylog-parser ")
+            :benchmark = Tuist.CacheBenchmarkProbe.value()
           '
       - name: Record measured foreground costs
         run: |
           {
             echo '## Controlled application-change benchmark'
             echo 'Same checkout, MIX_ENV=prod, TUIST_HOSTED=1, per-build runtime package refresh and runner size.'
-            echo 'Each variant starts on a new runner and imports its independently seeded registry cache.'
+            echo 'Each variant uses the same Dockerfile and shared seeded registry cache on a new runner.'
+            echo 'Both include the Swift artifact stage; only after supplies project compilation state.'
             echo 'The after result includes volume restore and compiled-output export, but not asynchronous volume publication.'
             echo 'Inspect publication metadata separately; foreground time alone is not the total cost.'
             echo 'This is one synthetic source-change pair, not a general speedup estimate.'
