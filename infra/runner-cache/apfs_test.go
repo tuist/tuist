@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
@@ -44,7 +43,7 @@ func apfsPath(t *testing.T, b *APFSImages, slot Slot) string {
 	return path
 }
 
-func TestAPFSAdmissionBudgetsColdCreationAndRestore(t *testing.T) {
+func TestAPFSAdmissionBudgetsOneImageForEveryAttach(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		free         uint64
@@ -53,7 +52,8 @@ func TestAPFSAdmissionBudgetsColdCreationAndRestore(t *testing.T) {
 	}{
 		{name: "cold image fits", free: 20_000_000_000},
 		{name: "cold image does not fit", free: 19_999_999_999, wantCapacity: true},
-		{name: "restore still needs archive headroom", free: 20_000_000_000, warm: true, wantCapacity: true},
+		{name: "warm attach fits in one image", free: 20_000_000_000, warm: true},
+		{name: "warm attach does not fit", free: 19_999_999_999, warm: true, wantCapacity: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b, _ := newAPFS(t)
@@ -269,20 +269,17 @@ func TestAPFSAdmissionDoesNotHoldGuardDuringCreation(t *testing.T) {
 	}
 }
 
-func TestAPFSTimedOutRestoreCanPrefetchAndWarmNextJob(t *testing.T) {
+func TestAPFSEmptyStartIsWarmedByPrefetchForTheNextJob(t *testing.T) {
 	b, _ := newAPFS(t)
-	remote := &cancelTransfer{cancelled: make(chan struct{})}
+	remote := &cancelTransfer{ready: true}
 	b.Transfer = remote
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
 	slot.BaseGeneration = 1
 	slot.ImageDigest = strings.Repeat("b", 40)
 	slot.ContentDigest = strings.Repeat("c", 64)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if err := b.Attach(ctx, slot, apfsPath(t, b, slot)); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatal(err)
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err != nil || !b.Cold(slot) || remote.downloads != 0 {
+		t.Fatal("the first job did not start empty without a download", err, remote.downloads)
 	}
-	remote.ready = true
 	if err := b.Prefetch(context.Background(), slot); err != nil {
 		t.Fatal(err)
 	}
@@ -291,8 +288,8 @@ func TestAPFSTimedOutRestoreCanPrefetchAndWarmNextJob(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err != nil {
 		t.Fatal(err)
 	}
-	if remote.downloads != 2 {
-		t.Fatalf("next job re-downloaded master: %d", remote.downloads)
+	if remote.downloads != 1 || b.Cold(slot) {
+		t.Fatalf("next job did not clone the prefetched copy: %d downloads", remote.downloads)
 	}
 }
 
