@@ -243,8 +243,11 @@ When the HEAD advances, a superseded master used in the last day is kept until
 its successor has been downloaded through the queue, so such a master usually
 exists while the new one arrives.
 
-One worker downloads masters in the background, each within five minutes and with a separate disk
-reservation for the archive and expanded image. Downloads land in `staging/` and
+One worker downloads masters in the background, each turn within five minutes and with a separate disk
+reservation for the archive and expanded image. A download resumes from the
+bytes already received: after a dropped connection or a two-minute stall within
+its turn, and, when its turn ends while bytes are still arriving, on its next
+turn behind the masters queued meanwhile. Downloads land in `staging/` and
 only take the lineage's lock to install the finished master, and maintenance asks
 the server for a lineage's HEAD before taking that lock, so neither ever delays a
 job cloning the same lineage. Requests for the same master join.
