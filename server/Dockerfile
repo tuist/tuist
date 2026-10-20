@@ -39,7 +39,7 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
-# Cache only the shipped artifacts so downstream COPYs do not materialize the
+# Isolate the shipped artifacts so downstream COPYs do not materialize the
 # Swift toolchain and .build tree on a fresh BuildKit worker.
 FROM scratch AS swift-artifacts
 COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser

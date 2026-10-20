@@ -647,7 +647,7 @@ jobs:
             exit "$status"
           fi
           echo "Docker build completed"
-      - name: Smoke test PromEx metrics server
+      - name: Smoke test parser runtime and PromEx metrics server
         run: |
           docker run --rm \
             --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
@@ -660,6 +660,9 @@ jobs:
               :web = Tuist.Environment.mode()
               :prod = Tuist.Environment.env()
               true = File.regular?(Application.app_dir(:tuist, "priv/static/server/self-host/.env.example"))
+              parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
+              {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)
+              true = String.starts_with?(usage, "usage: xcactivitylog-parser ")
               {:ok, _} = Application.ensure_all_started(:plug_cowboy)
               {:ok, _} = Application.ensure_all_started(:prom_ex)
               {:ok, supervisor} = Tuist.PromEx.start_link([])

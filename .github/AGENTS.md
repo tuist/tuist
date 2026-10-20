@@ -283,6 +283,10 @@ passes `--derived-data-path`, because the coverage export reads the test
 products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.
 
+The Docker smoke eval also runs the shipped activity-log parser with no arguments
+and requires its usage message and exit code 2. Keep that assertion: app startup
+alone does not check the parser's executable permissions or Swift runtime linkage.
+
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
