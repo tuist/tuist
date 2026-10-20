@@ -7,12 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -450,4 +452,166 @@ fi
 			t.Fatalf("reaped goldens despite ample free space; deletes=%v", got)
 		}
 	})
+}
+
+// Runner images are released several times a day and every catalog pool
+// names its image by digest in one repository, so a host collected goldens
+// and OCI entries of superseded digests for a day each. These cases pin
+// that an image no pool of the fleet runs and no Pod here references goes
+// on the next pass, while everything a pool or Pod still names stays, and
+// that the old retention behaviour holds whenever the pools are unknown.
+func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
+	const node = "mini-1"
+	const fleet = "tuist-tuist-rack-fleet"
+	const repo = "ghcr.io/tuist/tuist-runner"
+	current := repo + "@sha256:current"
+	running := repo + "@sha256:running"
+	superseded := repo + "@sha256:superseded"
+	now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+
+	type entry struct {
+		Name   string
+		Source string
+	}
+	newCollector := func(t *testing.T, entries []entry, pools *poolLister, collectorFleet string, pods ...*corev1.Pod) (*Collector, func(t *testing.T) []string) {
+		t.Helper()
+		dir := t.TempDir()
+		listing := "["
+		for i, e := range entries {
+			if i > 0 {
+				listing += ","
+			}
+			listing += fmt.Sprintf(`{"Name":"%s","Source":"%s","State":"stopped","CPU":4,"Memory":8192,"Size":68}`, e.Name, e.Source)
+		}
+		listing += "]"
+		deletes := filepath.Join(dir, "deletes.txt")
+		bin := filepath.Join(dir, "faketart")
+		body := fmt.Sprintf("#!/bin/sh\n"+
+			"if [ \"$1\" = \"list\" ]; then\n"+
+			"  printf '%%s' '%s'\n"+
+			"elif [ \"$1\" = \"delete\" ]; then\n"+
+			"  printf '%%s\\n' \"$2\" >> %q\n"+
+			"fi\n", listing, deletes)
+		if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		scheme := runtime.NewScheme()
+		if err := corev1.AddToScheme(scheme); err != nil {
+			t.Fatalf("add core scheme: %v", err)
+		}
+		objs := make([]client.Object, 0, len(pods))
+		for _, p := range pods {
+			objs = append(objs, p)
+		}
+		k := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(objs...).
+			WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+				return []string{o.(*corev1.Pod).Spec.NodeName}
+			}).Build()
+		c := &Collector{
+			K8s:             &gcReader{Reader: k, pools: pools},
+			Tart:            &tart.Client{Binary: bin},
+			NodeName:        node,
+			Fleet:           collectorFleet,
+			GoldenRetention: 24 * time.Hour,
+			Now:             func() time.Time { return now },
+			HostDiskFree:    func() (float64, error) { return 50, nil },
+			IsRunning:       func(context.Context, string) (bool, error) { return false, nil },
+		}
+		read := func(t *testing.T) []string {
+			t.Helper()
+			b, err := os.ReadFile(deletes)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return strings.Fields(string(b))
+		}
+		return c, read
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner"},
+		Spec: corev1.PodSpec{
+			NodeName:   node,
+			Containers: []corev1.Container{{Name: "runner", Image: running}},
+		},
+	}
+	catalog := func() *poolLister {
+		return &poolLister{pools: []unstructured.Unstructured{
+			runnerPool("macos-27-0", current, fleet, 0, 0),
+			runnerPool("macos-26-6", running, fleet, 1, 1),
+		}}
+	}
+	entries := []entry{
+		{goldenVMName(current), "local"},
+		{goldenVMName(running), "local"},
+		{goldenVMName(superseded), "local"},
+		{current, "OCI"},
+		{running, "OCI"},
+		{superseded, "OCI"},
+	}
+
+	t.Run("reaps the golden and OCI entry of an image no pool runs", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), fleet, pod)
+		c.RunOnce(context.Background())
+		got := read(t)
+		if want := []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
+		}
+	})
+
+	t.Run("keeps every digest of a repository a Pod names by tag", func(t *testing.T) {
+		tagged := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "tagged"},
+			Spec: corev1.PodSpec{
+				NodeName:   node,
+				Containers: []corev1.Container{{Name: "runner", Image: repo + ":macos-26-6"}},
+			},
+		}
+		c, read := newCollector(t, entries, catalog(), fleet, pod, tagged)
+		c.RunOnce(context.Background())
+		if got := read(t); !reflect.DeepEqual(got, []string{goldenVMName(superseded)}) {
+			t.Fatalf("deletes = %v, want only the superseded golden: a tag-named Pod may run any digest Tart lists", got)
+		}
+	})
+
+	t.Run("keeps superseded images when the pools cannot be listed", func(t *testing.T) {
+		c, read := newCollector(t, entries, &poolLister{err: errors.New("no matches for kind RunnerPool")}, fleet, pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none without the pools to compare against", got)
+		}
+	})
+
+	t.Run("keeps superseded images when no pool runs on the fleet", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), "tuist-tuist-builders-fleet", pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none on a fleet without pools", got)
+		}
+	})
+
+	t.Run("keeps superseded images without a fleet", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), "", pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none without a fleet", got)
+		}
+	})
+}
+
+// gcReader answers Pod lists from a fake client and RunnerPool lists from a
+// poolLister, which the fake client cannot serve without the CRD's scheme.
+type gcReader struct {
+	client.Reader
+	pools *poolLister
+}
+
+func (r *gcReader) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*unstructured.UnstructuredList); ok {
+		return r.pools.List(ctx, list, opts...)
+	}
+	return r.Reader.List(ctx, list, opts...)
 }

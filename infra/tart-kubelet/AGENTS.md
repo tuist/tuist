@@ -25,6 +25,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   `runnersFleet.runnerImageDigests` in the tuist chart), so a runner image
   release that only re-tags a profile keeps that profile's golden. A pool
   that pins a tag gets a new golden, and a cold pull, with every new tag.
+- The GC (`internal/podagent/garbage.go`) reads the Node's fleet's macOS
+  RunnerPools as the prewarmer does. A golden or cached OCI image that no pool
+  runs and no Pod on the Node references is reaped on the next pass; one a
+  pool still runs keeps the 24h idle retention. Cached images are matched by
+  full ref, except a repository a Pod or pool names by tag keeps every digest.
+  A fleet without pools, or a failed RunnerPool List, falls back to retention
+  and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
+  goldens, 1 or 2 of them current, because runner images are released several
+  times a day and every catalog image shares one repository.
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
