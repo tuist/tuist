@@ -56,5 +56,7 @@ func APFSUsage(path, id string, maxCapacity int64) (GuestUsage, error) {
 	return GuestUsage{Used: usage.Used, Capacity: usage.Capacity, Changed: usage.Changed == nil || *usage.Changed}, nil
 }
 
-// OutOfSpace matches the server's rule for a clone that filled its volume.
-func (u GuestUsage) OutOfSpace() bool { return u.Used*100 >= u.Capacity*99 }
+func (u GuestUsage) OutOfSpace() bool { return outOfSpace(u.Used, u.Capacity) }
+
+// outOfSpace matches the server's rule for a clone that filled its volume.
+func outOfSpace(used, capacity int64) bool { return used*100 >= capacity*99 }

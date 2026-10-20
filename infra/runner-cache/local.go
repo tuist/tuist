@@ -370,7 +370,11 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	return writeMarker(slot, path)
+	if err = writeMarker(slot, path); err != nil {
+		return err
+	}
+	b.recordBaseline(slot, path)
+	return nil
 }
 
 var loopDevice = regexp.MustCompile(`^/dev/loop[0-9]+$`)
@@ -460,6 +464,15 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	done := b.Observe.Start("publish", "none")
 	defer func() { done(err) }()
+	// A verified branch is already detached and passed these checks; verify
+	// rejects one whose verification was interrupted.
+	_, verified := os.Stat(b.image(slot) + ".verified")
+	_, checking := os.Stat(b.image(slot) + ".checking")
+	if os.IsNotExist(verified) && os.IsNotExist(checking) {
+		if err := b.withheld(slot, path); err != nil {
+			return err
+		}
+	}
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
@@ -550,7 +563,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified", ".entries"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -571,7 +584,7 @@ func (b *LocalImages) Keep(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".verified"} {
+	for _, suffix := range []string{"", ".verified", ".entries"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

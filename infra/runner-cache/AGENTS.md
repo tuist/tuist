@@ -54,6 +54,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
   detached branch's `.usage` before sealing so a withheld branch still reports its size.
+- `LocalImages` (Linux) decides the same on the host, while the volume is still
+  mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
+  when the top-level entries match `<image>.entries` and no entry's ctime is
+  newer than the one it recorded. The first attach writes `.entries` after the
+  marker; later attaches of the branch keep it. A missing baseline means changed;
+  a `.verified` or `.checking` branch skips the check.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes, `DownloadClient` without a whole-
