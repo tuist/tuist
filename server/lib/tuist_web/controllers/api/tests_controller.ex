@@ -725,7 +725,9 @@ defmodule TuistWeb.API.TestsController do
       too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error},
-      service_unavailable: {"The test run could not be scheduled for processing", "application/json", Error}
+      service_unavailable:
+        {"The shard plan is not visible yet or the test run could not be scheduled for processing", "application/json",
+         Error}
     }
   )
 
@@ -842,6 +844,12 @@ defmodule TuistWeb.API.TestsController do
           end
 
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
+
+      {:error, :shard_plan_not_visible} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "The shard plan is not visible yet; retry this report"})
 
       {:error, :invalid_coverage_storage_key} ->
         conn

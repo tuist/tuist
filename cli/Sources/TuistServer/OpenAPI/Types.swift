@@ -35074,7 +35074,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The test run could not be scheduled for processing
+            /// The shard plan is not visible yet or the test run could not be scheduled for processing
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)/responses/503`.
             ///
@@ -54082,8 +54082,12 @@ public enum Operations {
                     public struct dependency_cachePayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/dependency`.
                         public var dependency: Swift.String
+                        /// Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/duration_ms`.
                         public var duration_ms: Swift.Int
+                        /// Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/key`.
                         public var key: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/outcome`.
@@ -54123,6 +54127,7 @@ public enum Operations {
                             case unmodeled_input = "unmodeled_input"
                             case inputs_changed = "inputs_changed"
                             case store_failed = "store_failed"
+                            case up_to_date = "up_to_date"
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/reason`.
                         public var reason: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.reasonPayload?
@@ -54153,8 +54158,8 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - dependency:
-                        ///   - duration_ms:
-                        ///   - key:
+                        ///   - duration_ms: Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///   - key: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         ///   - outcome:
                         ///   - read_bytes: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
                         ///   - read_duration_us: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
@@ -54206,11 +54211,11 @@ public enum Operations {
                             case write_source
                         }
                     }
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public typealias dependency_cachePayload = [Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload]
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public var dependency_cache: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayload?
@@ -54646,7 +54651,7 @@ public enum Operations {
                     ///   - ci_run_id: The CI run identifier.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against.
                     ///   - custom_metadata: Custom metadata for the build run.
-                    ///   - dependency_cache: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    ///   - dependency_cache: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///   - diagnostics: Compile-time diagnostics emitted during the build.
                     ///   - duration_ms: Total compile duration in milliseconds.
                     ///   - elixir_version: The Elixir version used to compile (e.g., "1.20.2").

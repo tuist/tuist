@@ -798,7 +798,7 @@ defmodule Tuist.Tests do
       end
     else
       false -> {:error, :not_found}
-      error -> error
+      {:error, :not_found} -> {:error, :shard_plan_not_visible}
     end
   end
 

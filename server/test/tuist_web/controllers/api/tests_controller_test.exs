@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   import Ecto.Query
 
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Shards
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -1414,6 +1415,80 @@ defmodule TuistWeb.API.TestsControllerTest do
         )
 
       assert json_response(conn, 200)
+    end
+
+    test "a temporarily invisible shard plan is retryable for legacy and immutable reports", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+
+      for version <- [0, 1] do
+        plan =
+          ShardsFixtures.shard_plan_fixture(
+            project_id: project.id,
+            shard_count: 1,
+            reporting_version: version,
+            assignments: JSON.encode!(%{modules: [], test_suites: []})
+          )
+
+        expect(Shards, :get_shard_plan, fn id ->
+          assert id == plan.id
+          {:error, :not_found}
+        end)
+
+        expect(Shards, :get_shard_plan, fn id ->
+          assert id == plan.id
+          {:ok, plan}
+        end)
+
+        params = %{
+          id: UUIDv7.generate(),
+          duration: 100,
+          is_ci: true,
+          status: "success",
+          test_modules: [],
+          shard_plan_id: plan.id,
+          shard_index: 0
+        }
+
+        path = "/api/projects/#{user.account.name}/#{project.name}/tests"
+        response = conn |> put_req_header("content-type", "application/json") |> post(path, params)
+
+        assert json_response(response, :service_unavailable) == %{
+                 "message" => "The shard plan is not visible yet; retry this report"
+               }
+
+        assert get_resp_header(response, "retry-after") == ["1"]
+        assert {:error, :not_found} = Tests.get_test(plan.id)
+        assert {:error, :not_found} = Tests.get_test(params.id)
+
+        response = conn |> put_req_header("content-type", "application/json") |> post(path, params)
+        assert %{"id" => id} = json_response(response, :ok)
+        assert {:ok, _} = Tests.get_test(id)
+      end
+    end
+
+    test "a foreign shard plan remains a non-retryable client error", %{conn: conn, user: user, project: project} do
+      plan = ShardsFixtures.shard_plan_fixture()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 100,
+          is_ci: true,
+          status: "success",
+          test_modules: [],
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert json_response(response, :bad_request) == %{"message" => "The request parameters are invalid"}
+      assert get_resp_header(response, "retry-after") == []
+      assert {:error, :not_found} = Tests.get_test(plan.id)
     end
 
     test "existing immutable IDs still accept each shard and keep processor jobs distinct", %{

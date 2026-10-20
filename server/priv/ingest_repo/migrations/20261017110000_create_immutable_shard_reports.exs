@@ -106,7 +106,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
       alter table(name), do: add(:shard_report_id, :"Nullable(UUID)")
     end
 
-    latest_columns =
+    cohort_columns =
       Enum.map_join(@columns, ",\n", fn {name, type} ->
         expression =
           cond do
@@ -119,15 +119,38 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
         "#{expression} AS #{name}"
       end)
 
+    # Fill processing metadata only within one attempt/revision. Then select
+    # the cohort by the original phase-before-revision order, preserving empty
+    # values in a new execution or terminal correction instead of reviving old ones.
+    selected_columns =
+      Enum.map_join(@columns, ",\n", fn {name, _type} ->
+        expression =
+          cond do
+            name in @group_fields -> "c.#{name}"
+            name == :inserted_at -> "max(c.#{name})"
+            true -> "tupleElement(argMax(tuple(c.#{name}), c.report_order), 1)"
+          end
+
+        "#{expression} AS #{name}"
+      end)
+
     execute """
     CREATE VIEW latest_shard_test_reports AS
-    SELECT #{latest_columns}, shard_index, max(shard_count) AS shard_count,
-      max(#{@order}) AS report_order,
-      argMax(fact_set_id, #{@order}) AS fact_set_id,
-      argMax(source_test_run_id, #{@order}) AS source_test_run_id,
-      argMax(execution_started_at, #{@order}) AS execution_started_at
-    FROM shard_test_reports
-    GROUP BY project_id, ran_at, id, shard_index
+    SELECT #{selected_columns}, c.shard_index AS shard_index, max(c.shard_count) AS shard_count,
+      max(c.report_order) AS report_order,
+      argMax(c.fact_set_id, c.report_order) AS fact_set_id,
+      argMax(c.source_test_run_id, c.report_order) AS source_test_run_id,
+      argMax(c.execution_started_at, c.report_order) AS execution_started_at
+    FROM (
+      SELECT #{cohort_columns}, shard_index, max(shard_count) AS shard_count,
+        max(#{@order}) AS report_order,
+        argMax(fact_set_id, #{@order}) AS fact_set_id,
+        argMax(source_test_run_id, #{@order}) AS source_test_run_id,
+        argMax(execution_started_at, #{@order}) AS execution_started_at
+      FROM shard_test_reports
+      GROUP BY project_id, ran_at, id, shard_index, shard_attempt, shard_report_revision
+    ) AS c
+    GROUP BY c.project_id, c.ran_at, c.id, c.shard_index
     """
 
     # Schema cloning creates ordinary views alphabetically: latest_* must exist

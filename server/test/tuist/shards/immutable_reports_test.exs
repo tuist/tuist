@@ -219,6 +219,76 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert {:ok, %{scheme: "Known", git_branch: "main"}} = Tests.get_test(plan.id)
   end
 
+  test "new attempts and terminal corrections clear previous execution metadata", %{project: project} do
+    previous = [
+      status: "failure",
+      is_flaky: true,
+      scheme: "Previous",
+      git_branch: "previous",
+      ci_provider: "github",
+      only_test_identifiers: ["Tests/old"],
+      skip_test_identifiers: ["Tests/skipped"],
+      coverage_evidence_status: "collected",
+      stress_new_tests: %{mode: "report", outcome: "disagreed", new_count: 3, stressed_count: 2, known_count: 10}
+    ]
+
+    for version <- [[shard_attempt: 1], [shard_report_revision: 1]] do
+      %{plan: plan} = plan(project, 1)
+      report(project, plan, 0, previous)
+
+      report(
+        project,
+        plan,
+        0,
+        version ++
+          [
+            scheme: nil,
+            git_branch: nil,
+            ci_provider: nil,
+            coverage_evidence_status: "",
+            only_test_identifiers: [],
+            skip_test_identifiers: [],
+            stress_new_tests: %{mode: "", outcome: "", new_count: 0, stressed_count: 0, known_count: 0}
+          ]
+      )
+
+      report(project, plan, 0, previous)
+      assert {:ok, run} = Tests.get_test(plan.id)
+      assert run.status == "success"
+      refute run.is_flaky
+      assert run.scheme == ""
+      assert run.git_branch == ""
+      assert run.ci_provider == nil
+      assert run.only_test_identifiers == []
+      assert run.skip_test_identifiers == []
+      assert run.coverage_evidence_status == ""
+      assert run.stress_mode == ""
+      assert run.stress_outcome == ""
+      assert run.stress_new_count == 0
+      assert run.stress_stressed_count == 0
+      assert run.stress_known_count == 0
+    end
+  end
+
+  test "a new processing attempt cannot inherit metadata from an older terminal report", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+    report(project, plan, 0, shard_report_revision: 99, scheme: "Previous", only_test_identifiers: ["Tests/old"])
+    report(project, plan, 0, shard_attempt: 1, status: "processing", scheme: nil)
+    assert {:ok, run} = Tests.get_test(plan.id)
+    assert run.status == "processing"
+    assert run.scheme == ""
+    assert run.only_test_identifiers == []
+  end
+
+  test "a higher processing revision cannot supply metadata to the selected terminal revision", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+    report(project, plan, 0, scheme: nil)
+    report(project, plan, 0, shard_report_revision: 99, status: "processing", scheme: "Wrong")
+    assert {:ok, run} = Tests.get_test(plan.id)
+    assert run.status == "success"
+    assert run.scheme == ""
+  end
+
   test "facts are written before the immutable receipt and replay uses stable fact IDs", %{project: project} do
     %{plan: plan} = plan(project, 1)
     modules = [%{name: "Tests", status: "success", test_cases: [%{name: "test_one", status: "success", duration: 10}]}]
