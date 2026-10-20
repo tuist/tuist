@@ -3,7 +3,7 @@ defmodule TuistWeb.API.OIDCController do
   Controller for OIDC token exchange.
 
   This controller handles the exchange of CI and workload OIDC tokens for
-  short-lived Tuist access tokens. Supports GitHub Actions, CircleCI, Bitrise, and Fly.io.
+  short-lived Tuist access tokens. Supports built-in CI providers and project-configured workload identities.
   """
 
   use OpenApiSpex.ControllerSpecs
@@ -28,7 +28,7 @@ defmodule TuistWeb.API.OIDCController do
   operation(:exchange_token,
     summary: "Exchange an OIDC identity token for a Tuist access token.",
     description: """
-    Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+    Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
     for a short-lived Tuist access token.
     """,
     operation_id: "exchangeOIDCToken",
@@ -42,7 +42,8 @@ defmodule TuistWeb.API.OIDCController do
              type: :string,
              minLength: 1,
              maxLength: 255,
-             description: "Target Tuist account for Fly.io workload authentication. Trust policies are still required."
+             description:
+               "Required target Tuist account for custom workload identity providers. Project trust policies are still required."
            },
            token: %Schema{
              type: :string,
@@ -76,7 +77,7 @@ defmodule TuistWeb.API.OIDCController do
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- OIDC.claims(token),
+    with {:ok, claims} <- OIDC.claims(token, Map.get(conn.body_params, :account_handle)),
          {:ok, projects} <- find_projects(claims, Map.get(conn.body_params, :account_handle)),
          {:ok, account} <- single_account(projects, claims),
          {:ok, access_token} <- generate_token(account, projects) do
@@ -97,7 +98,7 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently supported: GitHub Actions, CircleCI, Bitrise, and Fly.io."
+            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Built-in providers: GitHub Actions, CircleCI, and Bitrise. Configure other issuers in project Authentication settings and provide account_handle."
         })
 
       {:error, :missing_repository_claim} ->
@@ -108,10 +109,12 @@ defmodule TuistWeb.API.OIDCController do
             "OIDC token does not contain required repository information used to verify it with the GitHub project connection."
         })
 
-      {:error, :missing_workload_claim} ->
+      {:error, :oidc_account_required} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{message: "Fly.io OIDC token must contain organization and application IDs."})
+        |> json(%{
+          message: "Custom OIDC providers require account_handle. Set TUIST_OIDC_ACCOUNT to your Tuist account handle."
+        })
 
       {:error, :token_not_yet_valid} ->
         conn
@@ -121,14 +124,14 @@ defmodule TuistWeb.API.OIDCController do
       {:error, :no_trusted_projects} ->
         conn
         |> put_status(:forbidden)
-        |> json(%{message: "No projects trust this Fly.io workload. Add a trust policy in the project settings first."})
+        |> json(%{message: "No projects trust this workload identity."})
 
       {:error, :ambiguous_workload} ->
         conn
         |> put_status(:forbidden)
         |> json(%{
           message:
-            "This Fly.io workload is trusted by projects in multiple Tuist accounts. Set TUIST_OIDC_ACCOUNT to the target account handle."
+            "This workload is trusted by projects in multiple Tuist accounts. Set TUIST_OIDC_ACCOUNT to the target account handle."
         })
 
       {:error, :invalid_signature} ->
@@ -173,16 +176,9 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp find_projects(%{provider: :fly} = identity, account_handle) do
-    projects = Projects.projects_by_fly_oidc_identity(identity)
-
-    projects =
-      if is_nil(account_handle),
-        do: projects,
-        else: Enum.filter(projects, &(String.downcase(&1.account.name) == String.downcase(account_handle)))
-
-    case projects do
-      [] -> {:error, :no_trusted_projects}
+  defp find_projects(%{provider: :oidc} = identity, _account_handle) do
+    case Projects.projects_by_oidc_grants(identity) do
+      [] -> {:error, :invalid_signature}
       projects -> {:ok, projects}
     end
   end
@@ -198,7 +194,7 @@ defmodule TuistWeb.API.OIDCController do
   # token's account to own the project. If the identity maps to projects in
   # several accounts, no single token can serve every project, so
   # refuse the exchange instead of picking an account by row order.
-  defp single_account(projects, %{provider: :fly}) do
+  defp single_account(projects, %{provider: :oidc}) do
     case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
       [account] -> {:ok, account}
       _ -> {:error, :ambiguous_workload}

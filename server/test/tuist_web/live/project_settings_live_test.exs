@@ -21,7 +21,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     assert html =~ "Settings"
     assert html =~ "Default branch"
     assert html =~ "Project logo"
-    refute has_element?(lv, "#fly-oidc-trust-policies")
+    refute has_element?(lv, "#oidc-trust-policies")
 
     assert has_element?(
              lv,

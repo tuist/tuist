@@ -32,6 +32,10 @@ defmodule TuistWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
 
+  pipeline :oidc_exchange_rate_limit do
+    plug :rate_limit, limit: 300
+  end
+
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
     plug :rate_limit, limit: 60
@@ -1058,6 +1062,10 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
+  end
+
+  scope "/api", TuistWeb.API do
+    pipe_through [:open_api, :non_authenticated_api, :oidc_exchange_rate_limit]
 
     post "/auth/oidc/token", OIDCController, :exchange_token
   end

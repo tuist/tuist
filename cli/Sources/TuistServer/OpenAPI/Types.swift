@@ -302,7 +302,7 @@ public protocol APIProtocol: Sendable {
     func getXcodeBuildStep(_ input: Operations.getXcodeBuildStep.Input) async throws -> Operations.getXcodeBuildStep.Output
     /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+    /// Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -1847,7 +1847,7 @@ extension APIProtocol {
     }
     /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+    /// Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -7148,7 +7148,7 @@ public enum Components {
         public typealias TestCasesIndexPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest`.
         public struct OIDCTokenExchangeRequest: Codable, Hashable, Sendable {
-            /// Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+            /// Required target Tuist account for custom workload identity providers. Project trust policies are still required.
             ///
             /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/account_handle`.
             public var account_handle: Swift.String?
@@ -7159,7 +7159,7 @@ public enum Components {
             /// Creates a new `OIDCTokenExchangeRequest`.
             ///
             /// - Parameters:
-            ///   - account_handle: Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+            ///   - account_handle: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
             ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
             public init(
                 account_handle: Swift.String? = nil,
@@ -42910,7 +42910,7 @@ public enum Operations {
     }
     /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+    /// Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -42935,7 +42935,7 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+                    /// Required target Tuist account for custom workload identity providers. Project trust policies are still required.
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/account_handle`.
                     public var account_handle: Swift.String?
@@ -42946,7 +42946,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - account_handle: Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+                    ///   - account_handle: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
                     ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
                     public init(
                         account_handle: Swift.String? = nil,

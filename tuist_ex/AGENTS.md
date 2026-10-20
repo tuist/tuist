@@ -177,8 +177,10 @@ dashboard presentation belong in `server/`.
   takes precedence over provider detection, is trimmed, and empty values fail
   without browser fallback. `mix tuist.login` also accepts it outside CI. Fly.io
   callers mint it through the Machine's local socket with audience `tuist`; the
-  server enforces the project trust policy. Forward optional `TUIST_OIDC_ACCOUNT`
-  as `account_handle` and partition automatic-exchange caches by server and account.
+  server enforces a project-configured issuer/JWKS/audience/exact-claims policy.
+  Forward `TUIST_OIDC_ACCOUNT` as `account_handle` (required for custom workload
+  providers, optional for built-in CI) and partition automatic-exchange caches
+  by server and account.
   A Fly identity lasts about ten minutes; exchanged sessions last one hour with
   no refresh token, so long-running Machines must mint and log in again.
   The exchanged token is kept in memory for the VM and never

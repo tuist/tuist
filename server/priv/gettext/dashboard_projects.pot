@@ -358,6 +358,7 @@ msgid "Local"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:83
+#: lib/tuist_web/live/project_authentication_live.html.heex:103
 #: lib/tuist_web/live/project_automations_live.html.heex:93
 #: lib/tuist_web/live/project_automations_live.html.heex:1145
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:125
@@ -564,7 +565,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.ex:75
+#: lib/tuist_web/live/project_authentication_live.ex:147
 #: lib/tuist_web/live/project_automation_live.ex:25
 #: lib/tuist_web/live/project_automations_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.ex:19
@@ -2074,7 +2075,7 @@ msgstr ""
 msgid "Project logo"
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:72
+#: lib/tuist_web/live/project_authentication_live.html.heex:84
 #: lib/tuist_web/live/project_settings_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Remove"
@@ -3373,58 +3374,24 @@ msgstr[1] ""
 msgid "Average time it takes to complete a Cargo invocation during the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:102
+#: lib/tuist_web/live/project_authentication_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Add trust policy"
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:48
-#, elixir-autogen, elixir-format
-msgid "Allow Machines in a specific Fly.io organization and app to access this project with CI permissions."
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.html.heex:95
-#, elixir-autogen, elixir-format
-msgid "Application ID"
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.html.heex:63
-#, elixir-autogen, elixir-format
-msgid "Application ID: %{id}"
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.ex:44
-#, elixir-autogen, elixir-format
-msgid "Fly.io trust policy added."
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.ex:59
-#, elixir-autogen, elixir-format
-msgid "Fly.io trust policy removed."
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.html.heex:84
+#: lib/tuist_web/live/project_authentication_live.html.heex:110
+#: lib/tuist_web/live/project_authentication_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:90
-#, elixir-autogen, elixir-format
-msgid "Organization ID"
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.html.heex:63
-#, elixir-autogen, elixir-format
-msgid "Organization ID: %{id}"
-msgstr ""
-
-#: lib/tuist_web/live/project_authentication_live.ex:62
+#: lib/tuist_web/live/project_authentication_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "Trust policy not found."
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.ex:20
 #: lib/tuist_web/live/project_authentication_live.ex:23
+#: lib/tuist_web/live/project_authentication_live.ex:26
 #: lib/tuist_web/live/project_authentication_live.html.heex:13
 #: lib/tuist_web/live/project_automations_live.html.heex:13
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:13
@@ -3437,4 +3404,97 @@ msgstr ""
 #: lib/tuist_web/live/project_authentication_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Workload identities"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Allow workloads from an OpenID Connect identity provider to access this project with CI permissions. A token must come from the exact issuer, be signed by a key from the JWKS URL, carry the audience, and contain every listed claim with the same value and type."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:124
+#: lib/tuist_web/live/project_authentication_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Audience"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Audience: %{audience}"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:132
+#: lib/tuist_web/live/project_authentication_live.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Claims"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Claims must be a JSON object."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "Claims must be valid JSON."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Claims: %{claims}"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Example: Fly.io Machines"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:117
+#: lib/tuist_web/live/project_authentication_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "JWKS URL"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "JWKS: %{url}"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "OpenID Connect trust policies"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "Production Machines"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:70
+#, elixir-autogen, elixir-format
+msgid "The trust policy could not be added."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Trust policy added."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Trust policy removed."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "Workloads must set TUIST_OIDC_ACCOUNT to %{account} when they exchange their token. GitHub Actions, CircleCI, and Bitrise keep using the repository connection and can't be configured here."
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "Claims must be valid JSON of at most 8 KiB."
 msgstr ""

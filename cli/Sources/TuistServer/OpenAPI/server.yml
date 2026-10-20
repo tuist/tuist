@@ -2190,7 +2190,7 @@ components:
     OIDCTokenExchangeRequest:
       properties:
         account_handle:
-          description: Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+          description: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
           maxLength: 255
           minLength: 1
           type: string
@@ -18754,7 +18754,7 @@ paths:
     post:
       callbacks: {}
       description: |
-        Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+        Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
         for a short-lived Tuist access token.
       operationId: exchangeOIDCToken
       parameters: []
@@ -18764,7 +18764,7 @@ paths:
             schema:
               properties:
                 account_handle:
-                  description: Target Tuist account for Fly.io workload authentication. Trust policies are still required.
+                  description: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
                   maxLength: 255
                   minLength: 1
                   type: string

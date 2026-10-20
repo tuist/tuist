@@ -15,7 +15,7 @@ defmodule Tuist.Projects do
   alias Tuist.Base64
   alias Tuist.CommandEvents
   alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
-  alias Tuist.Projects.FlyOIDCTrustPolicy
+  alias Tuist.Projects.OIDCTrustPolicy
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
@@ -798,43 +798,77 @@ defmodule Tuist.Projects do
     )
   end
 
-  def list_fly_oidc_trust_policies(%Project{id: project_id}) do
-    Repo.all(from p in FlyOIDCTrustPolicy, where: p.project_id == ^project_id, order_by: p.id)
+  def list_oidc_trust_policies(%Project{id: project_id}) do
+    Repo.all(from p in OIDCTrustPolicy, where: p.project_id == ^project_id, order_by: p.id)
   end
 
-  def create_fly_oidc_trust_policy(%Project{id: project_id}, attrs) do
-    %FlyOIDCTrustPolicy{project_id: project_id}
-    |> FlyOIDCTrustPolicy.changeset(attrs)
-    |> Repo.insert()
+  def create_oidc_trust_policy(%Project{id: project_id}, attrs) do
+    changeset = OIDCTrustPolicy.changeset(%OIDCTrustPolicy{project_id: project_id}, attrs)
+
+    if changeset.valid? do
+      Repo.transaction(fn ->
+        Repo.one!(from p in Project, where: p.id == ^project_id, lock: "FOR UPDATE")
+        count = Repo.aggregate(from(p in OIDCTrustPolicy, where: p.project_id == ^project_id), :count)
+
+        if count >= 20 do
+          Repo.rollback(Ecto.Changeset.add_error(changeset, :name, "cannot exceed 20 trust policies per project"))
+        end
+
+        case Repo.insert(changeset) do
+          {:ok, policy} -> policy
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+    else
+      {:error, changeset}
+    end
   end
 
-  def delete_fly_oidc_trust_policy(%Project{id: project_id}, policy_id) do
-    case Repo.get_by(FlyOIDCTrustPolicy, id: policy_id, project_id: project_id) do
+  def delete_oidc_trust_policy(%Project{id: project_id}, policy_id) do
+    case Repo.get_by(OIDCTrustPolicy, id: policy_id, project_id: project_id) do
       nil -> {:error, :not_found}
       policy -> Repo.delete(policy)
     end
   end
 
-  def fly_oidc_identity_trusted?(%{issuer: issuer, organization_id: organization_id, application_id: application_id}) do
-    Repo.exists?(
-      from policy in FlyOIDCTrustPolicy,
-        where:
-          policy.issuer == ^issuer and policy.organization_id == ^organization_id and
-            policy.application_id == ^application_id
+  # Unsigned hints only bound verification work; they never grant access.
+  def oidc_trust_candidates(issuer, account_handle, claims) do
+    scalar_claims = Map.filter(claims, fn {_, value} -> is_binary(value) or is_integer(value) or is_boolean(value) end)
+
+    Repo.all(
+      from policy in OIDCTrustPolicy,
+        join: project in assoc(policy, :project),
+        join: account in assoc(project, :account),
+        where: policy.issuer == ^issuer,
+        where: fragment("lower(?) = lower(?)", account.name, ^account_handle),
+        where: fragment("? @> ?", type(^scalar_claims, :map), policy.claims),
+        order_by: policy.id,
+        limit: 21
     )
   end
 
-  def projects_by_fly_oidc_identity(%{issuer: issuer, organization_id: organization_id, application_id: application_id}) do
-    Repo.all(
-      from p in Project,
-        join: policy in FlyOIDCTrustPolicy,
-        on: policy.project_id == p.id,
-        where:
-          policy.issuer == ^issuer and policy.organization_id == ^organization_id and
-            policy.application_id == ^application_id,
-        order_by: p.id,
-        preload: [:account]
-    )
+  def projects_by_oidc_grants(%{account_handle: account_handle, grants: grants}) do
+    policy_ids = Enum.map(grants, & &1.policy_id)
+
+    policies =
+      Repo.all(
+        from policy in OIDCTrustPolicy,
+          join: project in assoc(policy, :project),
+          join: account in assoc(project, :account),
+          where: policy.id in ^policy_ids,
+          where: fragment("lower(?) = lower(?)", account.name, ^account_handle),
+          preload: [project: :account]
+      )
+
+    policies
+    |> Enum.filter(fn policy ->
+      Enum.any?(grants, fn grant ->
+        grant.policy_id == policy.id and grant.jwks_url == policy.jwks_url and
+          OIDCTrustPolicy.matches?(policy, grant.claims)
+      end)
+    end)
+    |> Enum.map(& &1.project)
+    |> Enum.uniq_by(& &1.id)
   end
 
   @doc """

@@ -203,7 +203,7 @@ defmodule Tuist do
       AppBuilds.AppBuild,
       Projects,
       Projects.Project,
-      Projects.FlyOIDCTrustPolicy,
+      Projects.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
       Apple,
       Xcode,

@@ -41,61 +41,124 @@
     {dgettext("dashboard_projects", "Workload identities")}
   </h2>
 
-  <.card_section id="fly-oidc-trust-policies" data-part="fly-oidc-card-section">
+  <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
-      <span data-part="title">Fly.io</span>
+      <span data-part="title">{dgettext("dashboard_projects", "OpenID Connect trust policies")}</span>
       <span data-part="subtitle">
         {dgettext(
           "dashboard_projects",
-          "Allow Machines in a specific Fly.io organization and app to access this project with CI permissions."
+          "Allow workloads from an OpenID Connect identity provider to access this project with CI permissions. A token must come from the exact issuer, be signed by a key from the JWKS URL, carry the audience, and contain every listed claim with the same value and type."
+        )}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "Workloads must set TUIST_OIDC_ACCOUNT to %{account} when they exchange their token. GitHub Actions, CircleCI, and Bitrise keep using the repository connection and can't be configured here.",
+          account: @selected_account.name
         )}
       </span>
     </div>
     <div data-part="content">
       <div
-        :for={policy <- @fly_oidc_trust_policies}
-        id={"fly-oidc-policy-#{policy.id}"}
+        :for={policy <- @oidc_trust_policies}
+        id={"oidc-trust-policy-#{policy.id}"}
         data-part="policy"
       >
         <div data-part="identity">
+          <span data-part="name">{policy.name}</span>
           <span data-part="issuer">{policy.issuer}</span>
-          <span data-part="ids">
-            {dgettext("dashboard_projects", "Organization ID: %{id}", id: policy.organization_id)} · {dgettext(
-              "dashboard_projects",
-              "Application ID: %{id}",
-              id: policy.application_id
+          <span data-part="details">
+            {dgettext("dashboard_projects", "JWKS: %{url}", url: policy.jwks_url)}
+          </span>
+          <span data-part="details">
+            {dgettext("dashboard_projects", "Audience: %{audience}", audience: policy.audience)}
+          </span>
+          <span data-part="details">
+            {dgettext("dashboard_projects", "Claims: %{claims}",
+              claims: format_claims(policy.claims)
             )}
           </span>
         </div>
         <.button
           variant="secondary"
           label={dgettext("dashboard_projects", "Remove")}
-          phx-click="delete_fly_oidc_trust_policy"
+          phx-click="delete_oidc_trust_policy"
           phx-value-policy-id={policy.id}
         />
       </div>
       <.form
-        for={@fly_oidc_form}
-        id="fly-oidc-trust-policy-form"
+        for={@oidc_trust_policy_form}
+        id="oidc-trust-policy-form"
         data-part="form"
-        phx-submit="create_fly_oidc_trust_policy"
+        phx-submit="create_oidc_trust_policy"
       >
+        <.alert
+          :for={error <- @form_errors}
+          status="error"
+          type="secondary"
+          size="small"
+          title={error}
+        />
+        <.text_input
+          label={dgettext("dashboard_projects", "Name")}
+          field={@oidc_trust_policy_form[:name]}
+          error={field_error(@oidc_trust_policy_form[:name])}
+          type="basic"
+          placeholder={dgettext("dashboard_projects", "Production Machines")}
+        />
         <.text_input
           label={dgettext("dashboard_projects", "Issuer URL")}
-          field={@fly_oidc_form[:issuer]}
+          field={@oidc_trust_policy_form[:issuer]}
+          error={field_error(@oidc_trust_policy_form[:issuer])}
           type="basic"
           placeholder="https://oidc.fly.io/my-organization"
         />
         <.text_input
-          label={dgettext("dashboard_projects", "Organization ID")}
-          field={@fly_oidc_form[:organization_id]}
+          label={dgettext("dashboard_projects", "JWKS URL")}
+          field={@oidc_trust_policy_form[:jwks_url]}
+          error={field_error(@oidc_trust_policy_form[:jwks_url])}
           type="basic"
+          placeholder="https://oidc.fly.io/my-organization/.well-known/jwks"
         />
         <.text_input
-          label={dgettext("dashboard_projects", "Application ID")}
-          field={@fly_oidc_form[:application_id]}
+          label={dgettext("dashboard_projects", "Audience")}
+          field={@oidc_trust_policy_form[:audience]}
+          error={field_error(@oidc_trust_policy_form[:audience])}
           type="basic"
+          placeholder="tuist"
         />
+        <.text_area
+          id="oidc-trust-policy-claims"
+          label={dgettext("dashboard_projects", "Claims")}
+          name={@oidc_trust_policy_form[:claims].name}
+          value={@claims_input}
+          error={field_error(@oidc_trust_policy_form[:claims])}
+          hint={
+            dgettext(
+              "dashboard_projects",
+              "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
+            )
+          }
+          placeholder={~s({"org_id": "123", "app_id": "456"})}
+          rows={4}
+          max_length={8192}
+          show_character_count={false}
+        />
+        <div data-part="example">
+          <span data-part="example-title">
+            {dgettext("dashboard_projects", "Example: Fly.io Machines")}
+          </span>
+          <dl>
+            <dt>{dgettext("dashboard_projects", "Issuer URL")}</dt>
+            <dd><code>https://oidc.fly.io/&lt;organization-slug&gt;</code></dd>
+            <dt>{dgettext("dashboard_projects", "JWKS URL")}</dt>
+            <dd><code>https://oidc.fly.io/&lt;organization-slug&gt;/.well-known/jwks</code></dd>
+            <dt>{dgettext("dashboard_projects", "Audience")}</dt>
+            <dd><code>tuist</code></dd>
+            <dt>{dgettext("dashboard_projects", "Claims")}</dt>
+            <dd><code>{~s({"org_id": "123", "app_id": "456"})}</code></dd>
+          </dl>
+        </div>
         <.button
           type="submit"
           variant="primary"

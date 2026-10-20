@@ -6,11 +6,12 @@ defmodule Tuist.OIDC do
   - GitHub Actions
   - CircleCI
   - Bitrise
-  - Fly.io Machines
+  - Configured workload identity providers
   """
 
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
+  alias Tuist.OIDC.Workload
+  alias Tuist.Projects.OIDCTrustPolicy
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
@@ -20,37 +21,37 @@ defmodule Tuist.OIDC do
   @github_actions_jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
   @bitrise_issuer "https://token.builds.bitrise.io"
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
-  @fly_issuer_prefix "https://oidc.fly.io/"
   @audience "tuist"
 
-  def claims(token) when is_binary(token) do
-    with {:ok, issuer} <- peek_issuer(token),
-         {:ok, provider} <- provider(issuer),
-         :ok <- preflight_workload_trust(token, provider),
-         {:ok, jwks_uri} <- jwks_uri(provider, issuer),
+  def claims(token, account_handle \\ nil)
+
+  def claims(token, account_handle) when is_binary(token) and byte_size(token) <= 16_384 do
+    with {:ok, issuer} <- peek_issuer(token) do
+      case provider(issuer) do
+        {:ok, provider} ->
+          builtin_claims(token, issuer, provider)
+
+        error ->
+          if OIDCTrustPolicy.reserved_issuer?(issuer), do: error, else: Workload.claims(token, issuer, account_handle)
+      end
+    end
+  end
+
+  def claims(_, _), do: {:error, :invalid_token}
+
+  defp builtin_claims(token, issuer, provider) do
+    with {:ok, jwks_uri} <- jwks_uri(provider, issuer),
          {:ok, claims} <- verify(token, jwks_uri),
          :ok <- validate_audience(claims, provider) do
       identity_from_claims(claims, provider)
     end
   end
 
-  def claims(_), do: {:error, :invalid_token}
-
-  # Unsigned claims only reject unconfigured identities before outbound requests.
-  # Authorization still uses verified claims and a fresh project-policy lookup.
-  defp preflight_workload_trust(token, :fly) do
-    %JOSE.JWT{fields: fields} = JOSE.JWT.peek_payload(token)
-
-    with {:ok, identity} <- identity_from_claims(fields, :fly) do
-      if Projects.fly_oidc_identity_trusted?(identity), do: :ok, else: {:error, :invalid_signature}
-    end
-  end
-
-  defp preflight_workload_trust(_token, _provider), do: :ok
-
   defp peek_issuer(token) do
-    %JOSE.JWT{fields: %{"iss" => issuer}} = JOSE.JWT.peek_payload(token)
-    {:ok, issuer}
+    case JOSE.JWT.peek_payload(token) do
+      %JOSE.JWT{fields: %{"iss" => issuer}} when is_binary(issuer) and byte_size(issuer) in 1..512 -> {:ok, issuer}
+      _ -> {:error, :invalid_token}
+    end
   rescue
     _ -> {:error, :invalid_token}
   end
@@ -78,14 +79,6 @@ defmodule Tuist.OIDC do
     end
   end
 
-  defp provider(@fly_issuer_prefix <> slug = issuer) do
-    if byte_size(issuer) <= 255 and Regex.match?(~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, slug) do
-      {:ok, :fly}
-    else
-      {:error, :unsupported_provider, issuer}
-    end
-  end
-
   defp provider(issuer), do: {:error, :unsupported_provider, issuer}
 
   defp jwks_uri(:github_actions, _issuer), do: {:ok, @github_actions_jwks_uri}
@@ -94,26 +87,11 @@ defmodule Tuist.OIDC do
 
   defp jwks_uri(:circleci, issuer), do: {:ok, "#{issuer}/.well-known/jwks-pub.json"}
 
-  defp jwks_uri(:fly, issuer), do: {:ok, "#{issuer}/.well-known/jwks"}
-
-  defp identity_from_claims(%{"iss" => issuer, "org_id" => organization_id, "app_id" => application_id}, :fly)
-       when is_binary(organization_id) and is_binary(application_id) do
-    if valid_fly_id?(organization_id) and valid_fly_id?(application_id) do
-      {:ok, %{provider: :fly, issuer: issuer, organization_id: organization_id, application_id: application_id}}
-    else
-      {:error, :missing_workload_claim}
-    end
-  end
-
-  defp identity_from_claims(_claims, :fly), do: {:error, :missing_workload_claim}
-
   defp identity_from_claims(claims, provider) do
     with {:ok, repository} <- repository_from_claims(claims, provider) do
       {:ok, %{repository: repository}}
     end
   end
-
-  defp valid_fly_id?(id), do: byte_size(id) <= 64 and Regex.match?(~r/\A[0-9]+\z/, id)
 
   defp repository_from_claims(claims, :github_actions) do
     case claims["repository"] do
@@ -215,12 +193,12 @@ defmodule Tuist.OIDC do
   defp validate_not_before(%{"nbf" => _}), do: {:error, :invalid_token}
   defp validate_not_before(_), do: :ok
 
-  defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise, :fly] do
+  defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise] do
     :ok
   end
 
   defp validate_audience(%{"aud" => audiences}, provider)
-       when is_list(audiences) and provider in [:github_actions, :bitrise, :fly] do
+       when is_list(audiences) and provider in [:github_actions, :bitrise] do
     if @audience in audiences do
       :ok
     else
@@ -228,7 +206,7 @@ defmodule Tuist.OIDC do
     end
   end
 
-  defp validate_audience(_claims, provider) when provider in [:github_actions, :bitrise, :fly] do
+  defp validate_audience(_claims, provider) when provider in [:github_actions, :bitrise] do
     {:error, :invalid_audience}
   end
 

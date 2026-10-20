@@ -7755,7 +7755,7 @@ public struct Client: APIProtocol {
     }
     /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported provider (GitHub Actions, CircleCI, Bitrise, or Fly.io)
+    /// Exchange an OIDC token from a built-in CI provider or a project-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
