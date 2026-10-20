@@ -2510,7 +2510,7 @@ HOOK
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
         elif [ "${JOB_PASSED}" = "1" ]; then
           CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
-          prune_cas_stores teardown
+          prune_cas_stores managed-teardown
         fi
         CAS_STORE_ROOT=""
       fi

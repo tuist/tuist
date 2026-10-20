@@ -45,6 +45,9 @@ func TestCheckoutStateRemembersTheMountedMaster(t *testing.T) {
 }
 
 func TestCheckoutExportCarriesOnlyWhatTheJobAdded(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("requires git")
+	}
 	workspace := t.TempDir()
 	git := func(args ...string) string {
 		t.Helper()
