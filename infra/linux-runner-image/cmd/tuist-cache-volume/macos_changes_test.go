@@ -49,7 +49,7 @@ func writeVolumeFile(t *testing.T, base, name, contents string) {
 
 func reportedChange(t *testing.T, share, mount string) bool {
 	t.Helper()
-	if err := detachMacAt(share, mount, func(...string) error { return nil }, fakeMacMeasure, func() {}); err != nil {
+	if err := detachMacAt(share, mount, func(...string) error { return nil }, fakeMacMeasure, func(string, bool) {}, func() {}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(share, digest("volume"), ".usage"))
