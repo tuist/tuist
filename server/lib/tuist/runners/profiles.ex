@@ -191,7 +191,10 @@ defmodule Tuist.Runners.Profiles do
   end
 
   defp update_revoking_writers(changeset) do
-    if Enum.any?([:cache_writer_default_branch, :cache_writer_branches], &Map.has_key?(changeset.changes, &1)) do
+    if Enum.any?(
+         [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches],
+         &Map.has_key?(changeset.changes, &1)
+       ) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),
              :ok <- CacheVolumes.revoke_profile_writers(profile) do

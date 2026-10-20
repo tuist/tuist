@@ -270,19 +270,19 @@ do failed or cancelled jobs or jobs that use neither cache.
 | Buildkite | Successful builds from the pipeline's own repository |
 | GitLab CI | Not saved yet: each job starts with empty caches |
 
-The Gradle cache and custom volumes save the changes of successful jobs on the
-repository's default branch when triggered by these events:
+The Gradle cache and custom volumes save the changes of successful jobs:
 
-| Provider | Events that save changes |
+| Provider | Jobs that save changes |
 | --- | --- |
-| GitHub Actions | Push, schedule, manual dispatch |
-| Buildkite | Webhook, schedule |
-| GitLab CI | Push, schedule, web |
+| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself, on any branch |
+| Buildkite | Webhook and schedule builds on the default branch |
+| GitLab CI | Push, schedule and web pipelines on the default branch |
 
-Other jobs, including pull requests, merge requests and tags, can use the cache,
-but their changes are discarded. With GitHub Actions, you can change which
-branches save on the runner profile, for example to let pull requests or release
-branches update the cache; see [Choose which branches save](#choose-which-branches-save).
+Other jobs, including fork pull requests, `pull_request_target` jobs, merge
+requests and tags, can use the cache, but their changes are discarded. A job
+that doesn't change a volume leaves the saved version in place. With GitHub
+Actions, you can narrow which branches save on the runner profile; see
+[Choose which branches save](#choose-which-branches-save).
 
 Concurrent jobs work independently; changes from different jobs are not merged.
 Never cache credentials or irreplaceable data.
@@ -297,11 +297,14 @@ apply to the Xcode and module caches.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
-**Default branch** is on by default, so jobs on each repository's default branch
-save their changes. Turn it off to save only from the additional branches.
+By default every successful job from the repository saves its changes. To save
+only from some branches, turn on **Limit to specific branches**:
 
-Under **Additional branches**, add up to 20 branch names that also save. Use `*`
-as a wildcard: `release/*` matches `release/1.0`, and `*` matches every branch.
+- **Default branch** lets jobs on each repository's default branch save. Turn it
+  off to save only from the additional branches.
+- Under **Additional branches**, add up to 20 branch names that also save. Use
+  `*` as a wildcard: `release/*` matches `release/1.0`.
+
 Successful push, schedule and manual-dispatch jobs, and pull requests from the
 same repository, save their changes when their branch matches. On push and
 manual-dispatch runs, a tag with a matching name also matches.
@@ -309,8 +312,8 @@ manual-dispatch runs, a tag with a matching name also matches.
 Jobs on other branches can still use the cache, but their changes are discarded.
 Fork pull requests and `pull_request_target` jobs never save. Narrowing these
 settings or deleting the profile discards pending changes they no longer allow;
-a deleted profile falls back to the default branch. Buildkite and GitLab CI
-always save from the default branch.
+a deleted profile falls back to saving from every branch. Buildkite and GitLab
+CI always save from the default branch.
 
 ## Capacity and retention {#capacity-and-retention}
 

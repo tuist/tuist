@@ -11826,6 +11826,11 @@ components:
       x-validate:
     RunnerProfile:
       properties:
+        cache_writer_all_branches:
+          description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+          type: boolean
+          x-struct:
+          x-validate:
         cache_writer_branches:
           description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
           items:
@@ -11895,6 +11900,7 @@ components:
         - memory_gb
         - protected
         - runs_on_label
+        - cache_writer_all_branches
         - cache_writer_default_branch
         - cache_writer_branches
         - inserted_at
@@ -16269,6 +16275,11 @@ paths:
                   profiles:
                     items:
                       properties:
+                        cache_writer_all_branches:
+                          description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                          type: boolean
+                          x-struct:
+                          x-validate:
                         cache_writer_branches:
                           description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                           items:
@@ -16338,6 +16349,7 @@ paths:
                         - memory_gb
                         - protected
                         - runs_on_label
+                        - cache_writer_all_branches
                         - cache_writer_default_branch
                         - cache_writer_branches
                         - inserted_at
@@ -16409,6 +16421,11 @@ paths:
           application/json:
             schema:
               properties:
+                cache_writer_all_branches:
+                  description: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 cache_writer_branches:
                   description: Additional branch names or * patterns that save. An empty list removes them.
                   items:
@@ -16466,6 +16483,11 @@ paths:
             application/json:
               schema:
                 properties:
+                  cache_writer_all_branches:
+                    description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   cache_writer_branches:
                     description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                     items:
@@ -16535,6 +16557,7 @@ paths:
                   - memory_gb
                   - protected
                   - runs_on_label
+                  - cache_writer_all_branches
                   - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
@@ -36549,6 +36572,11 @@ paths:
           application/json:
             schema:
               properties:
+                cache_writer_all_branches:
+                  description: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 cache_writer_branches:
                   description: Additional branch names or * patterns that save. An empty list removes them.
                   items:
@@ -36589,6 +36617,11 @@ paths:
             application/json:
               schema:
                 properties:
+                  cache_writer_all_branches:
+                    description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   cache_writer_branches:
                     description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
                     items:
@@ -36658,6 +36691,7 @@ paths:
                   - memory_gb
                   - protected
                   - runs_on_label
+                  - cache_writer_all_branches
                   - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
