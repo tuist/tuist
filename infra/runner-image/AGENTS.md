@@ -810,14 +810,17 @@ until one does and hold every other profile's release behind it.
 
 What differs on a macOS 27 guest:
 
-- `ImageOS` is `macos27`, from `sw_vers`. Setup actions that pick a prebuilt
-  binary by it may not know that value yet.
+- `ImageOS` is `macos27`, from `sw_vers`. `erlef/setup-beam` rejects it (it
+  maps values up to `macos26`, the newest GitHub-hosted image), so a workflow
+  using it fails unless it sets `ImageOS` itself.
 - The user TCC.db moved (above).
 
-What was checked unchanged while building the golden-gate 27.1 image on a
-BER1 M5 Pro (2026-10-19): `/etc/kcpassword` is not rewritten to `<sealed>`,
-`runner` auto-logs in on both build reboots, and the brew, Metal and
-xcresulttool checks pass as `runner`.
+What works unchanged, checked by building the golden-gate 27.1 image on a BER1
+M5 Pro (2026-10-19) and running jobs on it on staging (2026-10-20):
+`/etc/kcpassword` is not rewritten to `<sealed>`, `runner` auto-logs in, the
+brew, Metal and xcresulttool checks pass as `runner`, Finder scripting needs no
+prompt, the built-in cache volume attaches, publishes a HEAD and compacts with
+`hdiutil`, the custom cache APFS tests pass, and an iOS 27.1 simulator boots.
 
 ### Betas enter as a channel
 
