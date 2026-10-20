@@ -223,11 +223,17 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   # The job's runner profile decides which GitHub branches save. Without a
-  # profile, the repository's default branch saves, as it does for the other
-  # providers.
+  # profile, a new profile's policy applies. The other providers save from the
+  # default branch.
   defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
     if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, profile.id},
+      else: :denied
+  end
+
+  defp writer_grant(%{provider: "github"} = identity, nil) do
+    if writer_allowed?(%Profile{}, identity.trusted, Map.get(identity, :writer_branch)),
+      do: {:ok, nil},
       else: :denied
   end
 
@@ -254,12 +260,20 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   Revokes pending saves granted under a runner profile's previous policy that
-  its current policy no longer allows. A deleted profile falls back to the
-  default branch. Call inside the transaction that updated or deleted the
+  its current policy no longer allows. A deleted profile falls back to a new
+  profile's policy. Call inside the transaction that updated or deleted the
   profile row, after the row was written. Additions only affect new attachments.
   """
-  def revoke_profile_writers({:deleted, %Profile{} = profile}),
-    do: revoke_profile_writers(%{profile | cache_writer_default_branch: true, cache_writer_branches: nil})
+  def revoke_profile_writers({:deleted, %Profile{} = profile}) do
+    default = %Profile{}
+
+    revoke_profile_writers(%{
+      profile
+      | cache_writer_all_branches: default.cache_writer_all_branches,
+        cache_writer_default_branch: default.cache_writer_default_branch,
+        cache_writer_branches: default.cache_writer_branches
+    })
+  end
 
   def revoke_profile_writers(%Profile{id: id} = profile) do
     revoked =
@@ -293,6 +307,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Uses allocated before uses recorded their profile, including by older pods
   # during a rollout, were default-branch grants without a recorded branch.
+  defp unrecorded_profile_writers(%Profile{cache_writer_all_branches: true}), do: []
   defp unrecorded_profile_writers(%Profile{cache_writer_default_branch: true}), do: []
 
   defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
@@ -312,6 +327,12 @@ defmodule Tuist.Runners.CacheVolumes do
       )
     )
   end
+
+  # Only same-repository jobs of qualifying events have a writer branch, so
+  # forks and pull_request_target never save. Uses recorded before writer
+  # branches were recorded only carry the default-branch flag.
+  defp writer_allowed?(%Profile{cache_writer_all_branches: true}, default_branch?, branch),
+    do: default_branch? or is_binary(branch)
 
   defp writer_allowed?(%Profile{} = profile, default_branch?, branch) do
     (default_branch? and profile.cache_writer_default_branch) or

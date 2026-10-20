@@ -38,6 +38,22 @@ cmp "$fixture/expected" "$CAPTURE_ARGS"
 [[ ! -e injected ]]
 echo 'ok: inputs remain literal arguments'
 
+export TUIST_VOLUME_PATH=$'  .npm\n\n\t~/.gradle/caches  \r\n   \n cache dir/$(touch injected);* \n'
+attach
+printf '%s\n' --key gradle-caches --path .npm --path '~/.gradle/caches' --path 'cache dir/$(touch injected);*' > "$fixture/expected"
+cmp "$fixture/expected" "$CAPTURE_ARGS"
+[[ ! -e injected ]]
+echo 'ok: each nonblank line becomes one trimmed path argument'
+
+export TUIST_VOLUME_PATH=$' \n\t\n'
+rm "$CAPTURE_ARGS"
+status=0
+attach > "$fixture/error" 2>&1 || status=$?
+[[ "$status" != 0 && ! -e "$CAPTURE_ARGS" ]]
+grep -q 'at least one path' "$fixture/error"
+echo 'ok: blank paths fail before calling the client'
+export TUIST_VOLUME_PATH=cache
+
 status=0
 CLIENT_EXIT=42 attach || status=$?
 [[ "$status" == 42 ]]

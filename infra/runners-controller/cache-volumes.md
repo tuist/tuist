@@ -40,7 +40,8 @@ jobs:
 
 The standalone action release is part of the launch, with immutable version
 tags and an advancing `v1` tag. Pin its release commit for production. Use one
-key/path pair per action, before any tool populates that directory. Absolute,
+key per action, with one or more paths (one per line), before any tool
+populates those directories. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.
 Do not restore an archive into the same path. A missing agent or failed attachment

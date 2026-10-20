@@ -473,8 +473,9 @@ defmodule Tuist.Kura.Regions do
   # continuous account mesh replication. Their regional gateway admits the
   # runner network and publishes a stable per-account private hostname.
   # The control plane provisions exactly one of
-  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
-  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  # these per account whose runner jobs run beside the region (see
+  # `Tuist.Kura.RunnerCache`) and the runner dispatch hands the URL back as
+  # `cache_endpoint_url`.
   #
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
