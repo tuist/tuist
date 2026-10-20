@@ -21,7 +21,7 @@ defmodule TuistWeb.Components.JSONInput do
     assigns = assign(assigns, :highlighted, highlight(assigns.value))
 
     ~H"""
-    <div class="json-input">
+    <div id={"#{@id}-container"} class="json-input" phx-hook="JSONInput">
       <.text_area
         id={@id}
         name={@name}
@@ -38,7 +38,6 @@ defmodule TuistWeb.Components.JSONInput do
         spellcheck="false"
         autocapitalize="off"
         autocorrect="off"
-        phx-hook="JSONInput"
         phx-debounce="150"
       >
         <:overlay>

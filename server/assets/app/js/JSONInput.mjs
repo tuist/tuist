@@ -52,7 +52,7 @@ export function enhanceJSONInput(textarea, ResizeObserverClass = globalThis.Resi
 
 export default {
   mounted() {
-    this.jsonInput = enhanceJSONInput(this.el);
+    this.jsonInput = enhanceJSONInput(this.el.querySelector("textarea"));
   },
   updated() {
     this.jsonInput?.refresh();
@@ -63,7 +63,7 @@ export default {
   },
   reconnected() {
     this.jsonInput?.destroy();
-    this.jsonInput = enhanceJSONInput(this.el);
+    this.jsonInput = enhanceJSONInput(this.el.querySelector("textarea"));
   },
   destroyed() {
     this.jsonInput?.destroy();

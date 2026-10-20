@@ -54,7 +54,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Authentication")
     assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Workload identities")
     assert has_element?(lv, "#oidc-template-select-custom", "Custom provider")
-    assert has_element?(lv, "#oidc-trust-policy-claims[phx-hook=JSONInput][maxlength='8192']")
+    assert has_element?(lv, "#oidc-trust-policy-claims-container[phx-hook=JSONInput]")
+    assert has_element?(lv, "#oidc-trust-policy-claims[maxlength='8192']")
     refute has_element?(lv, "#oidc-projects input[type=checkbox][checked]")
     refute has_element?(lv, "#oidc-workload-setup")
     assert page_title(lv) == "Authentication · #{context.account.name} · Tuist"

@@ -138,6 +138,27 @@ test("teardown removes listeners, disconnects observers and restores native text
   assert.equal(wrapper.highlighted, false);
 });
 
+test("a container update restores an overlay reset by a sibling field's LiveView patch", () => {
+  const state = mount();
+  state.input.destroy();
+  const hook = { el: { querySelector: () => state.textarea } };
+  JSONInput.mounted.call(hook);
+  assert.equal(state.wrapper.highlighted, true);
+
+  state.wrapper.removeAttribute("data-highlighted");
+  state.overlay.hidden = true;
+  state.overlay.style.width = "";
+  JSONInput.updated.call(hook);
+  assert.equal(state.wrapper.highlighted, true);
+  assert.equal(state.overlay.hidden, false);
+  assert.equal(state.overlay.style.width, `${state.textarea.clientWidth}px`);
+
+  JSONInput.disconnected.call(hook);
+  JSONInput.reconnected.call(hook);
+  assert.equal(state.wrapper.highlighted, true);
+  JSONInput.destroyed.call(hook);
+});
+
 test("LiveView disconnection and destruction restore readable text", () => {
   const state = mount();
   const hook = { el: state.textarea, jsonInput: state.input };

@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- `JSONInput.json_input/1` enhances a native Noora textarea with escaped Lumis JSON highlighting, bounded to 8 KiB. Highlighting is decorative, initially hidden, and never parses or rewrites the submitted draft. Keep labels, errors, malformed JSON and a readable no-JavaScript fallback.
+- `JSONInput.json_input/1` enhances a native Noora textarea with escaped Lumis JSON highlighting, bounded to 8 KiB. Highlighting is decorative, initially hidden, and never parses or rewrites the submitted draft. Keep labels, errors, malformed JSON and a readable no-JavaScript fallback. Attach the hook to the stable component container, not only the textarea, so patches to sibling overlay attributes trigger a refresh.
 - The project sidebar accepts `previews_available` from the authorized layout.
   Keep Xcode/Gradle's default Previews entry; other build systems gain it after
   their first preview upload without database queries during component rendering.

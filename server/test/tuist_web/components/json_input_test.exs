@@ -24,7 +24,8 @@ defmodule TuistWeb.Components.JSONInputTest do
 
     assert Floki.attribute(textarea, "name") == ["policy[claims]"]
     assert Floki.attribute(textarea, "aria-label") == ["Claims"]
-    assert Floki.attribute(textarea, "phx-hook") == ["JSONInput"]
+    assert [_] = Floki.find(document, "#claims-container.json-input[phx-hook=JSONInput]")
+    assert Floki.attribute(textarea, "phx-hook") == []
     assert Floki.attribute(textarea, "phx-debounce") == ["150"]
     assert Floki.attribute(textarea, "maxlength") == ["8192"]
     assert Floki.attribute(textarea, "spellcheck") == ["false"]
