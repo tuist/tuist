@@ -13,7 +13,6 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
-  alias Tuist.GitHub.App
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -78,9 +77,10 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   Allocates the checkout volume of the GitHub repository the pod is running a job
-  for. Only the host fills it from GitHub, so its uses never publish. Besides the
-  identity, the result carries the clone URL, the default branch, the job's commit
-  and a token that can only read that repository's contents, for the host alone.
+  for. The host builds its master from what jobs export and verifies it, so a
+  job's own branch never publishes; the host publishes the master instead. Besides
+  the identity and the volume's HEAD, the result carries the clone URL, the
+  default branch, the job's commit and whether the job ran on the default branch.
   """
   def allocate_checkout(%{
         "pod_name" => pod,
@@ -98,10 +98,6 @@ defmodule Tuist.Runners.CacheVolumes do
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
-         {:ok, token} <-
-           App.get_installation_token(installation,
-             scope: %{repository_ids: [identity.repository_id], permissions: %{"contents" => "read"}}
-           ),
          {:ok, allocation} <-
            allocate_for_job(job, identity, %{
              pod_name: pod,
@@ -121,8 +117,7 @@ defmodule Tuist.Runners.CacheVolumes do
          clone_url: "https://github.com/" <> job.repository,
          default_branch: identity.default_branch,
          commit: job.head_sha,
-         token: token.token,
-         token_expires_at: token.expires_at
+         default_branch_job: job.head_branch == identity.default_branch
        })}
     else
       {:error, :pending} -> {:error, :pending}
@@ -198,7 +193,8 @@ defmodule Tuist.Runners.CacheVolumes do
 
       # Lock the profile before the volume, in the same order as policy changes,
       # so their revocation sees every use granted under the previous policy.
-      # The host is the only writer of a checkout volume, so its uses never publish.
+      # A job's own checkout branch never publishes: the host publishes the master
+      # it builds from verified exports instead (`image/3`).
       grant =
         if attrs.key == @checkout_key,
           do: :denied,
@@ -620,6 +616,10 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # A checkout use publishes the host's master, never its own branch, so the branch
+  # is not needed once the job is gone.
+  defp published_action(%Volume{key: @checkout_key}, _usage), do: %{action: "delete"}
+
   defp published_action(volume, usage) do
     # Keep old parents until every referencing clone has finished. This prevents
     # deletion racing an allocated clone on a different host.
@@ -661,7 +661,7 @@ defmodule Tuist.Runners.CacheVolumes do
       on: v.id == u.volume_id,
       where:
         u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.builtin_name) and
-          is_nil(v.deleted_at),
+          is_nil(v.deleted_at) and v.key != ^@checkout_key,
       group_by: v.id,
       order_by: [desc: max(u.inserted_at)],
       limit: ^limit,
@@ -770,6 +770,9 @@ defmodule Tuist.Runners.CacheVolumes do
     if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
 
     cond do
+      volume.key == @checkout_key ->
+        checkout_publish(volume, usage, operation, digest, content)
+
       retired_image?(volume, usage) ->
         Repo.rollback(:conflict)
 
@@ -782,6 +785,25 @@ defmodule Tuist.Runners.CacheVolumes do
       true ->
         completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
         if is_nil(completion) or completion.conclusion != "success", do: Repo.rollback(:conflict)
+        image_publish(volume, usage, operation, digest, content)
+    end
+  end
+
+  # The host builds a checkout master from exports it verified itself, so the job's
+  # outcome and the use's state after the job do not matter: the use only names
+  # the lineage and the HEAD the master fast-forwards, once.
+  defp checkout_publish(volume, usage, operation, digest, content) do
+    cond do
+      usage.generation != volume.generation or not is_nil(volume.deleted_at) ->
+        Repo.rollback(:conflict)
+
+      published_image?(usage, digest, content) ->
+        %{generation: usage.published_generation}
+
+      usage.status == "published" ->
+        Repo.rollback(:conflict)
+
+      true ->
         image_publish(volume, usage, operation, digest, content)
     end
   end

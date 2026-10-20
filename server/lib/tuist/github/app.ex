@@ -28,11 +28,6 @@ defmodule Tuist.GitHub.App do
     end
   end
 
-  @doc """
-  Returns an installation token. With `scope: %{repository_ids: [id], permissions: %{"contents" => "read"}}`
-  the token is restricted to those repositories and permissions, and it is cached
-  separately from the installation's full-scope token.
-  """
   def get_installation_token(installation, opts \\ [])
 
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do
@@ -54,15 +49,14 @@ defmodule Tuist.GitHub.App do
   defp fetch_installation_token(installation_id, api_url, creds, opts, row_id) do
     ttl = to_timeout(minute: 10)
     identity = if row_id, do: "installation:#{row_id}", else: "app:#{creds.app_id}"
-    scope = Keyword.get(opts, :scope)
 
     case KeyValueStore.get_or_update(
-           [__MODULE__, "installation_token", identity, api_url, installation_id] ++ scope_key(scope),
+           [__MODULE__, "installation_token", identity, api_url, installation_id],
            [
              cache: get_cache(opts),
              ttl: Keyword.get(opts, :ttl, ttl)
            ],
-           fn -> refresh_installation_token(installation_id, api_url, creds, expires_in: ttl, scope: scope) end
+           fn -> refresh_installation_token(installation_id, api_url, creds, expires_in: ttl) end
          ) do
       {:ok, token} -> {:ok, token}
       {:error, error} -> {:error, error}
@@ -164,7 +158,7 @@ defmodule Tuist.GitHub.App do
         [
           url: pinned_url,
           headers: headers
-        ] ++ scope_body(Keyword.get(opts, :scope)) ++ ssrf_opts ++ Retry.retry_options()
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
         {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
@@ -182,19 +176,6 @@ defmodule Tuist.GitHub.App do
       end
     end
   end
-
-  defp scope_key(nil), do: []
-
-  defp scope_key(%{repository_ids: ids, permissions: permissions}) do
-    # Every element must be a string: the Redis store joins them with to_string/1.
-    permissions = permissions |> Enum.map(fn {name, level} -> "#{name}:#{level}" end) |> Enum.sort() |> Enum.join(",")
-    ["scope", ids |> Enum.sort() |> Enum.join(","), permissions]
-  end
-
-  defp scope_body(nil), do: []
-
-  defp scope_body(%{repository_ids: ids, permissions: permissions}),
-    do: [json: %{repository_ids: ids, permissions: permissions}]
 
   # Skip SSRF pinning for the canonical github.com REST host; pin every
   # GHES instance, since their hostnames are user-controlled.

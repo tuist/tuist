@@ -2378,6 +2378,11 @@ HOOK
         report_cache_dirty "${CACHE_PASSED}"
         report_volume_head "${CACHE_PASSED}"
       fi
+      # Hand the host what the job's checkout added; the host verifies it and
+      # builds the next cached checkout from it. Never affects the exit code.
+      if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+        /usr/local/bin/tuist-cache-volume --checkout-export || true
+      fi
       if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
         if ! /usr/local/bin/tuist-cache-volume --detach-all; then
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2

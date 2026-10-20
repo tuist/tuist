@@ -461,7 +461,7 @@ func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")
-	digest, content, err := compressImage(b.image(slot), archive)
+	digest, content, err := CompressImage(b.image(slot), archive)
 	compressDone(err)
 	if err != nil {
 		return err

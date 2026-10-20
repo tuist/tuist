@@ -183,7 +183,7 @@ func TestMacCheckoutMountsAtTheWorkspace(t *testing.T) {
 	respondMac(t, share, data)
 	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
 	var attached []string
-	result := checkoutMacAt(context.Background(), workspace, share, func(args ...string) error {
+	result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), func(args ...string) error {
 		attached = args
 		return nil
 	})
@@ -206,7 +206,7 @@ func TestMacCheckoutLeavesTheWorkspaceAloneWhenUnavailable(t *testing.T) {
 	workspace := filepath.Join(t.TempDir(), "repo")
 	respondMac(t, share, []byte(`{"error":"unavailable","reason":"cold"}`))
 	never := func(...string) error { t.Fatal("attached without a checkout"); return nil }
-	if result := checkoutMacAt(context.Background(), workspace, share, never); result != "unavailable (cold)" {
+	if result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (cold)" {
 		t.Fatal(result)
 	}
 	if _, err := os.Stat(workspace); !os.IsNotExist(err) {
@@ -219,10 +219,10 @@ func TestMacCheckoutNeverMountsOverExistingContent(t *testing.T) {
 	workspace := t.TempDir()
 	_ = os.WriteFile(filepath.Join(workspace, "file"), nil, 0644)
 	never := func(...string) error { t.Fatal("mounted over a workspace"); return nil }
-	if result := checkoutMacAt(context.Background(), workspace, share, never); !strings.HasPrefix(result, "skipped") {
+	if result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), never); !strings.HasPrefix(result, "skipped") {
 		t.Fatal(result)
 	}
-	if result := checkoutMacAt(context.Background(), "relative/path", share, never); !strings.HasPrefix(result, "skipped") {
+	if result := checkoutMacAt(context.Background(), "relative/path", share, filepath.Join(t.TempDir(), "state.json"), never); !strings.HasPrefix(result, "skipped") {
 		t.Fatal(result)
 	}
 }
@@ -231,7 +231,7 @@ func TestMacCheckoutTimesOutWithoutAnAnswer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	never := func(...string) error { t.Fatal("attached without an answer"); return nil }
-	if result := checkoutMacAt(ctx, filepath.Join(t.TempDir(), "repo"), t.TempDir(), never); result != "unavailable (timeout)" {
+	if result := checkoutMacAt(ctx, filepath.Join(t.TempDir(), "repo"), t.TempDir(), filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (timeout)" {
 		t.Fatal(result)
 	}
 }
@@ -240,7 +240,7 @@ func TestMacCheckoutSanitizesHostReasons(t *testing.T) {
 	share := t.TempDir()
 	respondMac(t, share, []byte(`{"error":"unavailable","reason":"::error::injected"}`))
 	never := func(...string) error { return errors.New("unexpected") }
-	if result := checkoutMacAt(context.Background(), filepath.Join(t.TempDir(), "repo"), share, never); result != "unavailable (error)" {
+	if result := checkoutMacAt(context.Background(), filepath.Join(t.TempDir(), "repo"), share, filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (error)" {
 		t.Fatal(result)
 	}
 }

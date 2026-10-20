@@ -81,7 +81,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     end
   end
 
-  test "only the storage agent can request a checkout and its token" do
+  test "only the storage agent can request a checkout" do
     assert %{plug: Controller, plug_opts: :checkout} =
              Phoenix.Router.route_info(
                TuistWeb.Router,
@@ -96,7 +96,6 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
     result = Controller.checkout(conn(), %{"pod_name" => "pod", "node_name" => "node"})
     assert result.status == 403
-    refute result.resp_body =~ "token"
   end
 
   test "an unknown checkout request is refused without allocating anything" do

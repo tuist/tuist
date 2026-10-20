@@ -45,6 +45,8 @@ type CustomVolumes struct {
 	tokenValue                                 string
 	tokenUntil                                 time.Time
 	checkoutReserved                           uint64
+	checkoutMu                                 sync.Mutex
+	checkoutJobs                               map[string]checkoutTask
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -142,6 +144,8 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
+		// Checkout images are larger than custom ones, so their archives get their own bound.
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: checkoutCapacity + 1_000_000_000, Token: c.token}
 	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
@@ -337,7 +341,11 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 		if err != nil {
 			return false, err
 		}
-		return c.gone(string(name), uid)
+		gone, err := c.gone(string(name), uid)
+		if err == nil && gone {
+			c.collectCheckout(uid)
+		}
+		return gone, err
 	})
 	if err != nil {
 		return err

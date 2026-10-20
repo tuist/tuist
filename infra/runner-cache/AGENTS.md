@@ -76,3 +76,5 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   trusted from a custom allocation. `checkout` identities carry their volume's
   clear `Generation`, have no HEAD, can never publish, and their branches are
   seeded from a host-built master; attach fails rather than format an empty image.
+  The host publishes and restores checkout masters itself, with `CompressImage`
+  and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.

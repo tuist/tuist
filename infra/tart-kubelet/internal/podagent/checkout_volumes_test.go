@@ -2,6 +2,8 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +26,8 @@ import (
 var checkoutTestScope = strings.Repeat("a", 64)
 
 const checkoutTestCommit = "0123456789abcdef0123456789abcdef01234567"
+const checkoutTestOther = "fedcba9876543210fedcba9876543210fedcba98"
+const checkoutTestUse = "11111111-1111-4111-8111-111111111111"
 
 type checkoutCall struct {
 	dir  string
@@ -38,6 +42,8 @@ type fakeCheckoutHost struct {
 	mu    sync.Mutex
 	calls []checkoutCall
 	fail  func(checkoutCall) bool
+	// lfs is what `git lfs ls-files --long` lists for any commit.
+	lfs []string
 }
 
 func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
@@ -45,6 +51,7 @@ func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name
 	f.mu.Lock()
 	f.calls = append(f.calls, call)
 	fail := f.fail
+	lfs := append([]string(nil), f.lfs...)
 	f.mu.Unlock()
 	if fail != nil && fail(call) {
 		return nil, os.ErrInvalid
@@ -60,8 +67,17 @@ func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name
 		return nil, os.WriteFile(args[2], data, 0600)
 	case name == "git" && args[0] == "init":
 		return nil, os.MkdirAll(filepath.Join(dir, ".git", "info"), 0755)
+	case name == "git" && args[0] == "index-pack":
+		pack := args[len(args)-1]
+		return []byte(strings.Repeat("9", 40) + "\n"), os.WriteFile(strings.TrimSuffix(pack, ".pack")+".idx", nil, 0644)
 	case name == "git" && args[0] == "rev-parse":
 		return []byte(checkoutTestCommit + "\n"), nil
+	case name == "git" && len(args) > 1 && args[0] == "lfs" && args[1] == "ls-files":
+		var out []string
+		for _, oid := range lfs {
+			out = append(out, oid+" * file-"+oid[:4])
+		}
+		return []byte(strings.Join(out, "\n")), nil
 	}
 	return nil, nil
 }
@@ -70,6 +86,12 @@ func (f *fakeCheckoutHost) commands() []checkoutCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]checkoutCall(nil), f.calls...)
+}
+
+func (f *fakeCheckoutHost) reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = nil
 }
 
 func (f *fakeCheckoutHost) ran(name string, args ...string) bool {
@@ -81,25 +103,84 @@ func (f *fakeCheckoutHost) ran(name string, args ...string) bool {
 	return false
 }
 
+// fakeCheckoutTransfer records publications and serves a HEAD for restores.
+type fakeCheckoutTransfer struct {
+	published []cachevolumes.Slot
+	downloads []cachevolumes.Slot
+	conflict  bool
+}
+
+func (f *fakeCheckoutTransfer) Download(_ context.Context, slot cachevolumes.Slot, path string) error {
+	f.downloads = append(f.downloads, slot)
+	return os.WriteFile(path, []byte("head"), 0600)
+}
+
+func (f *fakeCheckoutTransfer) Publish(slot cachevolumes.Slot, path, _, _ string) (int64, error) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, err
+	}
+	if f.conflict {
+		return 0, cachevolumes.ErrConflict
+	}
+	f.published = append(f.published, slot)
+	return slot.BaseGeneration + 1, nil
+}
+
 func newCheckouts(t *testing.T) (*Checkouts, *fakeCheckoutHost) {
 	t.Helper()
 	host := &fakeCheckoutHost{}
 	return &Checkouts{Root: t.TempDir(), Run: host.run}, host
 }
 
+func lfsOID(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+// exportFrom writes what a guest's teardown hands the host, already moved to
+// the incoming directory, and returns a task to build from it.
+func exportFrom(t *testing.T, c *Checkouts, name, head string, lfs map[string]string) checkoutTask {
+	t.Helper()
+	dir := c.Incoming(name)
+	if err := os.MkdirAll(filepath.Join(dir, "lfs"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for oid, content := range lfs {
+		if err := os.WriteFile(filepath.Join(dir, "lfs", oid), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for file, content := range map[string]string{"head": head + "\n", "pack": "PACK", "shallow": head + "\n"} {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task := checkoutTestTask()
+	task.Export = dir
+	return task
+}
+
 func checkoutTestTask() checkoutTask {
 	return checkoutTask{
 		Scope: checkoutTestScope, Generation: 1, CloneURL: "https://github.com/org/repo", DefaultBranch: "main",
-		Commit: checkoutTestCommit, Token: "ghs_secret", TokenExpiresAt: time.Now().Add(time.Hour),
+		Commit: checkoutTestCommit, DefaultBranchJob: true, Use: checkoutTestUse,
 	}
 }
 
-func TestCheckoutColdBuildCreatesTheMasterFromGitHub(t *testing.T) {
-	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
+func lfsStore(c *Checkouts) string {
+	return filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "lfs", "objects")
+}
 
-	master := c.Master(checkoutTestScope, 1)
-	if master == "" {
+func TestCheckoutColdBuildCreatesTheMasterFromAJobsExport(t *testing.T) {
+	c, host := newCheckouts(t)
+	content := "large file"
+	oid := lfsOID(content)
+	host.lfs = []string{oid}
+	task := exportFrom(t, c, "job", checkoutTestCommit, map[string]string{oid: content})
+
+	c.process(context.Background(), task)
+
+	if c.Master(checkoutTestScope, 1) == "" {
 		t.Fatal("no master after a cold build")
 	}
 	if !host.ran("hdiutil", "create") || host.ran("cp") {
@@ -108,131 +189,231 @@ func TestCheckoutColdBuildCreatesTheMasterFromGitHub(t *testing.T) {
 	for _, want := range [][]string{
 		{"remote", "add", "origin", "https://github.com/org/repo"},
 		{"config", "core.checkStat", "minimal"},
-		{"-c", "protocol.version=2", "fetch", "--prune", "--no-tags", "--quiet", "origin", "+refs/heads/*:refs/remotes/origin/*", "+refs/tags/*:refs/tags/*"},
-		{"-c", "protocol.version=2", "fetch", "--no-tags", "--quiet", "origin", "+" + checkoutTestCommit + ":refs/tuist/recent/" + checkoutTestCommit},
-		{"checkout", "-q", "--detach", "--force", "refs/remotes/origin/main"},
-		{"lfs", "fetch", "origin", "refs/remotes/origin/main", "refs/tuist/recent/" + checkoutTestCommit},
+		{"index-pack", "--strict"},
+		{"rev-list", "--quiet", "--objects", checkoutTestCommit},
+		{"update-ref", "refs/tuist/recent/" + checkoutTestCommit, checkoutTestCommit},
+		{"update-ref", "refs/remotes/origin/main", checkoutTestCommit},
+		{"checkout", "-q", "--detach", "--force", checkoutTestCommit},
 		{"lfs", "checkout"},
+		{"update-index", "-q", "--really-refresh"},
 	} {
 		if !host.ran("git", want...) {
 			t.Fatalf("missing git %v", want)
 		}
 	}
-	exclude, err := os.ReadFile(filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "info", "exclude"))
-	if err != nil || !strings.Contains(string(exclude), "/.fseventsd/") {
-		t.Fatalf("exclude %q %v", exclude, err)
+	for _, call := range host.commands() {
+		if call.name == "git" && (call.args[0] == "fetch" || call.args[0] == "-c") {
+			t.Fatalf("the host must never reach a remote: %v", call.args)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(lfsStore(c), oid[:2], oid[2:4], oid)); err != nil || string(data) != content {
+		t.Fatal("the verified LFS object was not installed")
+	}
+	if shallow, _ := os.ReadFile(filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "shallow")); !strings.Contains(string(shallow), checkoutTestCommit) {
+		t.Fatal("the export's shallow boundary was not recorded")
 	}
 	meta, err := c.readMeta(checkoutTestScope, 1)
 	if err != nil || meta.Tip != checkoutTestCommit || meta.Recent[checkoutTestCommit].IsZero() {
 		t.Fatalf("meta %+v %v", meta, err)
 	}
-}
-
-func TestCheckoutTokenReachesGitOnlyThroughTheEnvironment(t *testing.T) {
-	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	authorized := false
-	for _, call := range host.commands() {
-		for _, arg := range call.args {
-			if strings.Contains(arg, "ghs_secret") || strings.Contains(arg, "x-access-token") {
-				t.Fatalf("token in argv: %v", call.args)
-			}
-		}
-		if call.name != "git" {
-			if len(call.env) != 0 {
-				t.Fatalf("%s got an environment", call.name)
-			}
-			continue
-		}
-		for _, variable := range call.env {
-			if strings.HasPrefix(variable, "GIT_CONFIG_VALUE_0=AUTHORIZATION: basic ") {
-				authorized = true
-			}
-		}
-	}
-	if !authorized {
-		t.Fatal("git never got the extra header")
-	}
-	config, _ := os.ReadFile(filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "config"))
-	if strings.Contains(string(config), "ghs_secret") {
-		t.Fatal("token persisted in the repository")
+	if _, err := os.Stat(task.Export); !os.IsNotExist(err) {
+		t.Fatal("the consumed export was kept")
 	}
 }
 
-func TestCheckoutRefreshClonesTheMasterAndExpiresOldCommits(t *testing.T) {
+func TestCheckoutLFSObjectsMustHashToTheirNames(t *testing.T) {
 	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	meta, _ := c.readMeta(checkoutTestScope, 1)
-	old := "fedcba9876543210fedcba9876543210fedcba98"
-	meta.Recent[old] = time.Now().Add(-15 * 24 * time.Hour)
-	meta.RefreshedAt = time.Now().Add(-time.Hour)
-	if err := c.writeMeta(checkoutTestScope, 1, meta); err != nil {
-		t.Fatal(err)
+	oid := lfsOID("the real content")
+	host.lfs = []string{oid}
+	c.process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, map[string]string{oid: "forged content"}))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("built a master from a forged LFS object")
 	}
-	host.calls = nil
-
-	c.process(context.Background(), checkoutTestTask())
-
-	if host.ran("hdiutil", "create") || !host.ran("cp", "-c", c.masterPath(checkoutTestScope, 1)) {
-		t.Fatal("a refresh clones the current master")
-	}
-	if !host.ran("git", "remote", "set-url", "origin") || !host.ran("git", "update-ref", "-d", "refs/tuist/recent/"+old) {
-		t.Fatal("refresh keeps the remote canonical and expires old job commits")
-	}
-	meta, _ = c.readMeta(checkoutTestScope, 1)
-	if _, ok := meta.Recent[old]; ok {
-		t.Fatal("expired commit still recorded")
+	if _, err := os.Stat(filepath.Join(lfsStore(c), oid[:2], oid[2:4], oid)); !os.IsNotExist(err) {
+		t.Fatal("installed a forged LFS object")
 	}
 }
 
-func TestCheckoutRebuildsAStaleMasterFromScratch(t *testing.T) {
+func TestCheckoutIncompleteExportsAreRefused(t *testing.T) {
 	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	meta, _ := c.readMeta(checkoutTestScope, 1)
-	meta.BuiltAt = time.Now().Add(-31 * 24 * time.Hour)
-	_ = c.writeMeta(checkoutTestScope, 1, meta)
-	host.calls = nil
-	c.process(context.Background(), checkoutTestTask())
-	if !host.ran("hdiutil", "create") {
-		t.Fatal("a month-old master is rebuilt, so history removed upstream leaves it")
+	host.fail = func(call checkoutCall) bool { return call.name == "git" && call.args[0] == "rev-list" }
+	c.process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, nil))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("built a master whose commit is missing objects")
+	}
+}
+
+func TestCheckoutTipOnlyMovesToCompleteDefaultBranchCommits(t *testing.T) {
+	c, host := newCheckouts(t)
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+
+	// A pull request's objects are kept, but its commit never becomes the tip.
+	host.reset()
+	branch := exportFrom(t, c, "branch", checkoutTestOther, nil)
+	branch.DefaultBranchJob = false
+	c.process(context.Background(), branch)
+	if !host.ran("git", "index-pack") || !host.ran("git", "update-ref", "refs/tuist/recent/"+checkoutTestOther) || host.ran("git", "checkout") {
+		t.Fatal("a branch job adds its objects without moving the tip")
+	}
+	if host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("a branch job moved the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != checkoutTestCommit {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+
+	// A default-branch commit whose LFS objects are not all here stays a ref only.
+	host.reset()
+	host.lfs = []string{lfsOID("missing")}
+	next := exportFrom(t, c, "next", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	c.process(context.Background(), next)
+	if host.ran("git", "checkout") {
+		t.Fatal("moved the tip to a commit whose LFS objects are missing")
+	}
+
+	host.reset()
+	host.lfs = nil
+	next = exportFrom(t, c, "complete", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	c.process(context.Background(), next)
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestOther) || !host.ran("cp", "-c", c.masterPath(checkoutTestScope, 1)) {
+		t.Fatal("a complete default-branch commit becomes the tip of a clone of the master")
+	}
+}
+
+func TestCheckoutColdBuildNeedsEveryLFSObjectOfItsCommit(t *testing.T) {
+	c, host := newCheckouts(t)
+	host.lfs = []string{lfsOID("missing")}
+	c.process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, nil))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("a master with LFS pointers in its working tree would serve them as content")
+	}
+}
+
+func TestCheckoutPublishesMastersOfDefaultBranchCommits(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob = false
+	c.process(context.Background(), branch)
+	if len(transfer.published) != 0 {
+		t.Fatal("published a master built from a branch job")
+	}
+
+	task := exportFrom(t, c, "main", checkoutTestOther, nil)
+	task.Commit, task.BaseGeneration = checkoutTestOther, 0
+	c.process(context.Background(), task)
+	if len(transfer.published) != 1 || transfer.published[0].ID != checkoutTestUse || transfer.published[0].Scope != checkoutTestScope {
+		t.Fatalf("published %+v", transfer.published)
+	}
+	if _, err := os.Stat(filepath.Join(c.dir(checkoutTestScope, 1), "master.zst")); !os.IsNotExist(err) {
+		t.Fatal("left the archive behind")
+	}
+
+	transfer.conflict = true
+	again := exportFrom(t, c, "again", checkoutTestCommit, nil)
+	c.process(context.Background(), again)
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("another host publishing first must not cost this host its master")
+	}
+}
+
+func TestCheckoutRestoresTheHeadOnAHostWithoutAMaster(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+
+	c.process(context.Background(), task)
+
+	if len(transfer.downloads) != 1 || transfer.downloads[0].BaseGeneration != 3 || transfer.downloads[0].ContentDigest != task.ContentDigest {
+		t.Fatalf("downloads %+v", transfer.downloads)
+	}
+	if data, _ := os.ReadFile(c.Master(checkoutTestScope, 1)); string(data) != "head" {
+		t.Fatal("the HEAD did not become this host's master")
+	}
+	if !host.ran("hdiutil", "attach", filepath.Join(c.dir(checkoutTestScope, 1), "next.sparseimage"), "-readonly") {
+		t.Fatal("the restored master's tip is read from a read-only mount")
+	}
+	if meta, err := c.readMeta(checkoutTestScope, 1); err != nil || meta.Tip != checkoutTestCommit {
+		t.Fatalf("meta %+v %v", meta, err)
+	}
+
+	c.process(context.Background(), task)
+	if len(transfer.downloads) != 1 {
+		t.Fatal("restored over an existing master")
+	}
+}
+
+func TestCheckoutExportsAreReadWithoutFollowingLinks(t *testing.T) {
+	c, _ := newCheckouts(t)
+	outside := filepath.Join(t.TempDir(), "secret")
+	_ = os.WriteFile(outside, []byte("host file"), 0600)
+	for _, entry := range []string{"pack", "head"} {
+		task := exportFrom(t, c, "job-"+entry, checkoutTestCommit, nil)
+		_ = os.Remove(filepath.Join(task.Export, entry))
+		if err := os.Symlink(outside, filepath.Join(task.Export, entry)); err != nil {
+			t.Fatal(err)
+		}
+		if export, err := openCheckoutExport(task.Export); err == nil {
+			export.Close()
+			t.Fatalf("followed a %s link out of the export", entry)
+		}
+	}
+	link := filepath.Join(t.TempDir(), "export")
+	_ = os.Symlink(t.TempDir(), link)
+	if _, err := openCheckoutExport(link); err == nil {
+		t.Fatal("opened an export that is a link")
 	}
 }
 
 func TestCheckoutFailedBuildKeepsThePreviousMaster(t *testing.T) {
 	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
 	before, _ := os.ReadFile(c.Master(checkoutTestScope, 1))
-	host.fail = func(call checkoutCall) bool { return call.name == "git" && call.args[0] == "lfs" }
-	refresh := checkoutTestTask()
-	refresh.Commit = "fedcba9876543210fedcba9876543210fedcba98"
-	host.calls = nil
-	c.process(context.Background(), refresh)
-	if !host.ran("git", "lfs") {
-		t.Fatal("the refresh never ran")
+	host.fail = func(call checkoutCall) bool {
+		return call.name == "git" && call.args[0] == "lfs" && call.args[1] == "checkout"
+	}
+	next := exportFrom(t, c, "next", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	host.reset()
+	c.process(context.Background(), next)
+	if !host.ran("git", "lfs", "checkout") {
+		t.Fatal("the build never ran")
 	}
 	after, err := os.ReadFile(c.Master(checkoutTestScope, 1))
 	if err != nil || string(after) != string(before) {
-		t.Fatal("a failed refresh replaced the master")
+		t.Fatal("a failed build replaced the master")
 	}
 	if _, err := os.Stat(filepath.Join(c.dir(checkoutTestScope, 1), "next.sparseimage")); !os.IsNotExist(err) {
-		t.Fatal("a failed refresh left its image behind")
+		t.Fatal("a failed build left its image behind")
 	}
 }
 
-func TestCheckoutSkipsTokensAboutToExpire(t *testing.T) {
+func TestCheckoutRecentCommitsExpire(t *testing.T) {
 	c, host := newCheckouts(t)
-	task := checkoutTestTask()
-	task.TokenExpiresAt = time.Now().Add(time.Minute)
-	c.process(context.Background(), task)
-	if len(host.commands()) != 0 {
-		t.Fatal("built with an expiring token")
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	meta, _ := c.readMeta(checkoutTestScope, 1)
+	old := strings.Repeat("e", 40)
+	meta.Recent[old] = time.Now().Add(-15 * 24 * time.Hour)
+	_ = c.writeMeta(checkoutTestScope, 1, meta)
+	host.reset()
+	c.process(context.Background(), exportFrom(t, c, "next", checkoutTestCommit, nil))
+	if !host.ran("git", "remote", "set-url", "origin") || !host.ran("git", "update-ref", "-d", "refs/tuist/recent/"+old) {
+		t.Fatal("a build keeps the remote canonical and expires old job commits")
+	}
+	if meta, _ = c.readMeta(checkoutTestScope, 1); !meta.Recent[old].IsZero() {
+		t.Fatal("expired commit still recorded")
 	}
 }
 
 func TestCheckoutClearDropsOlderGenerations(t *testing.T) {
 	c, _ := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	task := checkoutTestTask()
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	task := exportFrom(t, c, "cleared", checkoutTestCommit, nil)
 	task.Generation = 2
 	c.process(context.Background(), task)
 	if c.Master(checkoutTestScope, 1) != "" || c.Master(checkoutTestScope, 2) == "" {
@@ -244,31 +425,47 @@ func TestCheckoutTasksAreValidated(t *testing.T) {
 	c, _ := newCheckouts(t)
 	c.queue, c.ready = make(chan string, 1), true
 	for name, mutate := range map[string]func(*checkoutTask){
-		"other host":      func(t *checkoutTask) { t.CloneURL = "https://example.com/org/repo" },
-		"option branch":   func(t *checkoutTask) { t.DefaultBranch = "--upload-pack=evil" },
-		"dotted branch":   func(t *checkoutTask) { t.DefaultBranch = "a..b" },
-		"short commit":    func(t *checkoutTask) { t.Commit = "abc" },
-		"no token":        func(t *checkoutTask) { t.Token = "" },
-		"multiline token": func(t *checkoutTask) { t.Token = "a\nb" },
-		"bad scope":       func(t *checkoutTask) { t.Scope = "../x" },
+		"other host":            func(t *checkoutTask) { t.CloneURL = "https://example.com/org/repo" },
+		"option branch":         func(t *checkoutTask) { t.DefaultBranch = "--upload-pack=evil" },
+		"dotted branch":         func(t *checkoutTask) { t.DefaultBranch = "a..b" },
+		"short commit":          func(t *checkoutTask) { t.Commit = "abc" },
+		"bad scope":             func(t *checkoutTask) { t.Scope = "../x" },
+		"no use":                func(t *checkoutTask) { t.Use = "" },
+		"export elsewhere":      func(t *checkoutTask) { t.Export = "/etc" },
+		"restore without HEAD":  func(t *checkoutTask) { t.Export = "" },
+		"HEAD without digests":  func(t *checkoutTask) { t.BaseGeneration = 2 },
+		"negative base":         func(t *checkoutTask) { t.BaseGeneration = -1 },
+		"negative generation":   func(t *checkoutTask) { t.Generation = -1 },
+		"export outside folder": func(t *checkoutTask) { t.Export = filepath.Join(c.Root, "export") },
 	} {
 		task := checkoutTestTask()
+		task.Export = c.Incoming("job")
 		mutate(&task)
 		if c.Enqueue(task) {
 			t.Fatalf("%s accepted", name)
 		}
 	}
-	if !c.Enqueue(checkoutTestTask()) || !c.Enqueue(checkoutTestTask()) {
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	second := exportFrom(t, c, "second", checkoutTestCommit, nil)
+	if !c.Enqueue(first) || !c.Enqueue(second) {
 		t.Fatal("repeated requests coalesce")
 	}
-	if len(c.queue) != 1 {
-		t.Fatal("one queued build per volume")
+	if len(c.queue) != 1 || c.pending[checkoutTestScope].Export != second.Export {
+		t.Fatal("one queued build per volume, the newest")
+	}
+	if _, err := os.Stat(first.Export); !os.IsNotExist(err) {
+		t.Fatal("a replaced export was kept")
+	}
+	restore := checkoutTestTask()
+	restore.BaseGeneration, restore.ImageDigest, restore.ContentDigest = 1, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	if !c.Enqueue(restore) || c.pending[checkoutTestScope].Export != second.Export {
+		t.Fatal("a restore never replaces a queued export")
 	}
 }
 
 func TestCheckoutSeedClonesTheMasterAndRefusesOthers(t *testing.T) {
 	c, _ := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
 	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{Scope: checkoutTestScope, Kind: cachevolumes.KindCheckout, Generation: 1}}
 	dst := filepath.Join(t.TempDir(), "branch")
 	if err := c.Seed(context.Background(), slot, dst); err != nil {
@@ -289,8 +486,8 @@ func TestCheckoutSeedClonesTheMasterAndRefusesOthers(t *testing.T) {
 
 func TestCheckoutEvictionSkipsMastersInUse(t *testing.T) {
 	c, _ := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	other := checkoutTestTask()
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	other := exportFrom(t, c, "other", checkoutTestCommit, nil)
 	other.Scope = strings.Repeat("b", 64)
 	c.process(context.Background(), other)
 	old := time.Now().Add(-8 * 24 * time.Hour)
@@ -299,7 +496,7 @@ func TestCheckoutEvictionSkipsMastersInUse(t *testing.T) {
 	c.setBusy(checkoutTestScope, true)
 	c.Maintain()
 	if c.Master(checkoutTestScope, 1) == "" {
-		t.Fatal("evicted a master being refreshed")
+		t.Fatal("evicted a master being built")
 	}
 	c.setBusy(checkoutTestScope, false)
 	c.Maintain()
@@ -311,37 +508,21 @@ func TestCheckoutEvictionSkipsMastersInUse(t *testing.T) {
 	}
 }
 
-func TestCheckoutMailboxRequestSeedsTheWorkspaceVolume(t *testing.T) {
-	root := t.TempDir()
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
-	share := filepath.Join(root, "pods", string(pod.UID))
-	if err := os.MkdirAll(share, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(share, "checkout.request"), []byte(`{"checkout":true,"uid":501,"key":"other"}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	id := "11111111-1111-4111-8111-111111111111"
+func checkoutAgent(t *testing.T, root string, grant map[string]any, checkouts *Checkouts) (*CustomVolumes, *cachevolumes.Store) {
+	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var got map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&got)
 		if r.URL.Path != "/checkout" || got["pod_name"] != "host-pod" || got["node_name"] != "host-node" || got["key"] != nil {
 			t.Errorf("unexpected checkout request %s %v", r.URL.Path, got)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id": id, "account_id": 1, "scope": checkoutTestScope, "uid": 501, "generation": 1, "can_publish": true,
-			"clone_url": "https://github.com/org/repo", "default_branch": "main", "commit": checkoutTestCommit,
-			"token": "ghs_secret", "token_expires_at": time.Now().Add(time.Hour),
-		})
+		_ = json.NewEncoder(w).Encode(grant)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 	kube := fake.NewSimpleClientset()
 	kube.PrependReactor("create", "serviceaccounts", func(ktesting.Action) (bool, runtime.Object, error) {
 		return true, &authenticationv1.TokenRequest{Status: authenticationv1.TokenRequestStatus{Token: "host-only"}}, nil
 	})
-	checkouts, _ := newCheckouts(t)
-	checkouts.process(context.Background(), checkoutTestTask())
-	checkouts.queue, checkouts.ready = make(chan string, 1), true
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }},
 		Create: func(context.Context, string, int64) error { t.Fatal("checkout formatted an empty image"); return nil }, Seed: checkouts.Seed}
 	if err := backend.Init(); err != nil {
@@ -351,8 +532,42 @@ func TestCheckoutMailboxRequestSeedsTheWorkspaceVolume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
-	c := &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube, Store: store, Checkouts: checkouts}
+	t.Cleanup(func() { store.Close() })
+	return &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube, Store: store, Checkouts: checkouts}, store
+}
+
+func checkoutGrantJSON(base int64) map[string]any {
+	grant := map[string]any{
+		"id": checkoutTestUse, "account_id": 1, "scope": checkoutTestScope, "uid": 501, "generation": 1, "can_publish": true,
+		"clone_url": "https://github.com/org/repo", "default_branch": "main", "commit": checkoutTestCommit, "default_branch_job": true,
+	}
+	if base > 0 {
+		grant["base_generation"], grant["parent_id"] = base, "22222222-2222-4222-8222-222222222222"
+		grant["image_digest"], grant["content_digest"] = strings.Repeat("b", 40), strings.Repeat("c", 64)
+	}
+	return grant
+}
+
+func checkoutRequest(t *testing.T, root string, pod *corev1.Pod) string {
+	t.Helper()
+	share := filepath.Join(root, "pods", string(pod.UID))
+	if err := os.MkdirAll(share, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(share, "checkout.request"), []byte(`{"checkout":true,"uid":501,"key":"other"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return share
+}
+
+func TestCheckoutMailboxRequestSeedsTheWorkspaceVolume(t *testing.T) {
+	root := t.TempDir()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+	share := checkoutRequest(t, root, pod)
+	checkouts, _ := newCheckouts(t)
+	checkouts.process(context.Background(), exportFrom(t, checkouts, "first", checkoutTestCommit, nil))
+	checkouts.queue, checkouts.ready = make(chan string, 1), true
+	c, store := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
@@ -360,23 +575,76 @@ func TestCheckoutMailboxRequestSeedsTheWorkspaceVolume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "ghs_secret") {
-		t.Fatal("token reached the guest")
-	}
 	var response map[string]any
 	_ = json.Unmarshal(data, &response)
-	if response["id"] != id || response["directory"] != checkoutTestScope || response["warm"] != true {
+	if response["id"] != checkoutTestUse || response["directory"] != checkoutTestScope || response["warm"] != true {
 		t.Fatal(string(data))
 	}
 	if image, _ := os.ReadFile(filepath.Join(share, checkoutTestScope, "cache.sparseimage")); string(image) != "image" {
 		t.Fatal("the guest's branch is not a clone of the master")
 	}
 	slots, _ := store.Snapshot()
-	if len(slots) != 1 || slots[0].Kind != cachevolumes.KindCheckout || slots[0].CanPublish {
+	if len(slots) != 1 || slots[0].Kind != cachevolumes.KindCheckout || slots[0].CanPublish || slots[0].BaseGeneration != 0 || slots[0].ParentID != "" {
 		t.Fatalf("journaled %+v", slots)
 	}
+	if len(checkouts.queue) != 0 {
+		t.Fatal("a host with a master restores nothing")
+	}
+}
+
+func TestCheckoutColdHostRestoresTheHeadAndBuildsFromTheExport(t *testing.T) {
+	root := t.TempDir()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+	share := checkoutRequest(t, root, pod)
+	checkouts := &Checkouts{Root: filepath.Join(root, "checkouts"), Run: (&fakeCheckoutHost{}).run}
+	checkouts.queue, checkouts.ready = make(chan string, 2), true
+	c, _ := checkoutAgent(t, root, checkoutGrantJSON(1), checkouts)
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(share, "checkout.request.response"))
+	if !strings.Contains(string(data), `"cold"`) {
+		t.Fatal(string(data))
+	}
+	if task := checkouts.pending[checkoutTestScope]; len(checkouts.queue) != 1 || task.Export != "" || task.BaseGeneration != 1 {
+		t.Fatalf("a cold host with a HEAD restores it: %+v", task)
+	}
+
+	// The job's export is taken out of the share once the pod is gone.
+	export := filepath.Join(share, checkoutExportDir)
+	_ = os.MkdirAll(export, 0755)
+	_ = os.WriteFile(filepath.Join(export, "head"), []byte(checkoutTestCommit), 0644)
+	c.collectCheckout(string(pod.UID))
+	task := checkouts.pending[checkoutTestScope]
+	if task.Export != checkouts.Incoming(string(pod.UID)) || task.Use != checkoutTestUse || task.BaseGeneration != 1 {
+		t.Fatalf("the export did not replace the restore: %+v", task)
+	}
+	if _, err := os.Stat(filepath.Join(task.Export, "head")); err != nil {
+		t.Fatal("the export was not moved out of the share")
+	}
+	c.collectCheckout(string(pod.UID))
 	if len(checkouts.queue) != 1 {
-		t.Fatal("serving a checkout queues its refresh")
+		t.Fatal("a pod's export is collected once")
+	}
+}
+
+func TestCheckoutExportsAreOnlyCollectedFromRealDirectoriesOfGrantedJobs(t *testing.T) {
+	root := t.TempDir()
+	checkouts := &Checkouts{Root: filepath.Join(root, "checkouts")}
+	checkouts.queue, checkouts.ready = make(chan string, 2), true
+	c := &CustomVolumes{Root: root, Checkouts: checkouts}
+	share := filepath.Join(root, "pods", "pod-uid")
+	_ = os.MkdirAll(filepath.Join(share, checkoutExportDir), 0755)
+	c.collectCheckout("pod-uid")
+	if len(checkouts.queue) != 0 {
+		t.Fatal("collected an export without a grant")
+	}
+	_ = os.RemoveAll(filepath.Join(share, checkoutExportDir))
+	_ = os.Symlink(t.TempDir(), filepath.Join(share, checkoutExportDir))
+	c.rememberCheckout("pod-uid", exportFrom(t, checkouts, "unused", checkoutTestCommit, nil))
+	c.collectCheckout("pod-uid")
+	if len(checkouts.queue) != 0 {
+		t.Fatal("collected a link out of the share")
 	}
 }
 
@@ -387,7 +655,7 @@ func TestCustomMailboxNeverAllocatesACheckoutIdentity(t *testing.T) {
 	_ = os.MkdirAll(share, 0755)
 	_ = os.WriteFile(filepath.Join(share, "cache.request"), []byte(`{"key":"gradle","uid":501}`), 0600)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "11111111-1111-4111-8111-111111111111", "account_id": 1, "scope": checkoutTestScope, "uid": 501, "kind": "checkout", "generation": 1})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": checkoutTestUse, "account_id": 1, "scope": checkoutTestScope, "uid": 501, "kind": "checkout", "generation": 1})
 	}))
 	defer server.Close()
 	kube := fake.NewSimpleClientset()
@@ -427,22 +695,6 @@ func TestCheckoutGitLFSIsVerifiedBeforeUse(t *testing.T) {
 	}
 }
 
-func TestCheckoutRefreshesAreThrottledUnlessTheJobCommitIsNew(t *testing.T) {
-	c, host := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	host.calls = nil
-	c.process(context.Background(), checkoutTestTask())
-	if len(host.commands()) != 0 {
-		t.Fatal("refreshed a volume that just refreshed with the same commit")
-	}
-	task := checkoutTestTask()
-	task.Commit = "fedcba9876543210fedcba9876543210fedcba98"
-	c.process(context.Background(), task)
-	if !host.ran("git", "-c", "protocol.version=2", "fetch", "--no-tags", "--quiet", "origin", "+"+task.Commit+":refs/tuist/recent/"+task.Commit) {
-		t.Fatal("a new job commit must still be fetched")
-	}
-}
-
 func TestCheckoutBuildRefusedForRoomIsRetriedByMaintain(t *testing.T) {
 	c, _ := newCheckouts(t)
 	c.ready, c.queue = true, make(chan string, checkoutQueue)
@@ -453,9 +705,13 @@ func TestCheckoutBuildRefusedForRoomIsRetriedByMaintain(t *testing.T) {
 		}
 		return func() {}, nil
 	}
-	c.process(context.Background(), checkoutTestTask())
+	task := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	c.process(context.Background(), task)
 	if c.Master(checkoutTestScope, 1) != "" || len(c.queue) != 0 {
 		t.Fatal("a build without room ran or was queued straight away")
+	}
+	if _, err := os.Stat(task.Export); err != nil {
+		t.Fatal("a waiting build lost its export")
 	}
 
 	full = false
@@ -473,25 +729,44 @@ func TestCheckoutBuildRefusedForRoomIsRetriedByMaintain(t *testing.T) {
 	}
 }
 
+func TestCheckoutWaitingBuildsGiveUpAfterAWhile(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, cachevolumes.ErrCapacity }
+	task := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	task.Since = time.Now().Add(-2 * checkoutWaitFor)
+	c.process(context.Background(), task)
+	c.Maintain()
+	if len(c.queue) != 0 {
+		t.Fatal("kept retrying a build past its wait")
+	}
+	if _, err := os.Stat(task.Export); !os.IsNotExist(err) {
+		t.Fatal("kept the export of a build it gave up on")
+	}
+}
+
 func TestCheckoutNewerRequestReplacesAWaitingBuild(t *testing.T) {
 	c, _ := newCheckouts(t)
 	c.ready, c.queue = true, make(chan string, checkoutQueue)
 	c.Room = func(context.Context, uint64) (func(), error) { return nil, cachevolumes.ErrCapacity }
-	c.process(context.Background(), checkoutTestTask())
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	c.process(context.Background(), first)
 
-	newer := checkoutTestTask()
-	newer.Token = "ghs_newer"
+	newer := exportFrom(t, c, "newer", checkoutTestOther, nil)
 	c.Enqueue(newer)
 	c.Maintain()
-	if len(c.queue) != 1 || c.pending[checkoutTestScope].Token != "ghs_newer" {
+	if len(c.queue) != 1 || c.pending[checkoutTestScope].Export != newer.Export {
 		t.Fatal("the waiting build was not replaced by the newer request")
+	}
+	if _, err := os.Stat(first.Export); !os.IsNotExist(err) {
+		t.Fatal("kept the replaced export")
 	}
 }
 
 func TestCheckoutEvictableCountsOnlyMastersNoBuildHolds(t *testing.T) {
 	c, _ := newCheckouts(t)
-	c.process(context.Background(), checkoutTestTask())
-	other := checkoutTestTask()
+	c.process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	other := exportFrom(t, c, "other", checkoutTestCommit, nil)
 	other.Scope = strings.Repeat("b", 64)
 	c.process(context.Background(), other)
 	size := func(string) (uint64, error) { return 3, nil }

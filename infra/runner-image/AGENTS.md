@@ -895,6 +895,12 @@ semantics; this doc is just about the VM image.
   before the first step. It mounts the job's cached checkout at the workspace
   only when the host serves one and the workspace is empty, and otherwise leaves
   it untouched, so actions/checkout clones as before. It never fails the job.
+  When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
+  it records the workspace and the mounted master's commit and LFS objects in
+  `/Users/runner/.tuist-checkout.json`. The teardown then runs
+  `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
+  and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  for the host to verify and build from. Neither step fails the job.
 
 - `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
   size, mount time/duration and host-staged warm/cold source. Stage once at attach

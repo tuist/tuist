@@ -137,6 +137,10 @@ these schemas persist volume identities and per-job uses.
 - `checkout` is a reserved key: `allocate/1` refuses it, and only
   `allocate_checkout/1` (host agent, `/runners/cache-volumes/checkout`) creates
   it, for GitHub jobs of accounts with `:runner_cached_checkouts`, on github.com
-  installations. Its uses are never publishable whatever the runner profile says.
-  The response carries a token restricted to the repository with `contents: read`
-  (`Tuist.GitHub.App` `scope:`); it is for the host only and must never be logged.
+  installations. No GitHub token is involved: the host builds the master from what
+  jobs export after their own checkout. A use never gets `can_publish`, so a job's
+  own branch is never sealed or published. Instead the host publishes its master
+  under the use through `image/3` (`checkout_publish`): only the generation and the
+  use not having published yet are checked, not the job's outcome or the use's
+  state, and a published checkout use is released (`delete`) when its job is gone.
+  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.

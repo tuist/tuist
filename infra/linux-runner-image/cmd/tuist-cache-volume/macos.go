@@ -230,10 +230,10 @@ func exchangeMac(ctx context.Context, share string, request map[string]any) (mac
 func checkoutMac(workspace string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	return checkoutMacAt(ctx, workspace, macShare, func(args ...string) error { return macCommandContext(ctx, args...) })
+	return checkoutMacAt(ctx, workspace, macShare, checkoutStatePath, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
 
-func checkoutMacAt(ctx context.Context, workspace, share string, command func(...string) error) string {
+func checkoutMacAt(ctx context.Context, workspace, share, statePath string, command func(...string) error) string {
 	if !filepath.IsAbs(workspace) || filepath.Clean(workspace) != workspace {
 		return "skipped (workspace is not an absolute path)"
 	}
@@ -249,6 +249,10 @@ func checkoutMacAt(ctx context.Context, workspace, share string, command func(..
 		if !reasonPattern.MatchString(reason) {
 			reason = "error"
 		}
+		// These answers come with a grant: the host builds from what this job exports.
+		if reason == "cold" || reason == "capacity" || reason == "timeout" {
+			_ = recordCheckout(statePath, workspace, false)
+		}
 		return "unavailable (" + reason + ")"
 	}
 	if err := os.MkdirAll(workspace, 0755); err != nil {
@@ -258,6 +262,7 @@ func checkoutMacAt(ctx context.Context, workspace, share string, command func(..
 	if err := command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", workspace); err != nil {
 		return "unavailable (attach)"
 	}
+	_ = recordCheckout(statePath, workspace, true)
 	// Mounted proves to the host that the guest holds the branch; nothing is
 	// written into the workspace itself.
 	if err := os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {

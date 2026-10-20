@@ -569,18 +569,22 @@ host replicas and superseded S3 objects are not a physical-storage census.
 - **Cached checkouts** (macOS hosts, `<runner-cache-root>/custom/checkouts/<scope>/<clear generation>/`):
   when an account has cached checkouts, each GitHub repository its jobs build has a volume
   with the reserved key `checkout` in `runner_cache_volumes`, recorded like any other volume
-  and in the same usage history. Its contents are the repository's source as the host fetched
-  it from GitHub with a read-only, repository-scoped installation token: `master.sparseimage`
-  (an APFS image holding a working tree at the default-branch tip, the full `.git` with every
-  branch and tag, the commits of jobs served in the last 14 days under `refs/tuist/recent/`, and
-  the Git LFS objects those commits reference) and `master.json` (tip commit, build and refresh
-  times, recent job commits). Each job mounts a private clone that is discarded with the job;
-  no job writes the master and nothing is uploaded to object storage. The token is held in
-  memory for the duration of a refresh and never written to disk, the image or the share. A
-  master is removed after seven days without a job mount, on disk pressure, when the volume is
-  cleared (its clear generation changes), and rebuilt from a fresh clone at least every 30
-  days, so history removed from GitHub persists on a host until then or until the volume is
-  cleared. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
+  and in the same usage history. Its contents are the repository's source as the account's
+  own jobs checked it out: after each job the runner hands its host the Git objects and Git
+  LFS objects the job's checkout added (`<runner-cache-root>/custom/checkouts/.incoming/<pod>`,
+  removed once the host has built from it, within about an hour at most). The host keeps
+  `master.sparseimage` (an APFS image holding a working tree at a default-branch commit, the
+  `.git` with the objects of the jobs it built from, those jobs' commits from the last 14
+  days under `refs/tuist/recent/`, and the Git LFS objects they reference) and `master.json`
+  (tip commit, build and refresh times, recent job commits). Each job mounts a private clone
+  that is discarded with the job. A master built from a default-branch job is also
+  published as the volume's saved master, like a custom volume's: S3
+  `runner-volume-masters/{account_id}/{storage_name}/{tree}-{content}.image` with its row in
+  the volume HEAD table, so other hosts restore it instead of building their own. Masters on
+  hosts are removed after seven days without a job mount, on disk pressure, or when the
+  volume is cleared (its clear generation changes), and saved masters follow the custom
+  volume retention and clearing. History removed from GitHub persists in a master until the
+  volume is cleared. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
   host uses, not customer data.
 
 Export joins volumes, uses and measurements by account ID and includes the

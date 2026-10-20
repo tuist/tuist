@@ -5,7 +5,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   alias Tuist.Environment
   alias Tuist.FeatureFlags
-  alias Tuist.GitHub.App
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
@@ -1519,10 +1518,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
         {:ok, %{"id" => 123, "full_name" => job.repository, "default_branch" => "main"}}
       end)
 
-      stub(App, :get_installation_token, fn _, _ ->
-        {:ok, %{token: "ghs_read", expires_at: ~U[2026-10-19 12:00:00Z]}}
-      end)
-
       params = %{
         "pod_name" => "mac-pod",
         "pod_uid" => "mac-uid",
@@ -1534,22 +1529,18 @@ defmodule Tuist.Runners.CacheVolumesTest do
       %{job: job, params: params}
     end
 
-    test "allocates the repository's checkout volume with what the host needs to fill it", %{
+    test "allocates the repository's checkout volume with what the host needs to build its master", %{
       account: account,
       job: job,
       params: params
     } do
-      expect(App, :get_installation_token, fn %{installation_id: "99"}, opts ->
-        assert opts[:scope] == %{repository_ids: [123], permissions: %{"contents" => "read"}}
-        {:ok, %{token: "ghs_read", expires_at: ~U[2026-10-19 12:00:00Z]}}
-      end)
-
       assert {:ok, checkout} = CacheVolumes.allocate_checkout(params)
 
       assert checkout.clone_url == "https://github.com/org/repo"
       assert checkout.default_branch == "main"
       assert checkout.commit == job.head_sha
-      assert checkout.token == "ghs_read"
+      refute checkout.default_branch_job
+      refute Map.has_key?(checkout, :token)
       assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
       assert volume(account).key == "checkout"
       assert volume(account).platform == "macos"
@@ -1558,6 +1549,46 @@ defmodule Tuist.Runners.CacheVolumesTest do
     test "never lets a use of the checkout volume publish, even from the default branch", %{params: params} do
       assert {:ok, %{can_publish: false} = checkout} = CacheVolumes.allocate_checkout(params)
       refute Repo.get!(Usage, checkout.id).can_publish
+    end
+
+    test "marks a job on the default branch", %{job: job, params: params} do
+      WorkflowJob |> Repo.get!(job.workflow_job_id) |> Ecto.Changeset.change(head_branch: "main") |> Repo.update!()
+
+      assert {:ok, %{default_branch_job: true}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "the host publishes its master once, under a use whose job is already gone", %{params: params} do
+      {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+      assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
+      CacheVolumes.report("mac-node", checkout.id, report("deleted"))
+      digest = String.duplicate("b", 40)
+      content = String.duplicate("c", 64)
+      publish = %{"operation" => "publish", "image_digest" => digest, "content_digest" => content}
+
+      assert {:error, :not_found} = CacheVolumes.image("other-node", checkout.id, publish)
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+
+      assert {:error, :conflict} =
+               CacheVolumes.image("mac-node", checkout.id, %{publish | "content_digest" => String.duplicate("d", 64)})
+
+      assert {:ok, %{base_generation: 1, image_digest: ^digest, content_digest: ^content}} =
+               CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+    end
+
+    test "a published checkout use releases its branch and is never prefetched", %{params: params} do
+      since = DateTime.add(DateTime.utc_now(), -60, :second)
+      {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+      assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
+      assert [] = CacheVolumes.recent_macos_heads(["mac-node"], since, 8)
     end
 
     test "is unavailable unless the account has cached checkouts", %{params: params} do

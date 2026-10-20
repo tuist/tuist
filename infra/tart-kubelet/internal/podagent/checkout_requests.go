@@ -4,21 +4,21 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
+	"os"
+	"path/filepath"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 )
 
-// The server's checkout allocation: the volume identity plus what the populator
-// needs. The token stays on the host; it never enters a response or the share.
+// The server's checkout allocation: the volume identity, its HEAD, and what the
+// populator needs to build a master from the job's export.
 type checkoutGrant struct {
 	cachevolumes.Identity
-	CloneURL       string    `json:"clone_url"`
-	DefaultBranch  string    `json:"default_branch"`
-	Commit         string    `json:"commit"`
-	Token          string    `json:"token"`
-	TokenExpiresAt time.Time `json:"token_expires_at"`
+	CloneURL         string `json:"clone_url"`
+	DefaultBranch    string `json:"default_branch"`
+	Commit           string `json:"commit"`
+	DefaultBranchJob bool   `json:"default_branch_job"`
 }
 
 // checkout answers a guest's request for its job's checkout volume. The server
@@ -33,17 +33,23 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 	if err != nil {
 		return map[string]any{"error": "unavailable", "reason": "denied"}
 	}
-	grant.Kind = cachevolumes.KindCheckout
-	grant.CanPublish = false
-	// Refresh behind the job, or build the first master, whatever this job gets.
-	defer c.Checkouts.Enqueue(checkoutTask{
+	task := checkoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, Token: grant.Token, TokenExpiresAt: grant.TokenExpiresAt,
-	})
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID,
+		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
+	}
+	// The job's branch is a clone of this host's master; the HEAD only restores it.
+	identity := grant.Identity
+	identity.Kind, identity.CanPublish = cachevolumes.KindCheckout, false
+	identity.ParentID, identity.BaseGeneration, identity.ImageDigest, identity.ContentDigest = "", 0, "", ""
+	c.rememberCheckout(string(pod.UID), task)
 	cold := c.Checkouts.Master(grant.Scope, grant.Generation) == ""
+	if cold && task.BaseGeneration > 0 {
+		c.Checkouts.Enqueue(task)
+	}
 	// Acquire even when cold: the journaled lease is what tells the server this
 	// use ended, once the pod is gone and the empty slot is reported deleted.
-	warm, err := c.Store.Acquire(ctx, grant.Identity, pod.Name, string(pod.UID))
+	warm, err := c.Store.Acquire(ctx, identity, pod.Name, string(pod.UID))
 	switch {
 	case cold:
 		return map[string]any{"error": "unavailable", "reason": "cold"}
@@ -55,6 +61,42 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 		return map[string]any{"error": "unavailable", "reason": "error"}
 	}
 	return map[string]any{"id": grant.ID, "directory": grant.Scope, "warm": warm}
+}
+
+func (c *CustomVolumes) rememberCheckout(podUID string, task checkoutTask) {
+	c.checkoutMu.Lock()
+	defer c.checkoutMu.Unlock()
+	if c.checkoutJobs == nil {
+		c.checkoutJobs = map[string]checkoutTask{}
+	}
+	c.checkoutJobs[podUID] = task
+}
+
+// collectCheckout moves a finished job's export out of its share before the share
+// is removed, and queues a build from it. The guest wrote the export, so only a
+// real directory is taken, never a link out of the share.
+func (c *CustomVolumes) collectCheckout(podUID string) {
+	c.checkoutMu.Lock()
+	task, ok := c.checkoutJobs[podUID]
+	delete(c.checkoutJobs, podUID)
+	c.checkoutMu.Unlock()
+	if !ok || !c.Checkouts.Ready() {
+		return
+	}
+	src := filepath.Join(c.Root, "pods", podUID, checkoutExportDir)
+	if info, err := os.Lstat(src); err != nil || !info.IsDir() {
+		return
+	}
+	dst := c.Checkouts.Incoming(podUID)
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		return
+	}
+	_ = os.RemoveAll(dst)
+	if err := os.Rename(src, dst); err != nil {
+		return
+	}
+	task.Export = dst
+	c.Checkouts.Enqueue(task)
 }
 
 // reserveCheckout holds disk for a master build beside every other image on the
