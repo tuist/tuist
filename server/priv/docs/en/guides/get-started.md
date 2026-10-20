@@ -35,7 +35,7 @@ Connect an Elixir project to Tuist's build insights, test insights, flaky test d
 
 ## Rust project {#rust-project}
 
-Decorate Cargo with the Tuist CLI to report compiler observations and nextest test insights, and distribute prebuilt nextest binaries across CI shards.
+Run Cargo through the Tuist CLI to report builds and individual test results, including doctests, and investigate flaky tests.
 
 <.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 

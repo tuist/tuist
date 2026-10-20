@@ -1114,6 +1114,7 @@ defmodule Tuist.Tests do
   def create_test_cases(project_id, test_case_data_list, existing_test_cases, opts \\ []) do
     test_run_id = Keyword.get(opts, :test_run_id)
     is_ci = Keyword.get(opts, :is_ci, false)
+    record_durations = Keyword.get(opts, :record_durations, true)
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -1127,7 +1128,11 @@ defmodule Tuist.Tests do
     {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
         existing = Map.get(existing_data, id, %{recent_durations: []})
-        new_durations = Enum.take([data.duration | existing.recent_durations], 50)
+
+        new_durations =
+          if record_durations,
+            do: Enum.take([data.duration | existing.recent_durations], 50),
+            else: existing.recent_durations
 
         new_avg =
           if Enum.empty?(new_durations),
@@ -2508,7 +2513,8 @@ defmodule Tuist.Tests do
       else
         create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
           test_run_id: test.id,
-          is_ci: test.is_ci
+          is_ci: test.is_ci,
+          record_durations: not (test.scheme == "cargo test" or String.starts_with?(test.scheme || "", "cargo test · "))
         )
       end
 
