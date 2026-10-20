@@ -184,7 +184,7 @@ defmodule TuistWeb.API.RunsController do
       {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, @cursor_order_fields)
 
       json(conn, %{
-        runs: Enum.map(command_events, &run_json(&1, selected_project)),
+        runs: Enum.map(Tuist.ReportActor.preload(command_events), &run_json(&1, selected_project)),
         pagination_metadata: %{
           has_next_page: meta.has_next_page?,
           has_previous_page: meta.has_previous_page?,
@@ -242,6 +242,7 @@ defmodule TuistWeb.API.RunsController do
       event.ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
     )
     |> Map.put(:ran_by, ran_by)
+    |> Map.put(:actor, Tuist.ReportActor.actor(event, event.user_account_name))
   end
 
   operation(:create,
@@ -876,6 +877,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "build",
               id: build.id,
+              actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: build.duration,
               project_id: build.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
@@ -893,6 +895,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "test",
               id: test_run.id,
+              actor: test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: test_run.duration,
               project_id: test_run.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")

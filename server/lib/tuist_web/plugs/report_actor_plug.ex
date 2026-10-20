@@ -29,6 +29,15 @@ defmodule TuistWeb.Plugs.ReportActorPlug do
     end
   end
 
+  def actor(conn) do
+    user = Authentication.attributed_user(conn)
+
+    conn
+    |> ReportActor.attributes()
+    |> Map.put(:actor_account, if(user, do: user.account))
+    |> ReportActor.actor()
+  end
+
   defp assign_actor(conn, identifier) do
     actor_account_id =
       case Authentication.attributed_user(conn) do

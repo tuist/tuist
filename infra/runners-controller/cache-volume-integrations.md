@@ -8,8 +8,8 @@ automatic built-in caches. Provider and platform namespaces never share data imp
 
 | Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
-| GitHub Actions | `tuist/cache-volume@v1`, key/path and `cache-hit` output | Same-repository default-branch push, schedule or workflow_dispatch |
-| Buildkite | `tuist/cache-volume#v1` plugin with a list of key/path pairs | Default-branch webhook or schedule, no PR or tag |
+| GitHub Actions | `tuist/cache-volume@v1`, key, one or more paths (one per line) and `cache-hit` output | Same-repository default-branch push, schedule or workflow_dispatch |
+| Buildkite | `tuist/cache-volume#v1` plugin with a list of volumes, each with a key and one or more paths | Default-branch webhook or schedule, no PR or tag |
 | GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
 
 All three entry points are packaged and automatically released from `main`.
@@ -27,8 +27,8 @@ checkout. The wrapper uses the installed native or job-container client.
 The Buildkite plugin is in
 [`ci/cache-volume/buildkite`](../../ci/cache-volume/buildkite/README.md).
 Its `pre-command` hook parses `BUILDKITE_PLUGIN_CONFIGURATION` as JSON, validates
-all key/path pairs before attaching, and invokes the installed client once per
-volume. It propagates failures and does not run a publication hook. The Linux
+all volumes before attaching, and invokes the installed client once per
+volume with one `--path` per configured path. It propagates failures and does not run a publication hook. The Linux
 image persists pod routing into the staged job environment before Buildkite
 sanitizes inherited variables; the global environment hook exports it again.
 See [plugin hooks](https://buildkite.com/docs/pipelines/integrations/plugins/writing).

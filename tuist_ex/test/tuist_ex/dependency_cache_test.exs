@@ -504,6 +504,9 @@ defmodule TuistEx.DependencyCacheTest do
     assert status == 0, output
     assert output =~ "Generated dep_probe app"
     refute File.exists?(Path.join(project, "result.json"))
+    {output, status} = run(project)
+    assert status == 0, output
+    refute File.exists?(Path.join(project, "result.json"))
   end
 
   for cache <- ["false", "nil"] do
@@ -760,6 +763,131 @@ defmodule TuistEx.DependencyCacheTest do
              run!(project)["dependency_cache"]
   end
 
+  test "current dependency outputs count as local hits without snapshot or transport measurements",
+       %{
+         project: project,
+         dir: dir
+       } do
+    run!(project)
+    File.rm_rf!(Path.join(dir, "cache"))
+    File.rm!(Path.join(project, "result.json"))
+
+    result = run!(project)
+
+    assert [
+             %{
+               "outcome" => "local_hit",
+               "reason" => "up_to_date",
+               "key" => key,
+               "duration_ms" => duration,
+               "saved_duration_ms" => nil
+             } = hit
+           ] = result["dependency_cache"]
+
+    assert key == ""
+    assert duration >= 0
+    assert result["files"] == []
+    refute result["output"] =~ "Generated dep_probe app"
+    refute File.exists?(Path.join(dir, "cache"))
+    refute File.exists?(Path.join(project, "remote-opened"))
+
+    for field <-
+          ~w(read_bytes read_duration_us read_source write_bytes write_duration_us write_source) do
+      assert is_nil(hit[field])
+    end
+  end
+
+  test "observing current outputs does not read source contents or hash declared inputs", %{
+    project: project
+  } do
+    run!(project)
+    source = Path.join(project, "deps/dep_probe/lib/probe.ex")
+    File.chmod!(source, 0o000)
+    on_exit(fn -> File.chmod(source, 0o644) end)
+    mixfile = Path.join(project, "mix.exs")
+    File.ln_s!("mix.exs", Path.join(project, "external-input"))
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "dependencies: [:dep_probe]",
+        ~s(dependencies: [:dep_probe], inputs: ["external-input"])
+      )
+    )
+
+    assert [%{"outcome" => "local_hit", "reason" => "up_to_date", "key" => ""}] =
+             run!(project)["dependency_cache"]
+  end
+
+  test "supported outputs compiled before caching was enabled also count as local hits", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+    contents = File.read!(mixfile)
+
+    File.write!(
+      mixfile,
+      String.replace(contents, "dependencies: [:dep_probe]", "exclude: [:dep_probe]")
+    )
+
+    {output, status} = run(project)
+    assert status == 0, output
+    refute File.exists?(Path.join(project, "result.json"))
+    File.write!(mixfile, contents)
+
+    assert [%{"outcome" => "local_hit", "reason" => "up_to_date"}] =
+             run!(project)["dependency_cache"]
+
+    refute File.exists?(Path.join(dir, "cache"))
+    refute File.exists?(Path.join(project, "remote-opened"))
+  end
+
+  test "changed locked inputs require compilation instead of an up-to-date local hit", %{
+    project: project,
+    dir: dir
+  } do
+    first = run!(project)
+    repo = Path.join(dir, "package")
+    File.write!(Path.join(repo, "lib/probe.ex"), "defmodule DepProbe do\ndef value, do: 3\nend\n")
+    commit!(repo)
+    {output, status} = mix(project, ["deps.update", "dep_probe"])
+    assert status == 0, output
+
+    second = run!(project)
+    assert [%{"outcome" => "miss"}] = second["dependency_cache"]
+    assert second["value"] == 3
+    refute hd(first["dependency_cache"])["key"] == hd(second["dependency_cache"])["key"]
+  end
+
+  test "current dependencies with unsupported sources are not counted as local hits", %{
+    project: project,
+    dir: dir
+  } do
+    File.write!(Path.join(dir, "package/Makefile"), "")
+    commit!(Path.join(dir, "package"))
+
+    assert [%{"outcome" => "bypass", "reason" => "custom_compiler"}] =
+             run!(project)["dependency_cache"]
+
+    File.rm!(Path.join(project, "result.json"))
+    {output, status} = run(project)
+    assert status == 0, output
+    refute File.exists?(Path.join(project, "result.json"))
+  end
+
+  test "current dependencies with missing BEAM outputs are not counted as local hits", %{
+    project: project
+  } do
+    run!(project)
+    File.rm!(Path.join(project, "result.json"))
+    File.rm!(Path.join(project, "_build/dev/lib/dep_probe/ebin/Elixir.DepProbe.beam"))
+    {output, status} = run(project)
+    assert status == 0, output
+    refute File.exists?(Path.join(project, "result.json"))
+  end
+
   test "allowlisted current path dependencies do not report idle builds", %{
     project: project,
     dir: dir
@@ -979,10 +1107,11 @@ defmodule TuistEx.DependencyCacheTest do
     refute File.exists?(Path.join(project, "remote-opened"))
 
     File.rm!(Path.join(project, "result.json"))
-    {output, status} = run(project)
-    assert status == 0, output
+
+    assert [%{"outcome" => "local_hit", "reason" => "up_to_date"}] =
+             run!(project)["dependency_cache"]
+
     refute File.exists?(Path.join(project, "remote-opened"))
-    refute File.exists?(Path.join(project, "result.json"))
   end
 
   test "declared environment and file inputs invalidate cached dependencies", %{project: project} do

@@ -67,7 +67,11 @@ type LocalImages struct {
 	// Replace, when set, is asked to fetch the HEAD that superseded a master used
 	// in the last day. The stale master stays while it reports the fetch queued, so
 	// jobs can mount it until its successor is local. It replaces RefreshWithin.
-	Replace   func(Identity) bool
+	Replace func(Identity) bool
+	// Displace, when set, cancels speculative work that holds space on this
+	// filesystem, so admission takes that space before it evicts a master.
+	// Reports whether it cancelled anything.
+	Displace  func(context.Context) bool
 	refresh   refresher
 	locks     sync.Map
 	admission contextMutex
@@ -229,6 +233,11 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	free, err := b.freeBytes(ctx)
 	if err != nil {
 		return err
+	}
+	if free < minimum && b.Displace != nil && b.Displace(ctx) {
+		if free, err = b.freeBytes(ctx); err != nil {
+			return err
+		}
 	}
 	entries, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
 	if err != nil {

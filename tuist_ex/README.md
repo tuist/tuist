@@ -112,8 +112,9 @@ starts in `dev` and has to start over in a new process. If you call the tasks
 by name, set `MIX_ENV=test` or add
 `preferred_envs: ["tuist.test": :test, "tuist.test.build": :test]` to
 `def cli` in your `mix.exs`. Aliasing `compile` covers every compile, including
-the ones `mix test` or `mix phx.server` trigger; a compile that finds nothing
-to do is not reported.
+the ones `mix test` or `mix phx.server` trigger. A compile with no project work
+is still reported when dependency caching observes supported dependencies reused
+from existing outputs; otherwise an idle compile is not reported.
 
 ## Cache compiled dependencies
 
@@ -130,15 +131,24 @@ unsupported chains still compile and changed locks are checked. Non-allowlisted
 fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
 Without an
 alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
-Dependencies needed to bootstrap Tuist itself compile normally and, when already
-current, do not produce cache lookups. Jason and Decimal are bootstrap
-dependencies, so they are not useful demonstration allowlist entries; replace
-any restore demonstration with dependencies your project actually uses.
+Dependencies needed to bootstrap Tuist itself compile normally. When already
+current and supported, they count as local hits without a cache lookup. Jason
+and Decimal are bootstrap dependencies, so they are not useful demonstration
+allowlist entries for snapshot restores; replace any restore demonstration with
+dependencies your project actually uses.
 A standalone `mix tuist.compile` may compile dependencies while discovering the
 task, before caching is available. It caches fetched, pure Elixir dependencies,
 not the project's own code. Native and custom compilers, local dependencies,
-and inputs it cannot model compile normally. Dependencies Mix already considers
-up to date need no lookup and are not counted as hits.
+and inputs it cannot model compile normally. Selected, supported dependencies
+that Mix considers up to date count as `local_hit` with reason `up_to_date` after
+validating their installed application metadata, declared BEAMs and SCM manifest.
+This observes Mix's reuse decision, not a snapshot restore or retrospective
+publication. These hits have no artifact key, transfer bytes, restore latency or
+estimated compilation time saved. Warm builds only enumerate source paths for
+structural eligibility; they do not hash dependency contents or declared inputs.
+Older servers can reject this new reason. On an explicit cache/schema-enumeration
+validation rejection, the package retries once without the new reuse observations,
+preserving the rest of the build report. Upgrade the server to see these local hits.
 
 Declare extra compile-time file or directory inputs with `inputs: ["path"]`
 and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,

@@ -15,9 +15,16 @@ var customCacheDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 }, []string{"operation", "source"})
 
 func init() { metrics.Registry.MustRegister(customCacheOperations, customCacheDuration) }
+
+// The result category bounds the metric. The log line also carries the error,
+// which runner-cache keeps free of signed URLs and command output.
 func observeCustomCache(o cachevolumes.Observation) {
 	result := cachevolumes.Result(o.Err)
 	customCacheOperations.WithLabelValues(o.Operation, o.Source, result).Inc()
 	customCacheDuration.WithLabelValues(o.Operation, o.Source).Observe(o.Duration.Seconds())
-	log.Log.WithName("custom-cache-volumes").Info("cache phase", "operation", o.Operation, "source", o.Source, "result", result, "duration", o.Duration)
+	values := []any{"operation", o.Operation, "source", o.Source, "result", result, "duration", o.Duration}
+	if o.Err != nil {
+		values = append(values, "error", o.Err.Error())
+	}
+	log.Log.WithName("custom-cache-volumes").Info("cache phase", values...)
 }
