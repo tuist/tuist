@@ -12,7 +12,9 @@ Tuist server release in xcresult-processor mode under launchd, draining
 The image is the *deploy artifact*: `helm upgrade --set
 xcresultProcessor.image.tag=<sha>` updates the Pod spec, k8s rolls Pods,
 tart-kubelet creates new VMs from the new image tag and tears down the
-old ones.
+old ones. In managed envs that upgrade is the `tuist-xcresult-processor`
+release (`infra/helm/xcresult-processor`), which `server-deployment.yml`
+installs after the tuist release without waiting on it.
 
 ## Layout (inside the VM)
 
@@ -44,6 +46,14 @@ Registry publication uses the shared
 action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
+
+The production cascade's `build-xcresult-processor-release` job also builds
+the macOS release on a `tuist-macos-27-0` runner for every deploy and pushes
+it as an OCI artifact to `ghcr.io/tuist/tuist-xcresult-processor-release:sha-<12>`,
+the server image's tag. The artifact has one `release.tar.gz` layer, so the
+layer digest is the tarball's sha256. Its step summary lists the Mach-O
+libraries the release loads from outside itself and the OS. Nothing boots
+from this artifact yet, and the job does not fail the run.
 
 Locally:
 
@@ -145,19 +155,25 @@ inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
-can see. With `xcresultProcessor.readinessProbe.enabled`, the Deployment
-declares a `readinessProbe` on `GET /ready` (port 9092,
-`Tuist.Readiness.Plug`), which tart-kubelet evaluates against the guest IP:
-the Pod stays NotReady until the release answers and can reach Postgres,
-ClickHouse and its Oban queue. A VM that boots and then dies at
-`tailscale-up.sh` then reads `0/1 Running`, and the rolling update and
-`helm upgrade --wait` stop on it. Without the probe, tart-kubelet sets
-`PodReady=True` as soon as the VM has an IP, so such a VM reads
-`1/1 Running` forever, the Deployment reports `Available=True`, and
-`:process_xcresult` simply stops being consumed.
+can see. The Deployment declares a `readinessProbe` on `GET /ready` (port
+9092, `Tuist.Readiness.Plug`), which tart-kubelet evaluates against the
+guest IP: the Pod stays NotReady until the release answers and can reach
+Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` then reads `0/1 Running`, the rolling update stops on it,
+and the deploy's "xcresult processor rollout" step fails and annotates the
+run. That step does not fail the deploy, and the processor is not in the
+tuist release's `helm upgrade --atomic --wait`, so a NotReady processor
+never holds or rolls back a server deploy. The probe shares the
+host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
+cannot reach its guest at `192.168.64.x` also shows up as
+`up{job="tuist-macos-pod-metrics"} == 0` for that Pod; check that metric
+before reading a NotReady processor as a dependency outage.
 
-This has happened twice, from unrelated causes with the same outward
-shape:
+Without the probe (`xcresultProcessor.readinessProbe.enabled: false`),
+tart-kubelet sets `PodReady=True` as soon as the VM has an IP, so such a VM
+reads `1/1 Running` forever, the Deployment reports `Available=True`, and
+`:process_xcresult` simply stops being consumed. This has happened twice,
+from unrelated causes with the same outward shape:
 
 - **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
   unable to complete a TCP handshake to the Tailscale control plane.

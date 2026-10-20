@@ -1040,38 +1040,23 @@ vultrFleet:
 
 vultrFleets:
   # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
-  # in the US interior; the plan and shape match sa-west exactly, so the machine
-  # kind, the disk conversion and the fleet wiring are the ones already proven
-  # there.
+  # in the US interior. vbm-8c-64gb-amd (2x1945 GB NVMe, 64 GB, EPYC 4345P) has
+  # about twice the disk of the vbm-6c-32gb-amd shape the region started on for
+  # $70 more a month, and disk reservations are what bind here. The key keeps its
+  # -8c suffix from when both shapes shared the pool: renaming it recreates the
+  # MachineDeployment and releases the live boxes.
   #
   # Every box counted by replicas must already carry the adoptTag and the fleet
-  # SSH key. The controller adopts a matching preordered box, converts its RAID1
-  # installation to separate root and quota-enabled XFS /data, then joins it.
-  # If replicas exceed adoptable capacity, the MachineDeployment cannot become
-  # ready and can block `helm --wait` for the production deployment.
+  # SSH key. The controller adopts a matching preordered box (region and plan
+  # must match), converts its RAID1 installation to separate root and
+  # quota-enabled XFS /data, then joins it. If replicas exceed adoptable
+  # capacity, the MachineDeployment cannot become ready and can block
+  # `helm --wait` for the production deployment.
   #
   # Running a box here is not the same as serving the region: that is decided by
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
-  us-central:
-    enabled: true
-    replicas: 2
-    nodePool: kura-us-central
-    machine:
-      adoptTag: tuist-kura-vultr-production
-      region: ord
-      plan: vbm-6c-32gb-amd
-      osID: 2284
-      egressBudgetMbps: 1000
-    sshExternalSecret:
-      enabled: true
-      item: VULTR_FLEET_SSH
-  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
-  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
-  # kura-us-central pool, so the region schedules across both fleets; adoption
-  # matches the plan, so neither fleet claims the other's boxes. The
-  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
   us-central-8c:
     enabled: true
     replicas: 2
@@ -1179,7 +1164,10 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 2
+    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
+    # At two the region reserved 1228 GiB against an admission line of 1267, so
+    # Admission refused every storage claim growth for the accounts it hosts.
+    replicas: 3
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1339,6 +1327,18 @@ ovhFleets:
 rackFleet:
   enabled: true
   site: ber1
+  env: production
+  # The envs whose rack pools production lends hosts to (`lendTo` below), each
+  # with the borrowing env's rack-lender kubeconfig, stored once in this vault
+  # (see "Lending a host to another env" in infra/rack-nodes/AGENTS.md). Until
+  # an item exists, the hosts lent to that env stay as they are.
+  borrowers:
+    staging:
+      kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG
+      namespace: tuist-staging
+    canary:
+      kubeconfigItem: RACK_BORROWER_CANARY_KUBECONFIG
+      namespace: tuist-canary
   # The edges' own addresses on the machines segment
   # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
   # edge routes the tailnet's connections to a host with SNAT, from its own
@@ -1356,18 +1356,16 @@ rackFleet:
   # one re-pushes that mini's launchd config and needs an operator image
   # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
   #
-  # Kura takes precedence on store-a's disk for now: 64 GiB holds one runner
-  # image (55 to 62 GB compressed), the latest Xcode minor, 27.1, and leaves
-  # the ber1-runners Kura region room for its accounts' claims to grow. Other
-  # Xcode versions, and 27.1 itself for about a day after a new image while
-  # the old tag ages out, are pulled from ghcr.io. Move it to the next minor
-  # when one ships. Raise it again, and prewarm the busiest older versions
-  # beside it (about 160 GiB for two through a release change), once the
-  # site's storage nodes have more disk: a drive in store-a's spare M.2
-  # slots, or store-b.
+  # Off until the site's storage nodes have more disk (a drive in store-a's
+  # spare M.2 slots, or store-b): Kura takes precedence on store-a. zot stages
+  # a whole image before writing it into storage, so fetching one needs about
+  # twice its size (a 58.8 GiB image needs ~118 GiB), plus the previous tag
+  # while it ages out (`keepPulledWithin`). At 64 GiB every fetch of 27.1 ran
+  # out of space and was retried, 2026-10-16 17:40 to 10-18, ~200 GB/h over
+  # the WAN.
   imageCache:
-    enabled: true
-    routeHosts: [ber1-runner-b01]
+    enabled: false
+    routeHosts: []
     nodes:
       - name: ber1-store-a
         address: 10.10.0.11
@@ -1388,12 +1386,9 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "1"
-      # Lent to staging: its Node registers in the staging cluster, where
-      # staging's rack pools run its guests (rackFleet.joiningNodes in
-      # values-managed-staging.yaml). Staging has no custom cache volumes.
-      nodeFleet: tuist-staging-rack-fleet
-      nodeCluster:
-        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
+      # Lent to staging, whose operator runs its runtime and whose rack pools
+      # run its guests (rackFleet.borrow in values-managed-staging.yaml).
+      lendTo: staging
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
@@ -1402,6 +1397,10 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "2"
+      # Lent to canary, whose operator runs its runtime and whose rack pools
+      # run its guests, including the deploy cascade's runners acceptance gate
+      # (rackFleet.borrow in values-managed-canary.yaml).
+      lendTo: canary
     - name: ber1-runner-b03
       serial: JC332QMX73
       address: 10.10.0.103
@@ -1596,6 +1595,10 @@ rackLinuxFleet:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # Off the processor pool, which has no memory to spare beside the processor.
   operatorNodeSelector:
     node.cluster.x-k8s.io/pool: general

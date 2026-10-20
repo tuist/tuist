@@ -50,8 +50,8 @@ func claimedViaPollerExit(pod *corev1.Pod) *corev1.Pod {
 }
 
 // TestReconcile_ReapsIdlePodOnCordonedNode is the half of graceful drain
-// that makes a drain finish. A cordoned node is one CAPI is about to
-// replace; the MachineDrainRule keeps CAPI from evicting runner Pods, so
+// that makes a drain finish. A cordoned node is one about to be
+// replaced; runner Pods there are waited on rather than evicted, so
 // nothing else clears the warm pool sitting on that node, and an idle
 // poller never completes on its own. The controller has to retire them.
 func TestReconcile_ReapsIdlePodOnCordonedNode(t *testing.T) {

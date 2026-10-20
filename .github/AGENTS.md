@@ -40,7 +40,8 @@ through Helm, without a separate human kubectl elevation.
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
-when authentication succeeds. Main builds publish the tested artifacts to the
+when authentication succeeds, except for device builds, which use local caching
+only so signed releases do not consume shared outputs written by PRs. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
 `atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
@@ -48,10 +49,17 @@ and all jobs skip draft pull requests. Rust auth dependencies are resolved durin
 Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
-Mobile artifacts are debug Android APKs and
-arm64 iOS simulator bundles, not store releases. The CLI is uploaded as a
+Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
+iOS device bundles. The protected main-branch publication job re-signs a device
+bundle using the existing Tuist distribution certificate and Atlas-specific
+ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
+simulator app in a separate step without the 1Password token. PR/fork builds never receive distribution secrets. These are not
+store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
+The publication job installs its own Java runtime and Android build-tools, even
+though it only consumes prebuilt APKs: Tuist needs `aapt2` for metadata inspection.
+SDK setup from Android build jobs does not carry across to the macOS publisher.
 
 ## Community notifications
 
@@ -133,6 +141,52 @@ Git configuration, so checkout's local authentication does not reach their nativ
 SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
 never persist it or extend its host scope beyond github.com.
 
+## CLI dependency volumes
+
+macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
+volumes do not require the larger M4 shape. If host cache capacity is unavailable,
+each attachment falls back independently to an empty job-local directory; always
+run dependency installation and do not require a hit in ordinary jobs. Forks use
+the same custom volumes: the runner's verified job identity authorizes attachment
+without workflow credentials, and the server forbids fork publication. This is
+separate from the built-in account-wide cache policy. Retained contents must be
+safe for fork contributors to read. Linux and release/backport workflows have
+separate toolchain and runner requirements and are not part of this migration.
+
+Use the released `tuist/install@v1` action after tool installation and authentication.
+It combines one package-relative `.build` volume with forced installation, explicit
+scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
+use its automatic GitHub archive/copy backend. Do not add a second cache step.
+The macOS native SwiftPM resolve/build commands use the same
+`--cache-path "$PWD/.build/dependency-cache"`. The released CLI must include #14304
+so internal manifest dumps honor that path too. Use stable per-job workspace
+keys through the action's `cache-key` input (`cli-macos-workspace-${{ github.job }}`),
+without Xcode-version, manifest, or lockfile hashes. The fork acceptance job uses
+the stable acceptance-build key so default-branch runs can seed it. Preserve
+fork guards for Tuist login, setup, and enterprise sources; installation itself
+remains unconditional.
+Keep configuration, security, and authentication outside the cache. Mise's
+postinstall hook skips dependency installation on CI so it does not populate the
+volume target before the action runs.
+
+Set `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development
+settings do not invalidate manifest fingerprints. `Tuist.swift` uses plain
+`packageManifestEnvironment: .automatic`, backed by #14162's released filtering
+and separate native-resolution authentication. #14156's content-based manifest
+caches reuse unchanged root and local packages across fresh checkout timestamps.
+Keep platform/toolchain and application inputs visible, and always measure
+fresh-runner reuse: a volume hit alone does not prove evaluation was skipped.
+The historical 8.31-second result used explicit exclusions and a larger runner;
+it is not a benchmark of this single-volume layout or the automatic policy.
+
+Ordinary PR jobs consume private snapshots without publishing. Successful
+permitted jobs seed the new keys; measure warm jobs only after publication.
+Always run installation on hits to validate the current lockfile. Track queue
+time separately, and distinguish actual attachment/hits from empty-directory
+fallback. Retaining only an external source/native-manifest cache is possible,
+but rebuilds workspace state and manifest JSON; benchmark it separately before
+changing the retained layout.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
@@ -187,13 +241,21 @@ job plans them with `mix tuist.test.build --cover`, which instruments the
 build for native coverage, so the shards count without compiling every
 module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
+fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
+whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
+variant and then the coverage variant (`tuist cache --coverage`), which the runs
+with `-enableCodeCoverage YES` look up. Every `tuist test` that uploads coverage
+passes `--derived-data-path`, because the coverage export reads the test
+products and the profile from derived data, and the result-bundle fallback it
+takes without one never covers cached code.
 
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
 
 ## CLI Cargo cache packaging
+
+The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-plugin/mise.toml` before running the real Cargo/libtest fixture. Do not assume Rust is preinstalled on the runner image or silently replace the fixture with nextest.
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
@@ -295,3 +357,15 @@ covered only by the production schedule.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
+
+## Generated-project dependency installation
+
+`actions/install/` implements the standalone `tuist/install` action; see
+[its guidance](actions/install/AGENTS.md). It automatically uses a custom workspace
+volume when the runner client is available, or GitHub archives otherwise, with
+pinned dependency installation using the project's already-installed CLI.
+`workflows/install-action.yml` tests/packages changes and automatically publishes
+relevant main changes through the `install-action` release component after tests
+pass. Bootstrap the distribution repository and release credential first.
+Recover an unrecorded distribution from its original SOURCE_COMMIT before
+publishing newer source; never replace an immutable version.

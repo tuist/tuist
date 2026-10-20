@@ -1,0 +1,53 @@
+name: Tuist install
+description: Install pinned generated-project dependencies, automatically using Tuist volumes or GitHub caching.
+branding:
+  icon: download
+  color: purple
+inputs:
+  path:
+    description: Project directory inside the checkout, relative to GITHUB_WORKSPACE or absolute.
+    default: .
+  cache-key:
+    description: Override the generated cache namespace, for example to share a compatible workspace between jobs.
+outputs:
+  cache-hit:
+    description: Whether a volume snapshot or exact GitHub archive key was restored. Installation always runs.
+    value: ${{ steps.volume.outputs.cache-hit == 'true' || steps.archive.outputs.cache-hit == 'true' }}
+  cache-backend:
+    description: Automatically selected cache backend, volume or github.
+    value: ${{ steps.prepare.outputs.backend }}
+  cache-path:
+    description: Absolute dependency-cache path for subsequent SwiftPM commands.
+    value: ${{ steps.prepare.outputs.cache-path }}
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      shell: bash
+      env:
+        TUIST_INSTALL_PATH: ${{ inputs.path }}
+        TUIST_INSTALL_CACHE_KEY: ${{ inputs.cache-key }}
+        TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_INSTALL_ACTION_PATH/prepare.sh"
+    - id: volume
+      if: steps.prepare.outputs.backend == 'volume'
+      uses: tuist/cache-volume@v1
+      with:
+        key: ${{ steps.prepare.outputs.key }}
+        path: ${{ steps.prepare.outputs.scratch-path }}
+    - id: archive
+      if: steps.prepare.outputs.backend == 'github'
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.prepare.outputs.archive-path }}
+        key: ${{ steps.prepare.outputs.archive-key }}
+        restore-keys: ${{ steps.prepare.outputs.archive-prefix }}
+    - name: Install dependencies
+      shell: bash
+      env:
+        TUIST_INSTALL_MATERIALIZATION: ${{ steps.prepare.outputs.materialization }}
+        TUIST_INSTALL_PROJECT_PATH: ${{ steps.prepare.outputs.project-path }}
+        TUIST_INSTALL_SCRATCH_PATH: ${{ steps.prepare.outputs.scratch-path }}
+        TUIST_INSTALL_CACHE_PATH: ${{ steps.prepare.outputs.cache-path }}
+        TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_INSTALL_ACTION_PATH/install.sh"

@@ -330,36 +330,6 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	}
 }
 
-func TestCustomPrefetchHasIndependentDeadlineAndNoQueue(t *testing.T) {
-	started := make(chan struct{})
-	finished := make(chan error, 1)
-	p := &customPrefetcher{ctx: context.Background(), slots: make(chan struct{}, 1), budget: 20 * time.Millisecond, restore: func(ctx context.Context, _ cachevolumes.Slot) error {
-		close(started)
-		<-ctx.Done()
-		finished <- ctx.Err()
-		return ctx.Err()
-	}}
-	if p.start(cachevolumes.Identity{}) {
-		t.Fatal("prefetching empty master")
-	}
-	if !p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("did not start")
-	}
-	<-started
-	if p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("queued another prefetch")
-	}
-	select {
-	case err := <-finished:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("unbounded prefetch")
-	}
-	p.wait.Wait()
-}
-
 func TestCustomAdmissionLockWaitUsesRequestDeadline(t *testing.T) {
 	m, _ := m2L(t)
 	c := &CustomVolumes{Root: m.Root, Builtins: m}
@@ -531,4 +501,61 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 		t.Fatal("lost in-flight reservation", got)
 	}
 	releaseReservation(false)
+}
+
+func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		want   string
+	}{
+		{"binding never arrives", http.StatusTooEarly, "execution_pending"},
+		{"identity rejected", http.StatusForbidden, "denied"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+			share := filepath.Join(root, "pods", string(pod.UID))
+			if err := os.MkdirAll(share, 0755); err != nil {
+				t.Fatal(err)
+			}
+			request := filepath.Join(share, "cache.request")
+			if err := os.WriteFile(request, []byte(`{"key":"gradle","uid":501}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			// Leave about two seconds of the acquisition budget.
+			started := time.Now().Add(2*time.Second - customAcquireBudget)
+			if err := os.Chtimes(request, started, started); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+			kube := fake.NewSimpleClientset()
+			kube.PrependReactor("create", "serviceaccounts", func(ktesting.Action) (bool, runtime.Object, error) {
+				return true, &authenticationv1.TokenRequest{Status: authenticationv1.TokenRequestStatus{Token: "host-only"}}, nil
+			})
+			c := &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube}
+			if err := c.requests(context.Background(), pod); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(request + ".response")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response map[string]any
+			if err := json.Unmarshal(data, &response); err != nil {
+				t.Fatal(err)
+			}
+			if response["error"] != "unavailable" || response["reason"] != tc.want {
+				t.Fatal(string(data))
+			}
+			if tc.status == http.StatusTooEarly && calls < 2 {
+				t.Fatalf("gave up after %d attempts", calls)
+			}
+		})
+	}
 }

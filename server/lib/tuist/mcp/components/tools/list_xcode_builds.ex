@@ -55,6 +55,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
             "type" => "object",
             "properties" => %{
               "id" => %{"type" => "string"},
+              "actor" => Tuist.MCP.Tool.report_actor_schema(),
               "duration" => %{"type" => "integer"},
               "status" => %{"type" => "string"},
               "category" => %{"type" => ["string", "null"]},
@@ -121,6 +122,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
          Enum.map(builds, fn build ->
            %{
              id: build.id,
+             actor: Tuist.ReportActor.actor(build),
              duration: build.duration,
              status: to_string(build.status),
              category: if(build.category != "", do: build.category),

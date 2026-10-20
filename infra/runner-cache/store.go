@@ -39,6 +39,9 @@ type Slot struct {
 	SizeBytes     *int64    `json:"size_bytes"`
 	CapacityBytes *int64    `json:"capacity_bytes"`
 	UsedAt        time.Time `json:"used_at"`
+	// MountedGeneration is the older generation a branch was cloned from because
+	// its base was not on the host, or 0.
+	MountedGeneration int64 `json:"mounted_generation,omitempty"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -256,6 +259,12 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 	}
 	slot.State = "active"
 	slot.AttachMS = time.Since(start).Milliseconds()
+	if mounted, ok := s.backend.(interface{ MountedGeneration(Slot) int64 }); ok {
+		slot.MountedGeneration = mounted.MountedGeneration(slot)
+	}
+	if cold, ok := s.backend.(interface{ Cold(Slot) bool }); ok && cold.Cold(slot) {
+		slot.Warm = false
+	}
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 	}
@@ -344,7 +353,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) {
+		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
 			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
 				return err
 			}

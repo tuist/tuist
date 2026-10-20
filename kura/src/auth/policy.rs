@@ -4,6 +4,7 @@
 //! Tuist's server only when it cannot. Either way it comes back as one access
 //! level for the credential and target, which is the shape the engine caches.
 
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
@@ -147,15 +148,46 @@ fn credential_expired(ctx: &RequestContext) -> bool {
 /// The `exp` the credential carries and the time to judge it against, both in
 /// seconds since the epoch. `None` when the credential names no deadline.
 fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
-    let token = bearer_token(authorization_header(ctx)?);
-    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
-    let expires_at = serde_json::from_slice::<Value>(&claims)
-        .ok()?
-        .get("exp")?
-        .as_u64()?;
+    let expires_at = unverified_claims(ctx)?.get("exp")?.as_u64()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
 
     Some((expires_at, now))
+}
+
+/// Where the credential was issued, read from an unverified `cache_origin`
+/// claim: an ISO 3166-1 country, narrowed to an ISO 3166-2 subdivision in the
+/// countries holding more than one cache region.
+///
+/// Read on the same terms as `credential_expiry`, only off a credential the
+/// backend has just confirmed. Coarse placement context, never authorization
+/// evidence, and anything not shaped like that label is dropped rather than
+/// carried into usage.
+pub fn credential_origin(ctx: &RequestContext) -> Option<Arc<str>> {
+    let claims = unverified_claims(ctx)?;
+    let origin = claims.get("cache_origin")?.as_str()?;
+    valid_origin(origin).then(|| Arc::from(origin))
+}
+
+fn valid_origin(origin: &str) -> bool {
+    let (country, subdivision) = match origin.split_once('-') {
+        Some((country, subdivision)) => (country, Some(subdivision)),
+        None => (origin, None),
+    };
+
+    country.len() == 2
+        && country.bytes().all(|byte| byte.is_ascii_uppercase())
+        && subdivision.is_none_or(|code| {
+            (1..=3).contains(&code.len())
+                && code
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        })
+}
+
+fn unverified_claims(ctx: &RequestContext) -> Option<Value> {
+    let token = bearer_token(authorization_header(ctx)?);
+    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
+    serde_json::from_slice::<Value>(&claims).ok()
 }
 
 pub(super) fn authorization_header(ctx: &RequestContext) -> Option<&str> {
@@ -584,5 +616,42 @@ mod tests {
 
         assert_eq!(deny.status, 401);
         assert!(deny.message.contains("Missing Authorization"));
+    }
+    fn bearer_with_claims(claims: serde_json::Value) -> String {
+        format!(
+            "Bearer header.{}.signature",
+            URL_SAFE_NO_PAD.encode(claims.to_string())
+        )
+    }
+
+    #[test]
+    fn reads_the_origin_the_credential_was_issued_from() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "US-IL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("US-IL"));
+
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "NL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("NL"));
+    }
+
+    // Usage keys on the label, so anything a caller could inflate it with is
+    // dropped rather than carried.
+    #[test]
+    fn drops_an_origin_that_is_not_a_country_or_subdivision_label() {
+        let mut context = ctx();
+        for origin in ["", "us", "USA", "US-", "US-ILLI", "US-il", "U1", "US IL"] {
+            context.authorization = Some(bearer_with_claims(json!({ "cache_origin": origin })));
+            assert_eq!(credential_origin(&context), None, "{origin:?}");
+        }
+    }
+
+    #[test]
+    fn has_no_origin_for_a_credential_that_carries_none() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "sub": "user" })));
+        assert_eq!(credential_origin(&context), None);
+
+        context.authorization = Some("Bearer opaque-project-token".into());
+        assert_eq!(credential_origin(&context), None);
     }
 }

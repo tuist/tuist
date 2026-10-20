@@ -136,13 +136,19 @@ defmodule TuistWeb.MixCacheLiveTest do
   test "recent builds without lookups stay unavailable while a measured miss is zero", context do
     legacy = build(context, false, [], -180)
     bypass = build(context, false, [event("native", "bypass")], -120)
-    miss = build(context, false, [event("nimble_options", "miss")], -60)
+    miss = build(context, false, [event("nimble_options", "miss"), event("other_native", "bypass")], -60)
     {:ok, view, _} = live(context.conn, context.path)
     html = render_async(view, 5_000)
 
-    assert has_element?(view, "#mix-cache-build-#{legacy}", "No data")
-    assert has_element?(view, "#mix-cache-build-#{bypass}", "No data")
+    assert has_element?(view, "#mix-cache-build-#{legacy}", "No recorded lookups")
+    assert has_element?(view, "#mix-cache-build-#{bypass}", "Not cached")
     assert has_element?(view, "#mix-cache-build-#{miss}", "0.0%")
+
+    assert has_element?(
+             view,
+             "[data-part='recent-builds-coverage']",
+             "Cache lookups recorded for 1 of 3 recent builds."
+           )
 
     points = html |> chart_options("mix-cache-recent-builds-chart") |> Map.fetch!("series") |> hd() |> Map.fetch!("data")
     values = Map.new(points, &{&1["url"], &1["value"]})
@@ -171,14 +177,54 @@ defmodule TuistWeb.MixCacheLiveTest do
 
     rows = html |> Floki.parse_document!() |> Floki.find("#mix-cache-recent-builds-table tbody tr")
     assert length(rows) == 7
-    assert Enum.all?(rows, &(Floki.text(&1) =~ "No data"))
+    assert Enum.all?(rows, &(Floki.text(&1) =~ "No recorded lookups"))
     refute has_element?(view, "#mix-cache-build-#{measured}")
+    assert has_element?(view, "[data-part='builds-chart'] .tuist-legend", "66.7%")
+
+    assert has_element?(
+             view,
+             "[data-part='recent-builds-coverage']",
+             "Cache lookups recorded for 1 of 8 recent builds."
+           )
 
     options = chart_options(html, "mix-cache-recent-builds-chart")
     points = hd(options["series"])["data"]
     assert length(points) == 8
     assert Enum.count(points, &is_nil(&1["value"])) == 7
     assert_in_delta hd(points)["value"], 100 * 2 / 3, 0.0001
+  end
+
+  test "recent builds without lookups explain unavailable rates", context do
+    build(context, false, [])
+    build(context, false, [event("native", "bypass")])
+    {:ok, view, _} = live(context.conn, context.path)
+    html = render_async(view, 5_000)
+
+    assert has_element?(view, "[data-part='builds-chart'] .tuist-legend", "No data")
+
+    assert has_element?(
+             view,
+             "[data-part='recent-builds-coverage']",
+             "Cache lookups recorded for 0 of 2 recent builds."
+           )
+
+    assert has_element?(
+             view,
+             "[data-part='recent-builds-coverage']",
+             "Builds without recorded lookups are excluded from the hit rate."
+           )
+
+    points = html |> chart_options("mix-cache-recent-builds-chart") |> Map.fetch!("series") |> hd() |> Map.fetch!("data")
+    assert Enum.all?(points, &is_nil(&1["value"]))
+  end
+
+  test "recent lookup coverage handles a single measured build", context do
+    build(context, false, [event("jason", "local_hit", 0)])
+    {:ok, view, _} = live(context.conn, context.path)
+    render_async(view, 5_000)
+
+    assert has_element?(view, "[data-part='recent-builds-coverage']", "Cache lookups recorded for 1 of 1 recent build.")
+    assert has_element?(view, "[data-part='builds-chart'] .tuist-legend", "100.0%")
   end
 
   test "shows average and percentile lines using the Xcode chart geometry", context do
@@ -263,11 +309,13 @@ defmodule TuistWeb.MixCacheLiveTest do
     options = view |> render_async(5_000) |> chart_options("mix-cache-hit-rate-scatter-chart")
     assert [%{"name" => "CI", "data" => [%{"id" => ^ci}]}] = options["series"]
     refute has_element?(view, "#mix-cache-build-#{local}")
+    assert has_element?(view, "[data-part='recent-builds-coverage']", "Cache lookups recorded for 1 of 1 recent build.")
     render_patch(view, context.path <> "?analytics-environment=local")
     render_async(view, 5_000)
     assert has_element?(view, "#mix-cache-widget-hit_rate > [data-part='value']", "0.0%")
     assert has_element?(view, "#mix-cache-build-#{local}", context.user.account.name)
     refute has_element?(view, "#mix-cache-build-#{ci}")
+    assert has_element?(view, "[data-part='recent-builds-coverage']", "Cache lookups recorded for 1 of 1 recent build.")
   end
 
   test "empty and bypass-only datasets retain unavailable rates", context do
@@ -275,10 +323,12 @@ defmodule TuistWeb.MixCacheLiveTest do
     render_async(view, 5_000)
     assert has_element?(view, "#mix-cache-widget-hit_rate > [data-part='value']", "No data")
     assert has_element?(view, "[data-part='analytics-chart-empty']", "No cache observations yet")
+    refute has_element?(view, "[data-part='recent-builds-coverage']")
     bypass = build(context, false, [event("native", "bypass")])
     {:ok, view, _} = live(context.conn, context.path)
     render_async(view, 5_000)
-    assert has_element?(view, "#mix-cache-build-#{bypass}", "No data")
+    assert has_element?(view, "#mix-cache-build-#{bypass}", "Not cached")
+    assert has_element?(view, "[data-part='recent-builds-coverage']", "Cache lookups recorded for 0 of 1 recent build.")
     assert has_element?(view, "#mix-cache-widget-hit_rate > [data-part='value']", "No data")
     refute has_element?(view, "#mix-cache-chart")
   end

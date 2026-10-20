@@ -55,7 +55,7 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
   end
 
   test "clearing uses administrative authorization and returns the shared result", %{account: account, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> :ok end)
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
 
     expect(Query, :run, fn :clear, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
       {:ok, %{id: id, cleared: true}}
@@ -66,8 +66,17 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
     assert JSON.decode!(result.resp_body) == %{"id" => id, "cleared" => true}
   end
 
+  test "clearing a built-in volume is rejected as a bad request", %{account: account, id: id} do
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
+    expect(Query, :run, fn :clear, 1, _params -> {:error, :unsupported} end)
+
+    result = call(:clear, %{"volume_id" => id})
+    assert result.status == 400
+    assert JSON.decode!(result.resp_body) == %{"message" => "Built-in volumes can't be cleared."}
+  end
+
   test "readers cannot clear and denial never reaches storage", %{account: account, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> {:error, :forbidden} end)
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> {:error, :forbidden} end)
     stub(TuistWeb.RateLimit.Authorization, :hit, fn _ -> {:allow, 1} end)
     reject(&Query.run/3)
     assert call(:clear, %{"volume_id" => id}).status == 403

@@ -18,13 +18,31 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   this acknowledgment never authorizes another replica. Handover batches must
   negotiate support, bound descriptors and referenced bytes, preserve ordered
   full-corpus verification, and retain the individual-record fallback.
+  A preparation-capable destination may first reconcile under the exact Serving
+  intent while the source continues writing. Keep its fixed deadline, source
+  epoch/incarnation binding, normal background bandwidth admission and shared
+  preparation mutex. Complete one retained walk without waiting for an eviction-free
+  window while the source is mutable. The final Quiescing repair still repeats on
+  eviction before atomically acquiring its hold. Live preparation takes no hold
+  and grants no receipt or serving rights.
+  Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
+  expired grants, epoch/identity changes and drain must stop blocked peer I/O.
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
-  subject to store capacity/version/tombstone rules. Named repair bypasses
+  subject to store capacity/version/tombstone rules. Repair outlives
+  the request: a disconnected begin caller must not cancel/restart the
+  serialized preparation. Runtime drain still cancels it, and retries never
+  extend the original authority intent deadline. Named repair bypasses
   the recency selection cutoff at listing and dispatch: an old missing record
   is still required by the barrier. Keep normal ring rotation and disk admission;
   final verification must reject any retained holes caused by rotation.
+  Before named repair, a complete source-index walk may reclaim sealed,
+  unpinned destination-only segments when bodies are missing. Track segment
+  identities rather than buffering the corpus; preserve every segment containing
+  a source-listed local record, including newer local versions. Failed/incomplete
+  listing must reclaim nothing. Durable retirements use supervised, resumable
+  cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking
   commit and compare it under the same lock that acquires the destination hold.
@@ -58,7 +76,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - Metadata SST full-key Bloom filters share the existing RocksDB block-cache budget; they only skip definite misses, never replace authoritative reads. Preserve old unfiltered SST and rollback compatibility, and measure pinned filter memory plus normal-compaction steady-state CPU before claiming a benefit.
   - `FindMissingBlobs` resolves presence per batch of digests (`Store::artifacts_exist_extending_lifetime`): one manifest-cache lock, one RocksDB multi-get, one segment-state snapshot, no manifest-cache admission. Keep its answers identical to the per-digest `presence_keys` path, including promotion of present blobs in Old segments while the ring is aging; only digests with a stored recipe may fall back to the per-digest chunk walk.
   - The manifest row cache uses exact LRU ordering in reusable page-indexed slots, not a second hash table. Recency touches preserve handles; sparse-page packing rewrites handles together with their cached rows under the owning cache mutex. Recycle only removed slots, release empty pages during trimming, and pack (then shrink the page index) whenever the index covers more than twice the live rows plus one page, so one hot row cannot pin every old page and released pages cannot keep a historical index peak. Rows are charged their slots and index share, and the fixed one-page slack is deducted from the cache limit before rows are admitted. Preserve recency-link byte accounting and test sustained eviction allocations, not only hit latency: hash tombstones can grow private memory at constant entry count.
-  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
+  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Segments a rotation drops from the ring are owned by a guard from that moment; if anything later fails or is cancelled (the caller's manifest commit, a hold-refused eviction, a dropped request), the rest are queued for the worker, never left for the startup sweep. The worker drains that queue before retained segments and only while no handover hold is active. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
 - Action-cache removal log: `src/action_cache_removals.rs` records the entries and blobs the store removes (after the deleting write commits, in one bounded log for all namespaces), so the snapshot serve path drops them from a cached index before encoding it (see the snapshot passage in `docs/architecture.md`). Record every new removal path there, or the served snapshot keeps advertising what it removed until the next reconcile.
 - Backfill catch-up passes (the pipeline every pull link runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set, owned by `AppState.backfill_claims`), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (horizon and capacity rules). Pass scheduling and the bootstrap failure budget live in the links themselves (`src/sync/`).
   Individually fetched inline records must preserve the same origin/checksum
@@ -181,6 +199,13 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 - Hosted canary and production run the `kura@X.Y.0-canary.N` that the deploy cascade publishes for each Kura change on `main`, so every merged change reaches hosted production in that same cascade. Stay compatible with the previous canary, not only the previous stable release.
 
 - Private runner Kura uses the ordinary managed StatefulSet rollout and account mesh. Both replicas continuously pull from each other over the arrival feed, with a bootstrap pass after a restart; the standby is not read-only. The stable private gateway pins reads and writes to the selected primary. Replication remains asynchronous; Kubernetes readiness alone does not prove a caught-up sibling. See `infra/kura-controller/private-runner-rollouts.md`.
+
+## Network-trusted Bazel reporting
+- No Authorization plus exactly one explicit network-reporting header uses uncached control-plane publishing authorization, never cache authorization entries. Keep marker parsing regressions for blank/duplicate credentials and malformed/duplicate markers; actor claims never select this mode. Missing auth-engine configuration, invalid/duplicate supplied credentials or disabled instance publishing configuration fail closed. The control-plane startup setting applies to all supported projects/accounts, and operators must restart its replicas after changes.
+- Unsigned streams mint server invocation IDs, ignore client lifecycle IDs, never deliver CAS/JUnit/profile/action artifacts, and carry network provenance through signed invocation telemetry. Inline target summaries are bounded telemetry, not trusted flakiness/quarantine evidence. The server rechecks policy before ingestion.
+- Keep unsigned admission separate from authenticated traffic: 16 pre-auth stream permits, four concurrent streams/retained invocation records per project, 8 MiB/20,000 retained-event and 256 MiB transport caps, five-minute idle/backpressure and six-hour lifetime bounds, cleanup, and deadline-bounded reads AND response/error sends. Authenticated records take precedence at the global cap. Never hold a permit indefinitely on HTTP/2 flow control.
+- Unsigned invocation analytics has its own bounded queue/runtime/circuit breaker. Cap serialized events at 128 KiB (including escaping) and inline summary state at 32 KiB so batches cannot exceed the webhook body cap or poison signed telemetry. Preserve the previous authenticated wire format by omitting empty optional fields.
+- `TUIST_ACTOR_ID` build metadata overrides Bazel's OS user, including empty/invalid suppression. Reserve the reported-user metadata key so custom metadata cannot undo an explicit opt-out. Generated per-machine configuration captures the environment override at setup; a direct Bazel `--build_metadata=TUIST_ACTOR_ID=...` can override it per invocation.
 
 ## Bazel timelines
 - `src/reapi/bep.rs` keeps its bounded invocation summary and separately delivers the `command.profile.gz` CAS reference and action diagnostics through `src/bazel_test_artifacts.rs`. The delivery worker reserves memory before reading artifacts. Profiles are limited to 32 MiB compressed; diagnostic streams use bounded range reads that retain their first and last 16 KiB. Only project-scoped CAS artifacts are read; arbitrary profile URLs and local paths are never fetched.

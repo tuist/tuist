@@ -43,6 +43,12 @@ This file provides guidance to AI agents when working with code in this reposito
 
 - `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
 
+- `.github/actions/xcode-cache/` and `.github/actions/module-cache/` - Source packages for the `tuist/xcode-cache` and `tuist/module-cache` actions, which turn on the runner's built-in caches for accounts on opt-in caches; see `.github/actions/xcode-cache/AGENTS.md`.
+
+- `.github/actions/gradle-cache/` - Source package for the `tuist/gradle-cache` action, a managed cache volume for Gradle's user home; see `.github/actions/gradle-cache/AGENTS.md`.
+
+- `ci/runner-caches/` - Buildkite plugins and GitLab snippets for the Xcode, module and Gradle caches; see `ci/runner-caches/AGENTS.md`.
+
 - `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
 
 ## Global Guardrails

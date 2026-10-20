@@ -22,6 +22,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
@@ -73,12 +74,17 @@ defmodule Tuist.Runners.CacheVolumes do
   # webhook arrives.
   defp executing_job(pod, node) do
     case execution_binding(pod, node) do
-      {job, platform} ->
+      {job, %RunnerSession{platform: platform} = session} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
           case job do
-            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
-            nil -> {:error, :pending}
-            _ -> {:error, :unavailable}
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) ->
+              {:ok, job, platform}
+
+            nil ->
+              await_execution(session)
+
+            _ ->
+              {:error, :unavailable}
           end
         else
           {:error, :unavailable}
@@ -88,6 +94,15 @@ defmodule Tuist.Runners.CacheVolumes do
         {:error, :unavailable}
     end
   end
+
+  # Without a binding, ask GitHub directly rather than wait for an
+  # `in_progress` delivery that can lag the job's start by minutes.
+  defp await_execution(%RunnerSession{executed_workflow_job_id: nil} = session) do
+    {:ok, _job} = ExecutionLookupWorker.enqueue(session)
+    {:error, :pending}
+  end
+
+  defp await_execution(%RunnerSession{}), do: {:error, :pending}
 
   defp execution_binding(pod, node) do
     Repo.one(
@@ -99,7 +114,7 @@ defmodule Tuist.Runners.CacheVolumes do
         where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: {j, s.platform}
+        select: {j, s}
       )
     )
   end
@@ -409,6 +424,13 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
+  @doc """
+  Whether a use mounted an older saved generation because its base was not on
+  its runner host.
+  """
+  def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
+    do: is_integer(mounted) and is_integer(base) and mounted < base
+
   def scope(volume) do
     :sha256 |> :crypto.hash("#{volume.id}:#{volume.generation}") |> Base.encode16(case: :lower)
   end
@@ -477,6 +499,13 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # Only an older generation of the use's own base is meaningful; anything else
+  # is ignored rather than failing an otherwise valid report.
+  defp mounted_generation(usage, %{"mounted_generation" => generation})
+       when is_integer(generation) and generation > 0 and generation < usage.base_generation, do: generation
+
+  defp mounted_generation(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -492,6 +521,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Map.merge(metrics, %{
           last_reported_at: now,
           warm: params["warm"],
+          mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status)
         })
@@ -549,11 +579,64 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
+  @doc """
+  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
+  `since`, most recently used first. Each is the identity a host restores and
+  then retains its master under: the use that published the HEAD.
+  """
+  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
+    since = DateTime.truncate(since, :second)
+
+    from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
+      where:
+        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at),
+      group_by: v.id,
+      order_by: [desc: max(u.inserted_at)],
+      limit: ^limit,
+      select: v
+    )
+    |> Repo.all()
+    |> Enum.flat_map(&head_identity/1)
+  end
+
+  defp head_identity(volume) do
+    with %{generation: generation, tree_digest: digest, content_digest: content}
+         when generation > 0 and is_binary(digest) and is_binary(content) <-
+           VolumeHeads.get_head(volume.account_id, storage_name(volume)),
+         id when is_binary(id) <-
+           Repo.one(
+             from(u in Usage,
+               where:
+                 u.volume_id == ^volume.id and u.generation == ^volume.generation and
+                   u.published_generation == ^generation and u.status == "published",
+               limit: 1,
+               select: u.id
+             )
+           ) do
+      [
+        %{
+          kind: "custom",
+          id: id,
+          account_id: volume.account_id,
+          scope: scope(volume),
+          generation: generation,
+          image_digest: digest,
+          content_digest: content
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
   # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
   # reclamation. The custom-volume lock also serializes clearing with publication.
   def image(node, id, params) do
     with {:ok, id} <- Ecto.UUID.cast(id),
-         %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
+         %Usage{} = usage <- image_usage(id, node, params) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
         if volume.builtin_name, do: Repo.rollback(:unsupported)
@@ -566,10 +649,32 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # Retaining a master and downloading a saved master only read the lineage, so a
+  # host may name a use allocated elsewhere: the server lists HEADs for hosts to
+  # prefetch under the use that published them. Writes stay bound to the node.
+  defp image_usage(id, _node, %{"operation" => operation}) when operation in ["retain", "download"],
+    do: Repo.get(Usage, id)
+
+  defp image_usage(id, node, _params), do: Repo.get_by(Usage, id: id, node_name: node)
+
+  # A host validates each local master against the HEAD. The HEAD digests let it
+  # name the newer master it can refresh into before discarding the stale one.
   defp image_action(volume, usage, %{"operation" => "retain"}) do
     if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
-    head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
-    %{generation: (head && head.generation) || 0}
+
+    case VolumeHeads.get_head(volume.account_id, storage_name(volume)) do
+      nil -> %{generation: 0}
+      head -> %{generation: head.generation, image_digest: head.tree_digest, content_digest: head.content_digest}
+    end
+  end
+
+  # A host holding a master of this lineage may refresh it to the current HEAD,
+  # named by its generation, even after the use that installed it has finished.
+  # Clearing bumps the lineage and still fails with a conflict.
+  defp image_action(volume, usage, %{"operation" => "download", "generation" => generation})
+       when is_integer(generation) and generation > 0 and generation != usage.base_generation do
+    if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
+    head_download(volume, generation)
   end
 
   defp image_action(volume, usage, %{"operation" => "download"}) do
@@ -613,6 +718,21 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
+  defp head_download(volume, generation) do
+    name = storage_name(volume)
+
+    case VolumeHeads.get_head(volume.account_id, name) do
+      %{generation: ^generation, content_digest: content} = head when is_binary(content) ->
+        case Runners.volume_master_download_url(volume.account_id, name, head.tree_digest, content) do
+          {:ok, url} -> %{download_url: url, generation: generation, content_digest: content}
+          _ -> Repo.rollback(:unavailable)
+        end
+
+      _ ->
+        Repo.rollback(:conflict)
+    end
+  end
 
   defp valid_image_digests?(digest, content) do
     is_binary(digest) and Regex.match?(~r/\A[a-f0-9]{40}\z/, digest) and
@@ -747,7 +867,17 @@ defmodule Tuist.Runners.CacheVolumes do
         else: where(query, [v], ilike(v.key, ^"%#{search}%") or ilike(v.repository, ^"%#{search}%"))
 
     query = if name = opts[:name], do: where(query, [v], v.key == ^name), else: query
-    if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    query = if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
+    exclude_builtin(query, opts)
+  end
+
+  # Dashboards hide the built-in volume from accounts that still get it
+  # automatically; it is shown once the account opts in to cache steps.
+  # Expects the volume as the query's last binding.
+  defp exclude_builtin(query, opts) do
+    if Keyword.get(opts, :include_builtin, true),
+      do: query,
+      else: where(query, [..., v], is_nil(v.builtin_name))
   end
 
   def history_count(account_id, volume_id) do
@@ -867,13 +997,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Roll up per-copy changes before summing: summing measurement rows would count
   # every historical report as additional storage. Older reports seed the window.
-  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil)
+  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil, opts \\ [])
 
-  def storage_history(account_id, %DateTime{} = now, volume_id) do
-    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id)
+  def storage_history(account_id, %DateTime{} = now, volume_id, opts) do
+    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id, opts)
   end
 
-  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id) do
+  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id, opts) do
     result =
       Ecto.Adapters.SQL.query!(
         Repo,
@@ -889,11 +1019,13 @@ defmodule Tuist.Runners.CacheVolumes do
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND m.observed_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
           UNION ALL
           SELECT 0, u.id, u.volume_id, u.inserted_at, 0, 0, 1, 0, 0
           FROM runner_cache_volume_uses u
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND u.inserted_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
+            AND ($5::boolean OR v.builtin_name IS NULL)
         ), changes AS (
           SELECT volume_id, CASE WHEN observed_at <= $3 THEN $3::timestamptz
             ELSE LEAST($2::timestamptz, date_trunc('hour', observed_at) + interval '1 hour') END AS bucket,
@@ -930,7 +1062,13 @@ defmodule Tuist.Runners.CacheVolumes do
         WINDOW timeline AS (ORDER BY bucket)
         ORDER BY bucket
         """,
-        [account_id, now, start, if(volume_id, do: Ecto.UUID.dump!(volume_id))]
+        [
+          account_id,
+          now,
+          start,
+          if(volume_id, do: Ecto.UUID.dump!(volume_id)),
+          Keyword.get(opts, :include_builtin, true)
+        ]
       )
 
     points =
@@ -953,7 +1091,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}) do
+  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -969,6 +1107,7 @@ defmodule Tuist.Runners.CacheVolumes do
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
+    mounts = exclude_builtin(mounts, opts)
 
     rows =
       Repo.all(
@@ -1028,9 +1167,10 @@ defmodule Tuist.Runners.CacheVolumes do
     :ok
   end
 
-  def for_job(account_id, workflow_run_id, workflow_job_id) do
+  def for_job(account_id, workflow_run_id, workflow_job_id, opts \\ []) do
     Usage
     |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
+    |> exclude_builtin(opts)
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

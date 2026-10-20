@@ -12,7 +12,7 @@ defmodule TuistWeb.API.RunnerVolumesController do
   plug TuistWeb.Plugs.LoaderPlug
   plug TuistWeb.Plugs.CastAndValidate, json_render_error_v2: true, render_error: TuistWeb.RenderAPIErrorPlug
   plug AuthorizationPlug, {:account, :runners} when action != :clear
-  plug AuthorizationPlug, {:account, :account, :update} when action == :clear
+  plug AuthorizationPlug, {:account, :runners, :update} when action == :clear
 
   tags ["Runners"]
 
@@ -111,6 +111,10 @@ defmodule TuistWeb.API.RunnerVolumesController do
 
   defp respond(conn, {:error, :not_found}) do
     conn |> put_status(:not_found) |> json(%{message: "Runner volume or job not found."})
+  end
+
+  defp respond(conn, {:error, :unsupported}) do
+    conn |> put_status(:bad_request) |> json(%{message: "Built-in volumes can't be cleared."})
   end
 
   defp respond(conn, {:error, :invalid_parameters}) do

@@ -41,7 +41,7 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
   } do
     conn = OriginAppSetupController.start(conn, %{"account_id" => to_string(account.id)})
     conn = browser_request(conn, AccountsFixtures.user_fixture())
-    reject(&Signatures.verify_receipt/2)
+    expect(Signatures, :verify_receipt, fn "receipt", nil -> {:error, :invalid_origin_receipt} end)
     reject(&Client.get_installation/1)
 
     assert_raise BadRequestError, fn ->
@@ -94,6 +94,51 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
     assert [%{installation_id: "i_verified"}] = Origin.list_installations(account.id)
   end
 
+  test "Origin-initiated setup goes to organization selection without trusting query IDs", %{conn: conn, user: user} do
+    expect(Signatures, :verify_receipt, fn "receipt", nil ->
+      {:ok, %{"sub" => "i_verified", "namespace_id" => "ns_test"}}
+    end)
+
+    reject(&Client.get_installation/1)
+
+    conn =
+      OriginAppSetupController.setup(conn, %{
+        "installation_receipt" => "receipt",
+        "installation_id" => "i_attacker",
+        "account_id" => "99999"
+      })
+
+    assert redirected_to(conn) == "/integrations/installation"
+    assert %{provider: :origin, proof: "receipt", user_id: user_id} = get_session(conn, :integration_installation)
+    assert user_id == user.id
+    assert Origin.list_installations(user.account.id) == []
+  end
+
+  test "Origin-initiated receipts can replace an abandoned Tuist flow", %{conn: conn, account: account, user: user} do
+    conn =
+      conn
+      |> OriginAppSetupController.start(%{"account_id" => to_string(account.id)})
+      |> browser_request(user)
+
+    pending = get_session(conn, :origin_installation)
+    conn = put_session(conn, :origin_installation, %{pending | issued_at: System.system_time(:second) - 601})
+
+    expect(Signatures, :verify_receipt, fn "provider-receipt", nil ->
+      {:ok, %{"sub" => "i_verified", "namespace_id" => "ns_test"}}
+    end)
+
+    conn = OriginAppSetupController.setup(conn, %{"installation_receipt" => "provider-receipt"})
+    assert redirected_to(conn) == "/integrations/installation"
+    assert get_session(conn, :origin_installation) == nil
+    assert Origin.list_installations(account.id) == []
+  end
+
+  test "signed-out Origin installers return to setup after login" do
+    conn = get(build_conn(), ~p"/integrations/origin/setup", installation_receipt: "receipt")
+    assert redirected_to(conn) == "/users/log_in"
+    assert get_session(conn, :user_return_to) == "/integrations/origin/setup?installation_receipt=receipt"
+  end
+
   test "missing, expired, and invalid receipt state is rejected", %{
     conn: conn,
     account: account,
@@ -125,6 +170,25 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
     assert_raise BadRequestError, fn ->
       OriginAppSetupController.setup(started, %{"installation_receipt" => "receipt"})
     end
+  end
+
+  test "logs rejected pending setups without exposing installation receipts", %{conn: conn, account: account, user: user} do
+    conn =
+      conn
+      |> OriginAppSetupController.start(%{"account_id" => to_string(account.id)})
+      |> browser_request(user)
+
+    stub(Signatures, :verify_receipt, fn _, _ -> {:error, :invalid_origin_receipt} end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert_raise BadRequestError, fn ->
+          OriginAppSetupController.setup(conn, %{"installation_receipt" => "sensitive-installation-receipt"})
+        end
+      end)
+
+    assert log =~ "Origin installation could not complete the pending Tuist setup"
+    refute log =~ "sensitive-installation-receipt"
   end
 
   test "starting consent requires account ownership and a valid account ID", %{conn: conn} do

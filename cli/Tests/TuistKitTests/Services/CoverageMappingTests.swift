@@ -79,6 +79,52 @@ struct CoverageMappingTests {
         return Data(bytes)
     }
 
+    /// A universal (fat) file of `slices`, each tagged with its CPU type, laid out on 8-byte boundaries.
+    private func universal(slices: [(cpu: UInt32, data: Data)]) -> Data {
+        func big(_ value: UInt32) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        var header = big(0xCAFE_BABE) + big(UInt32(slices.count))
+        var body: [UInt8] = []
+        var offset = 8 + slices.count * 20
+        for slice in slices {
+            header += big(slice.cpu) + big(0) + big(UInt32(offset)) + big(UInt32(slice.data.count)) + big(3)
+            body += Array(slice.data) + Array(repeating: 0, count: (8 - slice.data.count % 8) % 8)
+            offset += slice.data.count + (8 - slice.data.count % 8) % 8
+        }
+        return Data(header + body)
+    }
+
+    /// A universal file in the 64-bit layout with one arm64 slice whose header claims `size` at `offset`.
+    private func universal64(offset: UInt64, size: UInt64, slice: Data) -> Data {
+        func big(_ value: UInt32) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        func big64(_ value: UInt64) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        let header = big(0xCAFE_BABF) + big(1)
+            + big(0x0100_000C) + big(0) + big64(offset) + big64(size) + big(3) + big(0)
+        return Data(header + Array(slice))
+    }
+
+    @Test(.inTemporaryDirectory) func refusesAUniversalFileWhoseSliceDoesNotFit() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let instrumented = archive(members: [image(section: "__llvm_covmap", payload: [1, 2])])
+        let headerSize: UInt64 = 40
+        // The size the header claims does not fit an `Int`, runs past the file, or is empty: none of
+        // them may trap, and none carries a mapping.
+        let oversized = directory.appending(component: "oversized")
+        let truncated = directory.appending(component: "truncated")
+        let empty = directory.appending(component: "empty")
+        let sound = directory.appending(component: "sound")
+        try universal64(offset: headerSize, size: .max, slice: instrumented).write(to: URL(fileURLWithPath: oversized.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count) + 1, slice: instrumented)
+            .write(to: URL(fileURLWithPath: truncated.pathString))
+        try universal64(offset: headerSize, size: 0, slice: instrumented).write(to: URL(fileURLWithPath: empty.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count), slice: instrumented)
+            .write(to: URL(fileURLWithPath: sound.pathString))
+
+        #expect(!CoverageMapping.carriesMapping(path: oversized.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: truncated.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: empty.pathString))
+        #expect(CoverageMapping.carriesMapping(path: sound.pathString))
+    }
+
     @Test(.inTemporaryDirectory) func tellsWhetherAProductCarriesACoverageMapping() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let instrumented = directory.appending(component: "Instrumented")
@@ -92,11 +138,24 @@ struct CoverageMappingTests {
             .write(to: URL(fileURLWithPath: instrumentedArchive.pathString))
         try archive(members: [image(section: "__const", payload: [1])]).write(to: URL(fileURLWithPath: plainArchive.pathString))
         try Data("not a binary at all, just some text".utf8).write(to: URL(fileURLWithPath: text.pathString))
+        // A static framework built for two architectures: a universal file whose slices are archives.
+        let instrumentedUniversalArchive = directory.appending(component: "InstrumentedStatic")
+        let plainUniversalArchive = directory.appending(component: "PlainStatic")
+        try universal(slices: [
+            (cpu: 0x0100_0007, data: archive(members: [image(section: "__const", payload: [1])])),
+            (cpu: 0x0100_000C, data: archive(members: [image(section: "__llvm_covmap", payload: [1, 2])])),
+        ]).write(to: URL(fileURLWithPath: instrumentedUniversalArchive.pathString))
+        try universal(slices: [
+            (cpu: 0x0100_0007, data: archive(members: [image(section: "__const", payload: [1])])),
+            (cpu: 0x0100_000C, data: archive(members: [image(section: "__const", payload: [1])])),
+        ]).write(to: URL(fileURLWithPath: plainUniversalArchive.pathString))
 
         #expect(CoverageMapping.carriesMapping(path: instrumented.pathString))
         #expect(!CoverageMapping.carriesMapping(path: plain.pathString))
         #expect(CoverageMapping.carriesMapping(path: instrumentedArchive.pathString))
         #expect(!CoverageMapping.carriesMapping(path: plainArchive.pathString))
+        #expect(CoverageMapping.carriesMapping(path: instrumentedUniversalArchive.pathString))
+        #expect(!CoverageMapping.carriesMapping(path: plainUniversalArchive.pathString))
         #expect(!CoverageMapping.carriesMapping(path: text.pathString))
         #expect(!CoverageMapping.carriesMapping(path: directory.appending(component: "missing").pathString))
     }

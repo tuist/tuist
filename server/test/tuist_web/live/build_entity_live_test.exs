@@ -6,6 +6,7 @@ defmodule TuistWeb.BuildEntityLiveTest do
 
   import Phoenix.LiveViewTest, except: [render_async: 1]
 
+  alias Tuist.Accounts.Account
   alias Tuist.BuildEntities
   alias Tuist.BuildEntities.QueryLimitError
   alias Tuist.Repo
@@ -523,6 +524,37 @@ defmodule TuistWeb.BuildEntityLiveTest do
     assert has_element?(view, "#build-entity-history .noora-badge[data-color=neutral]", "Unknown")
     refute has_element?(view, "#build-entity-history", "untrusted-attribution")
     refute has_element?(view, "#build-entity-history", account.name)
+  end
+
+  test "Built by preserves verified identities and unverified report claims", context do
+    %{conn: conn, project: project, account: account} = context
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Repo.update!()
+    %{entity: entity, observation: reported} = BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks, is_ci: false)
+    %{observation: verified} = BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks, is_ci: false)
+
+    stub(BuildEntities, :parent_contexts, fn _, _, _, _ ->
+      %{
+        reported.parent_id => %{
+          ran_by_name: "publisher-not-actor",
+          submission_auth: "network_trusted",
+          claimed_actor_id: "reported-builder"
+        },
+        verified.parent_id => %{
+          ran_by_name: "verified-builder",
+          submission_auth: "token",
+          actor_account: %Account{name: "verified-builder"}
+        }
+      }
+    end)
+
+    {:ok, view, _} = live(conn, "/#{account.name}/#{project.name}/builds/gradle/tasks/#{entity.id}?tab=history")
+    render_async(view)
+    assert has_element?(view, "#build-entity-history .noora-badge[data-color=neutral]", "reported-builder")
+    assert has_element?(view, "#build-entity-history [data-actor-source=reported] .icon-tabler-device-laptop")
+    refute has_element?(view, "#build-entity-history [data-actor-source=reported]", "Unverified")
+    assert has_element?(view, "#build-entity-history .noora-badge[data-color=primary]", "verified-builder")
+    refute has_element?(view, "#build-entity-history .noora-badge[data-color=primary]", "reported-builder")
+    refute has_element?(view, "#build-entity-history", "publisher-not-actor")
   end
 
   test "optional parent context limits leave observations and navigation available", context do

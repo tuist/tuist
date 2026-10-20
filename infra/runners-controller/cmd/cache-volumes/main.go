@@ -90,6 +90,11 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	identity, err := a.authorize(ctx, body)
 	authorized(err)
 	outcome = err
+	if errors.Is(err, cachevolumes.ErrExecutionPending) {
+		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
+		http.Error(w, "execution pending", http.StatusTooEarly)
+		return
+	}
 	if err != nil {
 		http.Error(w, "unavailable", 403)
 		return
@@ -183,6 +188,9 @@ func main() {
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: int64(*sizeGB) * 1_000_000_000}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	// A master another host superseded is refreshed in the background when it was
+	// used within the last day, so this host's next job attaches locally.
+	backend.RefreshWithin = 24 * time.Hour
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)

@@ -1,4 +1,4 @@
-defmodule TuistWeb.MixCacheLive do
+defmodule TuistWeb.ToolchainCacheLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
@@ -11,7 +11,6 @@ defmodule TuistWeb.MixCacheLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Phoenix.LiveView.AsyncResult
-  alias Tuist.Mix.Cache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
@@ -23,13 +22,19 @@ defmodule TuistWeb.MixCacheLive do
   @percentiles ~w(avg p99 p90 p50)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if project.build_system != :mix, do: raise(TuistWeb.Errors.NotFoundError)
+    if project.build_system != socket.assigns.live_action, do: raise(TuistWeb.Errors.NotFoundError)
+
+    {cache_module, cache_id, title, guide, description} = configuration(project.build_system)
 
     {:ok,
      socket
+     |> assign(:cache_module, cache_module)
+     |> assign(:cache_id, cache_id)
+     |> assign(:cache_guide, guide)
+     |> assign(:transport_description, description)
      |> assign(:scatter, AsyncResult.ok(:line))
-     |> assign(:head_title, "#{dgettext("dashboard", "Mix Cache")} · #{account.name}/#{project.name} · Tuist")
-     |> assign(OpenGraph.project_image_assigns(project, title: dgettext("dashboard", "Mix Cache"), fallback: "mix-cache"))}
+     |> assign(:head_title, "#{title} · #{account.name}/#{project.name} · Tuist")
+     |> assign(OpenGraph.project_image_assigns(project, title: title, fallback: "overview"))}
   end
 
   def handle_params(_params, uri, socket) do
@@ -42,6 +47,7 @@ defmodule TuistWeb.MixCacheLive do
     opts = [start_datetime: start_datetime, end_datetime: DateTime.add(end_datetime, 1, :second)]
     opts = if environment == "any", do: opts, else: Keyword.put(opts, :is_ci, environment == "ci")
     project_id = socket.assigns.selected_project.id
+    cache_module = socket.assigns.cache_module
     key = {project_id, opts}
 
     socket =
@@ -67,11 +73,11 @@ defmodule TuistWeb.MixCacheLive do
         socket
         |> assign(:analytics_key, key)
         |> assign_async(:analytics, fn ->
-          analytics = Cache.hit_rate_analytics(project_id, opts)
-          {:ok, %{analytics: Map.put(analytics, :transport, Cache.io_analytics(project_id, opts))}}
+          analytics = cache_module.hit_rate_analytics(project_id, opts)
+          {:ok, %{analytics: Map.put(analytics, :transport, cache_module.io_analytics(project_id, opts))}}
         end)
         |> assign_async(:recent_builds, fn ->
-          {:ok, %{recent_builds: Cache.recent_builds(project_id, Keyword.put(opts, :limit, 50))}}
+          {:ok, %{recent_builds: cache_module.recent_builds(project_id, Keyword.put(opts, :limit, 50))}}
         end)
       end
 
@@ -127,6 +133,7 @@ defmodule TuistWeb.MixCacheLive do
   defp maybe_assign_scatter(%{assigns: %{widget: "hit_rate", chart_type: "scatter"}} = socket) do
     project_id = socket.assigns.selected_project.id
     opts = socket.assigns.cache_opts
+    cache_module = socket.assigns.cache_module
     key = {project_id, opts}
 
     if socket.assigns[:scatter_key] == key and !socket.assigns.scatter.failed do
@@ -135,7 +142,7 @@ defmodule TuistWeb.MixCacheLive do
       socket
       |> assign(:scatter_key, key)
       |> assign_async(:scatter, fn ->
-        {:ok, %{scatter: {:scatter, project_id |> Cache.hit_rate_scatter_data(opts) |> scatter_labels()}}}
+        {:ok, %{scatter: {:scatter, project_id |> cache_module.hit_rate_scatter_data(opts) |> scatter_labels()}}}
       end)
     end
   end
@@ -152,11 +159,64 @@ defmodule TuistWeb.MixCacheLive do
     end)
   end
 
-  defp scatter_url(point, account, project),
-    do: ~p"/#{account.name}/#{project.name}/builds/mix-builds/#{point.id}?tab=cache"
+  defp scatter_url(point, account, project), do: build_path(point.id, account, project) <> "?tab=cache"
+
+  defp build_path(id, account, %{build_system: :cargo} = project),
+    do: ~p"/#{account.name}/#{project.name}/builds/cargo-builds/#{id}"
+
+  defp build_path(id, account, project), do: ~p"/#{account.name}/#{project.name}/builds/mix-builds/#{id}"
+
+  defp recent_build_path(row, account, project) do
+    path = build_path(row.build.id, account, project)
+    if Map.get(row.cache, :available, true), do: path <> "?tab=cache", else: path
+  end
+
+  defp cache_path(%{assigns: %{selected_project: %{build_system: :cargo} = project, selected_account: account}}, query),
+    do: ~p"/#{account.name}/#{project.name}/cargo-cache" <> "?" <> query
 
   defp cache_path(socket, query),
     do: ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/mix-cache" <> "?" <> query
+
+  defp configuration(:cargo) do
+    {Tuist.Cargo.Cache, "cargo-cache", dgettext("dashboard", "Cargo Cache"),
+     "/en/docs/guides/features/build-insights/rust#cache-measurements",
+     dgettext(
+       "dashboard_cache",
+       "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
+     )}
+  end
+
+  defp configuration(:mix) do
+    {Tuist.Mix.Cache, "mix-cache", dgettext("dashboard", "Mix Cache"), "/en/docs/guides/features/cache/elixir",
+     dgettext(
+       "dashboard",
+       "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
+     )}
+  end
+
+  defp hit_rate_description(%{build_system: :cargo}) do
+    dgettext(
+      "dashboard_cache",
+      "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
+    )
+  end
+
+  defp hit_rate_description(_) do
+    dgettext(
+      "dashboard",
+      "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
+    )
+  end
+
+  defp build_runs_path(account, %{build_system: :cargo} = project),
+    do: ~p"/#{account.name}/#{project.name}/builds/build-runs"
+
+  defp build_runs_path(account, project), do: ~p"/#{account.name}/#{project.name}/builds"
+
+  defp build_command(%{build_system: :cargo}, build), do: "cargo #{build.command}"
+  defp build_command(_, _build), do: "mix compile"
+  defp build_description(%{build_system: :cargo}, _build), do: nil
+  defp build_description(_, build), do: if(build.mix_env not in [nil, ""], do: build.mix_env)
 
   defp value(nil), do: dgettext("dashboard", "No data")
   defp value(value), do: "#{Float.round(value * 1.0, 1)}%"
@@ -314,6 +374,23 @@ defmodule TuistWeb.MixCacheLive do
     if length(series) == 1 or Enum.any?(series, &(value_fn.(&1) == nil)), do: "circle", else: "none"
   end
 
+  defp recent_hit_rate_label(%{hit_rate: nil, bypasses: bypasses}) when bypasses > 0,
+    do: dgettext("dashboard", "Not cached")
+
+  defp recent_hit_rate_label(%{hit_rate: nil}), do: dgettext("dashboard_builds", "No recorded lookups")
+  defp recent_hit_rate_label(%{hit_rate: rate}), do: value(rate)
+
+  defp recent_builds_coverage(rows) do
+    dngettext(
+      "dashboard_cache",
+      "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate.",
+      "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate.",
+      length(rows),
+      measured: format_number(Enum.count(rows, &(not is_nil(&1.cache.hit_rate)))),
+      total: format_number(length(rows))
+    )
+  end
+
   defp recent_chart_data(rows, account, project) do
     rows
     |> Enum.reverse()
@@ -321,7 +398,7 @@ defmodule TuistWeb.MixCacheLive do
       %{
         value: row.cache.hit_rate,
         date: recent_build_datetime(row.build),
-        url: ~p"/#{account.name}/#{project.name}/builds/mix-builds/#{row.build.id}?tab=cache"
+        url: recent_build_path(row, account, project)
       }
     end)
   end

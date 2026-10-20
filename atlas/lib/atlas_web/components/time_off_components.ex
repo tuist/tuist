@@ -14,6 +14,7 @@ defmodule AtlasWeb.TimeOffComponents do
     ~H"""
     <.modal
       id="holiday-request-modal"
+      data-part="holiday-request-modal"
       title={gettext("Holiday request")}
       description={gettext("Choose the first and last day you will be away.")}
       header_type="icon"

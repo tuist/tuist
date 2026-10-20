@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // guestShellFunction returns a function's definition from the runner's
@@ -603,5 +605,168 @@ func TestGuestStagesNothingWithoutADivision(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(statusDir, "cache-limits")); !os.IsNotExist(err) {
 		t.Fatalf("the fixed split staged a division file")
+	}
+}
+
+// The image less the budget is the room every job starts with, so a master
+// holding more than the budget leaves the next job less than that room. One was
+// promoted at 87% (28.0 GB of a 30 GiB image against a 24 GiB budget), under the
+// 98% ceiling, and every job cloned from it then ran out of space mid-build.
+func TestGuestRefusesToPromoteAnImageOverItsBudget(t *testing.T) {
+	const (
+		gib       = int64(1) << 30
+		budget    = 24 * gib
+		capKiB    = 30 * gib / 1024
+		overUsed  = int64(28005814272)
+		underUsed = int64(18718982144)
+	)
+	for _, tc := range []struct {
+		name       string
+		usedBytes  int64
+		percent    int
+		budget     string
+		dfFails    bool
+		promotable bool
+		refusal    string
+	}{
+		{name: "under the budget", usedBytes: underUsed, percent: 59, budget: fmt.Sprint(budget), promotable: true},
+		{name: "over the budget and under the ceiling", usedBytes: overUsed, percent: 87, budget: fmt.Sprint(budget),
+			refusal: fmt.Sprintf("cache volume holds %dB, over its %dB budget", overUsed, budget)},
+		{name: "at the ceiling", usedBytes: 31 * gib, percent: 98, budget: fmt.Sprint(budget), refusal: "cache volume 98% full"},
+		{name: "no staged budget keeps the ceiling only", usedBytes: overUsed, percent: 87, promotable: true},
+		{name: "an unreadable sample promotes", dfFails: true, budget: fmt.Sprint(budget), promotable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			df := "#!/bin/bash\nexit 1\n"
+			if !tc.dfFails {
+				usedKiB := tc.usedBytes / 1024
+				df = fmt.Sprintf("#!/bin/bash\necho 'Filesystem 1024-blocks Used Available Capacity Mounted on'\necho '/dev/disk9s1 %d %d %d %d%% /mnt'\n",
+					capKiB, usedKiB, capKiB-usedKiB, tc.percent)
+			}
+			if err := os.WriteFile(filepath.Join(bin, "df"), []byte(df), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			statusDir := t.TempDir()
+
+			script := guestShellScript(t,
+				`if sample_cache_fill; then echo "promotable"; else echo "refused: ${CACHE_PROMOTE_REFUSAL}"; fi`,
+				"sample_cache_fill")
+			cmd := exec.Command("/bin/bash", "-c", script)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"CACHE_MOUNT="+t.TempDir(),
+				"STATUS_SHARE="+statusDir,
+				"CACHE_FILL_PROMOTE_CEILING=98",
+				"CACHE_BUDGET_BYTES="+tc.budget,
+				"CACHE_PROMOTE_REFUSAL=",
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("sample_cache_fill: %v\n%s", err, out)
+			}
+			want := "refused: " + tc.refusal
+			if tc.promotable {
+				want = "promotable"
+			}
+			if got := strings.TrimSpace(string(out)); got != want {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+			if tc.dfFails {
+				return
+			}
+			fill, err := os.ReadFile(filepath.Join(statusDir, "cache-fill-percent"))
+			if err != nil || string(fill) != fmt.Sprint(tc.percent) {
+				t.Fatalf("staged fill %q (%v), want %d", fill, err, tc.percent)
+			}
+		})
+	}
+}
+
+// The Tuist CLI's launch agents outlive the runner, which reaps only its own
+// process tree, and hold the volumes busy: a Tuist installed onto a custom
+// volume runs the compilation-cache proxy from it. Teardown boots out every
+// `tuist.` agent, never the image's own `dev.tuist.` ones, and waits for each
+// process to exit, because `launchctl bootout` returns before it does.
+func TestGuestStopsTheTuistLaunchAgentsBeforeDetaching(t *testing.T) {
+	start := func() *exec.Cmd {
+		t.Helper()
+		cmd := exec.Command("/bin/sleep", "60")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		return cmd
+	}
+	proxy, image := start(), start()
+	bin, calls := t.TempDir(), filepath.Join(t.TempDir(), "calls")
+	fake := fmt.Sprintf(`#!/bin/bash
+case "$1" in
+  list)
+    printf 'PID\tStatus\tLabel\n%d\t0\ttuist.cas-proxy\n-\t0\ttuist.cache.tuist_tuist\n%d\t0\tdev.tuist.runner\n-\t0\tcom.apple.Finder\n'
+    ;;
+  bootout)
+    echo "$2" >> %s
+    if [ "$2" = "gui/$(id -u)/tuist.cas-proxy" ]; then
+      ( sleep 2; kill %d ) </dev/null >/dev/null 2>&1 &
+    fi
+    ;;
+esac
+`, proxy.Process.Pid, image.Process.Pid, calls, proxy.Process.Pid)
+	if err := os.WriteFile(filepath.Join(bin, "launchctl"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = proxy.Wait(); close(exited) }()
+
+	cmd := exec.Command("/bin/bash", "-c", guestShellScript(t, "stop_tuist_launch_agents", "stop_tuist_launch_agents"))
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "TUIST_AGENT_STOP_TIMEOUT=10")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("stop_tuist_launch_agents: %v\n%s", err, out)
+	}
+
+	raw, _ := os.ReadFile(calls)
+	uid := os.Getuid()
+	want := fmt.Sprintf("gui/%d/tuist.cas-proxy\ngui/%d/tuist.cache.tuist_tuist\n", uid, uid)
+	if string(raw) != want {
+		t.Fatalf("booted out %q; want %q\n%s", raw, want, out)
+	}
+	select {
+	case <-exited:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("returned before the proxy exited\n%s", out)
+	}
+	if err := image.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("stopped the image's own agent: %v", err)
+	}
+}
+
+// The drain and the prune need the proxy, and every detach needs it gone.
+func TestGuestStopsTheTuistLaunchAgentsBetweenThePruneAndTheDetaches(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
+	if err != nil {
+		t.Fatalf("read dispatch-poll.sh: %v", err)
+	}
+	lines := strings.Split(string(b), "\n")
+	last := -1
+	for _, call := range []string{
+		"if ! drain_cas_publications && [ \"${CACHE_PASSED}\" = \"1\" ]; then",
+		"prune_cas_stores teardown",
+		"stop_tuist_launch_agents",
+		"if ! detach_cache_image; then",
+		"if ! /usr/local/bin/tuist-cache-volume --detach-all; then",
+	} {
+		at := -1
+		for i, line := range lines {
+			if strings.TrimSpace(line) == call {
+				at = i
+				break
+			}
+		}
+		if at == -1 || at < last {
+			t.Fatalf("%q is missing or out of order", call)
+		}
+		last = at
 	}
 }

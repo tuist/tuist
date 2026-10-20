@@ -121,7 +121,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     refute inspect(response) =~ "plaintext-signing-secret"
   end
 
-  describe "runner profile cache branches" do
+  describe "runner profiles" do
     setup %{user: user, account: account} do
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
       Tuist.Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 7, memory_gb: 13})
@@ -164,7 +164,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     test "rejects invalid branches and unknown profiles", %{conn: conn, user: user, account: account} do
       conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
 
-      assert %{"message" => "Use up to 20 branch names" <> _} =
+      assert %{"message" => "cache_writer_branches must be branch names, optionally with * wildcards."} =
                conn
                |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["a b"]})
                |> json_response(:unprocessable_entity)
@@ -181,7 +181,123 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
     end
 
-    test "requires account administration", %{conn: conn, account: account} do
+    test "lists the shapes and Xcode versions profiles can use", %{conn: conn, user: user, account: account} do
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/accounts/#{account.name}/runners/catalog")
+        |> json_response(:ok)
+
+      assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in response["shapes"]
+      assert %{"xcode_version" => "26.5", "default" => true} in response["xcode_versions"]
+    end
+
+    test "creates, resizes, and deletes a profile", %{conn: conn, user: user, account: account} do
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+
+      assert %{
+               "name" => "linux-4vcpu",
+               "vcpus" => 4,
+               "memory_gb" => 8,
+               "protected" => false,
+               "runs_on_label" => "tuist-linux-4vcpu"
+             } =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
+                 name: "linux-4vcpu",
+                 platform: "linux",
+                 vcpus: 4,
+                 memory_gb: 8,
+                 protected: true
+               })
+               |> json_response(:created)
+
+      assert %{"vcpus" => 8, "memory_gb" => 16, "cache_writer_default_branch" => true} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu", %{vcpus: 8, memory_gb: 16})
+               |> json_response(:ok)
+
+      assert conn |> delete(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu") |> response(:no_content)
+      refute Profiles.get_by_name(account, "linux-4vcpu")
+    end
+
+    test "rejects unavailable shapes and protects default profiles", %{conn: conn, user: user, account: account} do
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+
+      assert %{"message" => "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB" <> _} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
+                 name: "odd",
+                 platform: "linux",
+                 vcpus: 3,
+                 memory_gb: 8
+               })
+               |> json_response(:unprocessable_entity)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{name: "odd", vcpus: 2, memory_gb: 8})
+      |> json_response(:bad_request)
+
+      Tuist.Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "base",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        protected: true
+      })
+
+      assert %{"message" => "This profile is a default and can't be deleted."} =
+               conn
+               |> delete(~p"/api/accounts/#{account.name}/runners/profiles/base")
+               |> json_response(:unprocessable_entity)
+
+      assert %{"message" => "The runner profile was not found."} =
+               conn
+               |> delete(~p"/api/accounts/#{account.name}/runners/profiles/missing")
+               |> json_response(:not_found)
+    end
+
+    test "lets account tokens with runner write scope manage profiles", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]})
+        |> put_req_header("content-type", "application/json")
+
+      assert %{"runs_on_label" => "tuist-linux-4vcpu"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
+                 name: "linux-4vcpu",
+                 platform: "linux",
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+               |> json_response(:created)
+
+      assert %{"vcpus" => 8, "memory_gb" => 16} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu", %{vcpus: 8, memory_gb: 16})
+               |> json_response(:ok)
+
+      assert %{"profiles" => [_ | _]} =
+               conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
+
+      assert conn |> delete(~p"/api/accounts/#{account.name}/runners/profiles/linux-4vcpu") |> response(:no_content)
+      refute Profiles.get_by_name(account, "linux-4vcpu")
+    end
+
+    test "lets runner readers list profiles but not change them", %{
+      conn: conn,
+      account: account
+    } do
+      response =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+        |> get(~p"/api/accounts/#{account.name}/runners/profiles")
+        |> json_response(:ok)
+
+      assert %{"runs_on_label" => "tuist-ci"} = Enum.find(response["profiles"], &(&1["name"] == "ci"))
+
       conn
       |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
       |> put_req_header("content-type", "application/json")
@@ -189,6 +305,25 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       |> json_response(:forbidden)
 
       assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+
+      conn
+      |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/accounts/#{account.name}/runners/profiles", %{
+        name: "new",
+        platform: "linux",
+        vcpus: 2,
+        memory_gb: 8
+      })
+      |> json_response(:forbidden)
+
+      conn
+      |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+      |> delete(~p"/api/accounts/#{account.name}/runners/profiles/ci")
+      |> json_response(:forbidden)
+
+      refute Profiles.get_by_name(account, "new")
+      assert Profiles.get_by_name(account, "ci")
     end
   end
 

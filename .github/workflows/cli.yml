@@ -76,12 +76,13 @@ env:
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
+  TUIST_DEV_INSTANCE: "1"
 
 concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
+# Linux archive caches: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
@@ -98,16 +99,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -120,7 +116,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
@@ -138,13 +136,8 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -157,16 +150,21 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Resolve registry replacements
-        run: swift package resolve --replace-scm-with-registry
+        run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
-        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
+        run: swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions
 
   cli-cache:
     name: Cache
     runs-on: tuist-macos-27-0
-    timeout-minutes: 60
+    # Two warms: the plain one and the coverage one below, which builds every
+    # changed repository target a second time, with coverage and without the
+    # compilation cache's replay.
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -175,17 +173,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -197,15 +189,22 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Cache
         run: tuist cache
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+      # The coverage variant of the binary cache, read by the runs that collect
+      # coverage: coverage.yml on main, and the unit tests above, which run with
+      # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
+      # with coverage counters; external packages are the plain warm's. Those
+      # builds get no compilation-cache replay: coverage builds leave Xcode's
+      # prefix mapping off by default, and `tuist cache` has no xcodebuild
+      # passthrough for the override the test runs use. The manifest option
+      # (`enableCoveragePrefixMapping`) would turn it on for both, once the
+      # backward-compatibility gate's CLI knows it.
+      - name: Cache with coverage
+        run: tuist cache --coverage
 
   cli-unit-tests:
     name: Unit Tests
@@ -219,16 +218,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -241,13 +235,27 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
       - name: Verify scheme process integration
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      # The derived data path is where the coverage export finds the test
+      # products and the run's profile; cached binaries only show up in the
+      # coverage when it reads them, never in the result bundle's own report.
       - name: Run tests
-        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
@@ -266,16 +274,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -288,7 +291,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -315,16 +320,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -337,7 +337,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -403,20 +405,17 @@ jobs:
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation

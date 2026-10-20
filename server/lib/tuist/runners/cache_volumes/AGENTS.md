@@ -3,8 +3,15 @@
 `../cache_volumes.ex` owns allocation, publication, invalidation and analytics;
 these schemas persist volume identities and per-job uses.
 
-- Account-scope all browser reads and writes. Agent reports are separately
-  authenticated and bound to the node that received the allocation.
+- Account-scope all browser reads and writes. Agent reports, uploads and
+  publications are separately authenticated and bound to the node that received
+  the allocation. Read-only image `retain` and `download` requests may name a use
+  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
+  listed by `VolumePrefetch`) under the use that published it.
+- A report's `mounted_generation` records the older saved generation a macOS host
+  mounted when the use's base was not local; only values below the base are kept.
+  Such uses may still publish (last publication wins). `older_copy?/1` drives the
+  "Older copy" dashboard badge and the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -24,6 +31,11 @@ these schemas persist volume identities and per-job uses.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;
   unknown/closed sessions and denied provider identities remain unavailable.
+  An unbound session also enqueues `ExecutionLookupWorker`, which reads the
+  runner's `in_progress` job from GitHub's API and records it through
+  `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  An agent that is still answered 425 at its deadline reports `execution_pending`
+  (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
@@ -75,6 +87,14 @@ these schemas persist volume identities and per-job uses.
   custom-volume clear/expiry epoch. Lock the custom volume through publication
   and clearing so a cleared lineage cannot be resurrected. Publication is
   idempotent by usage ID and both digests. A sealed report alone never publishes.
+- `retain` returns the HEAD generation and digests so a host can refresh a
+  superseded local master. `download` with a `generation` other than the use's
+  base serves only the current HEAD, for a use on the same node in the same
+  uncleared lineage, even after that use finished. Never widen it to other
+  generations, nodes or lineages.
+  A refreshed master keeps authorizing through the use that first installed
+  it, so do not add use-age checks to `retain` or this `download`; a use pruned
+  from history only costs that host one remote restore.
 - `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
   Keep macOS dispatch validation restricted to built-in repository/account caches;
   custom attachment uses the separate authenticated host agent. Export includes
@@ -90,6 +110,12 @@ these schemas persist volume identities and per-job uses.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `FeatureFlags.runner_opt_in_caches_enabled?/1` puts `automatic_caches: false`
+  in macOS dispatch responses. The guest then exposes the built-in caches only
+  through the module-cache and xcode-cache actions, Buildkite plugins and GitLab
+  snippets, and a job
+  that uses neither sends no `Builtin` report. Storage identity is unchanged.
 
 - `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
   host-audience endpoint. Resolve job/account/repository from the executed session

@@ -35,6 +35,22 @@ defmodule Tuist.Origin.SignaturesTest do
     assert {:ok, ^claims} = Signatures.verify_receipt(receipt(key, claims), "browser_state")
   end
 
+  test "verifies provider-initiated receipts only when they have no Tuist state", %{key: key, claims: claims} do
+    provider_claims = Map.delete(claims, "state")
+    assert {:ok, ^provider_claims} = Signatures.verify_receipt(receipt(key, provider_claims), nil)
+
+    assert {:error, :invalid_origin_receipt} =
+             Signatures.verify_receipt(receipt(key, claims), nil)
+
+    assert {:error, :invalid_origin_receipt} =
+             Signatures.verify_receipt(receipt(key, provider_claims), "browser_state")
+
+    for {field, value} <- [{"aud", "app_other"}, {"iss", "https://attacker.test"}, {"exp", 0}] do
+      assert {:error, :invalid_origin_receipt} =
+               Signatures.verify_receipt(receipt(key, Map.put(provider_claims, field, value)), nil)
+    end
+  end
+
   test "rejects wrong state, audience, issuer, and expired receipts", %{key: key, claims: claims} do
     assert {:error, :invalid_origin_receipt} =
              Signatures.verify_receipt(receipt(key, claims), "other_browser")

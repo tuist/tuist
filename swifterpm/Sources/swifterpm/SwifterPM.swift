@@ -48,7 +48,8 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scmToRegistryTransformation: SCMToRegistryTransformation
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var manifestEnvironment: [String: String]?
-    /// Native resolution also performs authenticated fetches. When omitted, it uses `manifestEnvironment`.
+    /// The environment for native resolution that can fetch dependencies. When omitted, it uses `manifestEnvironment`.
+    /// Warm lockfile validation always uses `manifestEnvironment`, matching cached manifest evaluation.
     public var resolutionEnvironment: [String: String]?
     public var quiet: Bool
 

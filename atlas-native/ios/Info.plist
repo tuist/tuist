@@ -15,9 +15,9 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleSupportedPlatforms</key>
-    <array><string>iPhoneSimulator</string></array>
+    <array><string>$(ATLAS_SUPPORTED_PLATFORM)</string></array>
     <key>DTPlatformName</key>
-    <string>iphonesimulator</string>
+    <string>$(ATLAS_PLATFORM_NAME)</string>
     <key>MinimumOSVersion</key>
     <string>17.0</string>
     <key>LSRequiresIPhoneOS</key>

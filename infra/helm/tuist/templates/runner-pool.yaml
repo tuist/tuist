@@ -124,14 +124,12 @@ strand `queued` runner_jobs rows pointing at the old `fleet_name`
 (a runner only claims work for its own pool) and split fleet
 analytics at the deploy. `Catalog.pool_name/1` applies the same rule.
 
-The `runnerImage` for each pool is derived from a shared
-`runnerImageRepository` + per-semver tag computed as
-`<repository>:macos-<xcode-dashes>-<semver>`, so the release flow
-only bumps a single `runnerImageSemver` value at release time and
-every Xcode pool's image updates in lockstep. An xcodeVersion entry
-can override `imageTag` to pin a specific tag (useful for an
-out-of-rotation Xcode refreshed via `runner-image.yml` dispatch with
-a `:<profile>-<git-sha>` tag).
+Each pool's image is its Xcode's `tuist.macosRunnerImage`: the digest the
+deploy resolved for `<repository>:macos-<xcode-dashes>-<semver>`
+(`runnerImageDigests`), so a release moves only the pools whose image it
+rebuilt. An xcodeVersion entry can override `imageTag` to pin a specific tag
+(useful for an out-of-rotation Xcode refreshed via `runner-image.yml`
+dispatch with a `:<profile>-<git-sha>` tag).
 
 The catalog renders once per placement: the rented fleet, and, with
 `rackFleet.runners.enabled`, the rack fleet at its site. A rack placement's
@@ -211,7 +209,14 @@ The rendered set is the default shape plus every non-default shape.
     {{- $extraShapes = append $extraShapes . }}
   {{- end }}
 {{- end }}
-{{- $placements := list (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- /*
+The rented placement is left out when the env rents no hosts for it and racks
+the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
+*/}}
+{{- $placements := list }}
+{{- if eq (include "tuist.runnersFleetRentsMacOS" .) "true" }}
+{{- $placements = append $placements (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
 {{- $rackRunners := .Values.rackFleet.runners }}
