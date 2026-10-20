@@ -3,6 +3,7 @@ set -euo pipefail
 umask 077
 
 cd "$(dirname "$0")/../.."
+source ios/distribution/keychain.sh
 app_source="$PWD/.once/out/AtlasIOSDevice/Atlas.app"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
@@ -12,7 +13,7 @@ test -d "$app_source" || fail "Run mise run build:ios-device first"
 tmp=$(mktemp -d)
 keychain="$tmp/signing.keychain-db"
 cleanup() {
-    security delete-keychain "$keychain" >/dev/null 2>&1 || true
+    delete_signing_keychain "$keychain" || true
     rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -32,9 +33,7 @@ expires=$(plutil -extract ExpirationDate raw "$tmp/profile.plist")
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12"
 certificate_password=$(op read "op://tuist/Distribution Certificate/password")
 keychain_password=$(uuidgen)
-security create-keychain -p "$keychain_password" "$keychain"
-security set-keychain-settings -lut 3600 "$keychain"
-security unlock-keychain -p "$keychain_password" "$keychain"
+create_signing_keychain "$keychain" "$keychain_password"
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null
 unset certificate_password
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
