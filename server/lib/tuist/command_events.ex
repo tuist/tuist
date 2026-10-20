@@ -78,7 +78,7 @@ defmodule Tuist.CommandEvents do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          event when not is_nil(event) <-
            ClickHouseRepo.one(from(e in Event, where: e.id == ^uuid)) do
-      {:ok, Event.normalize_enums(event)}
+      {:ok, Repo.preload(Event.normalize_enums(event), :actor_account)}
     else
       _ ->
         {:error, :not_found}
@@ -1173,6 +1173,8 @@ defmodule Tuist.CommandEvents do
   end
 
   defp attach_user_account_names(events) do
+    events = Tuist.ReportActor.preload(events)
+
     user_ids =
       events
       |> Enum.map(& &1.user_id)

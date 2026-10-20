@@ -8,6 +8,10 @@ Never accept trust, provider identity or publication decisions from workflow
 inputs. The server resolves the assigned session against provider APIs.
 Wrappers only pass quoted key/path arguments and propagate client failures;
 they never implement publication hooks or download binaries.
+A volume can take several paths: Buildkite `path` is a string or a nonempty list,
+and the GitLab template reads one path per line from `TUIST_VOLUME_PATH` (blank
+lines ignored, whitespace trimmed). Both pass one `--path` per entry from a Bash
+array in one client call and stay compatible with macOS `/bin/bash` 3.2.
 
 Run the Bash suites `integrations_test.sh`, `publish_test.sh`,
 `release_check_test.sh`, and `prepare-release_test.sh` in this directory.

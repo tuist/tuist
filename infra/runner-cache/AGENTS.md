@@ -41,9 +41,46 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
-- Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
-  bounded to two minutes with no queue and the same disk reserve. Never create
-  a private branch, publish, or extend the foreground budget from prefetch.
+- Linux may prefetch one immutable master after a timed-out warm acquisition,
+  bounded to two minutes with no queue and the same disk reserve. macOS queues
+  prefetches (see tart-kubelet). Never create a private branch, publish, or extend
+  the foreground budget from prefetch.
+- APFS `Attach` never downloads. It clones the base master, else the newest older
+  master of the same scope (recorded in `<image>.base` and
+  `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
+  A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
+  Store treats like a poisoned branch: deleted, never published.
+- APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
+  (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
+  out-of-space rule). A missing `changed` field means changed. `Measure` reads a
+  detached branch's `.usage` before sealing so a withheld branch still reports its size.
+- `LocalImages` (Linux) decides the same on the host, while the volume is still
+  mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
+  when the top-level entries match `<image>.entries` and no entry's ctime is
+  newer than the one it recorded. The first attach writes `.entries` after the
+  marker; later attaches of the branch keep it. A missing baseline means changed;
+  a `.verified` or `.checking` branch skips the check.
+- `Identity.VolumeBytes` is the size the server allocated the volume at; zero
+  means the host default (`SizeGB`). `valid` rejects sizes above
+  `MaxVolumeBytes`. Create, admission and guest usage validation all use
+  `volumeBytes(slot)`; never size an image from `SizeGB` directly.
+- `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
+  `Range` requests: a fresh link per attempt, at most five attempts, an attempt
+  abandoned after two minutes without bytes, `DownloadClient` without a whole-
+  transfer timeout. A context that ends while bytes arrive returns
+  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
+  restore is deleted. Callers resume only by passing the same path again.
+- `prefetch` downloads into `staging/<scope>-<generation>-<content digest>.img`
+  and takes the scope lock only to install;
+  `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
+  across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
+  used in the last day while its successor is queued, instead of removing it.
+- `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
+  for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
+  scope>` label per lineage with an installed `*.img` master. tart-kubelet
+  publishes it on the node heartbeat and the Linux agent merges it into its Node
+  patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
   the background (one at a time, prefetch admission) before removing it.
   Maintenance and admission skip the scope a refresh download holds. Only a

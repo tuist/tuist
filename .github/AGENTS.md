@@ -57,6 +57,9 @@ simulator app in a separate step without the 1Password token. PR/fork builds nev
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
+The publication job installs its own Java runtime and Android build-tools, even
+though it only consumes prebuilt APKs: Tuist needs `aapt2` for metadata inspection.
+SDK setup from Android build jobs does not carry across to the macOS publisher.
 
 ## Community notifications
 
@@ -156,11 +159,12 @@ scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
 use its automatic GitHub archive/copy backend. Do not add a second cache step.
 The macOS native SwiftPM resolve/build commands use the same
 `--cache-path "$PWD/.build/dependency-cache"`. The released CLI must include #14304
-so internal manifest dumps honor that path too. Keep the existing v2 workspace
-keys through the action's `cache-key` input: they include job, Xcode version and
-`Package.swift`, not the lockfile. The fork acceptance job uses the acceptance-build
-key so default-branch runs can seed it. Preserve fork guards for Tuist login,
-setup, and enterprise sources; installation itself remains unconditional.
+so internal manifest dumps honor that path too. Use stable per-job workspace
+keys through the action's `cache-key` input (`cli-macos-workspace-${{ github.job }}`),
+without Xcode-version, manifest, or lockfile hashes. The fork acceptance job uses
+the stable acceptance-build key so default-branch runs can seed it. Preserve
+fork guards for Tuist login, setup, and enterprise sources; installation itself
+remains unconditional.
 Keep configuration, security, and authentication outside the cache. Mise's
 postinstall hook skips dependency installation on CI so it does not populate the
 volume target before the action runs.
@@ -250,6 +254,8 @@ takes without one never covers cached code.
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
 
 ## CLI Cargo cache packaging
+
+The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-plugin/mise.toml` before running the real Cargo/libtest fixture. Do not assume Rust is preinstalled on the runner image or silently replace the fixture with nextest.
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 

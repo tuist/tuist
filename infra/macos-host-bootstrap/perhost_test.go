@@ -18,6 +18,7 @@ import (
 var fleetWideConfigFields = map[string]bool{
 	"TartKubeletBinary":         true,
 	"TartTarball":               true,
+	"TartVersion":               true,
 	"TailscaleBinaries":         true,
 	"TailscaleTags":             true,
 	"TailscaleAcceptRoutes":     true,

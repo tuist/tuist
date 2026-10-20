@@ -12,7 +12,7 @@
   <div :if={@selected} data-part="header">
     <div data-part="title">
       <div data-part="volume-icon"><.database /></div>
-      <h1>{@selected.key}</h1>
+      <h1>{display_name(@selected)}</h1>
     </div>
     <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
       <.button
@@ -203,7 +203,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume_name(volume.key)} title={volume.key} />
+            <.text_cell label={volume_name(volume)} title={display_name(volume)} />
           </:col>
           <:col
             :let={volume}
@@ -484,13 +484,20 @@
             <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
               <.badge_cell
                 label={
-                  case usage.warm do
-                    true -> dgettext("dashboard_runners", "Hit")
-                    false -> dgettext("dashboard_runners", "Miss")
-                    nil -> "—"
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                    usage.warm == true -> dgettext("dashboard_runners", "Hit")
+                    usage.warm == false -> dgettext("dashboard_runners", "Miss")
+                    true -> "—"
                   end
                 }
-                color={if usage.warm, do: "success", else: "neutral"}
+                color={
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> "warning"
+                    usage.warm -> "success"
+                    true -> "neutral"
+                  end
+                }
                 style="light-fill"
               />
             </:col>

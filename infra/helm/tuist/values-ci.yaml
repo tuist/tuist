@@ -37,3 +37,7 @@ runnersFleet:
 
 runnersFleetLinux:
   shapeRunnerImage: ghcr.io/tuist/tuist-linux-runner:validation
+
+xcresultProcessor:
+  release:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

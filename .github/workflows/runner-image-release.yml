@@ -51,6 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
+      - run: bash infra/runner-image/runner-caches_test.sh
 
   plan:
     name: Plan runner image release

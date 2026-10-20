@@ -78,8 +78,8 @@ msgstr ""
 #: lib/tuist_web/live/bundles_live.html.heex:40
 #: lib/tuist_web/live/bundles_live.html.heex:55
 #: lib/tuist_web/live/bundles_live.html.heex:69
-#: lib/tuist_web/live/module_cache_live.ex:412
-#: lib/tuist_web/live/module_cache_live.ex:415
+#: lib/tuist_web/live/module_cache_live.ex:421
+#: lib/tuist_web/live/module_cache_live.ex:424
 #: lib/tuist_web/live/module_cache_live.html.heex:10
 #: lib/tuist_web/live/module_cache_live.html.heex:40
 #: lib/tuist_web/live/module_cache_module_live.ex:320
@@ -195,8 +195,8 @@ msgstr ""
 msgid "Bundles"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:417
-#: lib/tuist_web/live/module_cache_live.ex:418
+#: lib/tuist_web/live/module_cache_live.ex:426
+#: lib/tuist_web/live/module_cache_live.ex:427
 #: lib/tuist_web/live/module_cache_live.html.heex:26
 #: lib/tuist_web/live/module_cache_module_live.ex:363
 #: lib/tuist_web/live/module_cache_module_live.html.heex:43
@@ -222,7 +222,7 @@ msgid "Cache downloads"
 msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
-#: lib/tuist_web/live/module_cache_live.ex:389
+#: lib/tuist_web/live/module_cache_live.ex:398
 #: lib/tuist_web/live/module_cache_live.html.heex:147
 #: lib/tuist_web/live/module_cache_live.html.heex:676
 #: lib/tuist_web/live/module_cache_module_live.html.heex:132
@@ -247,7 +247,7 @@ msgstr ""
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:371
+#: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
 msgstr ""
@@ -257,7 +257,7 @@ msgstr ""
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:380
+#: lib/tuist_web/live/module_cache_live.ex:389
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
 msgstr ""
@@ -448,8 +448,8 @@ msgstr ""
 msgid "Install size deviation"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:416
-#: lib/tuist_web/live/module_cache_live.ex:419
+#: lib/tuist_web/live/module_cache_live.ex:425
+#: lib/tuist_web/live/module_cache_live.ex:428
 #: lib/tuist_web/live/module_cache_live.html.heex:18
 #: lib/tuist_web/live/module_cache_module_live.ex:362
 #: lib/tuist_web/live/module_cache_module_live.html.heex:42
@@ -802,7 +802,7 @@ msgid "p99 hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:284
-#: lib/tuist_web/live/module_cache_live.ex:410
+#: lib/tuist_web/live/module_cache_live.ex:419
 #: lib/tuist_web/live/toolchain_cache_live.ex:237
 #: lib/tuist_web/live/xcode_cache_live.ex:340
 #, elixir-autogen, elixir-format
@@ -810,7 +810,7 @@ msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:281
-#: lib/tuist_web/live/module_cache_live.ex:407
+#: lib/tuist_web/live/module_cache_live.ex:416
 #: lib/tuist_web/live/toolchain_cache_live.ex:235
 #: lib/tuist_web/live/xcode_cache_live.ex:337
 #, elixir-autogen, elixir-format
@@ -818,7 +818,7 @@ msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:282
-#: lib/tuist_web/live/module_cache_live.ex:408
+#: lib/tuist_web/live/module_cache_live.ex:417
 #: lib/tuist_web/live/xcode_cache_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -887,14 +887,14 @@ msgid "Last 7 days"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:283
-#: lib/tuist_web/live/module_cache_live.ex:409
+#: lib/tuist_web/live/module_cache_live.ex:418
 #: lib/tuist_web/live/toolchain_cache_live.ex:236
 #: lib/tuist_web/live/xcode_cache_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:406
+#: lib/tuist_web/live/module_cache_live.ex:415
 #: lib/tuist_web/live/toolchain_cache_live.ex:234
 #: lib/tuist_web/live/xcode_cache_live.ex:336
 #, elixir-autogen, elixir-format
@@ -952,7 +952,7 @@ msgstr ""
 msgid "Package name"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.ex:439
+#: lib/tuist_web/live/module_cache_live.ex:448
 #: lib/tuist_web/live/xcode_cache_live.ex:426
 #: lib/tuist_web/live/xcode_cache_live.html.heex:506
 #, elixir-autogen, elixir-format
@@ -1364,8 +1364,8 @@ msgstr ""
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:384
 #, elixir-autogen, elixir-format
-msgid "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate."
-msgid_plural "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate."
+msgid "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate."
+msgid_plural "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate."
 msgstr[0] ""
 msgstr[1] ""
 

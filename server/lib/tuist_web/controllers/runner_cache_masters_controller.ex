@@ -36,7 +36,19 @@ defmodule TuistWeb.RunnerCacheMastersController do
          {:ok, node_name} <- VolumePrefetch.node_for_service_account(namespace, name) do
       masters =
         Enum.map(VolumePrefetch.for_node(node_name), fn master ->
-          Map.take(master, [:account_id, :volume, :generation, :digest, :content_digest, :download_url])
+          Map.take(master, [
+            :kind,
+            :id,
+            :account_id,
+            :volume,
+            :scope,
+            :generation,
+            :digest,
+            :image_digest,
+            :content_digest,
+            :download_url,
+            :volume_bytes
+          ])
         end)
 
       json(conn, %{masters: masters})

@@ -93,6 +93,28 @@ defmodule Tuist.FeatureFlagsTest do
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 
+  describe "runner_site_enabled?/1" do
+    test "is on for every account in staging and canary" do
+      for env <- [:stag, :can] do
+        stub(Environment, :env, fn -> env end)
+        reject(FunWithFlags, :enabled?, 2)
+
+        assert FeatureFlags.runner_site_enabled?(%Account{id: 42, name: "tuist"})
+      end
+    end
+
+    test "uses the flag in production and development" do
+      account = %Account{id: 42, name: "tuist"}
+
+      for env <- [:prod, :dev] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :runner_site, [for: ^account] -> false end)
+
+        refute FeatureFlags.runner_site_enabled?(account)
+      end
+    end
+  end
+
   describe "runner_cache_volumes_per_repository_enabled?/0" do
     test "requires the flag in canary and production" do
       for env <- [:can, :prod] do

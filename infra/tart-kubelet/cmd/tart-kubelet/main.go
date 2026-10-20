@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
@@ -412,6 +413,9 @@ func main() {
 		}
 		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
 		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
+		if customVolumes != nil {
+			converge.Custom = customVolumes
+		}
 		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
 			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
 		if err := mgr.Add(converge); err != nil {
@@ -500,16 +504,17 @@ func main() {
 	}
 
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:      mgr.GetClient(),
-		NodeName:    nodeName,
-		ProviderID:  providerID,
-		NodeIP:      nodeIP,
-		NodeLabels:  nodeLabels,
-		CPU:         hostCPU,
-		MemoryMB:    hostMemoryMB,
-		MaxPods:     maxPods,
-		Heartbeat:   30 * time.Second,
-		PrewarmGate: prewarmGate,
+		Client:         mgr.GetClient(),
+		NodeName:       nodeName,
+		ProviderID:     providerID,
+		NodeIP:         nodeIP,
+		NodeLabels:     nodeLabels,
+		CPU:            hostCPU,
+		MemoryMB:       hostMemoryMB,
+		MaxPods:        maxPods,
+		Heartbeat:      30 * time.Second,
+		PrewarmGate:    prewarmGate,
+		RuntimeVersion: tartClient.Version,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config
@@ -531,6 +536,14 @@ func main() {
 			// costs at most a heartbeat of oldest-queued dispatch.
 			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
 				return volumes.CacheMasterNodeLabels()
+			}},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
 		},
 	}); err != nil {

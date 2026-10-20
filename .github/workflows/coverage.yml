@@ -123,6 +123,8 @@ jobs:
         with:
           ref: ${{ needs.commit.outputs.sha }}
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
@@ -154,6 +156,15 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
       # Every test runs: selective testing would skip tests. Repository targets
       # come from the coverage variant of the binary cache (`tuist cache
       # --coverage` in cli.yml), built with coverage counters, when their hash
@@ -192,6 +203,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |
@@ -243,6 +256,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |

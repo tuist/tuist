@@ -154,6 +154,12 @@ spec:
             # leaving ProcessXcresultWorker's queue starved.
             - name: TUIST_MODE
               value: "xcresult_processor"
+            # Read by the guest's fetch-release.sh, which installs this
+            # release before the BEAM starts.
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_REPOSITORY
+              value: {{ .Values.xcresultProcessor.release.repository | quote }}
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_DIGEST
+              value: {{ required "xcresultProcessor.release.digest is required: the processor image carries no server release" .Values.xcresultProcessor.release.digest | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             # Tuist.License.assert_valid!/0 runs unconditionally at boot

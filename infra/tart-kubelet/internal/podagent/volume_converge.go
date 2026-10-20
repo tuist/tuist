@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -131,6 +132,10 @@ type ConvergeWorker struct {
 	// Prefetch lists the masters the server wants this host to hold. Nil
 	// disables prefetching.
 	Prefetch PrefetchSource
+	// Custom receives the custom-volume HEADs in the prefetch list. Nil drops them.
+	Custom interface {
+		PrefetchMaster(cachevolumes.Identity) bool
+	}
 
 	// Zero values use the package defaults; injectable so tests don't wait real
 	// minutes.
@@ -426,6 +431,15 @@ func (w *ConvergeWorker) refreshPrefetch(ctx context.Context) bool {
 	}
 	queued := 0
 	for _, master := range masters {
+		if master.Kind == "custom" {
+			if w.Custom != nil {
+				w.Custom.PrefetchMaster(cachevolumes.Identity{
+					ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
+					ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes,
+				})
+			}
+			continue
+		}
 		account := strconv.FormatInt(master.AccountID, 10)
 		if master.AccountID <= 0 || !isVolumeName(master.Volume) || master.Generation <= 0 || master.DownloadURL == "" {
 			continue

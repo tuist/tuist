@@ -20,6 +20,14 @@ After that, you can add a project connection between your GitHub repository and 
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
+Once the app is installed, you can also link a project without the dashboard:
+
+- **CLI:** `tuist project repository connect owner/name`, and `tuist project repository disconnect` to remove the link.
+- **REST API:** `PUT` and `DELETE` on `/api/projects/{account_handle}/{project_handle}/vcs-connection`.
+- **Model Context Protocol:** the `connect_project_repository` and `disconnect_project_repository` tools.
+
+The repository must be one the GitHub App installation can access, and the project adopts the repository's default branch. Account tokens need the `project:admin:write` scope.
+
 > [!TIP]
 > **Ip Allowlisting**
 >

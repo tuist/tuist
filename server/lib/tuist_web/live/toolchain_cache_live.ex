@@ -383,8 +383,8 @@ defmodule TuistWeb.ToolchainCacheLive do
   defp recent_builds_coverage(rows) do
     dngettext(
       "dashboard_cache",
-      "Cache lookups recorded for %{measured} of %{total} recent build. Builds without recorded lookups are excluded from the hit rate.",
-      "Cache lookups recorded for %{measured} of %{total} recent builds. Builds without recorded lookups are excluded from the hit rate.",
+      "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate.",
+      "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate.",
       length(rows),
       measured: format_number(Enum.count(rows, &(not is_nil(&1.cache.hit_rate)))),
       total: format_number(length(rows))

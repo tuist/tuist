@@ -184,6 +184,7 @@ defmodule Tuist.Tests do
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
   # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
   @test_struct_non_field_keys [
+    :actor_account,
     :__meta__,
     :ran_by_account,
     :build_run,
@@ -315,7 +316,9 @@ defmodule Tuist.Tests do
             test =
               test
               |> Repo.preload(pg_preloads)
+              |> Tuist.ReportActor.preload()
               |> ClickHouseRepo.preload(ch_preloads)
+              |> preload_test_case_actors()
               |> dedupe_run_destinations()
 
             {:ok, test}
@@ -323,6 +326,14 @@ defmodule Tuist.Tests do
 
       :error ->
         {:error, :not_found}
+    end
+  end
+
+  defp preload_test_case_actors(test) do
+    if Ecto.assoc_loaded?(test.test_case_runs) do
+      Map.update!(test, :test_case_runs, &Repo.preload(&1, [:ran_by_account, :actor_account]))
+    else
+      test
     end
   end
 
@@ -366,7 +377,7 @@ defmodule Tuist.Tests do
   def list_test_runs(attrs) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
 
-    results = Repo.preload(results, :ran_by_account)
+    results = Repo.preload(results, [:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -481,6 +492,10 @@ defmodule Tuist.Tests do
 
   def create_test(attrs) do
     attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs()
+    # Unsigned clients cannot manufacture future/ancient storage partitions or
+    # recency evidence; their completed reports use the server receipt time.
+    attrs =
+      if attrs[:submission_auth] == "network_trusted", do: Map.put(attrs, :ran_at, NaiveDateTime.utc_now()), else: attrs
 
     attrs =
       Map.put(attrs, :coverage_evidence_status, Coverage.Evidence.status(Map.get(attrs, :coverage_evidence)))
@@ -497,15 +512,25 @@ defmodule Tuist.Tests do
   defp normalize_string_keys(%_{} = struct), do: struct
 
   defp normalize_string_keys(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_binary(k) -> {String.to_atom(k), normalize_string_keys(v)}
-      {k, v} -> {k, normalize_string_keys(v)}
+    Enum.reduce(map, %{}, fn {key, value}, result ->
+      case existing_key(key) do
+        nil -> result
+        key -> Map.put(result, key, normalize_string_keys(value))
+      end
     end)
   end
 
   defp normalize_string_keys(list) when is_list(list), do: Enum.map(list, &normalize_string_keys/1)
 
   defp normalize_string_keys(value), do: value
+
+  defp existing_key(key) when is_binary(key) do
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp existing_key(key), do: key
 
   defp create_new_test(attrs, shard_index \\ nil, shard_plan \\ nil) do
     test_modules = Map.get(attrs, :test_modules, [])
@@ -554,7 +579,7 @@ defmodule Tuist.Tests do
 
       run_test_followups(test, test_case_runs, shard_plan)
 
-      if test.status == "failure",
+      if test.status == "failure" and test.submission_auth != "network_trusted",
         do:
           Publisher.publish(
             "test_run.failed",
@@ -587,6 +612,8 @@ defmodule Tuist.Tests do
   # A run only joins a repository, and only records the files it changed, while
   # coverage is on for its account: both exist for coverage and test selection.
   # The xcresult processor carries the id the run resolved when it was reported.
+  defp repository_id(%{submission_auth: "network_trusted"}), do: 0
+
   defp repository_id(%{git_repository_id: id}) when is_integer(id) and id > 0, do: id
 
   defp repository_id(attrs) do
@@ -599,6 +626,13 @@ defmodule Tuist.Tests do
     else
       _ -> 0
     end
+  end
+
+  # Shard evidence queries exclude unsigned child rows by their parent's provenance.
+  # Persist that parent before children can be flushed by independent buffers.
+  defp insert_test_run(%{submission_auth: "network_trusted"} = test, _shard_plan) do
+    IngestRepo.insert_all(Test, [test_row(test)])
+    test
   end
 
   defp insert_test_run(test, nil) do
@@ -649,6 +683,9 @@ defmodule Tuist.Tests do
   # Coverage and the evidence enrich a run: a failure storing one of them
   # costs that data, not the run's test cases, which are written after them
   # and which a retry with the same id would never add.
+  defp record_coverage_data(%{submission_auth: "network_trusted"}, _attrs, _coverage, _shard_index, _expected_shards),
+    do: :ok
+
   defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
     enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
@@ -674,7 +711,9 @@ defmodule Tuist.Tests do
 
     Tuist.Tasks.run_async(fn ->
       enrich(test, "flaky alert evaluations", fn ->
-        Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+        if test.submission_auth != "network_trusted" do
+          Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+        end
       end)
 
       enrich(test, "test-created notification", fn ->
@@ -877,7 +916,7 @@ defmodule Tuist.Tests do
 
           IngestRepo.insert_all(Test, [update_attrs])
 
-          if merged_status == "failure",
+          if merged_status == "failure" and updated_test.submission_auth != "network_trusted",
             do:
               Publisher.publish(
                 "test_run.failed",
@@ -1075,6 +1114,7 @@ defmodule Tuist.Tests do
   def create_test_cases(project_id, test_case_data_list, existing_test_cases, opts \\ []) do
     test_run_id = Keyword.get(opts, :test_run_id)
     is_ci = Keyword.get(opts, :is_ci, false)
+    record_durations = Keyword.get(opts, :record_durations, true)
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -1088,7 +1128,11 @@ defmodule Tuist.Tests do
     {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
         existing = Map.get(existing_data, id, %{recent_durations: []})
-        new_durations = Enum.take([data.duration | existing.recent_durations], 50)
+
+        new_durations =
+          if record_durations,
+            do: Enum.take([data.duration | existing.recent_durations], 50),
+            else: existing.recent_durations
 
         new_avg =
           if Enum.empty?(new_durations),
@@ -1153,6 +1197,18 @@ defmodule Tuist.Tests do
       end)
 
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
+  end
+
+  # Link known cases for navigation, but never create canonical identities or
+  # replace their last run, duration history, timestamps or evidence with claims.
+  defp create_network_test_cases(project_id, data, existing) do
+    ids =
+      Map.new(data, fn item ->
+        id = generate_test_case_id(project_id, item.name, item.module_name, item.suite_name)
+        {{item.name, item.module_name, item.suite_name}, if(Map.has_key?(existing, id), do: id)}
+      end)
+
+    {ids, [], MapSet.new(), []}
   end
 
   defp collect_test_case_ids(project_id, test_modules) do
@@ -1636,7 +1692,14 @@ defmodule Tuist.Tests do
   def list_test_case_runs(attrs, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [])
 
-    case extract_mv_scope_filter(attrs) do
+    actor_filter? =
+      Enum.any?(Map.get(attrs, :filters, []), fn filter ->
+        Map.get(filter, :field) in [:verified_actor, :claimed_actor_id]
+      end)
+
+    scope = if actor_filter?, do: nil, else: extract_mv_scope_filter(attrs)
+
+    case scope do
       {:shard_id, _shard_id} ->
         list_test_case_runs_via_shard_mv(attrs, preloads)
 
@@ -1660,7 +1723,7 @@ defmodule Tuist.Tests do
     results =
       results
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1681,7 +1744,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1702,7 +1765,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1723,7 +1786,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -2107,6 +2170,8 @@ defmodule Tuist.Tests do
     end)
   end
 
+  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data), do: {data, []}
+
   defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
 
   defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
@@ -2294,6 +2359,14 @@ defmodule Tuist.Tests do
   defp landed_test_case_ids(project, default_branch, test_case_ids) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
+    network_test_run_ids =
+      from(t in Test,
+        where: t.project_id == ^project.id,
+        group_by: t.id,
+        having: fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) == "network_trusted",
+        select: t.id
+      )
+
     runs =
       all_by_uuid_chunks(test_case_ids, fn ids ->
         from(r in TestCaseRun,
@@ -2302,6 +2375,8 @@ defmodule Tuist.Tests do
           where: r.is_ci == true,
           where: r.ran_at >= ^ninety_days_ago,
           where: r.git_commit_sha != "",
+          where: r.submission_auth != "network_trusted",
+          where: r.test_run_id not in subquery(network_test_run_ids),
           distinct: true,
           select: {r.test_case_id, r.git_commit_sha}
         )
@@ -2433,10 +2508,15 @@ defmodule Tuist.Tests do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids, test_cases_created} =
-      create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
-        test_run_id: test.id,
-        is_ci: test.is_ci
-      )
+      if test.submission_auth == "network_trusted" do
+        create_network_test_cases(test.project_id, test_case_data_list, existing_test_cases)
+      else
+        create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
+          test_run_id: test.id,
+          is_ci: test.is_ci,
+          record_durations: not (test.scheme == "cargo test" or String.starts_with?(test.scheme || "", "cargo test · "))
+        )
+      end
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
       Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
@@ -2465,6 +2545,9 @@ defmodule Tuist.Tests do
           is_ci: test.is_ci,
           scheme: test.scheme,
           account_id: test.account_id,
+          actor_account_id: test.actor_account_id,
+          claimed_actor_id: test.claimed_actor_id,
+          submission_auth: test.submission_auth,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
           is_default_branch: is_default_branch,
@@ -2524,9 +2607,11 @@ defmodule Tuist.Tests do
     # signals from the same `event_types` list (see `update_test_case/3`);
     # `test_case.created` mirrors that by deriving both from a single
     # filtered run list here.
-    first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
-    create_first_run_events(first_run_test_case_runs)
-    dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
+    if test.submission_auth != "network_trusted" do
+      first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
+      create_first_run_events(first_run_test_case_runs)
+      dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
+    end
 
     {test_case_ids_with_flaky_run, test_case_runs}
   end
@@ -4111,6 +4196,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       is_default_branch,
@@ -4137,6 +4225,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       #{default_branch_match_expr},
@@ -4601,7 +4692,8 @@ defmodule Tuist.Tests do
             from(tcr in TestCaseRun,
               where: fragment("? IN (?)", tcr.project_id, type(^project_ids, {:array, :integer})),
               where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
-              where: fragment("? IN (?)", tcr.git_commit_sha, type(^commit_shas, {:array, :string}))
+              where: fragment("? IN (?)", tcr.git_commit_sha, type(^commit_shas, {:array, :string})),
+              where: tcr.submission_auth != "network_trusted"
             )
           end)
           |> Enum.sort_by(& &1.ran_at, {:desc, NaiveDateTime})
@@ -4732,6 +4824,7 @@ defmodule Tuist.Tests do
     IngestRepo.insert_all(Test, updated_runs)
 
     stale_runs
+    |> Enum.reject(&(&1.submission_auth == "network_trusted"))
     |> Enum.group_by(& &1.project_id)
     |> Enum.each(fn {project_id, runs} ->
       entries =

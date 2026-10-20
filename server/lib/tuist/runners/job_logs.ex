@@ -260,8 +260,11 @@ defmodule Tuist.Runners.JobLogs do
   @doc """
   Lines whose `line_number` falls in `[first, last]` (inclusive),
   renumbered 1-indexed per step so the Steps card shows "1, 2, 3…"
-  regardless of where the step sits in the job-wide sequence —
-  matches GitHub's own Steps UI.
+  regardless of where the step sits in the job-wide sequence.
+
+  Numbering matches GitHub's own step view: the `##[endgroup]` and
+  `##[end-action …]` delimiters are never displayed, so they don't
+  take a number and get `line_number: nil`.
   """
   def list_step_lines(workflow_job_id, first_line, last_line)
       when is_integer(workflow_job_id) and is_integer(first_line) and is_integer(last_line) and last_line >= first_line do
@@ -279,11 +282,19 @@ defmodule Tuist.Runners.JobLogs do
       }
     )
     |> ClickHouseRepo.all()
-    |> Enum.with_index(1)
-    |> Enum.map(fn {line, idx} -> %{line | line_number: idx} end)
+    |> Enum.map_reduce(0, fn line, displayed ->
+      if delimiter_line?(line.message),
+        do: {%{line | line_number: nil}, displayed},
+        else: {%{line | line_number: displayed + 1}, displayed + 1}
+    end)
+    |> elem(0)
   end
 
   def list_step_lines(_workflow_job_id, _first_line, _last_line), do: []
+
+  defp delimiter_line?("##[endgroup]" <> _), do: true
+  defp delimiter_line?("##[end-action " <> _), do: true
+  defp delimiter_line?(_message), do: false
 
   defp compute_ranges([first | _], [], total_max), do: %{first.number => {1, total_max}}
 

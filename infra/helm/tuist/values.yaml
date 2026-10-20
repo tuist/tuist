@@ -1327,12 +1327,19 @@ xcresultProcessor:
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
   image:
-    # Built by .github/workflows/xcresult-processor-image.yml — Tart
-    # VM image with the Tuist server release and the macOS-only
-    # xcresult NIF baked in.
+    # Tart VM image with macOS, Xcode and the boot scripts, released by the
+    # production cascade from infra/xcresult-processor-image. It carries no
+    # server release: the guest downloads `release` below at boot.
     repository: ghcr.io/tuist/tuist-xcresult-processor
     tag: ""  # Set by CI to the commit SHA.
     pullPolicy: IfNotPresent
+  # The macOS server release the guest boots: the single `release.tar.gz`
+  # layer of an OCI artifact in `repository`, pulled anonymously and pinned
+  # by its layer digest. The deploy sets the digest to the release built for
+  # the server image it ships, so a new digest rolls the Pods.
+  release:
+    repository: ghcr.io/tuist/tuist-xcresult-processor-release
+    digest: ""
   # When the chart's `processor.managedSecrets` is true (managed cloud)
   # the build processor's ExternalSecret already syncs the
   # tuist_processor role's DATABASE_URL into a Secret — we reuse that
@@ -1641,6 +1648,36 @@ rackFleet:
   enabled: false
   name: ""             # default: <release>-rack-fleet
 
+  # This env's name (staging, canary, production). Every push to a rack host
+  # claims the host's runner runtime for it, and a host this env lends names
+  # it as the lender. Required to lend or borrow a host. See "A host lent to
+  # another env" in infra/cluster-api-provider-tuist/AGENTS.md.
+  env: ""
+
+  # The envs this env lends rack hosts to (`hosts[].lendTo`), by name. Each
+  # needs the borrowing chart's rack-lender kubeconfig in this env's vault:
+  #
+  #   borrowers:
+  #     staging:
+  #       kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG  # field `kubeconfig`
+  #       namespace: tuist-staging   # where staging's operator watches leases
+  #
+  # An entry without kubeconfigItem renders nothing, so it can be declared
+  # before the item exists.
+  borrowers: {}
+
+  # Rack hosts another env lends this one. This env runs their runner
+  # runtime from its own operator, as it does its rented minis, and its rack
+  # catalog pools (`runners` below, with `name` as their fleet) place runners
+  # on them. Enabled, the chart renders the rack-lender identity the lending
+  # env writes this env's RackHostLeases with. Not for an env with `enabled`,
+  # which owns its rack.
+  borrow:
+    enabled: false
+    # RackHost names this env runs when they are lent to it. A lease for any
+    # other host is refused.
+    hosts: []
+
   # Default rack site for hosts that don't name their own. Load-bearing: it
   # composes the providerID, so it must be stable for the life of a host.
   site: ""
@@ -1759,7 +1796,12 @@ rackFleet:
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
-  #     nodeFleet: ""           # lends the host to another fleet's runner pools:
+  #     lendTo: ""              # lends the host's runner runtime to another env
+  #                             # (a `borrowers` key): that env's operator runs
+  #                             # it and this one keeps the site. Clearing it
+  #                             # returns the host once the borrower drained it.
+  #     nodeFleet: ""           # (the manual lend, replaced by lendTo)
+  #                             # lends the host to another fleet's runner pools:
   #                             # its Node's tuist.dev/fleet label, which the
   #                             # rack fleet's own pools then skip
   #     nodeCluster:            # lends the host to another env: its Node
@@ -1772,13 +1814,13 @@ rackFleet:
   #                             # cache-volumes endpoint, empty for none
   hosts: []
 
-  # Rack hosts another env lends this cluster, by Machine name: each gets the
-  # node identity its tart-kubelet registers with here
-  # (templates/rack-joining-nodes.yaml). The lending env sets the host's
-  # `nodeCluster` to a kubeconfig built from its token (see "Lending a host
-  # to another env" in infra/rack-nodes/AGENTS.md). This env runs the rack catalog's pools on them through
-  # `runners` below, with `name` set to the hosts' `nodeFleet`, and does not
-  # enable the fleet itself.
+  # The manual lend, which `borrow` replaces. Rack hosts another env lends
+  # this cluster, by Machine name: each gets the node identity its
+  # tart-kubelet registers with here (templates/rack-joining-nodes.yaml). The
+  # lending env sets the host's `nodeCluster` to a kubeconfig built from its
+  # token. This env runs the rack catalog's pools on them through `runners`
+  # below, with `name` set to the hosts' `nodeFleet`, and does not enable the
+  # fleet itself.
   joiningNodes: []
 
   # Each host's node sizing. Each field falls back to the operator's global
@@ -2060,6 +2102,14 @@ macosFleet:
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
   # baked into the operator's own image — bumping
   # `macosFleet.image.tag` rolls a new kubelet.
+  # Tart on every Mac mini this release manages, rented and rack. It
+  # must be one of the releases the operator image carries (TART_RELEASES
+  # in infra/cluster-api-provider-tuist/Dockerfile); empty runs the image's
+  # TART_DEFAULT_VERSION. A change reaches existing hosts in place through
+  # the host-config drift loop, without draining them. Annotate one machine
+  # `tuist.dev/tart-version=<version>` to move it ahead of the rest first.
+  tart:
+    version: ""
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
     # Matches the default `macosFleet.machine.type = M2-L` on Scaleway

@@ -283,6 +283,9 @@ type VolumeManager struct {
 	// not in it, because it writes nothing until it has a job.
 	reserved       map[string]bool
 	CustomReserved func() uint64
+	// DisplaceCustom cancels a background custom-volume prefetch so its space
+	// stops counting in CustomReserved. Called with mu held.
+	DisplaceCustom func() bool
 
 	// converging is the space the in-flight convergence download still needs, or
 	// nil. Admission counts it, so a job admitted mid-download is not promised
@@ -582,9 +585,12 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	if m.reserved[att.BranchPath] {
 		return nil
 	}
-	want := m.capBytes() * uint64(len(m.reserved)+1)
-	if m.CustomReserved != nil {
-		want += m.CustomReserved()
+	want := m.admissionBytesLocked()
+	// A background custom prefetch gives its space back before a job evicts a master.
+	if m.DisplaceCustom != nil {
+		if free, err := m.availableBytes(); err == nil && free < want && m.DisplaceCustom() {
+			want = m.admissionBytesLocked()
+		}
 	}
 	free, err := m.admitBesideConvergenceLocked(want, keep)
 	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
@@ -607,6 +613,16 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	}
 	m.reserved[att.BranchPath] = true
 	return nil
+}
+
+// admissionBytesLocked is what admitting one more branch needs: a cap for it
+// and every reserved branch, plus what custom volumes hold.
+func (m *VolumeManager) admissionBytesLocked() uint64 {
+	want := m.capBytes() * uint64(len(m.reserved)+1)
+	if m.CustomReserved != nil {
+		want += m.CustomReserved()
+	}
+	return want
 }
 
 // dropConvergeStagingLocked is admission's last resort before declining a job:

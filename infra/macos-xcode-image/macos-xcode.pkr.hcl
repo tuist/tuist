@@ -223,22 +223,6 @@ build {
     ]
   }
 
-  # Prebuild the dyld shared cache of every simulator runtime. Without
-  # it, CoreSimulator builds the caches on every fresh VM, on the job's
-  # CPU, and a job that deletes runtimes while one is still being built
-  # gets `dyld shared cache update was cancelled` (SimDiskImageError 26)
-  # from its own `simctl runtime dyld_shared_cache update --all`. With
-  # the caches present, that command returns immediately. The caches
-  # are keyed by the host macOS build, which downstream images inherit
-  # unchanged.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "xcrun simctl runtime dyld_shared_cache update --all",
-      "du -sh /Library/Developer/CoreSimulator/Caches/dyld/*/*"
-    ]
-  }
-
   # Major-minor alias for repos pinning either `.xcode-version=
   # 26.4` or `.xcode-version=26.4.1` — both resolve to the same
   # bundle. Skipped when xcode_version is already in major-minor

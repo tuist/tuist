@@ -41,14 +41,21 @@ const (
 // know where the server is.
 var errPrefetchUnavailable = errors.New("cache master prefetch endpoint unknown")
 
-// PrefetchMaster is one HEAD the server wants this host to hold.
+// PrefetchMaster is one HEAD the server wants this host to hold. A custom
+// volume's HEAD (Kind "custom") names the use that published it and its scope
+// instead of a volume and download URL; the custom-volume agent fetches it.
 type PrefetchMaster struct {
+	Kind          string `json:"kind"`
+	ID            string `json:"id"`
 	AccountID     int64  `json:"account_id"`
 	Volume        string `json:"volume"`
+	Scope         string `json:"scope"`
 	Generation    int    `json:"generation"`
 	Digest        string `json:"digest"`
+	ImageDigest   string `json:"image_digest"`
 	ContentDigest string `json:"content_digest"`
 	DownloadURL   string `json:"download_url"`
+	VolumeBytes   int64  `json:"volume_bytes"`
 }
 
 // PrefetchSource lists the masters the server wants this host to hold, most

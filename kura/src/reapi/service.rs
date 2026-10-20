@@ -465,6 +465,7 @@ impl ReapiService {
         usage.record_public_grpc_download(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
@@ -484,9 +485,19 @@ impl ReapiService {
         usage.record_public_grpc_upload(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
+    }
+
+    // Where the credential that authorized this request was issued. Read back from
+    // the authorization engine, which only holds an origin for a credential it
+    // confirmed, so it is never taken from the request on its word.
+    fn usage_origin(&self, metadata: &tonic::metadata::MetadataMap) -> Option<Arc<str>> {
+        let auth = self.state.auth.as_ref()?;
+        let authorization = metadata.get("authorization")?.to_str().ok()?;
+        auth.origin(authorization)
     }
 
     fn record_reapi_cache_event(
@@ -4859,19 +4870,69 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
+pub(super) struct BuildEventPublication {
+    pub account_handle: String,
+    pub network_trusted: bool,
+}
+
+pub(super) fn network_build_event_request(
+    metadata: &tonic::metadata::MetadataMap,
+) -> Result<bool, Status> {
+    if metadata.contains_key("authorization") {
+        return Ok(false);
+    }
+    let count = metadata
+        .get_all("x-tuist-network-trusted-publishing")
+        .iter()
+        .count();
+    if count == 0 {
+        return Ok(false);
+    }
+    if count != 1
+        || metadata
+            .get("x-tuist-network-trusted-publishing")
+            .and_then(|value| value.to_str().ok())
+            != Some("true")
+    {
+        return Err(Status::invalid_argument(
+            "Invalid network publishing metadata",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) async fn authorize_build_event_request(
     state: &SharedState,
     metadata: &tonic::metadata::MetadataMap,
     project_handle: &str,
     _route: &str,
-) -> Result<String, Status> {
+) -> Result<BuildEventPublication, Status> {
     if state.runtime.is_draining() {
         return Err(Status::unavailable("server is draining"));
     }
 
     let account_handle = usage_tenant_id(metadata, &state.account_identity.load().handle);
+    let supplied_credentials = metadata.get_all("authorization").iter().count();
+    if supplied_credentials > 1
+        || (supplied_credentials == 1
+            && metadata
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .is_none_or(|value| value.trim().is_empty()))
+    {
+        return Err(Status::unauthenticated("Invalid authorization metadata"));
+    }
+    let network_trusted = network_build_event_request(metadata)?;
     let Some(auth) = state.auth.as_ref() else {
-        return Ok(account_handle);
+        if network_trusted {
+            return Err(Status::permission_denied(
+                "Network reporting requires a configured control plane",
+            ));
+        }
+        return Ok(BuildEventPublication {
+            account_handle,
+            network_trusted: false,
+        });
     };
 
     let spec = GrpcRequestSpec {
@@ -4881,8 +4942,17 @@ pub(super) async fn authorize_build_event_request(
     let mut context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
     state.canonicalize_auth_context(&mut context);
 
-    match auth.evaluate_access(&context).await {
-        AccessDecision::Allow => Ok(context.server_tenant_id),
+    let decision = if network_trusted {
+        auth.network_build_event_access(&context.server_tenant_id, project_handle)
+            .await
+    } else {
+        auth.evaluate_access(&context).await
+    };
+    match decision {
+        AccessDecision::Allow => Ok(BuildEventPublication {
+            account_handle: context.server_tenant_id,
+            network_trusted,
+        }),
         AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
     }
 }
@@ -5208,6 +5278,51 @@ mod bytestream_recovery_tests;
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn supplied_bes_credentials_never_select_unsigned_publishing() {
+        for credential in ["", "Bearer ", "Bearer invalid", "Bearer token"] {
+            let mut metadata = tonic::metadata::MetadataMap::new();
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                "true".parse().unwrap(),
+            );
+            metadata.insert("authorization", credential.parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+            metadata.append("authorization", "Bearer other".parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+        }
+    }
+
+    #[test]
+    fn unsigned_bes_requires_one_exact_marker_and_never_an_actor_claim() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        metadata.insert("x-tuist-actor-id", "claimed-admin".parse().unwrap());
+        assert!(!network_build_event_request(&metadata).unwrap());
+        for marker in ["", "false", "TRUE", " true", "true "] {
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                marker.parse().unwrap(),
+            );
+            assert_eq!(
+                network_build_event_request(&metadata).unwrap_err().code(),
+                tonic::Code::InvalidArgument
+            );
+        }
+        metadata.insert(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert!(network_build_event_request(&metadata).unwrap());
+        metadata.append(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert_eq!(
+            network_build_event_request(&metadata).unwrap_err().code(),
+            tonic::Code::InvalidArgument
+        );
+    }
 
     // gRPC has no payment-required code, so the refusal arrives as an ordinary
     // permission denial. Clients that keep working through it need the reason
@@ -10582,6 +10697,70 @@ mod tests {
                 .expect("bearer metadata"),
         );
         request
+    }
+
+    // A write authorized by a cache token carrying a signed origin books its
+    // usage under that origin, read back from the engine that confirmed it.
+    #[tokio::test]
+    async fn usage_carries_the_origin_of_the_credential_that_authorized_it() {
+        let context = test_context_with_auth(
+            |config| config.usage = Some(test_usage_config()),
+            Some(namespace_policy_auth()),
+        )
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "cache_origin": "US-IL",
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(NAMESPACE_POLICY_SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(reapi::Digest {
+                hash: hex::encode(Sha256::digest(b"action")),
+                size_bytes: "action".len() as i64,
+            }),
+            action_result: Some(reapi::ActionResult::default()),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        update.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {token}").parse().expect("bearer metadata"),
+        );
+        add_direct_write_admission(
+            &context.state,
+            &mut update,
+            ACTION_CACHE_UPDATE_DECODE_COPIES,
+        );
+        service
+            .update_action_result(update)
+            .await
+            .expect("update action result should succeed");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("update_action_result should record an upload rollup");
+        assert_eq!(upload.origin.as_deref(), Some("US-IL"));
     }
 
     #[tokio::test]

@@ -51,10 +51,8 @@ on:
       - infra/k8s/clusters/**
       - infra/k8s/mgmt/**
       - .github/workflows/mgmt-cluster-apply.yml
-      # Documentation and release-workflow-only edits do not change a
-      # deployable server artifact.
+      # Documentation edits do not change a deployable server artifact.
       - infra/helm/k8s-monitoring/**/*.md
-      - .github/workflows/server-production-deployment.yml
   # Dispatched by runner-image-release.yml once it tags a runner image, so
   # the fleet rolls onto it through the canary cascade.
   workflow_dispatch:
@@ -667,8 +665,7 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: "git-cliff erlang elixir"
-          working-directory: server
+          install: "git-cliff"
 
       - name: Get release notes
         id: release-notes
@@ -677,10 +674,6 @@ jobs:
 
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
-            --include-path "server/lib/**/*"
-            --include-path "server/native/xcresult_nif/**/*"
-            --include-path "server/mix.exs"
-            --include-path "server/mix.lock"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
@@ -696,58 +689,9 @@ jobs:
         run: |
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
-            --include-path "server/lib/**/*"
-            --include-path "server/native/xcresult_nif/**/*"
-            --include-path "server/mix.exs"
-            --include-path "server/mix.lock"
           )
 
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
-      # workspace, which deletes `server/deps`, `server/_build` and both NIF
-      # `.build` directories, so every release compiled the two Swift NIFs and
-      # the whole Elixir dependency tree cold. Pointing the caches outside the
-      # workspace puts them out of the clean's reach.
-      #
-      # Keyed by runner name because a runner process runs one job at a time:
-      # two jobs landing on the same host (this one and the on-demand
-      # `xcresult-processor-image.yml`) can then never share a cache and
-      # cannot race on the release directory.
-      - name: Point build caches outside the workspace
-        run: |
-          set -euo pipefail
-          cache_root="${HOME}/.cache/tuist-ci/server-macos-release/${RUNNER_NAME// /_}"
-          mkdir -p "${cache_root}/nif"
-          {
-            echo "MIX_BUILD_ROOT=${cache_root}/mix-build"
-            echo "MIX_DEPS_PATH=${cache_root}/mix-deps"
-            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
-          } >> "$GITHUB_ENV"
-
-      - name: Build server release for macOS
-        id: release
-        working-directory: server
-        run: |
-          set -euo pipefail
-          RELEASE_DIR="${MIX_BUILD_ROOT}/prod/rel/tuist"
-          MIX_ENV=prod mix deps.get --only prod
-          ./native/xcresult_nif/build.sh
-          ./native/xcactivitylog_nif/build.sh
-          MIX_ENV=prod mix compile --force --warnings-as-errors
-          # `mix release --overwrite` writes over the release directory
-          # without emptying it first, so a file dropped since the previous
-          # release would survive in a persistent build root and get baked
-          # into the image.
-          rm -rf "$RELEASE_DIR"
-          MIX_ENV=prod mix release tuist --overwrite
-          echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
-
-      - name: Package release tarball
-        run: |
-          set -euo pipefail
-          tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
-          ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -767,26 +711,25 @@ jobs:
 
       - uses: ./.github/actions/reclaim-tart-disk
 
+      # The processor parses .xcresult bundles from *all* customer runner
+      # profiles, so `xcode-version` tracks the newest stable Xcode rather
+      # than following beta or RC profiles onto a prerelease toolchain.
       - name: Build image
         working-directory: infra/xcresult-processor-image
-        # The processor parses .xcresult bundles from *all* customer
-        # runner profiles, so track the newest stable Xcode rather than
-        # following beta or RC profiles onto a prerelease toolchain.
-        env:
-          XCODE_VERSION: "27.1"
         run: |
           set -euo pipefail
+          XCODE_VERSION="$(tr -d '[:space:]' < xcode-version)"
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
-            -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      # Overrides the action's default of 4. This job sits on the production
-      # cascade's critical path and the push is most of its wall clock, and
-      # it uploads alone, so it has the whole rate-limit budget to itself.
+      # Overrides the action's default of 4. A release of this image sits on
+      # the production cascade's critical path and the push is most of its
+      # wall clock, and it uploads alone, so it has the whole rate-limit
+      # budget to itself.
       # Push throughput measured close to linear in this value from 1 to 4
       # with no GHCR throttling; if that stops holding, lower it back
       # rather than reaching for a larger chunk size.
@@ -814,7 +757,6 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
   release-linux-runner-image:
@@ -1440,17 +1382,62 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             MIX_ENV=prod
+
+  # Builds the macOS server release the xcresult processor boots and publishes
+  # it to GHCR as an OCI artifact tagged like the server image. The processor's
+  # Tart image downloads it at boot, so a server change no longer needs a new
+  # image; the deploy pins the release by the digest it resolves from that tag.
+  build-xcresult-processor-release:
+    name: Build xcresult processor release
+    needs: [check-releases]
+    # Same gate as `build`: the release is deployed alongside the server image.
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    # The pool the acceptance tests already need, so this job adds no runner
+    # dependency to the run: a queued job does not count toward
+    # `timeout-minutes` and would hold the release concurrency group.
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tarball_digest: ${{ steps.release.outputs.tarball-digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - id: release
+        uses: ./.github/actions/xcresult-processor-release
+        with:
+          revision: ${{ github.sha }}
+          registry-username: ${{ github.actor }}
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, tag-infra-releases, kura-release]
+    needs: [check-releases, build, build-xcresult-processor-release, tag-infra-releases, kura-release]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -1466,6 +1453,7 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
     secrets: inherit
 
   acceptance-tests:
@@ -1486,6 +1474,8 @@ jobs:
           ref: ${{ github.sha }}
           token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
           github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
@@ -1588,6 +1578,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           submodules: false
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Resolve backward-compatibility CLI version
         # Test the oldest supported CLI that can build on this runner's Xcode:
         # max(minimum_supported_version, the Xcode-26 build floor). See the
@@ -1716,6 +1708,7 @@ jobs:
       [
         check-releases,
         build,
+        build-xcresult-processor-release,
         canary,
         acceptance-tests,
         backward-compatibility-acceptance,
@@ -1725,6 +1718,7 @@ jobs:
     if: >-
       always() &&
       needs.build.result == 'success' &&
+      needs.build-xcresult-processor-release.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
@@ -1744,6 +1738,7 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
     secrets: inherit
 
   # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
@@ -1753,8 +1748,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, tag-infra-releases, kura-release]
-    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    if: ${{ always() && needs.build.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
@@ -1768,4 +1763,5 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
     secrets: inherit

@@ -3,6 +3,8 @@
 Keep tasks thin: parse strict options, delegate behavior, and provide useful Mix errors.
 Do not start the customer application just to perform setup or authentication.
 
+- `tuist.test` publishes authenticated CI/coverage commits and branch heads before submitting runs, and coverage-only file listings afterward. Credential-free reporting skips both collection and uploads, including deferred and retry paths. Exercise task-level isolation in a child VM so task configuration never mutates the test VM's shared application environment.
+
 ## Project setup
 
 `mix tuist.setup --project account/project` delegates source editing to
