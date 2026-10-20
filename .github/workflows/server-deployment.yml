@@ -895,6 +895,22 @@ jobs:
               runner_image_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$runner_image_digests")"
             done
             echo "RUNNER_IMAGE_DIGESTS=$runner_image_digests" >> "$GITHUB_ENV"
+
+            # The stacked image of each profile, for the rack pools that run
+            # them (`rackFleet.runners.stackedImages`). Releases before
+            # stacked images have none, and their pools keep the standalone
+            # image.
+            runner_image_stacked_digests='{}'
+            for xcode in $profiles; do
+              tag="macos-${xcode//./-}-${runner_image_semver}-stacked"
+              if ! .github/scripts/ghcr-image-published.sh tuist/tuist-runner "$tag"; then
+                continue
+              fi
+              digest="$("$digest_script" tuist/tuist-runner "$tag")"
+              echo "ghcr.io/tuist/tuist-runner:${tag} is ${digest}"
+              runner_image_stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$runner_image_stacked_digests")"
+            done
+            echo "RUNNER_IMAGE_STACKED_DIGESTS=$runner_image_stacked_digests" >> "$GITHUB_ENV"
           fi
       - uses: ./.github/actions/mise
         with:
@@ -1175,6 +1191,12 @@ jobs:
               image_sets+=(--set-string "runnersFleet.runnerImageDigests.${xcode//./\\.}=$digest")
               echo "Pinning runnersFleet.runnerImageDigests.$xcode=$digest"
             done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<< "$RUNNER_IMAGE_DIGESTS")
+          fi
+          if [ -n "${RUNNER_IMAGE_STACKED_DIGESTS:-}" ]; then
+            while IFS=$'\t' read -r xcode digest; do
+              image_sets+=(--set-string "runnersFleet.runnerImageStackedDigests.${xcode//./\\.}=$digest")
+              echo "Pinning runnersFleet.runnerImageStackedDigests.$xcode=$digest"
+            done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<< "$RUNNER_IMAGE_STACKED_DIGESTS")
           fi
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used

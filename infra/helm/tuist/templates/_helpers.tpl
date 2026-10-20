@@ -1290,6 +1290,26 @@ and follows a release together.
 {{- end -}}
 
 {{/*
+The stacked runner image for a catalog Xcode version:
+`<runnersFleet.runnerImageRepository>@<digest>` with the digest
+`runnersFleet.runnerImageStackedDigests` resolves for it, or empty when it has
+none or its `runnersFleet.xcodeOverrides` entry pins an `imageTag`, in which
+case the pool runs `tuist.macosRunnerImage`.
+*/}}
+{{- define "tuist.macosRunnerStackedImage" -}}
+{{- $root := .root -}}
+{{- $xcodeVersion := .xcodeVersion | toString -}}
+{{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
+{{- $digest := get ($root.Values.runnersFleet.runnerImageStackedDigests | default dict) $xcodeVersion | default "" | toString -}}
+{{- if and $digest (not (dig "imageTag" "" $override)) -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+    {{- fail (printf "runnersFleet.runnerImageStackedDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $xcodeVersion $digest) -}}
+  {{- end -}}
+  {{- printf "%s@%s" $root.Values.runnersFleet.runnerImageRepository $digest -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 The macOS catalog pools racked at the rack fleet's site, as a list of
 `{name, site}` in JSON: every `runnersFleet.xcodeVersions` entry on the
 catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`

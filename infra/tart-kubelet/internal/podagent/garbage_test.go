@@ -289,6 +289,8 @@ if [ "$1" = "list" ]; then
 elif [ "$1" = "delete" ]; then
   rm -f "$VMDIR/$2"
   printf '%%s\n' "$2" >> "$DELETES"
+elif [ "$1" = "prune" ] && [ "$2" = "--gc" ]; then
+  printf 'gc\n' >> "$(dirname "$0")/content-gc.txt"
 fi
 `, vmdir, deletes)
 		if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
@@ -385,6 +387,54 @@ fi
 		c.RunOnce(context.Background())
 		if got := read(t); len(got) != 1 {
 			t.Fatalf("expected exactly one reap once free recovered, got %v", got)
+		}
+	})
+
+	// Stacked goldens share one base in Tart's content store, and `tart
+	// delete` of a local VM leaves the store alone, so a reaped golden frees
+	// space only once the store is collected. Measuring before that would
+	// read every reap as freeing nothing and reap every golden.
+	t.Run("collects shared content before re-measuring", func(t *testing.T) {
+		imgB1, imgB2, imgB3 := "reg/runner@sha256:b11", "reg/runner@sha256:b22", "reg/runner@sha256:b33"
+		gB1, gB2, gB3 := goldenVMName(imgB1), goldenVMName(imgB2), goldenVMName(imgB3)
+		var c *Collector
+		calls := 0
+		hostFree := func() (float64, error) {
+			calls++
+			if calls <= 2 {
+				return 5, nil
+			}
+			if _, err := os.Stat(filepath.Join(filepath.Dir(c.Tart.Binary), "content-gc.txt")); err == nil {
+				return 50, nil
+			}
+			return 5, nil
+		}
+		var read func(t *testing.T) []string
+		c, read = newCollector(t, map[string]string{gB1: "local", gB2: "local", gB3: "local"}, hostFree,
+			func(string) bool { return false },
+			pod("pod-b1", imgB1), pod("pod-b2", imgB2), pod("pod-b3", imgB3))
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 1 {
+			t.Fatalf("expected one reap once the reaped golden's content was collected, got %v", got)
+		}
+	})
+
+	t.Run("collects content after reaping a stale golden", func(t *testing.T) {
+		imgC := "reg/runner@sha256:ccc"
+		gC := goldenVMName(imgC)
+		now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+		c, read := newCollector(t, map[string]string{gC: "local"},
+			func() (float64, error) { return 50, nil },
+			func(string) bool { return false })
+		c.Now = func() time.Time { return now }
+		c.GoldenRetention = time.Hour
+		c.goldenSeen = map[string]time.Time{gC: now.Add(-2 * time.Hour)}
+		c.RunOnce(context.Background())
+		if got := read(t); !contains(got, gC) {
+			t.Fatalf("stale golden %q not reaped; deletes=%v", gC, got)
+		}
+		if _, err := os.Stat(filepath.Join(filepath.Dir(c.Tart.Binary), "content-gc.txt")); err != nil {
+			t.Fatalf("content store not collected after reaping a golden: %v", err)
 		}
 	})
 

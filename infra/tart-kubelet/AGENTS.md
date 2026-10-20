@@ -131,9 +131,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   in both, and running is a `fcntl` lock on `config.json` in both. Existing
   goldens, clones and OCI cache entries are reused after an upgrade, not
   re-pulled, and `tart stop`/`delete` from either version manage the other's
-  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`) that only
-  `clone --stacked` creates; nothing here creates one yet, and 2.32 cannot read
-  one, so rolling back below 2.36 is only safe while no host holds one.
+  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`), and 2.32
+  cannot read one, so rolling back below 2.36 is only safe while no host holds
+  one. Rack pools run stacked runner images when `rackFleet.runners
+  .stackedImages` is on (see `infra/runner-image/AGENTS.md`). tart-kubelet
+  handles them with the same pull, clone and run: the golden and each job VM
+  are a manifest and an overlay, and the read-only base sits once in Tart's
+  content store (`~/.tart/cache/content`). Deleting a local VM leaves the
+  store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
+  before it re-measures free space under disk pressure.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

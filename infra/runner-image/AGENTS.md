@@ -692,12 +692,27 @@ of the ~30 min an all-in-one rebuild used to cost.
 
 ### Stacked images
 
-`runner-image.yml` with `stacked: true` builds Layer 2 as a Tart
-stacked image: Layer 1's disk stays a read-only base, and the runner
-layer is an ASIF overlay. It runs on the macOS 27 builder (`macos-27`
-label) and pushes `:macos-<dashes>-<git-sha>-stacked`. Clone and run
-need macOS 27 and Tart 2.36 or newer, so only rack hosts can run it.
-Older hosts can pull one but not boot it.
+Every release also publishes each profile as a Tart stacked image,
+`:macos-<dashes>-<semver>-stacked` (and the rolling
+`:macos-<dashes>-stacked`): Layer 1's disk stays a read-only base, and
+the runner layer is an ASIF overlay. Clone and run need macOS 27 and
+Tart 2.36 or newer, so only rack hosts run it. Older hosts can pull one
+but not boot it.
+
+- **Release.** The plan builds a profile's stacked image whenever it
+  rebuilds the standalone one, and when the previous release published
+  none for it (its `build-manifest.json` entry lacks `stacked: true`).
+  Otherwise `carry` re-tags it like the standalone tag. The
+  `build-stacked` job runs on the macOS 27 builder (`macos-27` label),
+  and the release gate requires both tags of every profile.
+- **Where it runs.** `server-deployment.yml` resolves each published
+  stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
+  Rack pools run it when `rackFleet.runners.stackedImages` is on, which
+  requires every host of that rack, including borrowed ones, to run
+  macOS 27 and Tart 2.36 or newer. Rented pools, explicit pools and any
+  Xcode pinned by `imageTag` keep the standalone image.
+- **One-off builds.** `runner-image.yml` with `stacked: true` builds the
+  same image from a branch and pushes `:macos-<dashes>-<git-sha>-stacked`.
 
 - **What it saves.** The base's chunks are the same blobs Layer 1
   publishes, and Tart keeps immutable disk files in a content store
