@@ -10,7 +10,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistWeb.AccountWorkloadIdentitiesLive
+  alias TuistWeb.AuthenticationSettingsLive
+  alias TuistWeb.Components.WorkloadIdentities
   alias TuistWeb.Errors.UnauthorizedError
 
   @params %{
@@ -25,7 +26,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     %{account: organization.account, params: Map.put(@params, "project_ids", [to_string(project.id)])}
   end
 
-  defp path(account), do: ~p"/#{account.name}/settings/authentication/workload-identities"
+  defp path(account), do: ~p"/#{account.name}/settings/authentication"
 
   defp open(%{conn: conn, account: account}) do
     {:ok, lv, _} = live(conn, path(account))
@@ -52,7 +53,11 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     lv = open(context)
     assert has_element?(lv, "#account-workload-identities")
     assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Authentication")
-    assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Workload identities")
+    assert has_element?(lv, "[data-part=sso-card]")
+    assert has_element?(lv, "[data-part=scim-card]")
+    assert has_element?(lv, "#oidc-trust-policies", "Workload identities")
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Single Sign-On")
     assert has_element?(lv, "#oidc-template-select-custom", "Custom provider")
     assert has_element?(lv, "#oidc-trust-policy-claims-container[phx-hook=JSONInput]")
     assert has_element?(lv, "#oidc-trust-policy-claims[maxlength='8192']")
@@ -61,20 +66,44 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert page_title(lv) == "Authentication · #{context.account.name} · Tuist"
   end
 
-  test "is linked from account Authentication and absent from project settings", %{
+  test "is part of account Authentication and absent from project settings", %{
     conn: conn,
     account: account,
     project: project
   } do
     {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
-    {:ok, workloads, _} = lv |> element("a[href='#{path(account)}']") |> render_click() |> follow_redirect(conn)
-    assert has_element?(workloads, "#oidc-trust-policy-form")
+    assert has_element?(lv, "#oidc-trust-policy-form")
 
     for tab <- ["", "/notifications", "/automations", "/bundles"] do
       {:ok, settings, _} = live(conn, "/#{account.name}/#{project.name}/settings#{tab}")
       refute has_element?(settings, "#oidc-trust-policy-form")
       refute has_element?(settings, "a[href='/#{account.name}/#{project.name}/settings/authentication']")
     end
+  end
+
+  test "old workload links redirect to the section on the single Authentication page", %{conn: conn, account: account} do
+    assert {:error, {:live_redirect, %{to: destination}}} =
+             live(conn, ~p"/#{account.name}/settings/authentication/workload-identities")
+
+    assert destination == ~p"/#{account.name}/settings/authentication#oidc-trust-policies"
+  end
+
+  test "preserves independent SSO and workload drafts on the same page", context do
+    lv = open(context)
+    render_hook(lv, "toggle_sso", %{})
+    render_hook(lv, "select_provider", %{"value" => ["okta"]})
+
+    lv
+    |> form("#oidc-trust-policy-form", %{
+      "oidc_trust_policy" => Map.put(context.params, "claims", "{unfinished-workload-draft")
+    })
+    |> render_change()
+
+    assert has_element?(lv, "#sso-provider-select", "Okta")
+    render_hook(lv, "toggle_sso", %{})
+    assert has_element?(lv, "#oidc-trust-policy-claims", "{unfinished-workload-draft")
+    assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
+    assert has_element?(lv, "input[name='oidc_trust_policy[name]'][value='Production workload']")
   end
 
   test "offers projects from every build system, but never another account", context do
@@ -333,13 +362,13 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
 
     reject(&Accounts.create_oidc_trust_policy/2)
     reject(&Accounts.delete_oidc_trust_policy/2)
-    assert_raise UnauthorizedError, fn -> AccountWorkloadIdentitiesLive.mount(%{}, nil, socket) end
+    assert_raise UnauthorizedError, fn -> WorkloadIdentities.initialize(socket) end
 
     for {event, params} <- [
           {"create_oidc_trust_policy", %{"oidc_trust_policy" => context.params}},
           {"delete_oidc_trust_policy", %{"policy-id" => "1"}}
         ] do
-      assert_raise UnauthorizedError, fn -> AccountWorkloadIdentitiesLive.handle_event(event, params, socket) end
+      assert_raise UnauthorizedError, fn -> AuthenticationSettingsLive.handle_event(event, params, socket) end
     end
   end
 

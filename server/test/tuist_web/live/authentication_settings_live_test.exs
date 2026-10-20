@@ -84,11 +84,19 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert html =~ "/scim/v2"
   end
 
-  test "redirects personal accounts to workload identities", %{conn: conn, user: user} do
-    assert {:error, {:live_redirect, %{to: destination}}} =
-             live(conn, ~p"/#{user.account.name}/settings/authentication")
+  test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(lv, "#oidc-trust-policy-form")
+    refute has_element?(lv, "#sso-form")
+    refute has_element?(lv, "[data-part=scim-card]")
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
 
-    assert destination == ~p"/#{user.account.name}/settings/authentication/workload-identities"
+    for event <- ["toggle_sso", "save_sso", "generate_scim_token", "revoke_scim_token"] do
+      render_hook(lv, event, %{})
+      assert has_element?(lv, "#oidc-trust-policy-form")
+      refute has_element?(lv, "#sso-form")
+      refute has_element?(lv, "[data-part=scim-card]")
+    end
   end
 
   test "raises UnauthorizedError when user is not an admin", %{conn: conn} do

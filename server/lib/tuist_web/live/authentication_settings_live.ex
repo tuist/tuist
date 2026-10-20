@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.SCIM
+  alias TuistWeb.Components.WorkloadIdentities
 
   # Form-level providers. "entra" is a preset over the generic `:oauth2`
   # provider: it derives Entra's endpoints from a directory (tenant)
@@ -26,7 +27,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
     :ok = authorize_account_update!(socket)
-    {:ok, push_navigate(socket, to: ~p"/#{account.name}/settings/authentication/workload-identities")}
+
+    {:ok,
+     socket
+     |> assign(organization: nil, flash_message: nil)
+     |> WorkloadIdentities.initialize()
+     |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
   end
 
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -53,6 +59,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       |> assign(:scim_tokens, SCIM.list_tokens(organization))
       |> assign(:new_scim_token_plaintext, nil)
       |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+      |> WorkloadIdentities.initialize()
       |> assign(
         :head_title,
         "#{dgettext("dashboard_account", "Authentication")} · #{selected_account.name} · Tuist"
@@ -60,6 +67,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
     {:ok, socket}
   end
+
+  @impl true
+  def handle_params(_params, _uri, %{assigns: %{live_action: :workload_identities}} = socket) do
+    {:noreply,
+     push_navigate(socket, to: ~p"/#{socket.assigns.selected_account.name}/settings/authentication#oidc-trust-policies")}
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   ## SSO events ----------------------------------------------------------
 
@@ -77,6 +92,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   @impl true
+  def handle_event(event, params, socket)
+      when event in [
+             "select_oidc_template",
+             "change_oidc_trust_policy",
+             "create_oidc_trust_policy",
+             "delete_oidc_trust_policy"
+           ] do
+    WorkloadIdentities.handle_event(event, params, socket)
+  end
+
+  def handle_event(_event, _params, %{assigns: %{organization: nil}} = socket), do: {:noreply, socket}
+
   def handle_event("toggle_sso", _params, socket) do
     sso_enabled = not socket.assigns.sso_enabled
 

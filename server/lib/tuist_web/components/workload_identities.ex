@@ -1,8 +1,9 @@
-defmodule TuistWeb.AccountWorkloadIdentitiesLive do
+defmodule TuistWeb.Components.WorkloadIdentities do
   @moduledoc false
-  use TuistWeb, :live_view
+  use TuistWeb, :html
   use Noora
 
+  import Phoenix.LiveView, only: [put_flash: 3]
   import TuistWeb.Components.JSONInput
 
   alias Ecto.Changeset
@@ -14,24 +15,17 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLive do
 
   @policy_fields [:name, :issuer, :jwks_url, :audience, :claims, :project_ids]
 
-  @impl true
-  def mount(_params, _uri, socket) do
+  embed_templates "workload_identities.html"
+
+  def initialize(socket) do
     account = authorize_account_update!(socket)
 
-    socket =
-      socket
-      |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
-      |> assign(projects: account |> Projects.list_accessible_projects(preload: []) |> Enum.sort_by(& &1.name))
-      |> assign_empty_form()
-      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")
-
-    {:ok, socket}
+    socket
+    |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
+    |> assign(projects: account |> Projects.list_accessible_projects(preload: []) |> Enum.sort_by(& &1.name))
+    |> assign_empty_form()
   end
 
-  @impl true
-  def handle_params(_params, _uri, socket), do: {:noreply, socket}
-
-  @impl true
   def handle_event("select_oidc_template", %{"value" => [template]}, socket) when template in ["custom", "fly"] do
     socket = assign(socket, :oidc_template, template)
 

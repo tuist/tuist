@@ -8,19 +8,6 @@
     current_user={@current_user}
   />
 
-  <.tab_menu_horizontal>
-    <.tab_menu_horizontal_item
-      label={dgettext("dashboard_account", "Single Sign-On")}
-      selected={true}
-      navigate={~p"/#{@selected_account.name}/settings/authentication"}
-    />
-    <.tab_menu_horizontal_item
-      label={dgettext("dashboard_account", "Workload identities")}
-      selected={false}
-      navigate={~p"/#{@selected_account.name}/settings/authentication/workload-identities"}
-    />
-  </.tab_menu_horizontal>
-
   <.alert
     :if={@flash_message}
     status={elem(@flash_message, 0)}
@@ -32,7 +19,13 @@
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+  <.form
+    :if={@organization}
+    for={@form}
+    id="sso-form"
+    phx-submit="save_sso"
+    phx-change="validate_sso"
+  >
     <.card_section data-part="sso-card">
       <div data-part="header">
         <span data-part="title">
@@ -726,10 +719,12 @@
     </.card_section>
   </.form>
 
+  <WorkloadIdentities.workload_identities {assigns} />
+
   <%!-- ============================================================ --%>
   <%!-- SCIM provisioning                                             --%>
   <%!-- ============================================================ --%>
-  <.card_section data-part="scim-card">
+  <.card_section :if={@organization} data-part="scim-card">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_account", "SCIM provisioning")}

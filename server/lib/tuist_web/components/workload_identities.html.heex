@@ -1,27 +1,7 @@
-<div id="account-workload-identities">
-  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
-  <TuistWeb.AppLayoutComponents.settings_tab_menu
-    selected_account={@selected_account}
-    current_path={@current_path}
-    current_user={@current_user}
-  />
-  <.tab_menu_horizontal>
-    <.tab_menu_horizontal_item
-      :if={@selected_account.organization_id}
-      label={dgettext("dashboard_account", "Single Sign-On")}
-      selected={false}
-      navigate={~p"/#{@selected_account.name}/settings/authentication"}
-    />
-    <.tab_menu_horizontal_item
-      label={dgettext("dashboard_account", "Workload identities")}
-      selected={true}
-      navigate={~p"/#{@selected_account.name}/settings/authentication/workload-identities"}
-    />
-  </.tab_menu_horizontal>
-
+<section id="account-workload-identities">
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "OpenID Connect trust policies")}</span>
+      <span data-part="title">{dgettext("dashboard_account", "Workload identities")}</span>
       <span data-part="subtitle">
         {dgettext(
           "dashboard_account",
@@ -225,4 +205,4 @@
       </.form>
     </div>
   </.card_section>
-</div>
+</section>
