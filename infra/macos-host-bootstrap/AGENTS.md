@@ -8,6 +8,12 @@ converged afterwards (`UpdateTartKubelet`, the drift push).
   part needs a step `UpdateTartKubelet` calls; `hashPartInstaller` in
   `bootstrap_test.go` is that list and its test fails on a gap. Per-host values
   belong in `PerHost`, never in the hashed fleet config.
+- A rack host records which env's operator owns its runner runtime in
+  `/etc/tuist/runtime-owner` (`runtime_owner.go`). `Run` and
+  `UpdateTartKubelet` claim it before changing anything (`PerHost.RuntimeOwner`)
+  and refuse a host another env owns; `HandOverRuntime` moves it and the lease
+  key together, and only the env that owns the site calls it. See "A host lent
+  to another env" in the provider's AGENTS.md.
 - Scripts run under the SSH user's login shell, which is zsh on the fleet. Do not
   name a variable `status` (read-only in zsh), do not use a bare glob that may
   match nothing (zsh aborts), and quote expansions (zsh does not word-split).

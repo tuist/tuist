@@ -698,6 +698,10 @@ ovhFleets:
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:
@@ -802,6 +806,18 @@ rackFleet:
   enabled: false
   name: tuist-canary-rack-fleet
   site: ber1
+  env: canary
+  # Rack hosts production lends canary with `lendTo: canary` (see "A host lent
+  # to another env" in infra/cluster-api-provider-tuist/AGENTS.md). Canary's
+  # operator runs their runtime and rolls it with canary's deploys.
+  borrow:
+    enabled: true
+    hosts:
+      - ber1-runner-b02
+  # The identity ber1-runner-b02 ran under while it was lent by hand. Canary
+  # deploys before production in the cascade, and its runners acceptance gate
+  # runs on b02 before production lends it with `lendTo`, so this stays until
+  # canary's lease is Active, and goes in a later change.
   joiningNodes:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:

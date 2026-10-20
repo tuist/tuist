@@ -343,4 +343,41 @@ defmodule Tuist.Kura.StorageTelemetry do
       )
     )
   end
+
+  @doc """
+  Per-day hit counts for every account and origin on `dates`, from the regions
+  not in `excluded_regions`, deduplicated by event id. Rollups whose credential
+  carried no origin are left out rather than counted under an empty one.
+  """
+  def origin_hit_day_aggregates([], _excluded_regions), do: []
+
+  def origin_hit_day_aggregates(dates, excluded_regions) do
+    deduped =
+      from(e in UsageEvent,
+        where: fragment("toDate(?)", e.window_start) in ^dates,
+        where: e.account_id > 0,
+        group_by: e.event_id,
+        select: %{
+          account_id: fragment("argMax(?, ?)", e.account_id, e.inserted_at),
+          region: fragment("argMax(?, ?)", e.region, e.inserted_at),
+          origin: fragment("argMax(?, ?)", e.origin, e.inserted_at),
+          direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(e in subquery(deduped),
+        where: e.direction == "egress" and e.origin != "" and e.region not in ^excluded_regions,
+        group_by: [e.account_id, e.origin, fragment("toDate(?)", e.window_start)],
+        select: %{
+          account_id: e.account_id,
+          origin: e.origin,
+          date: fragment("toDate(?)", e.window_start),
+          hit_count: fragment("toUInt64(sum(?))", e.request_count)
+        }
+      )
+    )
+  end
 end

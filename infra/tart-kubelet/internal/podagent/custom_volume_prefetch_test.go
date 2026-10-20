@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -333,5 +334,43 @@ func TestCustomMailboxQueuesTheHeadAfterAnOlderMount(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("the HEAD was not fetched after the job mounted without it")
+	}
+}
+
+func TestCustomPrefetchContinuesADownloadItsBudgetCutShort(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var mu sync.Mutex
+	var order []string
+	queued := make(chan struct{})
+	p := newCustomPrefetcher(ctx, func(_ context.Context, slot cachevolumes.Slot, _ bool) error {
+		<-queued
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, slot.Scope[:1])
+		if slot.Scope[0] == 'a' && len(order) == 1 {
+			return fmt.Errorf("%w: %w", cachevolumes.ErrDownloadIncomplete, context.DeadlineExceeded)
+		}
+		return nil
+	}, nil)
+	defer func() {
+		cancel()
+		p.wait.Wait()
+	}()
+	first := p.start(warmCustomIdentity("a", 1), false)
+	second := p.start(warmCustomIdentity("b", 1), false)
+	close(queued)
+
+	waitClosed(t, first, "the cut-short download never finished")
+	waitClosed(t, second, "the next download never ran")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got := strings.Join(order, ""); got != "aba" {
+		t.Fatal("did not continue the cut-short download after the next one", order)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.failed) != 0 {
+		t.Fatal("treated a download that made progress as failed")
 	}
 }

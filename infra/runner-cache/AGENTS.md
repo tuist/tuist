@@ -45,9 +45,31 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bounded to two minutes with no queue and the same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
-- APFS `Attach` clones the newest older master of the same scope when the base is
-  not local, records it in `<image>.base` and `Slot.MountedGeneration`, and never
-  downloads in that case. With `Replace` set, maintenance keeps a superseded master
+- APFS `Attach` never downloads. It clones the base master, else the newest older
+  master of the same scope (recorded in `<image>.base` and
+  `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
+  A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
+  Store treats like a poisoned branch: deleted, never published.
+- APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
+  (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
+  out-of-space rule). A missing `changed` field means changed. `Measure` reads a
+  detached branch's `.usage` before sealing so a withheld branch still reports its size.
+- `LocalImages` (Linux) decides the same on the host, while the volume is still
+  mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
+  when the top-level entries match `<image>.entries` and no entry's ctime is
+  newer than the one it recorded. The first attach writes `.entries` after the
+  marker; later attaches of the branch keep it. A missing baseline means changed;
+  a `.verified` or `.checking` branch skips the check.
+- `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
+  `Range` requests: a fresh link per attempt, at most five attempts, an attempt
+  abandoned after two minutes without bytes, `DownloadClient` without a whole-
+  transfer timeout. A context that ends while bytes arrive returns
+  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
+  restore is deleted. Callers resume only by passing the same path again.
+- `prefetch` downloads into `staging/<scope>-<generation>-<content digest>.img`
+  and takes the scope lock only to install;
+  `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
+  across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.

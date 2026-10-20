@@ -1440,6 +1440,154 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             MIX_ENV=prod
+
+  # Builds the macOS server release the xcresult processor runs and publishes
+  # it to GHCR as an OCI artifact tagged like the server image. Nothing
+  # consumes it yet: the processor still boots the release baked into its Tart
+  # image. Until it does, the job only reports, so it never fails the run.
+  build-xcresult-processor-release:
+    name: Build xcresult processor release
+    needs: [check-releases]
+    # Same gate as `build`: the release is deployed alongside the server image.
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    # The pool the acceptance tests already need, so this job adds no runner
+    # dependency to the run: a queued job does not count toward
+    # `timeout-minutes` and would hold the release concurrency group.
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: write
+    env:
+      MIX_ENV: prod
+      RELEASE_REPOSITORY: ghcr.io/tuist/tuist-xcresult-processor-release
+    outputs:
+      release_ref: ${{ steps.push.outputs.release_ref }}
+      release_digest: ${{ steps.push.outputs.release_digest }}
+      tarball_digest: ${{ steps.push.outputs.tarball_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "oras jq"
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: server
+      - uses: tuist/cache-volume@v1
+        with:
+          key: xcresult-processor-release-deps
+          path: server/deps
+      - uses: tuist/cache-volume@v1
+        with:
+          key: xcresult-processor-release-build
+          path: server/_build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: xcresult-processor-release-nif
+          path: ~/.cache/tuist-ci/xcresult-processor-release/nif
+      - name: Install Hex and Rebar
+        working-directory: server
+        run: |
+          mix local.hex --force --if-missing
+          mix local.rebar --force --if-missing
+      - uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build server release for macOS
+        id: release
+        working-directory: server
+        run: |
+          set -euo pipefail
+          export TUIST_NIF_BUILD_ROOT="${HOME}/.cache/tuist-ci/xcresult-processor-release/nif"
+          ./native/xcresult_nif/build.sh
+          ./native/xcactivitylog_nif/build.sh
+          mix compile --force --warnings-as-errors
+          # The release directory sits in the cached _build, and
+          # `mix release --overwrite` does not empty it first.
+          rm -rf _build/prod/rel/tuist
+          mix release tuist --overwrite
+          echo "dir=$(pwd)/_build/prod/rel/tuist" >> "$GITHUB_OUTPUT"
+      - name: Report native linkage
+        env:
+          RELEASE_DIR: ${{ steps.release.outputs.dir }}
+        run: |
+          set -euo pipefail
+          minimums="$(mktemp)"
+          foreign="$(mktemp)"
+          while IFS= read -r -d '' binary; do
+            [[ "$(file -b "$binary")" == *Mach-O* ]] || continue
+            vtool -show-build "$binary" 2>/dev/null | awk '$1 == "minos" { print $2 }' >> "$minimums"
+            otool -L "$binary" | awk 'NR > 1 && $1 !~ /:$/ { print $1 }' \
+              | { grep -vE '^(/usr/lib/|/System/|@rpath/|@loader_path/|@executable_path/)' || true; } \
+              | while IFS= read -r dependency; do
+                  echo "| \`${binary#"$RELEASE_DIR"/}\` | \`$dependency\` |" >> "$foreign"
+                done
+          done < <(find "$RELEASE_DIR" -type f \( -name '*.so' -o -name '*.dylib' -o -perm -u+x \) -print0)
+          {
+            echo "### xcresult processor release: native linkage"
+            echo
+            echo "Highest minimum macOS of its Mach-O files: $(sort -uV "$minimums" | tail -n1)"
+            echo
+            if [ -s "$foreign" ]; then
+              echo "Libraries loaded from outside the release and the OS:"
+              echo
+              echo "| Binary | Library |"
+              echo "|---|---|"
+              sort -u "$foreign"
+            else
+              echo "Every library comes from the release or the OS."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Push release to GHCR
+        id: push
+        env:
+          RELEASE_DIR: ${{ steps.release.outputs.dir }}
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          tar -czf "$workdir/release.tar.gz" -C "$RELEASE_DIR" .
+          tarball_digest="sha256:$(shasum -a 256 "$workdir/release.tar.gz" | awk '{ print $1 }')"
+          release_ref="${RELEASE_REPOSITORY}:sha-${DEPLOY_SHA:0:12}"
+          echo "$REGISTRY_TOKEN" | oras login ghcr.io --username "$REGISTRY_USERNAME" --password-stdin
+          cd "$workdir"
+          release_digest="$(oras push "$release_ref" \
+            --artifact-type application/vnd.tuist.xcresult-processor-release.v1 \
+            --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --annotation "org.opencontainers.image.revision=${DEPLOY_SHA}" \
+            --format json \
+            release.tar.gz:application/vnd.tuist.xcresult-processor-release.v1.tar+gzip \
+            | jq -r '.digest')"
+          {
+            echo "release_ref=$release_ref"
+            echo "release_digest=$release_digest"
+            echo "tarball_digest=$tarball_digest"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo
+            echo "Pushed \`${release_ref}@${release_digest}\` ($(du -h release.tar.gz | awk '{ print $1 }'), tarball \`${tarball_digest}\`)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary

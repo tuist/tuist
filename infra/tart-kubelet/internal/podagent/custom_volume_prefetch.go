@@ -2,6 +2,7 @@ package podagent
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -139,7 +140,30 @@ func (p *customPrefetcher) work() {
 		err := p.restore(ctx, cachevolumes.Slot{Identity: job.identity}, job.requested)
 		done(err)
 		cancel()
+		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) && p.requeue(job) {
+			continue
+		}
 		p.finish(job, err)
+	}
+}
+
+// requeue puts a download its budget cut short behind the masters queued since,
+// still pending, so it resumes from the bytes it received once they had a turn.
+func (p *customPrefetcher) requeue(job *customPrefetch) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped || p.ctx.Err() != nil {
+		return false
+	}
+	queue := p.background
+	if job.requested {
+		queue = p.requested
+	}
+	select {
+	case queue <- job:
+		return true
+	default:
+		return false
 	}
 }
 
