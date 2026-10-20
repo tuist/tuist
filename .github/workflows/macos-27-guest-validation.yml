@@ -1,0 +1,98 @@
+name: macOS 27 Guest Validation
+
+# Temporary, removed before review: validates the golden-gate runner image on
+# staging's BER1 rack pool for Xcode 27.1, through the staging `tuist` account's
+# `macos-27` Runner Profile (Xcode 27.1).
+
+on:
+  push:
+    branches:
+      - feat/macos-27-guest-images
+    paths:
+      - .github/workflows/macos-27-guest-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest:
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-staging-macos-27
+    timeout-minutes: 45
+    steps:
+      - name: Guest
+        run: |
+          sw_vers
+          uname -a
+          sysctl -n machdep.cpu.brand_string
+          echo "ImageOS=${ImageOS:-<unset>}"
+          xcode-select -p
+          xcodebuild -version
+          df -h /
+          whoami
+
+      - name: Standing TCC approvals
+        run: |
+          set -euo pipefail
+          /opt/tuist/tcc-approvals.sh path
+          /opt/tuist/tcc-approvals.sh check
+
+      - name: Script Finder
+        run: |
+          set -euo pipefail
+          osascript -e 'with timeout of 30 seconds' -e 'tell application "Finder" to get name of startup disk' -e 'end timeout'
+
+      - name: Built-in cache volume
+        run: |
+          set -euo pipefail
+          echo "TUIST_XDG_CACHE_HOME=${TUIST_XDG_CACHE_HOME:-<unset>}"
+          echo "TUIST_CACHE_MAX_BYTES=${TUIST_CACHE_MAX_BYTES:-<unset>}"
+          echo "XCODE_XCCONFIG_FILE=${XCODE_XCCONFIG_FILE:-<unset>}"
+          echo "TUIST_COMPILATION_CACHE_CAS_PATH=${TUIST_COMPILATION_CACHE_CAS_PATH:-<unset>}"
+          [ -n "${TUIST_XDG_CACHE_HOME:-}" ] || { echo "::error::no cache volume attached"; exit 1; }
+          mount | grep -F "${TUIST_XDG_CACHE_HOME}"
+          df -h "${TUIST_XDG_CACHE_HOME}"
+          ls -la "${TUIST_XDG_CACHE_HOME}"
+          [ -z "${XCODE_XCCONFIG_FILE:-}" ] || cat "${XCODE_XCCONFIG_FILE}"
+          mkdir -p "${TUIST_XDG_CACHE_HOME}/tuist/macos-27-validation"
+          date -u +%FT%TZ > "${TUIST_XDG_CACHE_HOME}/tuist/macos-27-validation/${GITHUB_RUN_ID}"
+
+      - name: Build with the compilation cache
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/Probe" && cd "${RUNNER_TEMP}/Probe"
+          swift package init --type executable --name Probe
+          xcodebuild -scheme Probe -destination 'platform=macOS' COMPILATION_CACHE_ENABLE_CACHING=YES build | tail -5
+          if [ -n "${TUIST_COMPILATION_CACHE_CAS_PATH:-}" ]; then
+            du -sh "${TUIST_COMPILATION_CACHE_CAS_PATH}" || true
+          fi
+
+      - name: iOS simulator boots
+        run: |
+          set -euo pipefail
+          xcrun simctl list runtimes
+          device_type=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.name | startswith("iPhone"))] | last | .identifier')
+          echo "device type: ${device_type}"
+          udid=$(xcrun simctl create probe "${device_type}")
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl shutdown "$udid"
+          xcrun simctl delete "$udid"
+
+      - uses: erlef/setup-beam@v1
+        continue-on-error: true
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+  custom-cache-apfs:
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-staging-macos-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+      - name: Exercise real APFS and custom cache lifecycle
+        run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
