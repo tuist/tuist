@@ -119,8 +119,10 @@ defmodule Tuist.ClickHouse.SchemaClone do
     Endpoints.with_repos(opts, fn source, target ->
       drift = Tables.schema_drift(source, target)
 
-      created = create_missing(source, target, drift.missing_on_destination)
+      # New views can select columns added to existing tables in the same migration.
+      # Make those columns available before creating their dependent objects.
       added = add_missing_columns(source, target, drift.differing_columns)
+      created = create_missing(source, target, drift.missing_on_destination)
       indices = reconcile_indices(source, target)
 
       report = %{

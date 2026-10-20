@@ -54,6 +54,7 @@ This directory contains the core business logic and domain modules for the serve
   `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
   with older processor releases during rolling deployments and rollbacks.
 
+- `ClickHouse.SchemaClone.reconcile/1` adds missing columns on existing tables before creating missing tables and dependent views. Migration DDL is not mirrored; verify the views on the actual read route before deploying their consumers, even when feature enrollment is off. Preserve the ordering and one-pass reconciliation regression coverage.
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
   Its query options suppress application SQL logging without overriding managed
   ClickHouse logging policy; server password masking requires valid dictionary DDL.
