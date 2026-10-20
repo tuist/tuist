@@ -293,13 +293,26 @@ instruments each disposable downloaded build using native line counters.
 Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
-whose runs read the binary cache. The coverage settings are set once, in the
+whose runs read the binary cache. It runs on `workflow_run` after `cli.yml`
+(workflow `name: CLI`) succeeds on a push to main, at that run's `head_sha`, so
+the commit's own `tuist cache` warm is in place; which commits get there is
+`cli.yml`'s push path filter. Its full runs (`--no-selective-testing`) are the
+only Xcode runs that collect coverage, and its last job alone calls
+`tuist coverage complete`. Those runs share one `coverage-main` concurrency group
+without cancelling: one runs, the newest commit waits, and commits it replaces
+stay "Not measured". Dispatches (`sha` backfills) use groups of their own and test
+with main's `mise.toml`, while a `workflow_run` run keeps the commit's own. Every
+other job that runs `tuist test` (`cli.yml`, `app.yml`, the deploy acceptance
+tests) keeps selective testing and passes `-enableCodeCoverage NO`: it still
+reads the coverage variant, but reports `coverage_enabled: false`, so the server
+never takes its skips as gaps in the commit's coverage. Keep that flag on any new
+`tuist test` step. The coverage settings are set once, in the
 root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
 `TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
 every developer resolve the same variant and the same prefix mapping; both are
 hashed into binary-cache and selective-testing keys, so never set them per step.
 They stand in for `Tuist.swift`'s `coverage` option until the
-backward-compatibility gate's CLI knows it. The test runs pass no
+backward-compatibility gate's CLI knows it. The coverage runs pass no
 `-enableCodeCoverage`: schemes that leave their test action's coverage unset
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
 to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until

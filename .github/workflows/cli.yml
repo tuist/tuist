@@ -191,6 +191,8 @@ jobs:
           cache-key: cli-macos-workspace-${{ github.job }}
       # With mise.toml's TUIST_COVERAGE_ENABLED, CLIs with tuist/tuist#14404
       # warm the coverage variant the coverage runs read; older ones warm plain.
+      # coverage.yml starts once a push run of this workflow on main succeeds,
+      # so its runs find this commit's warm.
       - name: Cache
         run: tuist cache
 
@@ -239,11 +241,13 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
-      # Coverage comes from mise.toml's [env]: the scheme leaves its test
-      # action's coverage unset, so it follows TUIST_COVERAGE_ENABLED, which CLIs
-      # before tuist/tuist#14404 ignore.
+      # Selective, so no coverage: coverage.yml's full runs measure main after
+      # this workflow. mise.toml's TUIST_COVERAGE_ENABLED still picks the binary
+      # cache's coverage variant `tuist cache` warms, but `-enableCodeCoverage NO`
+      # turns collection off, so the run reports `coverage_enabled: false` and
+      # the server never reads its skipped tests as the commit's coverage.
       - name: Run tests
-        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
+        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage NO
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
@@ -283,9 +287,12 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      # The scheme sets `coverage: false`, but a shard run skipped whole reports
+      # only the passthrough `-enableCodeCoverage`, so it is explicit here and in
+      # each shard (see cli-unit-tests).
       - name: Build tests
         id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -enableCodeCoverage NO
         env:
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
 
@@ -378,7 +385,7 @@ jobs:
       # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
       # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2 -enableCodeCoverage NO
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
@@ -415,7 +422,7 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run tests
-        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -enableCodeCoverage NO
 
   cli-linux-build:
     name: Linux Build

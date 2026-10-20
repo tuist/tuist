@@ -1637,6 +1637,9 @@ jobs:
       # 100% of build ingestion promoted to production green on 2026-09-09, and
       # one that killed 100% of xcresult processing on 2026-09-23.
       #
+      # Coverage stays off explicitly, as in cli.yml: only coverage.yml's runs
+      # collect it.
+      #
       # The worker cap matches cli.yml. It is not load-bearing while the plan
       # holds two targets, since xcodebuild hands out one worker per target, but
       # it keeps the ceiling where it is if a third target is ever added here.
@@ -1646,7 +1649,8 @@ jobs:
         run: |
           tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
             -maximum-parallel-testing-workers 2 \
-            -retry-tests-on-failure -test-iterations 2
+            -retry-tests-on-failure -test-iterations 2 \
+            -enableCodeCoverage NO
 
   # --------------------------------------------------------------------------
   # Backward-compatibility acceptance - runs an OLD CLI against the freshly-

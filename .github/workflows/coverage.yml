@@ -1,48 +1,41 @@
 name: Coverage
 
 # Gathers Xcode code coverage from full test runs on main, so the coverage
-# trend has complete runs to plot. Pull request runs use selective testing,
-# which leaves tests unrun, so their coverage is partial and stays out of the
-# trend. The runs here read the binary cache's coverage variant, which cli.yml's
-# `tuist cache` warms on main (TUIST_COVERAGE_ENABLED in mise.toml); its
-# binaries carry coverage counters and record their files under a placeholder
-# the export resolves, so a cached target is measured like one built from source. The test targets link
-# TestCoverageAttribution, so each run also records which files every test
-# executed, and the last job tells the server the commit's runs are all in.
+# trend has complete runs to plot. It runs after each push run of cli.yml on
+# main succeeds, at that run's commit (`workflow_run.head_sha`), so the commit's
+# own `tuist cache` warm is in place: the runs here read the binary cache's
+# coverage variant (TUIST_COVERAGE_ENABLED in mise.toml), whose binaries carry
+# coverage counters and record their files under a placeholder the export
+# resolves, so a cached target is measured like one built from source. Which
+# commits get here is cli.yml's `push` path filter; this workflow has none.
+# The test targets link TestCoverageAttribution, so each run also records which
+# files every test executed, and the last job tells the server the commit's
+# runs are all in. These are the only runs that collect Xcode coverage: every
+# other `tuist test` job (pull requests, cli.yml and app.yml on main, the
+# deploy acceptance tests) passes `-enableCodeCoverage NO` and keeps selective
+# testing, so it reports `coverage_enabled: false` and the server ignores what
+# it skipped.
 #
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and
-# notify-failure.yml does not list it.
+# notify-failure.yml does not list it. A cli.yml run that failed or was
+# cancelled triggers nothing, and its commit stays "Not measured".
 #
 # Dispatched with a `sha`, it collects an earlier commit on main instead, to
 # backfill commits that had no run. Dispatch one at a time: each holds two
-# macOS runners for up to two hours. The commit's sources are tested with this
-# workflow's tools, because an older pin of the CLI may not upload coverage at
-# all, but its .xcode-version is its own, so commits before the move to Xcode 27
-# (f834b57656) cannot run on this image.
+# macOS runners for up to two hours. A backfilled commit's sources are tested
+# with this workflow's tools, because an older pin of the CLI may not upload
+# coverage at all, but its .xcode-version is its own, so commits before the
+# move to Xcode 27 (f834b57656) cannot run on this image. A commit cli.yml
+# triggered is tested with its own tools, the ones its warm used.
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CLI
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - "cli/TuistCacheEE"
-      - "cli/TuistCacheEE/**"
-      - "cli/Sources/**"
-      - "cli/Tests/**"
-      - "cli/Templates/**"
-      - "cas-plugin/**"
-      - "swifterpm/**"
-      - "server/native/xcresult_nif/Sources/XCResultParser/**"
-      - "app/**"
-      - "*.swift"
-      - ".github/workflows/coverage.yml"
-      - "mise.toml"
-      - "mise.lock"
-      - "Tuist/**"
-      - ".xcode-version"
-      - ".swiftpm/**"
-      - "Package.swift"
-      - "Package.resolved"
   workflow_dispatch:
     inputs:
       sha:
@@ -61,23 +54,38 @@ env:
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
-# One run at a time on main. A run in progress finishes so its coverage lands;
-# commits merged meanwhile queue behind it, and GitHub keeps only the newest.
-# A backfill gets a group of its own, or each one dispatched would cancel the
-# one queued before it.
+# One run at a time for the commits cli.yml triggers. A run in progress
+# finishes so its coverage lands; the newest commit merged meanwhile waits
+# behind it, and GitHub cancels any older one still pending, so that commit
+# stays "Not measured" on the server. Dispatches stay out of that group, each in
+# one of its own (keyed by the commit, or main's head when no `sha` is given),
+# so a backfill neither replaces a queued commit nor is replaced by one; it can
+# run alongside the queue's run.
 concurrency:
-  group: coverage-${{ inputs.sha || github.ref }}
+  group: ${{ github.event_name == 'workflow_run' && 'coverage-main' || format('coverage-dispatch-{0}', inputs.sha || github.sha) }}
   cancel-in-progress: false
 
 jobs:
-  # The commit to collect. A backfilled one must be on main: the CLI labels the
-  # run with the branch it was dispatched from, so a commit from anywhere else
-  # would be reported as main's.
+  # The commit to collect: the one cli.yml just passed on main, or a dispatch's.
+  # cli.yml runs on pull requests and on pushes from anywhere, so a
+  # `workflow_run` run goes on only for a push to this repository's main that
+  # succeeded. A backfilled commit must be on main: the CLI labels the run with
+  # the branch it was dispatched from, so a commit from anywhere else would be
+  # reported as main's. A `workflow_run` run is labelled with main, the default
+  # branch it runs on.
   commit:
     name: Resolve Commit
     runs-on: tuist-linux
     timeout-minutes: 5
-    if: github.repository == 'tuist/tuist'
+    if: >-
+      github.repository == 'tuist/tuist' && (
+        github.event_name == 'workflow_dispatch' || (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
     steps:
@@ -85,7 +93,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          if [ -n "$RUN_SHA" ]; then
+            echo "sha=$RUN_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -z "$SHA" ]; then
             echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
             exit 0
@@ -124,7 +137,7 @@ jobs:
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
         # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
         # the older commit's, hidden from git: a run on a dirty checkout keeps
         # its coverage off the commit. The scripts matter: an older
@@ -164,14 +177,14 @@ jobs:
           working_directory: cas-plugin
           cache: "false"
       # Every test runs: selective testing would skip tests. Repository targets
-      # come from the coverage variant of the binary cache when their hash
-      # matches what an earlier commit's warm stored; this commit's own warm runs
-      # at the same time, so the targets it changed are built from source.
-      # The coverage settings come from mise.toml's [env], which CLIs before
-      # tuist/tuist#14404 ignore, so until one is pinned these runs collect no
-      # coverage and `tuist coverage complete` leaves the commit pending: the
-      # schemes leave their test action's coverage unset and follow
-      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
+      # come from the coverage variant of the binary cache, which this commit's
+      # own cli.yml run warmed before triggering this one; a backfill reads what
+      # main's warms still hold and builds the rest from source. The coverage
+      # settings come from mise.toml's [env]: the schemes leave their test
+      # action's coverage unset and follow TUIST_COVERAGE_ENABLED, which CLIs
+      # before tuist/tuist#14404 ignore (a commit pinning one collects no
+      # coverage, and `tuist coverage complete` leaves it pending). The CLI
+      # makes the coverage counters atomic itself (`AtomicCoverageCounters`):
       # tests run in parallel in one process, and plain increments lose counts.
       # TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
       # builds, so the compilation cache replays across runners; the CLI maps the
@@ -199,7 +212,7 @@ jobs:
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
           files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
@@ -252,7 +265,7 @@ jobs:
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
           files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
