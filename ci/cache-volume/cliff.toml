@@ -1,0 +1,26 @@
+[bump]
+initial_tag = "1.0.0"
+
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first }}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+filter_commits = true
+# Paths in release/components.json select this component; any scope can change it.
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Fixes" },
+    { message = "^(docs?|perf|refactor|style|test|chore|ci)", group = "Maintenance" },
+]
+tag_pattern = "cache-volume@[0-9]+\\.[0-9]+\\.[0-9]+$"
+sort_commits = "newest"

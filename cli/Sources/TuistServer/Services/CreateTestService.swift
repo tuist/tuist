@@ -31,7 +31,11 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult?,
+            gitHistory: TestRunGitHistory?,
+            coverage: TestRunCoverage?,
+            coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -55,6 +59,7 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -86,22 +91,36 @@ import TuistHTTP
             shardPlanId: String?,
             shardIndex: Int?,
             onlyTestIdentifiers: [String],
-            skipTestIdentifiers: [String]
+            skipTestIdentifiers: [String],
+            stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
+            gitHistory: TestRunGitHistory? = nil,
+            coverage: TestRunCoverage? = nil,
+            coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
-            let client = Client.authenticated(serverURL: serverURL)
+            let client = Client.reporting(serverURL: serverURL)
+            let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                switch testSummary.status {
-                case .passed:
-                    .success
-                case .failed:
-                    .failure
-                case .skipped:
-                    .skipped
-                case .processing:
-                    .processing
-                }
+            let status = statusPayload(for: testSummary.status)
+
+            // The gate's reruns are executions of the test case like any other, so they ride
+            // along with the test case they belong to rather than as a payload of their own.
+            // They are numbered after the run's own attempts and tagged `stress`, which is
+            // what lets the dashboard say which executions were solicited. Remote runs send
+            // no test cases here; their bundle carries the same information instead.
+            let stressRepetitionsByTestCase = Dictionary(
+                ((networkTrusted ? nil : stressNewTests)?.test_cases ?? []).map { candidate in
+                    (
+                        StressRepetitionKey(
+                            module: candidate.module_name,
+                            suite: candidate.suite_name,
+                            name: candidate.name
+                        ),
+                        candidate.repetition_results ?? []
+                    )
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
 
             let testModules = testSummary.testModules.map { module in
                 let testSuites = module.testSuites.map { suite in
@@ -143,9 +162,22 @@ import TuistHTTP
                                     duration: repetition.duration,
                                     name: repetition.name,
                                     repetition_number: repetition.repetitionNumber,
+                                    source: .run,
                                     status: repetitionStatusToServerStatus(repetition.status)
                                 )
                         }
+                        + stressRepetitions(
+                            for: StressRepetitionKey(
+                                module: module.name,
+                                suite: testCase.testSuite,
+                                name: testCase.name
+                            ),
+                            in: stressRepetitionsByTestCase,
+                            after: testCase.repetitions.count,
+                            firstPass: testCase.repetitions.isEmpty
+                                ? (testCase.status, testCase.duration ?? 0)
+                                : nil
+                        )
 
                     let arguments = testCase.arguments.map { argument in
                         let argFailures = argument.failures.map { failure in
@@ -186,7 +218,14 @@ import TuistHTTP
                         .test_casesPayloadPayload(
                             arguments: arguments,
                             duration: testCase.duration ?? 0,
-                            failures: failures,
+                            failures: failures + stressFailures(
+                                for: StressRepetitionKey(
+                                    module: module.name,
+                                    suite: testCase.testSuite,
+                                    name: testCase.name
+                                ),
+                                in: stressRepetitionsByTestCase
+                            ),
                             is_quarantined: testCase.isQuarantined,
                             name: testCase.name,
                             repetitions: repetitions,
@@ -198,6 +237,7 @@ import TuistHTTP
                 return Operations.createTest.Input.Body.jsonPayload
                     .test_modulesPayloadPayload(
                         duration: module.duration,
+                        execution_mode: module.executionMode.flatMap { .init(rawValue: $0) },
                         name: module.name,
                         status: mapModuleStatus(module.status),
                         test_cases: moduleTestCases,
@@ -224,6 +264,8 @@ import TuistHTTP
                         nil
                     }
 
+            let history = GitHistoryPayloads(gitHistory)
+
             let response = try await client.createTest(
                 .init(
                     path: .init(
@@ -232,28 +274,41 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
-                            build_run_id: buildRunId,
-                            ci_host: ciHost,
-                            ci_project_handle: ciProjectHandle,
-                            ci_provider: ciProviderPayload,
-                            ci_run_id: ciRunId,
-                            duration: testSummary.duration ?? 0,
                             git_branch: gitBranch,
-                            git_commit_sha: gitCommitSHA,
-                            git_ref: gitRef,
-                            git_remote_url_origin: gitRemoteURLOrigin,
-                            id: id,
-                            is_ci: isCI,
-                            macos_version: macOSVersion,
-                            model_identifier: modelIdentifier,
-                            only_test_identifiers: onlyTestIdentifiers,
+                            execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
+                            git_object_format: networkTrusted ? nil : history.objectFormat,
                             scheme: testSummary.testPlanName,
-                            shard_index: shardIndex,
-                            shard_plan_id: shardPlanId,
-                            skip_test_identifiers: skipTestIdentifiers,
+                            merge_base_sha: networkTrusted ? nil : gitHistory?.mergeBaseSHA,
+                            ci_host: ciHost,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
+                            history_fallback_reason: networkTrusted ? nil : gitHistory?.fallbackReason,
+                            is_pull_request: networkTrusted ? nil : gitHistory?.isPullRequest,
                             status: status,
+                            shard_index: networkTrusted ? nil : shardIndex,
+                            only_test_identifiers: networkTrusted ? [] : onlyTestIdentifiers,
+                            coverage_evidence: networkTrusted ? nil : testSummary.coverageEvidencePayload,
+                            git_dirty: networkTrusted ? nil : gitHistory?.dirty,
+                            history_source: networkTrusted ? nil : history.source,
+                            coverage: networkTrusted ? nil : coveragePayload(coverage, toolVersion: xcodeVersion),
+                            build_run_id: networkTrusted ? nil : buildRunId,
+                            skip_test_identifiers: networkTrusted ? [] : skipTestIdentifiers,
+                            git_ref: gitRef,
+                            base_branch: networkTrusted ? nil : gitHistory?.baseBranch,
+                            model_identifier: modelIdentifier,
+                            ci_run_id: ciRunId,
+                            ci_provider: ciProviderPayload,
+                            ci_project_handle: ciProjectHandle,
+                            pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
+                            coverage_enabled: networkTrusted ? nil : coverageEnabled,
+                            stress_new_tests: networkTrusted ? nil : stressNewTests,
+                            macos_version: macOSVersion,
+                            id: id,
+                            shard_plan_id: networkTrusted ? nil : shardPlanId,
+                            duration: testSummary.duration ?? 0,
+                            xcode_version: xcodeVersion,
+                            git_commit_sha: gitCommitSHA,
                             test_modules: testModules,
-                            xcode_version: xcodeVersion
+                            is_ci: isCI
                         )
                     )
                 )
@@ -353,19 +408,6 @@ import TuistHTTP
             }
         }
 
-        private func repetitionStatusToServerStatus(_ status: TestStatus)
-            -> Operations.createTest.Input.Body.jsonPayload
-            .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
-            .statusPayload
-        {
-            switch status {
-            case .passed, .skipped, .processing:
-                return .success
-            case .failed:
-                return .failure
-            }
-        }
-
         private func mapArgumentIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createTest
             .Input.Body.jsonPayload
             .test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload
@@ -396,4 +438,172 @@ import TuistHTTP
         }
     }
 
+    private func repetitionStatusToServerStatus(_ status: TestStatus) -> TestCaseRepetitionPayload.statusPayload {
+        switch status {
+        case .passed, .skipped, .processing:
+            return .success
+        case .failed:
+            return .failure
+        }
+    }
+
+    /// The gate's reruns, numbered after the test case's own executions.
+    ///
+    /// `firstPass` carries the execution the gate reacted to, for a test case the run did not
+    /// retry and which therefore reports no repetitions of its own. Without it the list holds
+    /// only reruns, so a candidate that failed every one of them reads as uniformly failed and
+    /// never reaches the run's flaky tests.
+    private func stressRepetitions(
+        for key: StressRepetitionKey,
+        in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+                .repetition_resultsPayloadPayload]],
+        after ownCount: Int,
+        firstPass: (status: TestStatus, duration: Int)?
+    ) -> [TestCaseRepetitionPayload] {
+        let stressed = repetitionsByTestCase[key] ?? []
+        guard !stressed.isEmpty else { return [] }
+
+        let own = firstPass.map {
+            [
+                TestCaseRepetitionPayload(
+                    duration: $0.duration,
+                    name: "First Run",
+                    repetition_number: 1,
+                    source: .run,
+                    status: repetitionStatusToServerStatus($0.status)
+                ),
+            ]
+        } ?? []
+        let offset = ownCount + own.count
+
+        return own + stressed.enumerated().map { index, repetition in
+            TestCaseRepetitionPayload(
+                duration: repetition.duration,
+                name: "Stress \(index + 1)",
+                repetition_number: offset + index + 1,
+                source: .stress,
+                status: repetition.status == .success ? .success : .failure
+            )
+        }
+    }
+
+    // A rerun's failure is kept on the test case beside the first pass's, which is where the
+    // run page reads failures from. Without it a stressed test keeps its status and duration
+    // and loses what it said when it broke.
+
+    /// The build-system-neutral coverage block: the tool that measured the run, the Xcode that
+    /// provides it as the version, and the files inline or the key of their upload.
+    private func coveragePayload(_ coverage: TestRunCoverage?, toolVersion: String?) -> Components.Schemas.Coverage? {
+        coverage.map { coverage in
+            Components.Schemas.Coverage(
+                files: coverage.files?.map { file in
+                    Components.Schemas.Coverage.filesPayloadPayload(
+                        covered_lines: file.coveredLines,
+                        executable_lines: file.executableLines,
+                        execution_counts: file.executionCounts,
+                        functions: file.functions.map { function in
+                            Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload(
+                                covered_lines: function.coveredLines,
+                                executable_lines: function.executableLines,
+                                execution_count: function.executionCount,
+                                line_number: function.lineNumber,
+                                name: function.name
+                            )
+                        },
+                        git_blob_id: file.gitBlobId,
+                        is_test: file.isTest,
+                        line_numbers: file.lineNumbers,
+                        path: file.path,
+                        targets: file.targets
+                    )
+                },
+                partial: coverage.partial,
+                storage_key: coverage.storageKey,
+                tool: coverage.tool,
+                tool_version: toolVersion
+            )
+        }
+    }
+
+    private func statusPayload(for status: TestStatus) -> Operations.createTest.Input.Body.jsonPayload.statusPayload {
+        switch status {
+        case .passed: .success
+        case .failed: .failure
+        case .skipped: .skipped
+        case .processing: .processing
+        }
+    }
+
+    /// The run's Git history in the shapes of the create-test body.
+    private struct GitHistoryPayloads {
+        typealias Body = Operations.createTest.Input.Body.jsonPayload
+
+        let objectFormat: Body.git_object_formatPayload?
+        let source: Body.history_sourcePayload?
+
+        init(_ gitHistory: TestRunGitHistory?) {
+            objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
+            source = gitHistory.map { $0.source == "client" ? .client : .none }
+        }
+    }
+#endif
+
+struct StressRepetitionKey: Hashable {
+    let module: String?
+    let suite: String?
+    let name: String
+
+    init(module: String?, suite: String?, name: String) {
+        self.module = module
+        self.suite = (suite?.isEmpty ?? true) ? nil : suite
+        self.name = name
+    }
+}
+
+private typealias TestCaseRepetitionPayload = Operations.createTest.Input.Body.jsonPayload
+    .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
+
+private func stressFailures(
+    for key: StressRepetitionKey,
+    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+            .repetition_resultsPayloadPayload]]
+) -> [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload
+    .failuresPayloadPayload]
+{
+    (repetitionsByTestCase[key] ?? []).compactMap { repetition -> Operations.createTest.Input.Body.jsonPayload
+        .test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload? in
+        guard repetition.status == .failure, let failure = repetition.failure else { return nil }
+        return .init(
+            issue_type: failure.issue_type.flatMap { .init(rawValue: $0.rawValue) },
+            line_number: failure.line_number ?? 0,
+            message: failure.message,
+            path: failure.path
+        )
+    }
+}
+
+#if canImport(TuistXCResultService)
+    extension TestSummary {
+        fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
+            coverageEvidence.map { evidence in
+                .init(
+                    overlapped_tests: evidence.overlappedTests.map {
+                        .init(module: $0.module, name: $0.name, suite: $0.suite)
+                    },
+                    paths: evidence.paths,
+                    scopes: evidence.scopes.map {
+                        .init(
+                            files: $0.files,
+                            kind: .init(rawValue: $0.kind.rawValue) ?? .target,
+                            lines: $0.lines,
+                            module: $0.module,
+                            name: $0.name,
+                            suite: $0.suite
+                        )
+                    },
+                    status: evidence.status.flatMap { .init(rawValue: $0.rawValue) }
+                )
+            }
+        }
+    }
 #endif

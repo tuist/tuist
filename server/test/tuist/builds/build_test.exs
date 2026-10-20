@@ -23,6 +23,22 @@ defmodule Tuist.Builds.BuildTest do
       assert changeset.valid?
     end
 
+    test "normalizes optional build start timestamps without inferring them from upload time" do
+      changeset = Build.create_changeset(%Build{}, @valid_attrs)
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :started_at) == nil
+
+      changeset = Build.create_changeset(%Build{}, Map.put(@valid_attrs, :started_at, ~U[2023-10-01 11:59:00.123456Z]))
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :started_at) == ~N[2023-10-01 11:59:00.123456]
+      assert Build.to_buffer_map(Ecto.Changeset.apply_changes(changeset)).started_at == ~N[2023-10-01 11:59:00.123456]
+    end
+
+    test "rejects invalid build start timestamps" do
+      changeset = Build.create_changeset(%Build{}, Map.put(@valid_attrs, :started_at, "not-a-date"))
+      assert "is invalid" in errors_on(changeset).started_at
+    end
+
     test "ensures id is present" do
       changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :id))
       assert "can't be blank" in errors_on(changeset).id
@@ -173,6 +189,11 @@ defmodule Tuist.Builds.BuildTest do
         },
         attrs
       )
+    end
+
+    test "virtual failure categories never enter the ingestion map" do
+      buffer_map = Build.to_buffer_map(build_with(failure_category: "verification"))
+      refute Map.has_key?(buffer_map, :failure_category)
     end
 
     test "versions a first write with its own inserted_at" do

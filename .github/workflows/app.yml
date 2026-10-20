@@ -28,7 +28,6 @@ permissions:
   contents: read
 
 env:
-  MISE_VERSION: "2026.5.15"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
@@ -97,7 +96,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -105,11 +104,14 @@ jobs:
       id-token: write
     if: |
       always() &&
+      github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -120,9 +122,8 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -154,7 +155,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -162,11 +163,16 @@ jobs:
       id-token: write
     if: |
       always() &&
+      github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      MISE_LOCKED: 1
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -177,9 +183,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      # Only the CLI, locked: a full install on a cold cache writes checksums
+      # into mise.lock, and the run's coverage, reported from a dirty checkout,
+      # is left out of the commit (see coverage.yml).
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist"
+          cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -190,7 +200,10 @@ jobs:
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       - name: Test TuistApp
-        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        env:
+          # Xcode code coverage is in early access behind this client flag.
+          TUIST_FEATURE_FLAG_COVERAGE: "1"
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -200,7 +213,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -208,6 +221,7 @@ jobs:
       id-token: write
     if: |
       always() &&
+      github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
@@ -215,6 +229,8 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -225,9 +241,8 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -241,7 +256,7 @@ jobs:
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --configuration Release
       - name: Bundle iOS app
         if: |
           github.event_name == 'push' ||

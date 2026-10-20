@@ -165,4 +165,39 @@ defmodule TuistOps.JIT.PolicyTest do
       refute Policy.approver_allowed?(@admin, nil)
     end
   end
+
+  describe "GitHub admin group" do
+    test "engineering roles can self-approve and approve it" do
+      stub_roles(%{@owner => :owner, @member => :member, @auditor => :auditor})
+
+      for email <- [@owner, @member] do
+        assert Policy.self_approval_allowed?(email, Policy.github_admin_group())
+        assert Policy.approver_allowed?(email, Policy.github_admin_group())
+      end
+
+      refute Policy.approver_allowed?(@auditor, Policy.github_admin_group())
+      refute Policy.approver_allowed?(@off_tailnet, Policy.github_admin_group())
+    end
+
+    test "never maps to a cluster env" do
+      assert Policy.env_for(Policy.github_admin_group()) == nil
+    end
+  end
+
+  describe "always_write_env?/1" do
+    test "staging is standing write access, so it needs no elevation" do
+      assert Policy.always_write_env?("staging")
+    end
+
+    test "canary and production stay elevation-gated" do
+      refute Policy.always_write_env?("canary")
+      refute Policy.always_write_env?("production")
+      refute Policy.always_write_env?("prod")
+    end
+
+    test "unknown and non-binary envs are not standing write" do
+      refute Policy.always_write_env?("europe")
+      refute Policy.always_write_env?(nil)
+    end
+  end
 end

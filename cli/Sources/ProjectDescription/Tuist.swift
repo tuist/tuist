@@ -54,24 +54,75 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// Options for configuring the Xcode Cache behavior.
     public struct XcodeCache: Codable, Equatable, Sendable {
+        /// A size on disk.
+        public struct Size: Codable, Equatable, Sendable {
+            /// The size in bytes.
+            public let bytes: Int
+
+            /// A size in megabytes, where a megabyte is 1024 × 1024 bytes.
+            public static func megabytes(_ megabytes: Int) -> Self {
+                Size(bytes: megabytes * 1024 * 1024)
+            }
+
+            /// A size in gigabytes, where a gigabyte is 1024 × 1024 × 1024 bytes.
+            public static func gigabytes(_ gigabytes: Int) -> Self {
+                Size(bytes: gigabytes * 1024 * 1024 * 1024)
+            }
+        }
+
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
         /// Set to `false` for read-only mode (downloads only, no uploads).
         public let upload: Bool
 
+        /// The size the project's local compilation cache stores settle at. When no build is running, a store that
+        /// occupies more than this size has its oldest cached outputs pruned, and a store can be larger than this
+        /// size while builds run. When several projects share a store, the smallest of their limits applies. When
+        /// `nil` (default), stores aren't pruned.
+        public let storeSizeLimit: Size?
+
         /// Creates Xcode Cache options.
-        /// - Parameter upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
-        public static func xcodeCache(upload: Bool = true) -> Self {
-            XcodeCache(upload: upload)
+        /// - Parameters:
+        ///   - upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
+        ///   - storeSizeLimit: The size the project's local compilation cache stores settle at. Defaults to
+        ///     `nil`, which doesn't prune them.
+        public static func xcodeCache(upload: Bool = true, storeSizeLimit: Size? = nil) -> Self {
+            XcodeCache(upload: upload, storeSizeLimit: storeSizeLimit)
         }
 
-        @available(*, deprecated, renamed: "xcodeCache(upload:)")
+        @available(*, deprecated, renamed: "xcodeCache(upload:storeSizeLimit:)")
         public static func cache(upload: Bool = true) -> Self {
-            XcodeCache(upload: upload)
+            XcodeCache(upload: upload, storeSizeLimit: nil)
         }
     }
 
     @available(*, deprecated, renamed: "XcodeCache")
     public typealias Cache = XcodeCache
+
+    /// Options for configuring Test Insights.
+    public struct TestInsights: Codable, Equatable, Sendable {
+        /// Options for the code coverage of test runs.
+        public struct Coverage: Codable, Equatable, Sendable {
+            /// When `true` (default), the code coverage a test run gathered is uploaded with it.
+            /// Set to `false` to upload test runs without their coverage.
+            public let upload: Bool
+
+            /// Creates code coverage options.
+            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
+            ///   The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
+            public static func coverage(upload: Bool = true) -> Self {
+                Coverage(upload: upload)
+            }
+        }
+
+        /// The code coverage options.
+        public let coverage: Coverage
+
+        /// Creates Test Insights options.
+        /// - Parameter coverage: The code coverage options.
+        public static func testInsights(coverage: Coverage = .coverage()) -> Self {
+            TestInsights(coverage: coverage)
+        }
+    }
 
     /// Configures the project Tuist will interact with.
     /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
@@ -88,6 +139,9 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// The Xcode Cache configuration.
     public let xcodeCache: XcodeCache
+
+    /// The Test Insights configuration.
+    public let testInsights: TestInsights
 
     /// The base URL that points to the Tuist server.
     public let url: String
@@ -134,6 +188,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.inspectOptions = inspectOptions
         self.network = network
         xcodeCache = .xcodeCache()
+        testInsights = .testInsights()
         self.url = url
         dumpIfNeeded(self)
     }
@@ -142,6 +197,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
         xcodeCache: XcodeCache = .xcodeCache(),
+        testInsights: TestInsights = .testInsights(),
         url: String = "https://tuist.dev",
         network: Network = .network(),
         project: TuistProject
@@ -151,11 +207,12 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.inspectOptions = inspectOptions
         self.network = network
         self.xcodeCache = xcodeCache
+        self.testInsights = testInsights
         self.url = url
         dumpIfNeeded(self)
     }
 
-    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:url:network:project:)")
+    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:testInsights:url:network:project:)")
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),

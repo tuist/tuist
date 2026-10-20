@@ -26,6 +26,14 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Previews (iOS app preview deployment)
 - Command Events (CLI analytics)
 
+## Horizontal Scaling
+
+- Every implementation must preserve horizontal scalability: requests and jobs must remain correct across multiple replicas, arbitrary request routing, rolling restarts and replica failure. Do not require sticky sessions or treat process memory, local files or ETS as authoritative shared state.
+- Node-local caches are allowed when disposable and their freshness/invalidation contract is explicit. Preserve bounded authentication staleness and strict privacy/privilege checks; do not replace caching with expensive work or database reads on every request without evaluating load.
+- Coordinate shared work through atomic operations in shared infrastructure, with explicit ownership, bounded waits and crash recovery. Prefer coordination independent of Erlang membership when possible. Cluster locks are only valid when discovery and partition behavior are part of the supported deployment contract. Verify actual provider semantics before relying on S3 conditional writes, Redis leases or database locks; expired owners must not release another owner's claim or overwrite its result.
+- Make retried work idempotent and persist required work before acknowledging it. Supervision and graceful shutdown do not make in-memory work durable.
+- Validate relevant cross-replica and failure scenarios, and consider cold starts, simultaneous cache expiry, CPU cost, database-pool pressure and shared-backend limits. Single-replica tests and warm-cache throughput alone do not establish horizontal scalability.
+
 ## Development Setup
 **Prerequisites**
 - PostgreSQL 16
@@ -56,6 +64,7 @@ mise run dev
 - `mise run dev`
 - `mix phx.server`
 - `iex -S mix phx.server`
+- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` - Render the real error pages (`TuistWeb.ErrorHTML`, e.g. the marketing 404) instead of Plug.Debugger's stack-trace page. `debug_errors` is compiled into `TuistWeb.Endpoint`, so when flipping it run `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` first (or `mix compile --force`)
 
 **Testing**
 - `mix test`
@@ -63,6 +72,14 @@ mise run dev
 - `mix test test/path/to/test_file.exs:line_number_of_test`
 - `mix test --only tag_name`
 - The `:test` env compiles only the `"en"` locale by default so a cold `_build/test` (e.g. a fresh worktree) doesn't generate ex_cldr code for all ten locales. Tests that assert other locales' formatting/normalization are tagged `:locale` and excluded by default. Run `TUIST_DEV_ALL_LOCALES=1 mix test` to compile the full locale set and include them (this is what CI does).
+
+**Dependency Caching, Build and Test Insights**
+- `mix compile` and `mix test` cache supported compiled dependencies and report to the hosted `tuist/server` project through the local `tuist_ex` package. `tuist: [project: "tuist/server", cache: true]` enables caching; the compile alias bootstraps `tuist_ex` and exposes its dependencies without compiling the rest before `tuist.compile` restores cached artifacts. Native/custom compilation and local dependencies still compile through Mix, and unavailable authentication or caching falls back to normal compilation. The test alias keeps database creation, timezone setup, and migrations before `tuist.test`.
+- Authenticate locally with `mix tuist.login` (shares the Tuist CLI credentials). In CI, provide a project-scoped `TUIST_TOKEN` or authenticate with `mix tuist.login` using the CI provider's OIDC identity.
+- `TUIST_PROJECT` and `TUIST_URL` override the destination. Reporting failures never fail a build or test run; set `TUIST_DEBUG=1` to diagnose them.
+- `server.yml` builds once and runs four shards per ClickHouse variant. On a cold checkout, run `MIX_ENV=test mix compile --warnings-as-errors` before planning so the compile alias restores cached dependencies before Mix discovers the SDK task. Plan locally with `MIX_ENV=test TUIST_SHARD_REFERENCE=<unique-reference> mix tuist.test.build --shard-total 4`. On a cold shard, set `MIX_ENV=test`, `TUIST_SHARD_INDEX=<index>`, and `TUIST_SHARD_REFERENCE=<same-reference>`, then run `mix do deps.compile tuist_ex --include-children + tuist.test --prepare-only` so the cold bootstrap includes the SDK's gRPC/Protobuf dependencies. Run `mise run --no-deps db:reset` separately, then `mix tuist.test --no-download --warnings-as-errors`. Separate database setup prevents migration-module redefinition warnings in regression tests. Match `TUIST_DEV_ALL_LOCALES` across the build and shards; CI sets it to `1`. GitHub jobs reuse the build job's reference even when only failed jobs are rerun, and use distinct `--scheme` labels for each ClickHouse variant.
+- The hosted `tuist/server` project must be connected to the `tuist/tuist` GitHub repository for OpenID Connect credentials to authorize its reports and shard plans. If planning fails, separately named unprivileged jobs run both unsharded ClickHouse variants while the planner remains red.
+- Concurrent local shards need separate `MIX_BUILD_PATH`, `TUIST_SERVER_TEST_POSTGRES_DB`, `TUIST_SERVER_TEST_CLICKHOUSE_DB`, and `TUIST_SERVER_TEST_PORT` values. Put the database and port overrides after `mise exec -- env` so the development-instance setup does not overwrite them. Leave `MIX_TEST_PARTITION` unset when overriding database names: legacy cross-database migrations append it themselves. For isolated local setup, invoke `bash mise/tasks/db/reset.sh` under those overrides instead of nesting `mise run`, which reloads and replaces the database environment.
 
 **Code Quality**
 - `mix credo`
@@ -80,18 +97,51 @@ mise run dev
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
 
+## Marketing Site
+
+The marketing site lives under `lib/tuist_web/marketing/` and is a single design:
+
+- Controller pages render templates in `controllers/marketing_html/` (embedded by `TuistWeb.Marketing.MarketingHTML`); LiveView pages keep their template next to the module (`live/marketing_blog_live/blog.html.heex`); the shared navbar and footer live in `components/marketing_layout_components/` and are rendered by `TuistWeb.Marketing.MarketingComponents` from the marketing layout.
+- Styles: `assets/marketing/marketing.css` is the single entry, served as `bundle.css` and built together with `bundle.js` from `marketing.js`. Page styles live under `assets/marketing/css/routes/`, layout styles under `assets/marketing/css/layouts/`, tokens and the page skeleton under `assets/marketing/css/shared/`.
+- Page switches are cross-document view transitions with prefetch-on-hover (see the root layout); the navbar and footer hooks are mounted by `assets/marketing/js/lib/static-hooks.js` independently of LiveView, so they must not rely on LiveView-only hook APIs.
+- Social cards are designed PNGs under `priv/static/marketing/images/og/`, served by `TuistWeb.Marketing.SocialCards`; per-item pages (blog posts, changelog entries, case studies, newsletter issues) keep their generated images.
+
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
 - `mix.exs` - Elixir project configuration
 - `package.json` - JS dependencies (aube)
 - `config/` - Phoenix configuration
-- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox
+- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox, including `ORIGIN_APP/app_id` and the independent `ORIGIN_APP/private_key` signing key. Store the registered App ID beside its matching key; never hardcode an Origin private key.
 
 ## Testing Guidelines
 - Tests use ExUnit; files follow `test/**/module_name_test.exs`.
 - Tests run with a clean database.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
+
+## Metrics and Alerts
+- PromEx plugins listed in `server/lib/tuist/prom_ex.ex` export the `tuist_*`
+  metrics that `infra/helm/k8s-monitoring/alerts.md` documents rules for. Alert
+  rules are created by hand in Grafana; that document is not provisioning.
+- ClickHouse reads are measured by `Tuist.ClickHouseRepo.PromExPlugin` (count
+  and duration by outcome) and LiveView async loads by
+  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
+  a metric nothing queries has its labels aggregated away by Grafana Cloud.
+- `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
+  and connection-wait, execution, decoding, and total-duration histograms for
+  PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
+  web, build processing, test-result processing, and registry synchronization.
+  The Processor Service dashboard compares these workloads using the same
+  measurements; execution time includes the network round trip.
+
+## ClickHouse Query Parameters
+- ClickHouse rejects requests with more than 1,000 HTTP form fields, one per
+  query parameter. Every ClickHouse repository uses
+  `Tuist.ClickHouse.ArrayInParams`, which binds an integer or binary
+  `expr in ^list` (preloads included) as a single `Array(T)` parameter.
+- A single parameter is capped at 128 KiB (roughly 3,000 UUIDs). Chunk lists
+  whose size depends on data or on the client, as `all_by_uuid_chunks/2` in
+  `Tuist.Tests` does, and never build an `or` of per-row equalities.
 
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).
@@ -119,6 +169,7 @@ mise run dev
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
 - Assets pipeline: `server/assets/AGENTS.md`
@@ -126,3 +177,5 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
+
+- Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +66,9 @@ const (
 // unreachable region, which is strictly worse than the box staying up until its
 // replacement joins the pool.
 func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if fencedServing(instance) || (instance.Status.ReplicaRecovery != nil && instance.Status.ReplicaRecovery.Phase != "Verified") {
+		return nil
+	}
 	logger := log.FromContext(ctx)
 
 	pods := &corev1.PodList{}
@@ -113,7 +117,17 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		}
 	}
 
-	if !hasLandingNode(nodes.Items, leaving, instance) {
+	selector := nodeSelector(instance)
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); {
+	case apierrors.IsNotFound(err):
+		// Before the StatefulSet exists, use the same defaults as its renderer.
+	case err != nil:
+		return err
+	default:
+		selector = sts.Spec.Template.Spec.NodeSelector
+	}
+	if !hasLandingNode(nodes.Items, leaving, selector) {
 		logger.Info("cache pods sit on a node marked for evacuation but no other node can take them; leaving them in place",
 			"instance", instance.Name, "pods", len(stranded))
 		return nil
@@ -122,7 +136,7 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	// Anything already moved has to be serving AND caught up before the next
 	// replica goes, or the move that follows destroys the peer it would have
 	// refilled from.
-	if settling, reason := r.movesStillSettling(ctx, pods.Items, leaving); settling {
+	if settling, reason := r.movesStillSettling(ctx, instance, pods.Items, leaving); settling {
 		logger.V(1).Info("waiting for the previous move to settle before evacuating another replica",
 			"instance", instance.Name, "reason", reason)
 		return nil
@@ -131,7 +145,7 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	// Evacuation is a separate pass from the reconcile loop, so it takes its
 	// own sample of the pods it already listed rather than reusing the one the
 	// loop shares with the rollout-health aggregate.
-	primary, err := r.selectPrimaryPod(ctx, instance, pods.Items, r.sampleRuntimeStatuses(ctx, instance, pods.Items))
+	primary, _, err := r.selectPrimaryPod(ctx, instance, pods.Items, r.sampleRuntimeStatuses(ctx, instance, pods.Items))
 	if err != nil {
 		return err
 	}
@@ -163,6 +177,19 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 			"instance", instance.Name, "pod", next.Name)
 		return nil
 	}
+	// The same handover, for the other plane. The public peer Service is a
+	// second pin, on a different pod by design — the gateway is the complement
+	// of the primary — so a pod released by the client Service can still be the
+	// one carrying the region's cross-region replication.
+	released, err := r.peerPlaneReleased(ctx, instance, next.Name)
+	if err != nil {
+		return err
+	}
+	if !released {
+		logger.Info("holding evacuation until the gateway role moves off this pod",
+			"instance", instance.Name, "pod", next.Name)
+		return nil
+	}
 
 	if err := r.releaseNodeLocalVolume(ctx, next); err != nil {
 		return err
@@ -181,9 +208,49 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 // served, so an instance whose endpoint cannot be read holds rather than
 // proceeds.
 func (r *KuraInstanceReconciler) servedByAnotherPod(ctx context.Context, instance *kurav1alpha1.KuraInstance, excluding string) (bool, error) {
-	endpoints := &corev1.Endpoints{}
-	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: instance.Name}, endpoints); {
+	return r.endpointServedByAnotherPod(ctx, instance.Namespace, instance.Name, excluding)
+}
+
+// peerPlaneReleased reports whether the region's public peer plane has let go
+// of the named pod: the Service no longer selects it, and some other pod is a
+// ready endpoint behind it.
+//
+// The client Service gets this treatment already; the peer Service needs its
+// own because it names a different pod. Gateway eligibility demotes evacuating
+// pods in the same pass, so in the ordinary case the selector has already moved
+// by the time this runs and only the endpoint has to catch up — the same
+// selector-is-a-write, endpoint-is-a-fact distinction servedByAnotherPod rests
+// on. Deleting the pod the peer Service still names would cut the region's
+// cross-region replication until the next reconcile repinned it
+// (kura/docs/replication-design.md §7, INV-5).
+//
+// A region with no public peer plane has no pin to wait on.
+func (r *KuraInstanceReconciler) peerPlaneReleased(ctx context.Context, instance *kurav1alpha1.KuraInstance, excluding string) (bool, error) {
+	name := instancePublicPeerServiceName(instance)
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: name}, service); {
 	case apierrors.IsNotFound(err):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	if service.Spec.Selector[podNameLabel] == excluding {
+		return false, nil
+	}
+	return r.endpointServedByAnotherPod(ctx, instance.Namespace, name, excluding)
+}
+
+func (r *KuraInstanceReconciler) endpointServedByAnotherPod(ctx context.Context, namespace, name, excluding string) (bool, error) {
+	endpoints := &corev1.Endpoints{}
+	switch err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, endpoints); {
+	case apierrors.IsNotFound(err):
+		return false, nil
+	case apierrors.IsForbidden(err):
+		// A controller image can briefly overlap an older chart during an
+		// upgrade or rollback. Missing read permission must hold evacuation,
+		// not fail every instance reconcile before the chart catches up.
+		log.FromContext(ctx).Error(err, "holding pod handover because Endpoints cannot be read",
+			"reason", "endpoints_forbidden", "service", name, "namespace", namespace)
 		return false, nil
 	case err != nil:
 		return false, err
@@ -217,8 +284,8 @@ func podsOnNodes(pods []corev1.Pod, nodes map[string]bool) []*corev1.Pod {
 
 // hasLandingNode reports whether some node that is not being evacuated could
 // actually take this instance's pods: Ready, schedulable, and matching whatever
-// nodeSelector pins the instance to its region's pool.
-func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kurav1alpha1.KuraInstance) bool {
+// nodeSelector constrains the replacement, including its private network.
+func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, selector map[string]string) bool {
 	for i := range nodes {
 		node := &nodes[i]
 		if leaving[node.Name] || node.Spec.Unschedulable || node.DeletionTimestamp != nil {
@@ -228,7 +295,7 @@ func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kura
 			continue
 		}
 		matches := true
-		for key, value := range instance.Spec.NodeSelector {
+		for key, value := range selector {
 			if node.Labels[key] != value {
 				matches = false
 				break
@@ -263,11 +330,8 @@ func nodeReady(node *corev1.Node) bool {
 // When the runtime status cannot be read at all, this reports settling rather
 // than proceeding. An unreachable pod is not evidence that a move finished, and
 // guessing wrong costs the region's cache rather than a requeue.
-func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, pods []corev1.Pod, leaving map[string]bool) (bool, string) {
-	statusClient := r.RuntimeStatusClient
-	if statusClient == nil {
-		statusClient = defaultRuntimeStatusClient()
-	}
+func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, leaving map[string]bool) (bool, string) {
+	statusClient := r.runtimeStatusClient(instance)
 
 	for i := range pods {
 		pod := &pods[i]

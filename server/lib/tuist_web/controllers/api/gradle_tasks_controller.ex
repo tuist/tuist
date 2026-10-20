@@ -6,6 +6,7 @@ defmodule TuistWeb.API.GradleTasksController do
   alias Tuist.Gradle
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -45,7 +46,7 @@ defmodule TuistWeb.API.GradleTasksController do
         type: %Schema{
           title: "GradleTaskOutcome",
           type: :string,
-          enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"]
+          enum: ["local_hit", "remote_hit", "cache_hit", "up_to_date", "executed", "failed", "skipped", "no_source"]
         },
         description: "Filter by task outcome."
       ],
@@ -88,11 +89,21 @@ defmodule TuistWeb.API.GradleTasksController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The task ID."},
+                   execution: GradleExecution.task(),
                    task_path: %Schema{type: :string, description: "Task path (e.g., :app:compileKotlin)."},
                    task_type: %Schema{type: :string, nullable: true, description: "Task type class name."},
                    outcome: %Schema{
                      type: :string,
-                     enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"],
+                     enum: [
+                       "local_hit",
+                       "remote_hit",
+                       "cache_hit",
+                       "up_to_date",
+                       "executed",
+                       "failed",
+                       "skipped",
+                       "no_source"
+                     ],
                      description: "Task outcome."
                    },
                    cacheable: %Schema{type: :boolean, description: "Whether the task is cacheable."},
@@ -130,7 +141,7 @@ defmodule TuistWeb.API.GradleTasksController do
         } = conn,
         _params
       ) do
-    case Gradle.get_build(build_id) do
+    case Gradle.get_build(build_id, project_id: selected_project.id) do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
@@ -154,19 +165,24 @@ defmodule TuistWeb.API.GradleTasksController do
           end
 
         {tasks, meta} =
-          Gradle.list_tasks(build_id, %{
-            filters: filters,
-            order_by: [:duration_ms],
-            order_directions: [:desc],
-            page: page,
-            page_size: page_size
-          })
+          Gradle.list_tasks(
+            build_id,
+            %{
+              filters: filters,
+              order_by: [:duration_ms],
+              order_directions: [:desc],
+              page: page,
+              page_size: page_size
+            },
+            selected_project.id
+          )
 
         json(conn, %{
           tasks:
             Enum.map(tasks, fn task ->
               %{
                 id: task.id,
+                execution: Gradle.task_execution_data(task),
                 task_path: task.task_path,
                 task_type: task.task_type,
                 outcome: task.outcome,

@@ -1,4 +1,5 @@
 #accept-invitation,
+#integration-installation,
 #login,
 #okta-login,
 #sso-login,
@@ -7,6 +8,7 @@
 #confirmation,
 #confirmation-instructions,
 #agent-auth,
+#sso-link,
 #forgot-password,
 #reset-password,
 #create-project,
@@ -69,6 +71,7 @@
         z-index: 103;
         width: 50px;
         height: 50px;
+        color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       }
 
       & > [data-part="header"] {
@@ -237,7 +240,83 @@
   }
 }
 
-#agent-auth {
+#integration-installation {
+  & [data-part="frame"] {
+    width: min(100%, 470px);
+  }
+
+  & [data-part="content"] {
+    width: 100%;
+  }
+
+  & [data-part="title"] {
+    text-align: center;
+  }
+
+  & [data-part="organizations"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-2);
+    width: 100%;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  & [data-part="organization"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    box-shadow: var(--noora-border-light-default);
+    border: 0;
+    border-radius: var(--noora-radius-6);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5);
+    width: 100%;
+    color: var(--noora-surface-label-primary);
+    text-align: left;
+
+    &:hover {
+      background: var(--noora-surface-background-secondary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--noora-purple-500);
+      outline-offset: -2px;
+    }
+
+    & > svg {
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+
+  & [data-part="organization-details"] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    min-width: 0;
+  }
+
+  & [data-part="organization-name"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="organization-type"],
+  & [data-part="empty-state"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}
+
+#agent-auth,
+#sso-link {
   & [data-part="wrapper"] {
     display: flex;
     justify-content: center;

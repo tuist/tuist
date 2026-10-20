@@ -33,7 +33,28 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var graph = graph
         let graphTraverser = GraphTraverser(graph: graph)
-        let externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        var externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        let testDestinations = LocalPackageTestDestinationResolver().resolve(
+            graphTraverser: graphTraverser,
+            productionDestinations: externalTargetSupportedDestinations,
+            graphBeforeTestFocus: environment.graphBeforeTestFocus
+        )
+        let narrowedTests = testDestinations.compactMap { test, destinations -> GraphTarget? in
+            guard !destinations.isEmpty else { return nil }
+            var target = test.target
+            target.destinations = destinations
+            return GraphTarget(path: test.path, target: target, project: test.project)
+        }
+        if !narrowedTests.isEmpty {
+            // Only tests with inferred platforms may extend the production traversal. Orphan
+            // tests must not propagate their broad declared destinations back into runtime targets.
+            // Preserve production destinations when tests connect dependencies with disjoint platforms.
+            let productionDestinations = externalTargetSupportedDestinations
+            externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations(
+                including: Set(narrowedTests)
+            ).merging(productionDestinations) { _, production in production }
+        }
+        externalTargetSupportedDestinations.merge(testDestinations) { _, testDestinations in testDestinations }
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -60,32 +81,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         guard case .external = project.type else { return target }
 
-        var targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
-
-        // Orphan local SPM test targets aren't reached by the top-down traversal. Union
-        // destinations of the test's linkable deps — non-linkable deps (macros, bundles)
-        // don't constrain runtime platforms.
-        if targetFilteredDestinations == nil,
-           target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
-        {
-            let linkableDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
-                guard case let .target(name, _, dependencyCondition) = dep,
-                      let depTarget = project.targets[name],
-                      depTarget.isLinkable()
-                else { return nil }
-                let depGraphTarget = GraphTarget(path: project.path, target: depTarget, project: project)
-                guard let depDestinations = externalTargetSupportedDestinations[depGraphTarget] else { return nil }
-
-                return orphanTestDependencyDestinations(
-                    depDestinations,
-                    target: target,
-                    dependencyCondition: dependencyCondition
-                )
-            }
-            if let first = linkableDestinations.first {
-                targetFilteredDestinations = linkableDestinations.dropFirst().reduce(first) { $0.union($1) }
-            }
-        }
+        let targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
 
         if let targetFilteredDestinations {
             target.destinations = targetFilteredDestinations
@@ -103,28 +99,5 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             )
         }
         return target
-    }
-
-    private func orphanTestDependencyDestinations(
-        _ destinations: Set<Destination>,
-        target: Target,
-        dependencyCondition: PlatformCondition?
-    ) -> Set<Destination>? {
-        let inheritedDestinations = destinations.intersection(target.destinations)
-
-        guard let dependencyCondition,
-              let targetCondition = PlatformCondition.when(target.dependencyPlatformFilters)
-        else {
-            return inheritedDestinations
-        }
-
-        switch targetCondition.intersection(dependencyCondition) {
-        case .incompatible:
-            return nil
-        case let .condition(condition):
-            guard let condition else { return inheritedDestinations }
-            let allowedPlatformFilters = condition.platformFilters
-            return inheritedDestinations.filter { allowedPlatformFilters.contains($0.platformFilter) }
-        }
     }
 }

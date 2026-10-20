@@ -7,6 +7,7 @@ import Foundation
 import Path
 import TuistCAS
 import TuistCASAnalytics
+import TuistConstants
 import TuistEnvironment
 import TuistLoader
 import TuistLogging
@@ -28,8 +29,8 @@ enum CacheProxyCommandServiceError: Equatable, LocalizedError {
 }
 
 /// Launches the per-machine Rust cache proxy (`tuist-cas-proxy`). Resolves the
-/// kura REAPI endpoint, then hands off via `execv` so launchd manages the proxy
-/// process directly — there is no idle Swift parent to forward signals through.
+/// kura REAPI endpoint, then replaces this process with the proxy so launchd
+/// manages it directly. There is no idle Swift parent to forward signals through.
 struct CacheProxyCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
@@ -64,14 +65,20 @@ struct CacheProxyCommandService {
             throw CacheProxyCommandServiceError.proxyBinaryMissing
         }
         let tuistPath = try await resourceLocator.cliPath()
-        let endpoint = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
 
         // Hand the proxy its config via the environment. The proxy fetches and
-        // refreshes its bearer itself by shelling out to `tuist auth token`
+        // refreshes project-scoped bearers through `tuist cache config --json`
         // (TUIST_CAS_TUIST_BIN), so no token is written here.
-        setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint.absoluteString, 1)
+        setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint?.absoluteString ?? "", 1)
         setenv("TUIST_CAS_SERVER_URL", serverURL.absoluteString, 1)
         setenv("TUIST_CAS_TUIST_BIN", tuistPath.pathString, 1)
+        setenv("TUIST_CAS_TUIST_VERSION", Constants.version, 1)
+        if let plugin = try await resourceLocator.casPlugin() {
+            setenv("TUIST_CAS_BUNDLED_PLUGIN", plugin.pathString, 1)
+        } else {
+            unsetenv("TUIST_CAS_BUNDLED_PLUGIN")
+        }
         // The proxy records per-node transfer analytics into this db, which the
         // build-report upload ships to the server — the same path and schema the
         // Swift CASAnalyticsDatabase defines, so the upload + server pipeline is unchanged.
@@ -85,12 +92,96 @@ struct CacheProxyCommandService {
         // racing to create a divergent one.
         try? await CASAnalyticsDatabase().migrate()
 
-        Logger.current.debug("Launching cache proxy at \(proxyPath.pathString) for endpoint \(endpoint.absoluteString)")
+        Logger.current.debug(
+            "Launching cache proxy at \(proxyPath.pathString) for endpoint \(endpoint?.absoluteString ?? "(none yet)")"
+        )
 
-        let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(proxyPath.pathString), nil]
-        execv(proxyPath.pathString, arguments)
-        // execv only returns on failure.
-        throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(errno)))
+        try Self.exec(executable: proxyPath.pathString)
+    }
+
+    /// Replaces this process with `executable`, which starts with nothing blocked
+    /// and every signal at its default action.
+    ///
+    /// A plain `execv` carries over the calling thread's signal mask and every
+    /// ignored signal. This runs on a Swift concurrency thread, which blocks
+    /// SIGTERM, so the proxy would ignore the SIGTERM `launchctl bootout` sends
+    /// and leave only when launchd kills it at the job's exit timeout. Until then
+    /// its label is still in the domain, and `tuist setup cache` cannot bootstrap
+    /// the agent that replaces it.
+    static func exec(executable: String) throws -> Never {
+        #if canImport(Darwin)
+            let result = spawnWithDefaultSignals(
+                executable: executable,
+                arguments: [],
+                flags: POSIX_SPAWN_SETEXEC,
+                processIdentifier: nil
+            )
+        #else
+            var unblocked = sigset_t()
+            sigemptyset(&unblocked)
+            pthread_sigmask(SIG_SETMASK, &unblocked, nil)
+            for signal in Int32(1) ..< 32 where signal != SIGKILL && signal != SIGSTOP {
+                Glibc.signal(signal, SIG_DFL)
+            }
+            let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(executable), nil]
+            execv(executable, arguments)
+            let result = errno
+        #endif
+        throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(result)))
+    }
+
+    #if canImport(Darwin)
+        /// Starts `executable` as a child process with the signal state `exec` gives the proxy.
+        static func spawn(executable: String, arguments: [String]) throws -> pid_t {
+            var processIdentifier: pid_t = 0
+            let result = spawnWithDefaultSignals(
+                executable: executable,
+                arguments: arguments,
+                flags: 0,
+                processIdentifier: &processIdentifier
+            )
+            guard result == 0 else {
+                throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(result)))
+            }
+            return processIdentifier
+        }
+
+        private static func spawnWithDefaultSignals(
+            executable: String,
+            arguments: [String],
+            flags: Int32,
+            processIdentifier: UnsafeMutablePointer<pid_t>?
+        ) -> Int32 {
+            var attributes: posix_spawnattr_t?
+            posix_spawnattr_init(&attributes)
+            defer { posix_spawnattr_destroy(&attributes) }
+
+            var unblocked = sigset_t()
+            sigemptyset(&unblocked)
+            posix_spawnattr_setsigmask(&attributes, &unblocked)
+            var defaulted = sigset_t()
+            sigfillset(&defaulted)
+            sigdelset(&defaulted, SIGKILL)
+            sigdelset(&defaulted, SIGSTOP)
+            posix_spawnattr_setsigdefault(&attributes, &defaulted)
+            posix_spawnattr_setflags(&attributes, Int16(flags | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF))
+
+            let cArguments = ([executable] + arguments).map { strdup($0) }
+            defer { cArguments.forEach { free($0) } }
+            return posix_spawn(processIdentifier, executable, nil, &attributes, cArguments + [nil], environ)
+        }
+    #endif
+
+    /// Start local-only when discovery returns no cache endpoint.
+    /// Hosted cold caches wake on their first real request through the stable hostname.
+    func remoteEndpoint(serverURL: URL, accountHandle: String?) async throws -> URL? {
+        do {
+            return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        } catch CacheURLStoreError.noEndpointsAvailable {
+            Logger.current
+                .warning("No remote cache endpoint is available. Starting the cache proxy with local storage only.")
+            return nil
+        }
     }
 
     private func resolveServerURL(url: String?) throws -> URL {

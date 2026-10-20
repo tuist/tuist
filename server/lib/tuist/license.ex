@@ -48,14 +48,56 @@ defmodule Tuist.License do
 
   defp fetch_license do
     cond do
-      Tuist.Environment.license_certificate_base64() ->
-        resolve_certificate()
+      encoded = Tuist.Environment.license_certificate_base64() ->
+        resolve_certificate(ed25519_verify_keys(), certificate(encoded))
 
-      key = Tuist.Environment.license_key() ->
-        resolve_license(key)
+      value = Tuist.Environment.license_key() ->
+        case air_gapped_certificate(value) do
+          {:ok, certificate} -> resolve_certificate(ed25519_verify_keys(), certificate)
+          :error -> resolve_license(value)
+        end
 
       true ->
         {:error, :license_not_found}
+    end
+  end
+
+  # The value behind TUIST_LICENSE_KEY, TUIST_LICENSE or the license secret is
+  # either an online key or an air-gapped certificate. A certificate arrives bare
+  # or PEM-armored, and either as is or wrapped in one more layer of base64, which
+  # is the shape TUIST_LICENSE_CERTIFICATE_BASE64 has always carried. Anything
+  # else is an online license key.
+  defp air_gapped_certificate(value) when is_binary(value) do
+    candidates =
+      case Base.decode64(value, ignore: :whitespace) do
+        {:ok, decoded} -> [value, decoded]
+        :error -> [value]
+      end
+
+    Enum.find_value(candidates, :error, fn candidate ->
+      if certificate?(candidate), do: {:ok, candidate}
+    end)
+  end
+
+  defp air_gapped_certificate(_), do: :error
+
+  defp certificate?(candidate) do
+    if String.contains?(candidate, "-----BEGIN") do
+      true
+    else
+      stripped =
+        candidate
+        |> String.replace(~r/-----.*?-----/s, "")
+        |> String.replace(~r/\s/, "")
+        |> String.trim()
+
+      with {:ok, decoded} <- Base.decode64(stripped),
+           {:ok, payload} <- JSON.decode(decoded) do
+        match?(%{"enc" => _, "sig" => _, "alg" => _}, payload) or
+          match?(%{"data" => _, "sig" => _, "alg" => _}, payload)
+      else
+        _ -> false
+      end
     end
   end
 
@@ -64,8 +106,13 @@ defmodule Tuist.License do
     "58f8d43c65b5a3e200e8ef6ecefa6b700432124527edf50a5b5b0577242c51fd"
   end
 
+  # Ed25519 verify key for the air-gapped license files issued by Atlas
+  def atlas_ed25519_verify_key do
+    "8811b8ea16b76b3bc64bdd668d8843701ef45b7ab045d82ca2ac9ee3df5ad013"
+  end
+
   def ed25519_verify_keys do
-    [Tuist.Environment.license_verify_key(), ed25519_verify_key()]
+    [Tuist.Environment.license_verify_key(), atlas_ed25519_verify_key(), ed25519_verify_key()]
     |> Enum.filter(&(is_binary(&1) and &1 != ""))
     |> Enum.uniq()
   end
@@ -213,7 +260,7 @@ defmodule Tuist.License do
           :ok
 
         {:error, :license_not_found} ->
-          raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
+          raise "The license exposed through the environment variable TUIST_LICENSE (or the legacy TUIST_LICENSE_KEY / TUIST_LICENSE_CERTIFICATE_BASE64) is missing."
 
         {:ok, nil} ->
           raise "The license key is invalid or does not exist."

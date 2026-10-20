@@ -7,6 +7,10 @@ private struct TestsCacheHashesKey: MapperEnvironmentKey {
     static var defaultValue: [Target: String] = [:]
 }
 
+private struct GraphBeforeTestFocusKey: MapperEnvironmentKey {
+    static var defaultValue: Graph?
+}
+
 private struct InitialGraphKey: MapperEnvironmentKey {
     static var defaultValue: Graph?
 }
@@ -24,6 +28,12 @@ private struct TargetTestCacheItemsKey: MapperEnvironmentKey {
 }
 
 extension MapperEnvironment {
+    /// Production consumers needed to infer local package test platforms after test focus removes those consumers.
+    public var graphBeforeTestFocus: Graph? {
+        get { self[GraphBeforeTestFocusKey.self] }
+        set { self[GraphBeforeTestFocusKey.self] = newValue }
+    }
+
     /// Target hashes for the `test` action.
     public var targetTestHashes: [AbsolutePath: [String: String]] {
         get { self[TargetTestHashesKey.self] }

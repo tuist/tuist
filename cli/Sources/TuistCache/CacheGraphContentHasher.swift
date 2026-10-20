@@ -16,7 +16,8 @@ public protocol CacheGraphContentHashing {
         configuration: String?,
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
-        destination: SimulatorDeviceAndRuntime?
+        destination: SimulatorDeviceAndRuntime?,
+        coverage: BinaryCacheCoverage
     ) async throws -> [GraphTarget: TargetContentHash]
 }
 
@@ -35,9 +36,15 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let fileSystem: FileSysteming
 
+    /// The dimension of the key of a repository-owned target when a run collects coverage: the binaries
+    /// warmed with coverage sit beside the plain ones, and a run with coverage on never reads the latter.
+    /// Remote packages keep the plain key, since coverage is never kept for code outside the repository.
+    public static let coverageDimension = "coverage"
+
     public init(
         contentHasher: ContentHashing = ContentHasher()
     ) {
+        let contentHasher = CachedContentHasher(contentHasher: contentHasher)
         self.init(
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             contentHasher: contentHasher,
@@ -66,7 +73,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         configuration: String?,
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
-        destination: SimulatorDeviceAndRuntime?
+        destination: SimulatorDeviceAndRuntime?,
+        coverage: BinaryCacheCoverage
     ) async throws -> [GraphTarget: TargetContentHash] {
         // Hashes depend on the resolved configuration, never on whether it was named explicitly, came
         // from the manifest, or fell back to the first debug configuration. A cache filled by
@@ -88,7 +96,18 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         }
 
         let version = versionFetcher.version()
-        let hashes = try await graphContentHasher.contentHashes(
+        // Xcode releases can ship the same compiler with different SDKs, and binaries built against one
+        // SDK don't import under another, so the Xcode build is hashed next to the compiler version.
+        let additionalStrings = [
+            resolvedConfiguration,
+            try await SwiftVersionProvider.current.swiftlangVersion(),
+            try await XcodeController.current.selectedBuildVersion(),
+            version.rawValue,
+        ]
+        let targetAdditionalStrings = targetAdditionalStrings(
+            additionalStrings, coverage: coverage, configuration: resolvedConfiguration, graph: graph
+        )
+        var hashes = try await graphContentHasher.contentHashes(
             for: hashingGraph,
             include: {
                 isGraphTargetHashable(
@@ -97,12 +116,18 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 )
             },
             destination: destination,
-            additionalStrings: [
-                resolvedConfiguration,
-                try await SwiftVersionProvider.current.swiftlangVersion(),
-                version.rawValue,
-            ]
+            additionalStrings: targetAdditionalStrings
         )
+
+        if !Environment.current.isLegacyModuleCacheEnabled {
+            let fingerprints = try await BinaryCacheFingerprintHasher(contentHasher: contentHasher).fingerprints(
+                graph: hashingGraph, targets: Set(hashes.keys),
+                additionalStrings: targetAdditionalStrings, targetHashes: hashes
+            )
+            for (target, values) in fingerprints {
+                hashes[target]?.binaryCacheFingerprints = values
+            }
+        }
 
         return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in
             guard let project = graph.projects[target.path],
@@ -137,6 +162,28 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             return project
         }
         return hashingGraph
+    }
+
+    /// Release configurations are never warmed with coverage, so their keys stay plain and a run with
+    /// coverage on reads the plain binaries, as it did before the dimension existed.
+    private func targetAdditionalStrings(
+        _ additionalStrings: [String],
+        coverage: BinaryCacheCoverage,
+        configuration: String,
+        graph: Graph
+    ) -> (GraphTarget) -> [String] {
+        let isDebug = graph.projects.values
+            .flatMap(\.settings.configurations.keys)
+            .first { $0.name.caseInsensitiveCompare(configuration) == .orderedSame }?
+            .variant == .debug
+        let instrumented = isDebug && coverage.isOn(in: graph)
+        // A target without an external hash is keyed as the repository's code, the rule the server judges a
+        // run's coverage by (`external_hash` empty). It also admits a package referenced by path from outside
+        // the checkout and a local git clone, whose coverage the export drops; that only costs instrumentation.
+        return { target in
+            guard instrumented, target.project.externalHash == nil else { return additionalStrings }
+            return additionalStrings + [Self.coverageDimension]
+        }
     }
 
     private func settings(_ settings: Settings, scopedTo buildConfiguration: BuildConfiguration) -> Settings {

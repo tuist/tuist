@@ -29,7 +29,7 @@ extension XcodeGraph.FileElement {
                     excluded.insert(recursiveGlobRoot)
                     continue
                 }
-                let globs = try await fileSystem.glob(
+                let globs = try await fileSystem.manifestGlob(
                     directory: .root,
                     include: [String(absolute.pathString.dropFirst())]
                 )

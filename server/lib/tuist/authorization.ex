@@ -32,6 +32,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a run.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of a project to read a run.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows the authenticated project to read the run if it matches the project whose run is being read.")
 
       allow([:authenticated_as_project, :projects_match])
@@ -89,6 +92,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a bundle.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of a project to read a bundle.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows the authenticated project to read the bundle if it matches the project whose bundle is being read.")
 
       allow([:authenticated_as_project, :projects_match])
@@ -134,6 +140,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to read the account cache.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of an account to read the account cache.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows an account token with account:cache:read or account:cache:write scope to read account cache.")
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:read"])
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:write"])
@@ -145,6 +154,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to discover its cache endpoints.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to discover its cache endpoints.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows an authenticated project to discover cache endpoints for its own account.")
       allow([:authenticated_as_project, :accounts_match])
@@ -223,6 +235,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project to read a preview.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of a project to read a preview.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows the authenticated project to read the preview if it matches the project whose preview is being read.")
 
       allow([:authenticated_as_project, :projects_match])
@@ -281,6 +296,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of a project's account to read the project cache.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of a project's account to read the project cache.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :projects_match])
@@ -313,6 +331,18 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to create a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows an account token with project:admin:write scope and access to all of the account's projects to create a project in its account."
+      )
+
+      allow([
+        :authenticated_as_account,
+        :accounts_match,
+        :covers_all_projects,
+        issuer_role: :user,
+        scopes_permit: "project:admin:write"
+      ])
     end
 
     action :read do
@@ -322,21 +352,43 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to read projects.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
 
-      desc("Allows an account token with project:admin:read scope to read projects.")
+      desc("Allows an account token with project:admin:read or project:admin:write scope to read projects.")
       allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:admin:write"])
     end
 
     action :update do
       desc("Allows the admin of an account to update a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:admin:write scope to update a project it can access.")
+
+      allow([
+        :authenticated_as_account,
+        :project_access_permitted,
+        issuer_role: :admin,
+        scopes_permit: "project:admin:write"
+      ])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:admin:write scope to delete a project it can access.")
+
+      allow([
+        :authenticated_as_account,
+        :project_access_permitted,
+        issuer_role: :admin,
+        scopes_permit: "project:admin:write"
+      ])
     end
   end
 
@@ -350,6 +402,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read private project dashboards.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to read private project dashboards.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows users with ops access to read any dashboard.")
       allow([:authenticated_as_user, :ops_access])
@@ -372,6 +427,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read its dashboards.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to read its dashboards.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows users with ops access to read any account dashboard.")
       allow([:authenticated_as_user, :ops_access])
@@ -399,6 +457,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to read organization token usage.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of an account to read organization token usage.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows users with ops access to read any organization token usage.")
       allow([:authenticated_as_user, :ops_access])
     end
@@ -412,6 +473,9 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to read projects.")
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of an account to read projects.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
 
@@ -422,6 +486,9 @@ defmodule Tuist.Authorization do
 
   object :runners do
     action :read do
+      desc("Allows anyone to read runner state for a public account.")
+      allow(:public_account)
+
       desc("Allows users of an account to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, user_role: :user])
 
@@ -429,8 +496,38 @@ defmodule Tuist.Authorization do
 
       allow([:authenticated_as_user, user_role: :admin])
 
+      desc("Allows read-only viewers of an account to read runner jobs, workflows, and live runner state.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
       desc("Allows users with ops access to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with account:runners:read or account:runners:write scope to read runner state.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:write"])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to manage its runner profiles and clear its runner volumes.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to manage any account's runner profiles and runner volumes.")
+      allow([:authenticated_as_user, :ops_write_access])
+
+      desc("Allows an account token with account:runners:write scope to manage runner profiles and clear runner volumes.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:write"])
+    end
+
+    # Attaching a shell or a VNC session to a running VM executes commands on
+    # it and reaches whatever secrets the job was given, so it is a separate
+    # permission from reading runner state and is deliberately withheld from
+    # read-only viewers.
+    action :interactive_access do
+      desc("Allows users of an account to attach an interactive shell or VNC session to its runners.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to attach an interactive shell or VNC session to its runners.")
+      allow([:authenticated_as_user, user_role: :admin])
     end
   end
 
@@ -441,6 +538,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to read organization info.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to read organization info.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows users with ops access to read any organization info.")
       allow([:authenticated_as_user, :ops_access])
@@ -522,6 +622,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to access private project URLs.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to access private project URLs.")
+      allow([:authenticated_as_user, user_role: :viewer])
     end
   end
 
@@ -548,6 +651,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of a project to read automation alerts.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of a project to read automation alerts.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows users with ops access to read any automation alerts.")
       allow([:authenticated_as_user, :ops_access])
@@ -591,6 +697,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of a project to read tests.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of a project to read tests.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows the authenticated project to read tests if it matches the project.")
       allow([:authenticated_as_project, :projects_match])
@@ -642,6 +751,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of a project to read builds.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of a project to read builds.")
+      allow([:authenticated_as_user, user_role: :viewer])
 
       desc("Allows the authenticated project to read builds if it matches the project.")
       allow([:authenticated_as_project, :projects_match])

@@ -40,6 +40,10 @@ defmodule TuistWeb.Webhooks.GradleCacheController do
           case Map.get(projects_map, full_handle) do
             %{id: project_id} ->
               %{
+                # Preserved unchanged from the producer so a retried batch
+                # dedupes at INSERT time; nil for a pre-event_id Kura.
+                event_id: optional_string(event, "event_id"),
+                observed_at_ms: optional_integer(event, "observed_at_ms"),
                 action: action,
                 size: size,
                 cache_key: cache_key,
@@ -73,5 +77,19 @@ defmodule TuistWeb.Webhooks.GradleCacheController do
     |> put_status(:bad_request)
     |> json(%{error: "Invalid payload"})
     |> halt()
+  end
+
+  defp optional_string(event, key) do
+    case Map.get(event, key) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp optional_integer(event, key) do
+    case Map.get(event, key) do
+      value when is_integer(value) and value >= 0 -> value
+      _ -> nil
+    end
   end
 end

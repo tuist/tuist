@@ -1,0 +1,21 @@
+# MOVED — this cluster is now reconciled by Flux from tuist/tuist.
+#
+# The atlas-production Cluster CR lives at:
+#
+#   tuist/tuist  infra/k8s/clusters/workloads/atlas/cluster.yaml
+#
+# Change the cluster's shape (replicas, machine types, k8s version, pools)
+# by opening a PR there. Flux on the management cluster reconciles it on an
+# interval; a PR touching that path also gets a server-side `flux diff`
+# posted showing the live-vs-desired delta before merge.
+#
+# Why this file is a stub rather than a manifest: nothing ever applied it to
+# the management cluster, so it had silently drifted from the live object
+# (it was missing `disableControlPlaneKubeletLocalMode` and
+# `statefulRaidLevel`, both of which the live cluster carries). Leaving a
+# real manifest here would be a second, wrong source of truth that looks
+# authoritative and does nothing — exactly the drift-blindness the move to
+# Flux exists to remove. Kept as a pointer rather than deleted so this path
+# still answers "where is my cluster defined?".
+#
+# See tuist/tuist  infra/flux/mgmt/README.md and hive/specs/72.

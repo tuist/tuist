@@ -1,8 +1,8 @@
-import Command
 import Foundation
 import Mockable
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 
 public enum SwiftVersionProviderError: FatalError, Equatable {
     case parseSwiftVersion(String)

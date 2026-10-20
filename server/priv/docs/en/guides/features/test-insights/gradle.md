@@ -7,12 +7,6 @@
 ---
 # Gradle test insights {#gradle-test-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
-
-
 Tuist's Gradle plugin automatically uploads test results after each test task execution, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 
 Test insights are collected automatically when the Tuist Gradle plugin is applied — no additional configuration is needed beyond the initial plugin setup.
@@ -41,3 +35,12 @@ tuist {
     uploadInBackground = false // always upload in the foreground
 }
 ```
+
+### Git history {#git-history}
+
+On CI, the plugin also uploads the commit history of the checkout when it reports a test run: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The plugin reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). It doesn't fetch history.
+
+| Variable | Effect |
+| --- | --- |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |

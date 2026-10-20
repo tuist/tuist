@@ -54,6 +54,18 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       "files" => [],
       "cacheable_tasks" => [],
       "cas_outputs" => [],
+      "build_steps" => [
+        %{
+          "event_id" => 1,
+          "title" => "Compile App.swift",
+          "start_ms" => 100.0,
+          "duration_ms" => 200.0,
+          "target" => "App",
+          "project" => "Workspace",
+          "category" => "swiftCompilation",
+          "status" => "success"
+        }
+      ],
       "machine_metrics" => []
     }
   end
@@ -95,9 +107,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, :done}
       end)
 
-      expect(BuildProcessor, :process_build, fn path, true ->
+      expect(BuildProcessor, :process_build, fn path, true, consume ->
         assert String.ends_with?(path, ".zip")
-        {:ok, parsed_data()}
+        consume.(parsed_data())
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -105,6 +117,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.project_id == project.id
         assert attrs.duration == 1200
         assert attrs.status == "success"
+
+        assert [%{event_id: 1, title: "Compile App.swift", start_ms: 100.0, duration_ms: 200.0}] =
+                 Enum.to_list(attrs.build_steps)
+
         assert attrs.machine_metrics == []
         {:ok, %{id: build.id}}
       end)
@@ -120,8 +136,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _path, true ->
-        {:ok, parsed_data_with_machine_metrics()}
+      expect(BuildProcessor, :process_build, fn _path, true, consume ->
+        consume.(parsed_data_with_machine_metrics())
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -183,7 +199,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _path, _ ->
+      expect(BuildProcessor, :process_build, fn _path, _, _consume ->
         {:error, "NIF not loaded"}
       end)
 
@@ -230,6 +246,27 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert {:discard, :project_not_found} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999")))
     end
+
+    test "discards the job without retrying when the archive is corrupt", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(BuildProcessor, :process_build, fn _path, _, _consume ->
+        {:error, :corrupt_archive}
+      end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.status == "failed_processing"
+        assert attrs.id == build.id
+        {:ok, %{id: build.id}}
+      end)
+
+      assert {:discard, :corrupt_archive} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
+    end
   end
 
   describe "perform/1 VCS comment" do
@@ -239,7 +276,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
 
       vcs_params = %{
@@ -267,7 +304,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
@@ -282,7 +319,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
+      expect(BuildProcessor, :process_build, fn _, _, _consume ->
         {:error, "boom"}
       end)
 
@@ -331,7 +368,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "is_ci" => true,
         "scheme" => "App",
         "git_branch" => "main",
-        "git_commit_sha" => "abc123"
+        "git_commit_sha" => "abc123",
+        "actor_account_id" => account.id,
+        "claimed_actor_id" => "developer-123",
+        "submission_auth" => "token"
       }
 
       expect(Builds, :get_build, fn ^non_existent_build_id, _opts -> {:error, :not_found} end)
@@ -346,6 +386,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.scheme == "App"
         assert attrs.git_branch == "main"
         assert attrs.git_commit_sha == "abc123"
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
         {:ok, %{id: non_existent_build_id}}
       end)
 
@@ -365,7 +408,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
 
       expect(Builds, :create_build, fn attrs ->
         assert attrs.id == build.id
@@ -379,6 +422,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
+    test "preserves actor fields but strips a loaded actor association", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      attributed_build = %{
+        build
+        | inserted_at: NaiveDateTime.utc_now(),
+          updated_at: NaiveDateTime.utc_now(),
+          actor_account_id: account.id,
+          claimed_actor_id: "developer-123",
+          submission_auth: "token",
+          actor_account: %Tuist.Accounts.Account{id: account.id}
+      }
+
+      expect(Builds, :get_build, fn _, _ -> {:ok, attributed_build} end)
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
+        refute Map.has_key?(attrs, :actor_account)
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok = ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "does not carry over stale cacheable task counts from existing build", %{
@@ -419,8 +492,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, parsed_data_with_cache}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(parsed_data_with_cache)
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -444,8 +517,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, data_without_metrics}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(data_without_metrics)
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -466,8 +539,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, Map.put(parsed_data(), "targets", [])}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(Map.put(parsed_data(), "targets", []))
       end)
 
       assert :ok ==
@@ -515,8 +588,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, Map.put(parsed_data(), "targets", [])}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(Map.put(parsed_data(), "targets", []))
       end)
 
       assert :ok ==
@@ -553,7 +626,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, :done}
       end)
 
-      expect(BuildProcessor, :process_build, 2, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, 2, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, 2, fn _attrs -> {:ok, %{id: build.id}} end)
 
       job = oban_job(job_args(build.id, account.id, project.id))

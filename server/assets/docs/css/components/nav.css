@@ -23,8 +23,9 @@
       text-decoration: none;
 
       & > [data-part="logo"] {
-        width: 40px;
-        height: 40px;
+        width: 26px;
+        height: 26px;
+        color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       }
 
       & > [data-part="logo-divider"] {

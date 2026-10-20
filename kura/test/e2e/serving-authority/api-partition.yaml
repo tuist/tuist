@@ -1,0 +1,13 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: spec98-api-partition
+  namespace: kura-spec98
+spec:
+  endpointSelector:
+    matchLabels:
+      spec98.tuist.dev/api-partition: "true"
+  egress:
+    - toEntities: [all]
+  egressDeny:
+    - toEntities: [kube-apiserver]

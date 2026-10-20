@@ -30,7 +30,7 @@ defmodule Noora.ButtonGroup do
     """
   end
 
-  attr(:label, :string, required: true, doc: "The label of the button group item")
+  attr(:label, :string, default: nil, doc: "The label of the button group item. Not required when `icon_only` is set.")
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")

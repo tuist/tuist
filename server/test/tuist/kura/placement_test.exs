@@ -1,0 +1,975 @@
+defmodule Tuist.Kura.PlacementTest do
+  use ExUnit.Case, async: true
+
+  alias Tuist.Kura.Placement
+
+  @today ~D[2026-08-26]
+  @permitted ["us-east", "us-west", "eu-west", "ap-southeast"]
+
+  describe "relocate" do
+    test "moves the primary once another region has durably carried the majority" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5)
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "majority_of_runs_moved"
+      assert evidence["share"] >= 0.6
+      # The account built on all 30 days; the rung reads the last 14 of them.
+      assert evidence["active_days"] == 14
+    end
+
+    test "leaves an account alone below the majority" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 12) ++ daily("US-VA", 30, 12)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "leaves a quiet account alone however lopsided its traffic is" do
+      # The volume floor is what stops noise moving anyone: a handful of runs
+      # is not evidence about where a team works.
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 1)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not move on a single burst of the same volume" do
+      # Durability is the point. One afternoon that clears the window's total
+      # says an unusual day happened, not that the team moved.
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: [rollup("FR", @today, 600)]
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not move outside what the account is permitted" do
+      # Residency is a boundary the placer never crosses: traffic from Paris
+      # cannot move an account restricted to the United States to Europe.
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          permitted: ["us-east", "us-west"],
+          rollups: daily("FR", 30, 20)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "maps traffic to the nearest permitted region rather than refusing it" do
+      # A United States account whose team works from Paris is still better
+      # served from the region nearest Paris that it may use.
+      context =
+        context(
+          primary: "us-west",
+          serving: ["us-west"],
+          permitted: ["us-east", "us-west"],
+          rollups: daily("FR", 30, 20)
+        )
+
+      assert {:relocate, "us-west", "us-east", _evidence} = Placement.evaluate(context)
+    end
+
+    test "keeps a source region that still earns its own place" do
+      # A majority moving says which region should be primary; it says nothing
+      # about whether the other is still worth serving. Retiring a 35% region
+      # that clears the expansion floor would drain a cache the very next sweep
+      # proposes reopening.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == false
+    end
+
+    test "gives up a source region whose own traffic no longer earns it" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 95) ++ daily("US-VA", 30, 2)
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == true
+    end
+
+    test "gives up a source an Air account's own traffic does not earn" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == true
+    end
+
+    test "corrects a guess on a short window at a higher bar" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      assert {:correct, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "initial_placement_missed"
+    end
+
+    test "corrects a guess on a single day of traffic" do
+      # The rung fires at most once per account, so waiting for days to
+      # accumulate buys no protection against flapping, and every build until
+      # they do is served from the wrong side of an ocean. An account that
+      # builds a few days a week could also fail to accumulate them before
+      # `within_days` closed the rung, which is the outcome it exists to
+      # prevent.
+      context =
+        context(
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -1)},
+          rollups: [rollup("FR", @today, 40)]
+        )
+
+      assert {:correct, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "initial_placement_missed"
+      assert evidence["active_days"] == 1
+    end
+
+    test "does not correct on a single day too quiet to mean anything" do
+      # One day is enough only once it carries a working day's traffic. The
+      # volume floor is what still separates a team that moved from a couple
+      # of runs someone tried out at a conference.
+      context =
+        context(
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -1)},
+          rollups: [rollup("FR", @today, 30)]
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "does not correct a placement something decided" do
+      # The rung replaces a guess. An applied relocation, an operator pin or
+      # the backfill are decisions, and a decision is not corrected on a week.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: true,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "does not correct a guess that has stopped being new" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -20)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "does not correct on a majority the slower rung would accept" do
+      # Acting on a week of evidence demands more than acting on a month: a
+      # 65/35 split moves a settled primary but is not enough to overturn a
+      # guess this early.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 65) ++ daily("US-VA", 7, 35)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "stops at the relocation cap" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          relocations_in_window: 1,
+          rollups: daily("FR", 30, 20)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not relocate an account with nothing to relocate from" do
+      context = context(primary: nil, serving: [], rollups: daily("FR", 30, 20))
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not relocate into a region already retiring" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          retiring: ["eu-west"],
+          rollups: daily("FR", 30, 20)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+  end
+
+  describe "expand" do
+    test "adds a region whose own traffic clears the absolute floor" do
+      # Share-blind on purpose: a heavy second site earns a local instance even
+      # while the first site dominates the account's mix.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "sustained_local_demand"
+      assert evidence["runs_per_day"] >= 25
+    end
+
+    test "holds an Air account at one region below its floor" do
+      # Air can hold two, but a second instance is the expensive thing, so its
+      # floor is higher than a paid plan's rather than lower.
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "opens a second Air region once its own traffic clears the floor" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120)
+        )
+
+      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "holds an Air account at two regions" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120) ++ daily("JP", 14, 200)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "holds a region under the floor" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 5)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "asks Air for more than the paid plans before opening a region" do
+      # Air funds two regions and the paid plans five, so Air, which funds the
+      # fewest, is the one that has to see the most traffic before spending a
+      # slot. Pro and Enterprise share a
+      # floor: a second site earning a region is the same amount of traffic
+      # whichever paid plan it is on.
+      rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
+
+      assert {:expand, "eu-west", _evidence} =
+               Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: rollups))
+
+      assert {:expand, "eu-west", _evidence} =
+               Placement.evaluate(context(plan: :enterprise, primary: "us-east", serving: ["us-east"], rollups: rollups))
+
+      assert Placement.evaluate(context(plan: :air, primary: "us-east", serving: ["us-east"], rollups: rollups)) ==
+               :none
+    end
+
+    test "stops at the instance ceiling" do
+      # The primary keeps the majority, so nothing relocates. Pro funds five
+      # regions like Enterprise: a fourth still opens, and a sixth is refused.
+      rollups =
+        daily("US-VA", 14, 500) ++
+          daily("US-OR", 14, 200) ++
+          daily("FR", 90, 20) ++
+          daily("SG", 90, 20) ++
+          daily("BR", 90, 20) ++ daily("PL", 90, 20)
+
+      permitted = @permitted ++ ["sa-west", "eu-east"]
+
+      for plan <- [:pro, :enterprise] do
+        assert {:expand, "us-west", _evidence} =
+                 Placement.evaluate(
+                   context(
+                     plan: plan,
+                     primary: "us-east",
+                     serving: ["us-east", "eu-west", "ap-southeast"],
+                     permitted: permitted,
+                     rollups: rollups
+                   )
+                 )
+
+        assert Placement.evaluate(
+                 context(
+                   plan: plan,
+                   primary: "us-east",
+                   serving: ["us-east", "eu-west", "ap-southeast", "sa-west", "eu-east"],
+                   permitted: permitted,
+                   rollups: rollups
+                 )
+               ) == :none
+      end
+    end
+
+    test "does not expand into a region it already holds" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+  end
+
+  describe "retire" do
+    test "gives up a secondary whose region has gone quiet" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
+        )
+
+      assert {:retire, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "demand_below_floor"
+    end
+
+    test "will not judge a window it has no history for" do
+      # The floor is a whole window's worth of runs. Measured against ten days
+      # of history it is ten times too generous, so a region running a real 30
+      # builds a day reads as abandoned. At a full window the same region is
+      # six times over the floor and is never a candidate.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 10, 100) ++ daily("FR", 10, 30)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "retires once the history reaches the window it measures" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
+        )
+
+      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "holds a new account's regions to the same rule as the fleet's" do
+      # Not a rollout guard. An account onboarded a fortnight ago has a
+      # fortnight of history however long attribution has been running, and its
+      # regions cannot be judged on a quarter it was not present for.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 2)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "never retires the primary, however quiet its region has gone" do
+      # Retirement reclaims a spare region; it does not take an account's cache
+      # away. An account quiet everywhere keeps the one instance it has.
+      context =
+        context(
+          plan: :pro,
+          primary: "eu-west",
+          serving: ["eu-west"],
+          rollups: daily("FR", 90, 1)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "leaves a secondary that is still busy" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 40)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not retire the same region twice" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          retiring: ["eu-west"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "gives up nothing when the account has no attributed traffic at all" do
+      # Before origins are being attributed, every account looks like this. An
+      # account nobody could locate is not one whose regions are misplaced, and
+      # reading it as one would retire every secondary in the fleet.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
+          rollups: []
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not give up a region expansion would reopen on the next sweep" do
+      # The two floors span different windows, so a region quiet for months and
+      # busy for the last fortnight sits under the retirement total while being
+      # actively used.
+      quiet_then_busy = for offset <- 0..89, do: rollup("FR", Date.add(@today, -offset), if(offset < 14, do: 25, else: 0))
+
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
+          rollups: daily("US-VA", 90, 500) ++ quiet_then_busy
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not give up a region younger than the retirement window" do
+      # A region opened on a fortnight's traffic carries less than the
+      # retirement window's worth of runs on the day it opens. Without the age
+      # gate it would be given up immediately and reopened by the same evidence
+      # the next fortnight.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -14)},
+          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "gives it up once it has had the window and stayed quiet" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
+          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
+        )
+
+      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "the gap between the two floors is what keeps a region from flapping" do
+      # A region between the retirement floor and the expansion floor is left
+      # exactly as it is, whichever side it is currently on.
+      between = daily("US-VA", 90, 500) ++ daily("FR", 90, 15)
+
+      assert Placement.evaluate(
+               context(plan: :pro, primary: "us-east", serving: ["us-east", "eu-west"], rollups: between)
+             ) == :none
+
+      assert Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: between)) == :none
+    end
+  end
+
+  test "an account with no traffic anywhere is left alone" do
+    assert Placement.evaluate(context(primary: "us-east", serving: ["us-east"], rollups: [])) == :none
+  end
+
+  test "unattributed traffic decides nothing" do
+    # Only rollups exist for origins the edge could place, so an account whose
+    # requests were never attributed simply has no rows and no verdict.
+    assert Placement.evaluate(context(primary: "us-east", serving: ["us-east"], rollups: [])) == :none
+  end
+
+  test "window_days/1 covers the longest span the policy reads" do
+    assert Placement.window_days() == 90
+  end
+
+  describe "served hits" do
+    test "moves the primary to the held region carrying the majority of hits, whatever the runs say" do
+      # Builds reported from Amsterdam put the primary in eu-west, but the
+      # cache traffic lands in us-central. The destination is already held and
+      # warm, so following the hits costs no refill.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "eu-west",
+          serving: ["eu-west", "us-central", "us-east"],
+          rollups: daily("NL", 30, 140) ++ daily("US-IL", 30, 80),
+          served: %{
+            "us-central" => served_daily(14, 30_000),
+            "us-east" => served_daily(14, 2_000),
+            "eu-west" => served_daily(14, 300)
+          },
+          reported: reported(["eu-west", "us-central", "us-east"], 28),
+          reserved_gib: %{"eu-west" => 60, "us-central" => 60, "us-east" => 60}
+        )
+
+      assert {:relocate, "eu-west", "us-central", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "majority_of_hits_moved"
+      assert evidence["share"] > 0.9
+      # The region left behind served under 1% of the hits on a 60 GiB claim.
+      assert evidence["retire_source"] == true
+    end
+
+    test "keeps the region it leaves when what it serves still pays for its claim" do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "eu-west",
+          serving: ["eu-west", "us-central"],
+          served: %{"us-central" => served_daily(14, 30_000), "eu-west" => served_daily(14, 5_000)},
+          reported: reported(["eu-west", "us-central"], 28),
+          reserved_gib: %{"eu-west" => 60, "us-central" => 60}
+        )
+
+      assert {:relocate, "eu-west", "us-central", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == false
+    end
+
+    test "does not move the primary onto a held region on runs the hits contradict" do
+      # Without hits this is the runs rung's textbook relocation. The primary
+      # serving five times what eu-west does says the runs are not where the
+      # cache is used.
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5),
+          served: %{"us-east" => served_daily(28, 20_000), "eu-west" => served_daily(28, 4_000)},
+          reported: reported(["us-east", "eu-west"], 28),
+          reserved_gib: %{"us-east" => 8, "eu-west" => 8}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "retires a secondary that served almost nothing for what it reserves" do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-west",
+          serving: ["us-west", "eu-east"],
+          served: %{"us-west" => served_daily(28, 100_000), "eu-east" => served_daily(28, 300)},
+          reported: reported(["us-west", "eu-east"], 28),
+          reserved_gib: %{"us-west" => 256, "eu-east" => 256}
+        )
+
+      assert {:retire, "eu-east", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "hits_below_floor"
+      assert evidence["reserved_gib"] == 256
+      assert evidence["reported_days"] == 28
+    end
+
+    test "retires a secondary that served nothing at all" do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "eu-west",
+          serving: ["eu-west", "us-central"],
+          served: %{"eu-west" => served_daily(28, 1_000)},
+          reported: reported(["eu-west", "us-central"], 28),
+          reserved_gib: %{"eu-west" => 50, "us-central" => 50}
+        )
+
+      assert {:retire, "us-central", evidence} = Placement.evaluate(context)
+      assert evidence["region_hits"] == 0
+    end
+
+    test "keeps a secondary that is a sliver of a busy account but busy for its claim" do
+      # 2% of the account, and still thirty thousand hits a day: a second site
+      # the primary's volume must not be allowed to veto.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-central",
+          serving: ["us-central", "ap-southeast"],
+          served: %{"us-central" => served_daily(28, 1_500_000), "ap-southeast" => served_daily(28, 30_000)},
+          reported: reported(["us-central", "ap-southeast"], 28),
+          reserved_gib: %{"us-central" => 128, "ap-southeast" => 128}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not retire a secondary on days it was not heard from" do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-west",
+          serving: ["us-west", "eu-east"],
+          served: %{"us-west" => served_daily(28, 100_000)},
+          reported: %{"us-west" => reported_dates(28), "eu-east" => reported_dates(10)},
+          reserved_gib: %{"us-west" => 64, "eu-east" => 64}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "gives a new secondary the whole window before judging it" do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-west",
+          serving: ["us-west", "eu-east"],
+          held_since: %{"eu-east" => Date.add(@today, -10)},
+          served: %{"us-west" => served_daily(28, 100_000)},
+          reported: reported(["us-west", "eu-east"], 28),
+          reserved_gib: %{"us-west" => 64, "eu-east" => 64}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "judges a secondary per day the account used the cache, not per calendar day" do
+      # Ten busy days out of twenty-eight. Spread over the calendar the
+      # secondary looks under its 3,200-a-day floor; over the days anyone was
+      # building it is above it.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-east",
+          serving: ["us-east", "us-west"],
+          served: %{"us-east" => served_daily(10, 200_000), "us-west" => served_daily(10, 3_500)},
+          reported: reported(["us-east", "us-west"], 28),
+          reserved_gib: %{"us-east" => 128, "us-west" => 128}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "lets hits overrule a runs retirement of a region that serves" do
+      # A handful of runs a day maps to eu-east, which the runs rung reads as a
+      # region nobody uses. It serves five thousand hits a day.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-east",
+          serving: ["us-east", "eu-east"],
+          rollups: daily("US-VA", 90, 100) ++ daily("RO", 90, 2),
+          served: %{"us-east" => served_daily(28, 80_000), "eu-east" => served_daily(28, 5_000)},
+          reported: reported(["us-east", "eu-east"], 28),
+          reserved_gib: %{"us-east" => 50, "eu-east" => 50}
+        )
+
+      assert {:retire, "eu-east", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "still opens a region on runs however small a share of the account they are" do
+      # 2% of the runs is no forecast of the hits a region will serve: regions
+      # opened on that little have gone on to carry most of an account's
+      # traffic. The opening is a trial the retirement rung judges later.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 30, 1_500) ++ daily("FR", 30, 30),
+          served: %{"us-east" => served_daily(28, 100_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 64}
+        )
+
+      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "does not reopen a region it gave up until the reopening window has passed" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 30, 100) ++ daily("FR", 30, 60),
+          served: %{"us-east" => served_daily(28, 100_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 64}
+        )
+
+      assert Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -30)})) == :none
+
+      assert {:expand, "eu-west", _evidence} =
+               Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -91)}))
+    end
+  end
+
+  describe "origin hits" do
+    test "opens a region a real share of the account's hits come from" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "projected_hits"
+      assert evidence["share"] == 0.25
+    end
+
+    test "does not open a region on runs a sliver of the hits contradict" do
+      # Thirty runs a day from Paris clears the runs floor; Paris is 2% of the
+      # account's hits, and a fraction of what the region would reserve.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups:
+            daily("US-VA", 30, 1_500) ++
+              daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 19_600) ++ daily_hits("FR", 14, 400),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "opens a cheap region on its rate when its share is small" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 18_500) ++ daily_hits("FR", 14, 1_500),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 8},
+          projected_gib: %{"eu-west" => 8}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["share"] < 0.1
+    end
+
+    test "reads runs while too few of the account's hits carry an origin" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 30, 100) ++ daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "sustained_local_demand"
+    end
+
+    test "moves the primary to a region it does not hold once most hits come from nearer it" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("FR", 14, 15_000) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128}
+        )
+
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "majority_of_origin_hits_moved"
+      assert evidence["share"] == 0.75
+    end
+
+    test "does not move the primary on runs the hits contradict" do
+      context =
+        context(
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5) ++ daily_hits("US-VA", 14, 20_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 16},
+          projected_gib: %{"eu-west" => 16}
+        )
+
+      assert {:relocate, "us-east", "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not reopen a region the hits closed, whatever its origins project" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128},
+          given_up: %{"eu-west" => Date.add(@today, -30)}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not move the primary into a region the hits closed" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("FR", 14, 15_000) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128},
+          given_up: %{"eu-west" => Date.add(@today, -30)}
+        )
+
+      assert Placement.evaluate(context) == :none
+
+      assert {:relocate, "us-east", "eu-west", _evidence} =
+               Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -91)}))
+    end
+  end
+
+  defp context(overrides) do
+    Enum.into(overrides, %{
+      plan: :air,
+      rollups: [],
+      permitted: @permitted,
+      primary: nil,
+      # Settled by default: these describe placements that were decided, so the
+      # correction rung is not the one under test unless a case says so.
+      primary_decided?: true,
+      serving: [],
+      retiring: [],
+      held_since: %{},
+      relocations_in_window: 0,
+      today: @today
+    })
+  end
+
+  defp daily(origin, days, runs) do
+    for offset <- 0..(days - 1), do: rollup(origin, Date.add(@today, -offset), runs)
+  end
+
+  defp rollup(origin, date, runs) do
+    %{origin: origin, date: date, run_count: runs, demand_count: 0}
+  end
+
+  defp daily_hits(origin, days, hits) do
+    for offset <- 0..(days - 1),
+        do: %{origin: origin, date: Date.add(@today, -offset), run_count: 0, demand_count: 0, hit_count: hits}
+  end
+
+  defp served_daily(days, hits) do
+    for offset <- 0..(days - 1), do: {Date.add(@today, -offset), hits}
+  end
+
+  defp reported(regions, days), do: Map.new(regions, &{&1, reported_dates(days)})
+
+  defp reported_dates(days), do: for(offset <- 0..(days - 1), do: Date.add(@today, -offset))
+end

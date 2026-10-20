@@ -1,0 +1,231 @@
+/*
+ * Home hero: one bordered box with a live dithered wave graph behind the
+ * copy (the HomeHeroWave hook draws it into the canvas). Like Vercel's
+ * homepage, the hero and the company logos strip below it fill exactly the
+ * first screen, so nothing else shows above the fold.
+ *
+ * Vertical budget subtracted from the viewport:
+ *   navbar   72px bar + 1px hairline + 2px seam
+ *   seam     2px page gap between the hero and the logos
+ *   logos    88px strip
+ */
+
+#marketing-home > [data-part="hero"] {
+  /* Wave inks, read by the HomeHeroWave hook: dotted guides, the quiet
+     echo ribbons, the live ribbon, and its second, offset ink. */
+  --home-hero-wave-guide: color-mix(
+    in oklch,
+    var(--marketing-illustration-neutral-1) 55%,
+    var(--noora-surface-background-primary)
+  );
+  --home-hero-wave-mid: var(--marketing-illustration-neutral-4);
+  --home-hero-wave-ink: var(--noora-purple-400);
+  --home-hero-wave-ink-2: light-dark(var(--noora-purple-700), var(--noora-purple-200));
+  --marketing-home-hero-offset: calc(72px + 1px + 2 * var(--noora-spacing-1) + 88px);
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  margin: 0 var(--noora-spacing-1);
+  border: 1px solid var(--marketing-stroke-default);
+  background: var(--noora-surface-background-primary);
+  /* The canvas sits at z-index -1 inside this stacking context, under the
+     copy but above the page. */
+  isolation: isolate;
+  /* Figma: 8px sides, 64px bottom. */
+  padding: 0 var(--noora-spacing-4) var(--noora-spacing-13);
+  /* Fill the first screen so only the hero and the logos strip show, like
+     Vercel's homepage. Capped at 992px (Vercel's hero height) so very tall
+     windows don't stretch it into a near-empty column. min-height (not
+     height) so long locales can grow the box instead of clipping the copy. */
+  min-height: clamp(560px, 100vh - var(--marketing-home-hero-offset), 992px);
+  min-height: clamp(560px, 100svh - var(--marketing-home-hero-offset), 992px);
+  overflow: hidden;
+
+  @media (min-width: 1024px) {
+    margin: 0;
+    width: 100%;
+    max-width: var(--marketing-page-width);
+  }
+
+  @media (max-width: 767px) {
+    padding: 0 var(--noora-spacing-6) var(--noora-spacing-9);
+    min-height: 600px;
+  }
+
+  & > [data-part="wave"] {
+    display: block;
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  & > [data-part="copy"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 640px;
+
+    /* Live cache count linking to the globe page: label in body/medium, the
+       count in code/large, 32px above the title. The chevron is collapsed
+       until hover/focus, then slides in left to right like the homepage's
+       button arrows. */
+    & > [data-part="eyebrow"] {
+      display: inline-flex;
+      align-items: center;
+      margin-bottom: var(--noora-spacing-9);
+      color: var(--noora-surface-label-secondary);
+      text-decoration: none;
+
+      /* The hook hides a snapshot from an earlier UTC day. */
+      &[hidden] {
+        display: none;
+      }
+
+      & > [data-part="label"] {
+        transition: color 200ms var(--ease-out-cubic);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="value"] {
+        display: inline-flex;
+        align-items: baseline;
+        margin-left: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        font-variant-numeric: tabular-nums;
+
+        /* Odometer reels (HomeCacheCount hook): each digit column clips a
+           reel of glyphs one line tall, slid by --i lines. The column
+           reaches 4px past the line above and below (offset by negative
+           margins, so layout is unchanged) and those bands fade out, so a
+           digit rolling in or out softens at the edges instead of being cut,
+           while a resting digit stays fully opaque. */
+        & > [data-part="char"] {
+          display: block;
+        }
+
+        & > [data-part="char"][data-digit] {
+          -webkit-mask-image: linear-gradient(
+            180deg,
+            transparent 0,
+            black 4px,
+            black calc(100% - 4px),
+            transparent 100%
+          );
+          mask-image: linear-gradient(180deg, transparent 0, black 4px, black calc(100% - 4px), transparent 100%);
+          box-sizing: content-box;
+          margin-block: -4px;
+          padding-block: 4px;
+          height: 1lh;
+          overflow: hidden;
+
+          & > [data-part="reel"] {
+            --i: 0;
+            display: block;
+            transform: translateY(calc(var(--i) * -5%));
+            transition:
+              transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+              filter 0.3s ease-out;
+
+            /* A slight blur while rolling, clearing as the digit settles. */
+            &[data-rolling] {
+              filter: blur(0.4px);
+            }
+
+            &[data-snap] {
+              transition: none;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              transition: none;
+
+              &[data-rolling] {
+                filter: none;
+              }
+            }
+
+            & > span {
+              display: block;
+              height: 1lh;
+            }
+          }
+        }
+      }
+
+      & > [data-part="arrow"] {
+        display: inline-flex;
+        transform: translateX(calc(-1 * var(--noora-spacing-3)));
+        opacity: 0;
+        transition:
+          transform 200ms var(--ease-out-cubic),
+          width 200ms var(--ease-out-cubic),
+          margin-left 200ms var(--ease-out-cubic),
+          opacity 200ms var(--ease-out-cubic);
+        margin-left: 0;
+        width: 0;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+
+        & > svg {
+          flex: none;
+          width: 16px;
+          height: 16px;
+        }
+      }
+
+      &:hover,
+      &:focus-visible {
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & > [data-part="arrow"] {
+          transform: translateX(0);
+          opacity: 1;
+          margin-left: var(--noora-spacing-2);
+          width: 16px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        & > [data-part="label"],
+        & > [data-part="arrow"] {
+          transition: none;
+        }
+      }
+    }
+
+    & h1 {
+      margin-bottom: var(--noora-spacing-8);
+      color: var(--noora-surface-label-primary);
+      /* desktop/display/large, regular. The token is responsive
+         (4rem/4.375rem at >=768px, 2.375rem/2.875rem below). */
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+
+      & [data-part="line"] {
+        display: block;
+      }
+    }
+
+    & p {
+      margin-bottom: var(--noora-spacing-9);
+      max-width: 560px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
+    }
+
+    & [data-part="actions"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-4);
+    }
+  }
+}

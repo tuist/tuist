@@ -13,6 +13,8 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+Embedded object storage uses the [Cool Labs community build of MinIO](https://github.com/coollabsio/minio), pinned to a release and multi-architecture digest. The upstream `quay.io/minio/minio` and `quay.io/minio/mc` images no longer allow anonymous pulls. Both the server and bucket initialization Job use the same image, which includes the `mc` client and shell. Override `objectStorage.embedded.image` and `objectStorage.embedded.mcImage` to use your own builds; keep the server's MinIO entrypoint and the initializer's `/bin/sh`, `mc`, and `sleep` available. This restores image availability; the community build does not provide an ongoing upstream security-support commitment. Managed environments use external object storage and do not run these images.
+
 The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
 
 External PostgreSQL with an existing Secret:
@@ -51,6 +53,31 @@ server:
     testAttachments: 30
     shardBundles: 14
 ```
+
+## Kura analytics
+
+Managed environments enable `kuraController.analytics.enabled`. The chart
+syncs `CACHE_API_KEY/password` from the same secret store used by the server
+into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
+`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service in
+absolute form, so a Kura node outside the control plane's region does not
+spend a WAN round trip per search domain resolving it. Both
+values are needed: Kura otherwise accepts Bazel build events while leaving
+analytics delivery disabled. This also enables cache-operation analytics
+and Bazel test-artifact delivery.
+
+The controller rolls Kura pods when the shared Secret changes. After rollout,
+`kura_analytics_queue_capacity` should be positive (the default is 1000).
+Run a Bazel build with `--bes_upload_mode=wait_for_upload_complete`, then
+verify its invocation appears in Tuist and that
+`kura_analytics_events_total_total{pipeline="bazel_invocations",result="sent"}`
+increases. Successful upload to Kura alone does not prove server ingestion.
+Events accepted while analytics were disabled are not retained for replay.
+
+This automatic secret sync requires `server.config.managedSecrets` and stays
+disabled by default for self-hosted installs. Those installs can supply both
+runtime variables through `kuraController.sharedSecrets.data` or an externally
+managed shared Secret, using the same signing key as their server.
 
 ## Local validation
 

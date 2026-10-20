@@ -2,26 +2,31 @@
 //!
 //! The proxy records per-node transfer metadata into `cas_analytics.db` at the
 //! path the CLI's `UploadBuildRunService` already ships with the build report,
-//! so the upload and server-side (xcactivitylog NIF) pipelines are unchanged:
-//! the proxy writes the same rows and encodings the Swift `CASAnalyticsDatabase`
-//! schema and the server's reader expect.
+//! using the existing Swift `CASAnalyticsDatabase` schema. The standalone server
+//! activity-log parser joins those records to compiler output remarks.
 //!
-//! Two tables drive the server's enrichment (see the NIF's `CASMetadataReader`):
-//! - `nodes`: build-log node id -> checksum. The node id is `"0~" +
-//!   base64(digest)` (matching Xcode's CAS-output remarks); the checksum is the
-//!   uppercase hex of the same digest.
-//! - `cas_outputs`: checksum -> {size, compressed_size, duration, transfer,
-//!   codec}.
+//! The server joins build-log node id -> `nodes.checksum` -> `cas_outputs.key`.
+//! Record both sides together using Apple's printed node id and the REAPI blob's
+//! checksum. The plugin owns the transfer representation; Apple's legacy remote
+//! serialization is not present in the compiler nodes we upload.
 //! `keyvalue_metadata` records per action-cache op durations.
 //!
+//! All durations are MILLISECONDS, matching the schema the Swift
+//! `CASAnalyticsDatabase` established and the units the server renders.
+//!
 //! Writes go through a background thread so the resolve/publish hot path never
-//! blocks on SQLite.
+//! blocks on SQLite. The writer prunes metadata older than one hour at startup
+//! and every five minutes, including while idle, and compacts mostly-free files.
 
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use rusqlite::Connection;
+
+const RETENTION: Duration = Duration::from_secs(60 * 60);
+const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(5 * 60);
+const MIN_COMPACTION_BYTES: i64 = 1024 * 1024;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS cas_outputs (
@@ -48,11 +53,8 @@ CREATE TABLE IF NOT EXISTS keyvalue_metadata (
 ";
 
 enum Record {
-    Node {
-        node_id: String,
-        checksum: String,
-    },
     CasOutput {
+        node_id: String,
         checksum: String,
         size: i64,
         compressed_size: i64,
@@ -87,33 +89,25 @@ impl Analytics {
         Some(Analytics { sender })
     }
 
-    /// A `nodes` row: the build-log node id `"0~" + base64url(casID)` mapped to
-    /// its checksum. The casID and checksum are both parsed out of a value
-    /// node's bytes by [`parse_cas_references`].
-    pub fn record_node(&self, cas_id: &[u8], checksum_hex: &str) {
-        let _ = self.sender.send(Record::Node {
-            node_id: node_id_for(cas_id),
-            checksum: checksum_hex.to_uppercase(),
-        });
-    }
-
-    /// A `cas_outputs` row keyed by the checksum (uppercase hex of the fetched
-    /// node's content digest, which equals the checksum in that node's parent
-    /// reference).
+    /// Record a transferred node and its lookup mapping atomically. `node_id`
+    /// comes from llcas_digest_print, not base64 of the internal digest (which
+    /// includes a version byte the printed payload omits). `checksum` names the
+    /// encoded REAPI blob we actually transferred.
     pub fn record_cas_output(
         &self,
-        checksum_hex: &str,
+        node_id: String,
+        checksum: &str,
         size: i64,
         compressed_size: i64,
-        duration: f64,
         transfer: f64,
         codec: f64,
     ) {
         let _ = self.sender.send(Record::CasOutput {
-            checksum: checksum_hex.to_uppercase(),
+            node_id,
+            checksum: checksum.to_uppercase(),
             size,
             compressed_size,
-            duration,
+            duration: transfer + codec,
             transfer,
             codec,
         });
@@ -121,7 +115,7 @@ impl Analytics {
 
     /// A `keyvalue_metadata` row for an action-cache op. `operation_type` is
     /// "read" (resolve) or "write" (publish); the key is encoded for the server
-    /// reader by `keyvalue_key_for`.
+    /// reader by `keyvalue_key_for`. `duration` is milliseconds.
     pub fn record_keyvalue(&self, key: &[u8], operation_type: &str, duration: f64) {
         let _ = self.sender.send(Record::KeyValue {
             key: keyvalue_key_for(key),
@@ -131,13 +125,6 @@ impl Analytics {
     }
 }
 
-/// `"0~" + base64url(casID)`: the CAS-output node id as it appears in Xcode's
-/// build-log remarks and the `nodes` table the server reads (base64 the casID,
-/// then map `+`->`-`, `/`->`_`, keeping `=` padding: URL-safe base64).
-fn node_id_for(cas_id: &[u8]) -> String {
-    format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(cas_id))
-}
-
 /// The action-cache key as the server reads it: `"0~"` + URL-safe base64 of the
 /// key with its first byte dropped.
 fn keyvalue_key_for(key: &[u8]) -> String {
@@ -145,44 +132,18 @@ fn keyvalue_key_for(key: &[u8]) -> String {
     format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(rest))
 }
 
-/// Uppercase hex of a content digest — the `cas_outputs` key the proxy derives
-/// from a fetched node's llcas digest.
+/// A duration as the milliseconds every analytics column stores.
+pub fn millis(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
+}
+
+/// Uppercase hex of a content digest.
 pub fn hex_upper(bytes: &[u8]) -> String {
     let mut hex = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         hex.push_str(&format!("{byte:02X}"));
     }
     hex
-}
-
-/// Scans a value node's bytes for the CAS-entry pattern in Apple's closed CAS
-/// serialization: `0x0A 0x41 0x00` then a 64-byte casID, then `0x12 0x40` then a
-/// 64-char ASCII hex checksum. Returns each `(casID, hex)` reference.
-pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
-    let mut references = Vec::new();
-    let mut offset = 0;
-    while offset + 67 < data.len() {
-        if data[offset] == 0x0A && data[offset + 1] == 0x41 && data[offset + 2] == 0x00 {
-            let cas_start = offset + 3;
-            let hex_marker = cas_start + 64;
-            if hex_marker + 2 + 64 <= data.len()
-                && data[hex_marker] == 0x12
-                && data[hex_marker + 1] == 0x40
-            {
-                let hex_start = hex_marker + 2;
-                let hex_bytes = &data[hex_start..hex_start + 64];
-                if let Ok(hex) = std::str::from_utf8(hex_bytes) {
-                    if hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-                        references.push((data[cas_start..cas_start + 64].to_vec(), hex.to_string()));
-                    }
-                }
-                offset = hex_start + 64;
-                continue;
-            }
-        }
-        offset += 1;
-    }
-    references
 }
 
 /// `created_at` as SQLite.swift serializes a `Date`: a UTC `"yyyy-MM-dd'T'HH:mm:ss.SSS"`
@@ -195,9 +156,11 @@ const CREATED_AT_FORMAT: &[time::format_description::FormatItem<'_>] = time::mac
 );
 
 fn now_iso8601() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+    system_time_iso8601(SystemTime::now())
+}
+
+fn system_time_iso8601(time: SystemTime) -> String {
+    let now = time.duration_since(UNIX_EPOCH).unwrap_or_default();
     iso8601_from_unix(now.as_secs(), now.subsec_millis())
 }
 
@@ -210,9 +173,32 @@ fn iso8601_from_unix(secs: u64, millis: u32) -> String {
 }
 
 fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
+    writer_loop_with_interval(&mut conn, receiver, MAINTENANCE_INTERVAL);
+}
+
+fn writer_loop_with_interval(
+    conn: &mut Connection,
+    receiver: Receiver<Record>,
+    interval: Duration,
+) {
+    let mut next_maintenance = Instant::now();
     // Block for the first record, then drain the burst and commit it in one
     // transaction to keep per-op SQLite cost off the build's critical path.
-    while let Ok(first) = receiver.recv() {
+    loop {
+        if Instant::now() >= next_maintenance {
+            let cutoff = system_time_iso8601(SystemTime::now() - RETENTION);
+            if let Err(error) = prune_old_entries(conn, &cutoff) {
+                crate::log_line(&format!("analytics maintenance failed: {error}"));
+            }
+            next_maintenance = Instant::now() + interval;
+        }
+        let first = match receiver
+            .recv_timeout(next_maintenance.saturating_duration_since(Instant::now()))
+        {
+            Ok(record) => record,
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => break,
+        };
         let mut batch = vec![first];
         while let Ok(record) = receiver.try_recv() {
             batch.push(record);
@@ -229,29 +215,56 @@ fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
     }
 }
 
+fn prune_old_entries(conn: &mut Connection, cutoff: &str) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+        tx.execute(
+            &format!("DELETE FROM {table} WHERE created_at < ?1"),
+            [cutoff],
+        )?;
+    }
+    tx.commit()?;
+
+    // Deletes make pages reusable, but the CLI copies the whole main file.
+    // Reclaim a substantial mostly-empty file without vacuuming every batch.
+    let free_pages: i64 = conn.query_row("PRAGMA freelist_count", [], |row| row.get(0))?;
+    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |row| row.get(0))?;
+    if free_pages * page_size >= MIN_COMPACTION_BYTES {
+        let pages: i64 = conn.query_row("PRAGMA page_count", [], |row| row.get(0))?;
+        if free_pages * 2 >= pages {
+            conn.execute_batch("VACUUM")?;
+        }
+    }
+    conn.execute_batch("PRAGMA wal_checkpoint(PASSIVE)")?;
+    Ok(())
+}
+
 fn write_record(
     tx: &rusqlite::Transaction,
     record: &Record,
     created_at: &str,
 ) -> rusqlite::Result<usize> {
     match record {
-        Record::Node { node_id, checksum } => tx.execute(
-            "INSERT OR REPLACE INTO nodes (key, checksum, created_at) VALUES (?1, ?2, ?3)",
-            rusqlite::params![node_id, checksum, created_at],
-        ),
         Record::CasOutput {
+            node_id,
             checksum,
             size,
             compressed_size,
             duration,
             transfer,
             codec,
-        } => tx.execute(
-            "INSERT OR REPLACE INTO cas_outputs \
-             (key, size, duration, compressed_size, created_at, transfer_duration, codec_duration) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![checksum, size, duration, compressed_size, created_at, transfer, codec],
-        ),
+        } => {
+            tx.execute(
+                "INSERT OR REPLACE INTO nodes (key, checksum, created_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![node_id, checksum, created_at],
+            )?;
+            tx.execute(
+                "INSERT OR REPLACE INTO cas_outputs \
+                 (key, size, duration, compressed_size, created_at, transfer_duration, codec_duration) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![checksum, size, duration, compressed_size, created_at, transfer, codec],
+            )
+        }
         Record::KeyValue {
             key,
             operation_type,
@@ -268,11 +281,205 @@ fn write_record(
 mod tests {
     use super::*;
 
+    fn insert_output(conn: &mut Connection, key: &str, created_at: &str) {
+        let tx = conn.transaction().unwrap();
+        write_record(
+            &tx,
+            &Record::CasOutput {
+                node_id: format!("0~{key}"),
+                checksum: key.into(),
+                size: 100,
+                compressed_size: 40,
+                duration: 3.5,
+                transfer: 3.0,
+                codec: 0.5,
+            },
+            created_at,
+        )
+        .unwrap();
+        write_record(
+            &tx,
+            &Record::KeyValue {
+                key: key.into(),
+                operation_type: "read".into(),
+                duration: 2.5,
+            },
+            created_at,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+    }
+
+    fn retention_database(label: &str) -> (std::path::PathBuf, Connection) {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "cas-retention-{label}-{}-{suffix}.db",
+            std::process::id()
+        ));
+        let conn = Connection::open(&path).unwrap();
+        conn.busy_timeout(Duration::from_secs(5)).unwrap();
+        conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        (path, conn)
+    }
+
     #[test]
-    fn node_id_uses_url_safe_base64() {
-        // 0xFB 0xFF -> standard base64 "+/8=" -> url-safe "-_8=".
-        assert_eq!(node_id_for(&[0xFB, 0xFF]), "0~-_8=");
-        // keyvalue key drops the first byte, then url-safe base64.
+    fn retention_preserves_the_cutoff_and_refreshed_outputs_in_all_tables() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        insert_output(&mut conn, "expired", "2026-09-17T11:59:59.999");
+        insert_output(&mut conn, "boundary", "2026-09-17T12:00:00.000");
+        insert_output(&mut conn, "recent", "2026-09-17T12:59:59.999");
+        insert_output(&mut conn, "refreshed", "2026-09-17T11:00:00.000");
+        insert_output(&mut conn, "refreshed", "2026-09-17T12:59:59.999");
+
+        prune_old_entries(&mut conn, "2026-09-17T12:00:00.000").unwrap();
+
+        for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+            let count: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 3, "{table}");
+        }
+        let checksums: Vec<String> = conn.prepare(
+            "SELECT n.checksum FROM nodes n JOIN cas_outputs c ON c.key = n.checksum ORDER BY n.checksum"
+        ).unwrap().query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(checksums, ["boundary", "recent", "refreshed"]);
+    }
+
+    #[test]
+    fn writer_prunes_on_startup_and_while_idle_and_drains_on_shutdown() {
+        let (path, mut conn) = retention_database("idle");
+        insert_output(&mut conn, "startup", "2000-01-01T00:00:00.000");
+        let observer = Connection::open(&path).unwrap();
+        observer.busy_timeout(Duration::from_secs(5)).unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            writer_loop_with_interval(&mut conn, receiver, Duration::from_millis(20));
+        });
+        let wait_until_empty = || {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let count: i64 = observer
+                    .query_row("SELECT count(*) FROM nodes", [], |row| row.get(0))
+                    .unwrap();
+                if count == 0 {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "idle writer did not prune old metadata"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait_until_empty();
+        observer
+            .execute(
+                "INSERT INTO nodes VALUES ('idle', 'idle', '2000-01-01T00:00:00.000')",
+                [],
+            )
+            .unwrap();
+        wait_until_empty();
+        let analytics = Analytics { sender };
+        analytics.record_cas_output("0~new".into(), "new", 100, 40, 3.0, 0.5);
+        analytics.record_keyvalue(&[0, 1], "read", 2.5);
+        drop(analytics);
+        writer.join().unwrap();
+        let size: i64 = observer.query_row(
+            "SELECT c.size FROM nodes n JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = '0~new'",
+            [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(size, 100);
+        let count: i64 = observer
+            .query_row("SELECT count(*) FROM keyvalue_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 1);
+        drop(observer);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn maintenance_is_not_starved_by_queued_writes() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        conn.execute_batch(
+            "CREATE TRIGGER seed_expired AFTER INSERT ON keyvalue_metadata
+            WHEN NEW.key = '0' BEGIN
+                INSERT INTO nodes VALUES ('expired', 'expired', '2000-01-01T00:00:00.000');
+            END;
+            CREATE TRIGGER require_maintenance BEFORE INSERT ON keyvalue_metadata
+            WHEN NEW.key = '1000' AND EXISTS (SELECT 1 FROM nodes WHERE key = 'expired') BEGIN
+                SELECT RAISE(ABORT, 'maintenance was starved by a nonempty queue');
+            END;",
+        )
+        .unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        for index in 0..1001 {
+            sender
+                .send(Record::KeyValue {
+                    key: index.to_string(),
+                    operation_type: "read".into(),
+                    duration: 1.0,
+                })
+                .unwrap();
+        }
+        drop(sender);
+        writer_loop_with_interval(&mut conn, receiver, Duration::ZERO);
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM keyvalue_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(
+            count, 1001,
+            "the second batch must observe completed maintenance"
+        );
+    }
+
+    #[test]
+    fn retention_reclaims_a_large_expired_database_without_losing_recent_rows() {
+        let (path, mut conn) = retention_database("compaction");
+        let tx = conn.transaction().unwrap();
+        for index in 0..1000 {
+            tx.execute(
+                "INSERT INTO nodes VALUES (?1, ?2, '2000-01-01T00:00:00.000')",
+                rusqlite::params![format!("old-{index}"), "x".repeat(4096)],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+        insert_output(&mut conn, "recent", "2026-09-17T12:00:00.000");
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+            .unwrap();
+        let before = std::fs::metadata(&path).unwrap().len();
+        assert!(before > MIN_COMPACTION_BYTES as u64);
+
+        prune_old_entries(&mut conn, "2026-09-17T11:00:00.000").unwrap();
+
+        let after = std::fs::metadata(&path).unwrap().len();
+        assert!(
+            after < before / 2,
+            "archived main file did not shrink: {before} -> {after}"
+        );
+        let size: i64 = conn.query_row(
+            "SELECT c.size FROM nodes n JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = '0~recent'",
+            [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(size, 100);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn keyvalue_id_uses_url_safe_base64_without_the_version_byte() {
         assert_eq!(keyvalue_key_for(&[0x00, 0xFB, 0xFF]), "0~-_8=");
     }
 
@@ -284,23 +491,6 @@ mod tests {
         assert_eq!(iso8601_from_unix(0, 0), "1970-01-01T00:00:00.000");
         // 1_000_000_000 unix seconds is the well-known 2001-09-09T01:46:40 UTC.
         assert_eq!(iso8601_from_unix(1_000_000_000, 500), "2001-09-09T01:46:40.500");
-    }
-
-    #[test]
-    fn parse_cas_references_extracts_the_casid_hex_pattern() {
-        let cas_id = vec![0xABu8; 64];
-        let hex = "AB".repeat(32); // 64 ASCII hex chars
-        let mut data = vec![0x0A, 0x41, 0x00];
-        data.extend_from_slice(&cas_id);
-        data.extend_from_slice(&[0x12, 0x40]);
-        data.extend_from_slice(hex.as_bytes());
-        // trailing noise the scanner should ignore
-        data.extend_from_slice(&[0x99, 0x99]);
-
-        let references = parse_cas_references(&data);
-        assert_eq!(references.len(), 1);
-        assert_eq!(references[0].0, cas_id);
-        assert_eq!(references[0].1, hex);
     }
 
     #[test]
@@ -325,12 +515,13 @@ mod tests {
             .unwrap();
         }
         {
-            let analytics = Analytics::open(&path).unwrap();
-            analytics.record_node(&[0xDEu8, 0xAD, 0xBE, 0xEF], "abc123");
-            analytics.record_cas_output("abc123", 100, 40, 0.5, 0.3, 0.2);
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let analytics = Analytics { sender };
+            analytics.record_cas_output("0~3q2-7w==".into(), "abc123", 100, 40, 0.3, 0.2);
             analytics.record_keyvalue(&[0x00, 0xFB, 0xFF], "write", 0.1);
+            drop(analytics);
+            writer_loop(Connection::open(&path).unwrap(), receiver);
         }
-        std::thread::sleep(std::time::Duration::from_millis(300));
 
         let conn = Connection::open(&path).unwrap();
         let node_checksum: String = conn
@@ -356,41 +547,45 @@ mod tests {
     }
 
     #[test]
-    fn writes_nodes_and_cas_outputs_matching_the_server_read_schema() {
-        let cas_id = vec![0xDEu8, 0xAD, 0xBE, 0xEF];
-        let checksum = "abc123";
-
-        let path = std::env::temp_dir().join(format!("cas-analytics-{}.db", std::process::id()));
-        let path = path.to_str().unwrap().to_string();
-        let _ = std::fs::remove_file(&path);
-        {
-            let analytics = Analytics::open(&path).unwrap();
-            analytics.record_node(&cas_id, checksum);
-            analytics.record_cas_output(checksum, 100, 40, 0.5, 0.3, 0.2);
-            // Drop closes the channel; the writer drains and commits before exit.
-        }
-        // The writer runs on a detached thread; give it a moment to flush.
-        std::thread::sleep(std::time::Duration::from_millis(300));
-
-        let conn = Connection::open(&path).unwrap();
-        let (node_key, node_checksum): (String, String) = conn
-            .query_row("SELECT key, checksum FROM nodes", [], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
-            .unwrap();
-        assert_eq!(node_key, "0~3q2-7w=="); // "0~" + url-safe base64(DEADBEEF) (+ -> -)
-        assert_eq!(node_checksum, "ABC123"); // uppercased
-
-        let (size, compressed): (i64, i64) = conn
-            .query_row(
-                "SELECT size, compressed_size FROM cas_outputs WHERE key = 'ABC123'",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+    fn records_outputs_without_a_parent_reference_and_updates_the_blob_mapping() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for (checksum, size) in [("old-encoding", 100), ("new-encoding", 120)] {
+            let tx = conn.transaction().unwrap();
+            write_record(
+                &tx,
+                &Record::CasOutput {
+                    node_id: "0~compiler-output".into(),
+                    checksum: checksum.into(),
+                    size,
+                    compressed_size: 40,
+                    duration: 3.5,
+                    transfer: 3.0,
+                    codec: 0.5,
+                },
+                "2026-09-17T00:00:00.000",
             )
             .unwrap();
-        assert_eq!(size, 100);
-        assert_eq!(compressed, 40);
+            tx.commit().unwrap();
+        }
+        let (checksum, size, duration): (String, i64, f64) = conn
+            .query_row(
+                "SELECT n.checksum, c.size, c.duration FROM nodes n \
+             JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = '0~compiler-output'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(checksum, "new-encoding");
+        assert_eq!(size, 120);
+        assert_eq!(duration, 3.5);
+    }
 
-        let _ = std::fs::remove_file(&path);
+    #[test]
+    fn durations_are_recorded_in_milliseconds() {
+        // The schema, the Swift writer that created it, and the server's
+        // renderer all read these columns as milliseconds.
+        assert_eq!(millis(Duration::from_secs(1)), 1_000.0);
+        assert_eq!(millis(Duration::from_millis(250)), 250.0);
     }
 }

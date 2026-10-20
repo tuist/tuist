@@ -11,7 +11,7 @@ defmodule TuistWeb.Docs.Components do
     "Tutorials" => "book",
     "Builds" => "versions",
     "Tests" => "subtask",
-    "Artifacts" => "package",
+    "Bundles" => "package",
     "Compute" => "server",
     "Other features" => "apps",
     "Integrations" => "asset",

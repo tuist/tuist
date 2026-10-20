@@ -102,6 +102,10 @@
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
 
+    &[data-icon-only] {
+      padding: var(--noora-spacing-3);
+    }
+
     & svg {
       width: var(--noora-icon-size-small);
       height: var(--noora-icon-size-small);
@@ -112,6 +116,10 @@
     gap: var(--noora-spacing-1);
     padding: var(--noora-spacing-2) var(--noora-spacing-2);
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &[data-icon-only] {
+      padding: var(--noora-spacing-2);
+    }
 
     & > [data-part="label"] {
       padding: var(--noora-spacing-0) var(--noora-spacing-2);
@@ -126,6 +134,10 @@
   .noora-button-group[data-size="large"] & {
     padding: var(--noora-spacing-2) var(--noora-spacing-4);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &[data-icon-only] {
+      padding: var(--noora-spacing-2);
+    }
 
     & svg {
       width: var(--noora-icon-size-large);

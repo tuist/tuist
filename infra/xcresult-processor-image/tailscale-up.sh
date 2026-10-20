@@ -66,18 +66,18 @@ else
   # device parked in manual-approval limbo wedges this chain exactly
   # like an expired key. Not a property to leave to its default.
   #
-  # `ephemeral=true` is narrower than it looks. TAILSCALE_HOSTNAME is the
-  # Pod name, so every roll registers a new device, but Tailscale
-  # converts any device that stays online four hours into a standard
-  # tagged one. Pods normally outlive that between image releases, so
-  # this only reaps the short-lived ones (crash loops, quick rollbacks)
-  # and the rest accumulate regardless. Note those stale peers stay
-  # pinned in every VM's /etc/hosts, which the block below rewrites from
-  # `tailscale status` on each boot. Giving the device a stable name
-  # would not change this: identity is the node key, and an image-booted
-  # VM has no persisted state to carry one across boots. The sweep that
-  # deletes the leftovers is the tailscale-device-reaper CronJob in
-  # infra/helm/tuist/templates/tailscale-device-reaper.yaml.
+  # `ephemeral=true` so a dead VM's registration goes with it. Tailscale
+  # deletes an ephemeral device 30 to 60 minutes after it was last seen,
+  # however long it had been online. Its docs also say an ephemeral
+  # device present for four hours "will count as a standard tagged
+  # device", but that sentence is about billing (it stops drawing on the
+  # ephemeral minutes allowance), not about removal. TAILSCALE_HOSTNAME
+  # is the Pod name, so every roll registers a new device, and the old
+  # one leaves the netmap within the hour. Giving the device a stable
+  # name would not change that: identity is the node key, and an
+  # image-booted VM has no persisted state to carry one across boots.
+  # Ephemeral is already the default for an OAuth-minted key; it is
+  # spelled out so the property does not rest on that default.
   #
   # An OAuth-minted key is always tagged and carries no default tag, so
   # the join can't work without TAILSCALE_TAGS; refuse here rather than
@@ -86,7 +86,10 @@ else
   #
   # The prefix test keeps a pre-auth key working unchanged: appending
   # these parameters to one would corrupt it, and this image has to boot
-  # against either credential while the fleet migrates.
+  # against either credential while the fleet migrates. Such a key joins
+  # with whatever ephemerality it was created with; a device it leaves
+  # behind is what the tailscale-device-reaper CronJob in
+  # infra/helm/tuist/templates/tailscale-device-reaper.yaml sweeps.
   AUTH_KEY="${TAILSCALE_AUTH_KEY}"
   case "${AUTH_KEY}" in
     tskey-client-*)
@@ -133,6 +136,19 @@ else
   fi
   echo "tailscale-up: joined tailnet at ${TAILNET_IP}"
 fi
+
+# Resolve `.ts.net` names live through MagicDNS, the same scoped
+# resolver infra/macos-host-bootstrap installs on the hosts. The
+# open-source tailscaled only writes a search-only
+# /etc/resolver/search.tailscale, which resolves nothing, so without
+# this file every full tailnet name is NXDOMAIN. The /etc/hosts block
+# below cannot stand in for it: it is a snapshot of peers taken at
+# boot, so it never contains a Tailscale Service, which is not a peer,
+# and it keeps an old address after a name moves to another device.
+sudo /bin/mkdir -p /etc/resolver
+printf 'nameserver 100.100.100.100\n' | sudo /usr/bin/tee /etc/resolver/ts.net >/dev/null
+sudo /bin/chmod 0644 /etc/resolver/ts.net
+sudo /usr/bin/dscacheutil -flushcache || true
 
 # Pin every peer's tailnet IPv4 + hostname into /etc/hosts so the
 # BEAM's libc resolver finds the pooler proxy without MagicDNS.
@@ -188,5 +204,14 @@ sudo chown admin:staff "$(dirname "${DIAG_FILE}")"
     /usr/bin/nc -vz -w 10 "${HOST}" "${PORT}" 2>&1 || true
   else
     echo "DATABASE_URL not set"
+  fi
+  echo "-- in-cluster ClickHouse host probe --"
+  if [ -n "${TUIST_CLICKHOUSE_BARE_METAL_URL:-}" ]; then
+    CH_HOST=$(echo "${TUIST_CLICKHOUSE_BARE_METAL_URL}" | /usr/bin/sed -E 's|^[a-z]+://([^@]+@)?([^:/]+).*|\2|')
+    echo "URL host=${CH_HOST}"
+    /usr/bin/dscacheutil -q host -a name "${CH_HOST}" 2>&1 | /usr/bin/head -10 || true
+    /usr/bin/nc -vz -w 10 "${CH_HOST}" 8123 2>&1 || true
+  else
+    echo "TUIST_CLICKHOUSE_BARE_METAL_URL not set"
   fi
 } > "${DIAG_FILE}" 2>&1 || true

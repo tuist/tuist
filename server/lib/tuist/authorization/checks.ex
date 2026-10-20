@@ -31,9 +31,31 @@ defmodule Tuist.Authorization.Checks do
     })
   end
 
+  def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, project_account(project))
+  end
+
+  def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, %{
+      id: account.id
+    })
+  end
+
   def user_role(_, _, _) do
     false
   end
+
+  @doc """
+  Whether the user a credential was issued to (an OAuth grant or a claimed agent
+  credential) holds `role` on the object's account. Account tokens have no issuer
+  and can only be minted by an account admin, so their scopes alone decide.
+  """
+  def issuer_role(%AuthenticatedAccount{issued_by: %User{} = user}, object, role), do: user_role(user, object, role)
+  def issuer_role(%AuthenticatedAccount{issued_by: nil}, _object, _role), do: true
+  def issuer_role(_, _, _), do: false
+
+  def covers_all_projects(%AuthenticatedAccount{all_projects: true}, _object), do: true
+  def covers_all_projects(_, _), do: false
 
   # Hands over the account itself when the caller preloaded it (with its
   # organization), so the membership check does not have to read it back. Falls
@@ -302,33 +324,34 @@ defmodule Tuist.Authorization.Checks do
   defp grant_expired?(%{exp: exp}) when is_integer(exp), do: exp <= System.system_time(:second)
   defp grant_expired?(_), do: true
 
-  # Resolves any object passed to ops_access/ops_write_access to the
-  # customer account id it belongs to (mirrors user_role/3's object
-  # handling). Unknown shapes return nil so the grant check fails
-  # closed.
-  defp object_account_id(%Project{account_id: account_id}), do: account_id
-  defp object_account_id(%Account{id: id}), do: id
-  defp object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
-  defp object_account_id(%{account: %Account{id: id}}), do: id
+  @doc """
+  Resolves any object passed to ops_access/ops_write_access to the customer
+  account id it belongs to (mirrors user_role/3's object handling). Unknown
+  shapes return nil so the grant check fails closed.
+  """
+  def object_account_id(%Project{account_id: account_id}), do: account_id
+  def object_account_id(%Account{id: id}), do: id
+  def object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
+  def object_account_id(%{account: %Account{id: id}}), do: id
 
-  defp object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
+  def object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
     case Projects.get_project_by_id(project_id) do
       %Project{account_id: account_id} -> account_id
       _ -> nil
     end
   end
 
-  defp object_account_id(_), do: nil
+  def object_account_id(_), do: nil
 
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
-    user_role(user, project, :user)
+    project_reader?(user, project)
   end
 
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
     case Map.get(command_event, :project_id) do
       project_id when not is_nil(project_id) ->
         project = Projects.get_project_by_id(project_id)
-        user_role(user, project, :user)
+        project_reader?(user, project)
 
       _ ->
         false
@@ -380,7 +403,7 @@ defmodule Tuist.Authorization.Checks do
         else
           case user_or_nil do
             %User{} = user ->
-              user_role(user, project, :user)
+              project_reader?(user, project)
 
             _ ->
               false
@@ -394,5 +417,11 @@ defmodule Tuist.Authorization.Checks do
 
   def command_event_project_access(_, _) do
     false
+  end
+
+  # Reading a project is where the viewer role lives, so the command-event
+  # gates accept it alongside members that can also write.
+  defp project_reader?(user, project) do
+    user_role(user, project, :user) or user_role(user, project, :viewer)
   end
 end

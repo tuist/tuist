@@ -22,7 +22,12 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-cases"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Cases"),
+          fallback: "test-cases"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -452,8 +457,7 @@ defmodule TuistWeb.TestCasesLive do
       fn ->
         {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options, list_opts)
         {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
-      end,
-      reset: true
+      end
     )
   end
 
@@ -492,6 +496,21 @@ defmodule TuistWeb.TestCasesLive do
   def duration_cell_label(nil), do: dgettext("dashboard_tests", "N/A")
 
   def duration_cell_label(duration_ms), do: Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(duration_ms)
+
+  # Bazel synthesizes a one-case `test.xml` when the runner (rust_test,
+  # cc_test without gtest, etc.) does not write JUnit itself, using the
+  # target basename for both classname and test name. That collapses the
+  # whole target into a single row here. The row is worth flagging so a
+  # reader understands why per-case detail is missing and where the raw
+  # `test.log` still lives (on the invocation's test run page).
+  def bazel_target_collapse?(%{module_name: module_name, name: name, suite_name: suite_name})
+      when is_binary(module_name) and is_binary(name) and is_binary(suite_name) do
+    String.starts_with?(module_name, "//") and
+      name != "" and name == suite_name and
+      module_name |> String.split(":") |> List.last() == name
+  end
+
+  def bazel_target_collapse?(_), do: false
 
   defp build_flop_filters(filters, search) do
     flop_filters =

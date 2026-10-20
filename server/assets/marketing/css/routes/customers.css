@@ -1,254 +1,258 @@
+/*
+ * Same page skeleton as the blog index: blocks are 1200px bordered boxes
+ * separated by 2px seams. The header box holds the title and subtitle, and
+ * the case grid is a single bordered box whose cells are divided by 1px
+ * hairlines instead of card shadows.
+ */
 #marketing-customers {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--noora-spacing-9);
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
 
   @media (min-width: 1024px) {
-    gap: var(--noora-spacing-11);
+    align-items: center;
   }
 
-  & > [data-part="header"] {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--noora-spacing-9);
+  /* The header[data-part] selector matches the specificity of pages.css's
+     `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
+     ID), whose margins and 1296px max-width must lose to the page frame. */
+  & > header[data-part="header"],
+  & > section,
+  & > ul[data-part="cases"] {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the header. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
 
-    & > [data-part="logo"] {
-      width: 280px;
-      height: 290px;
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(header[data-part="header"], [data-part="cases"], [data-part="pagination-control"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  /* Title + subtitle share one box whose insets are the page's 64px gutter
+     on desktop. */
+  & > header[data-part="header"] {
+    padding: var(--noora-spacing-10) var(--noora-spacing-8);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13);
     }
 
     & > [data-part="title"] {
       color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
-      text-align: center;
-      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
     }
 
-    & > [data-part="description"] {
-      max-width: 644px;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-      text-align: center;
-    }
-  }
-
-  & > [data-part="filters-bar"] {
-    display: flex;
-    position: relative;
-    flex-direction: column-reverse;
-    justify-content: flex-end;
-    align-items: stretch;
-    gap: var(--noora-spacing-6);
-
-    @media (max-width: 1023px) {
-      align-self: stretch;
-      margin-right: 0;
-      margin-left: 0;
-      padding-right: 0;
-      padding-left: 0;
-    }
-
-    @media (min-width: 1024px) {
-      flex-direction: row;
-      align-items: center;
-      margin-right: 0;
-      margin-left: 0;
-      padding-right: var(--noora-spacing-14);
-      padding-left: var(--noora-spacing-14);
-      width: calc(100% - 2 * var(--noora-spacing-14));
-    }
-
-    & > [data-part="categories"] {
-      display: flex;
-      position: relative;
-      flex: 1;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-      -ms-overflow-style: none;
-      isolation: isolate;
-
-      @media (max-width: 1023px) {
-        padding-top: var(--noora-spacing-4);
-        padding-bottom: var(--noora-spacing-4);
-        width: 100%;
-      }
-
-      &::-webkit-scrollbar {
-        display: none;
-      }
-
-      /* Left fade effect for mobile - stays fixed in place */
-      @media (max-width: 1023px) {
-        &::before {
-          position: sticky;
-          left: 0;
-          flex-shrink: 0;
-          z-index: 2;
-          background: linear-gradient(to right, var(--noora-surface-background-primary), transparent);
-          width: 20px;
-          min-height: 40px;
-          pointer-events: none;
-          content: "";
-        }
-      }
-
-      /* Right fade effect for mobile - stays fixed in place */
-      @media (max-width: 1023px) {
-        &::after {
-          position: sticky;
-          right: 0;
-          flex-shrink: 0;
-          z-index: 2;
-          margin-left: auto;
-          background: linear-gradient(to left, var(--noora-surface-background-primary), transparent);
-          width: 40px;
-          min-height: 40px;
-          pointer-events: none;
-          content: "";
-        }
-      }
-
-      & > [data-part="category"] {
-        position: relative;
-        flex-shrink: 0;
-        z-index: 1;
-        transition:
-          background 0.2s ease,
-          color 0.2s ease;
-        border-radius: var(--noora-radius-8);
-        padding: var(--noora-spacing-1) var(--noora-spacing-6);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        text-decoration: none;
-        white-space: nowrap;
-
-        &[data-selected] {
-          background: var(--noora-surface-background-secondary);
-          color: var(--noora-surface-label-primary);
-        }
-
-        &:not([data-selected]) {
-          color: var(--noora-surface-label-secondary);
-        }
-
-        &:not([data-selected]):hover {
-          color: var(--noora-surface-label-primary);
-        }
-      }
-    }
-
-    & > [data-part="actions"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-4);
-
-      @media (max-width: 1023px) {
-        padding: 0 var(--noora-spacing-6);
-
-        & form {
-          flex: 1;
-        }
-      }
-
-      @media (min-width: 1024px) {
-        padding: 0 0 0 var(--noora-spacing-8);
-      }
+    & > [data-part="subtitle"] {
+      margin-top: var(--noora-spacing-9);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
     }
   }
 
+  /* A list now, so pages.css's section rule no longer reaches it: the frame
+     rule above sizes it, and this restores the section's stacking. */
   & > [data-part="cases"] {
     display: grid;
+    position: relative;
     grid-template-columns: 1fr;
-    gap: var(--noora-spacing-11);
+    z-index: var(--noora-z-index-1);
+    padding: 0;
+    list-style: none;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
 
     @media (min-width: 1024px) {
       grid-template-columns: repeat(3, 1fr);
     }
 
-    & > [data-part="case"] {
-      display: flex;
-      flex-direction: column;
-      transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease;
-      cursor: pointer;
-      box-shadow:
-        0 1px 1px 0 rgba(22, 24, 28, 0.05),
-        0 0 0 1px rgba(46, 51, 56, 0.08),
-        0 1px 1px 0 rgba(46, 51, 56, 0.1);
-      border-radius: var(--noora-radius-6);
-      background: var(--noora-surface-background-primary);
-      text-decoration: none;
+    /* Interior hairlines only: a cell draws the line above it (skipped in the
+       first row) and to its left (skipped in the first column), so the box's
+       own border is the only line on all four outer edges — nothing doubles
+       up against it. The blank filler cells stretch to the row height, which
+       keeps the column lines running through a last row that isn't full. */
+    & > [data-part="case-item"],
+    & > [data-part="filler"] {
+      border-top: 1px solid var(--marketing-stroke-default);
 
-      &:hover {
-        & > [data-part="content"] {
-          & > [data-part="footer"] {
-            & > svg {
-              visibility: visible;
-              opacity: 1;
-            }
-          }
+      &:first-child {
+        border-top: none;
+      }
+
+      /* Two-up on tablets. The filler cells are display:none below 1024px, so
+         they sit outside this layout — they're always the last children, which
+         leaves the cases' nth-child positions untouched. */
+      @media (min-width: 768px) and (max-width: 1023px) {
+        &:nth-child(-n + 2) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(2n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
         }
       }
 
-      & > [data-part="image"] {
-        box-shadow:
-          0 1px 1px 0 rgba(14, 14, 14, 0.05),
-          0 0 0 1px rgba(46, 51, 56, 0.08),
-          0 1px 1px 0 rgba(46, 51, 56, 0.1);
-        border-top-right-radius: var(--noora-radius-6);
-        border-top-left-radius: var(--noora-radius-6);
-        border-radius: var(--noora-radius-6);
+      @media (min-width: 1024px) {
+        &:nth-child(-n + 3) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(3n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+    }
+
+    & > [data-part="filler"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: block;
+      }
+    }
+
+    /* The list item is the grid cell (a single-cell grid, so the card fills
+       it); the card itself is the link inside. */
+    & > [data-part="case-item"] {
+      display: grid;
+    }
+
+    & > [data-part="case-item"] > [data-part="case"] {
+      display: flex;
+      flex-direction: column;
+      padding: var(--noora-spacing-8);
+      color: inherit;
+      text-decoration: none;
+
+      & > [data-part="cover"] {
+        background: var(--noora-surface-background-tertiary);
         aspect-ratio: 16 / 9;
-        width: 100%;
-        object-fit: cover;
+        overflow: hidden;
+
+        & > [data-part="image"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        /* The SVG artwork shares the cover's 16:9 box; currentColor carries
+           the logos' neutral parts across themes. */
+        & > [data-part="artwork"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          color: var(--noora-surface-label-primary);
+        }
       }
 
       & > [data-part="content"] {
         display: flex;
+        flex: 1;
         flex-direction: column;
-        gap: var(--noora-spacing-5);
-        padding: var(--noora-spacing-5);
+        margin-top: var(--noora-spacing-6);
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-primary);
-          font-family: var(--noora-font-heading);
-          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          text-wrap: pretty;
         }
+      }
 
-        & > [data-part="footer"] {
-          display: flex;
-          flex-direction: row;
-          justify-content: space-between;
-          align-items: center;
-          gap: var(--noora-spacing-4);
+      /* Pinned below the title (content's flex: 1 keeps it at the bottom of
+         the cell). Quiet by default; hovering or keyboard-focusing the card
+         raises it to the link button's own secondary label. */
+      & > [data-part="read-story"] {
+        align-self: flex-start;
+        margin-top: var(--noora-spacing-6);
+        color: var(--noora-surface-label-secondary);
+        text-decoration: none;
+      }
 
-          & > [data-part="read-story"] {
-            color: var(--noora-button-secondary-label);
-            font-family: var(--noora-font-body);
-            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-          }
-          & > svg {
-            visibility: hidden;
-            opacity: 0;
-            transition:
-              opacity 0.25s ease-out,
-              visibility 0.25s ease-out;
-            color: var(--noora-surface-label-primary);
-          }
-        }
+      &:hover > [data-part="read-story"],
+      &:focus-visible > [data-part="read-story"] {
+        color: var(--noora-link-button-secondary-label);
       }
     }
   }
 
+  /* Its own box on the page frame, a 2px seam below the grid — the grid's
+     cells draw that seam's top edge, so this one keeps all four borders. */
   & > [data-part="pagination-control"] {
-    margin-bottom: var(--noora-spacing-11);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--noora-spacing-9) var(--noora-spacing-8);
+    /* 32px above/below the group, in a 96px-tall box per the comp (a min, so
+       it grows instead of clipping if the group ever wraps). */
+    min-height: var(--noora-spacing-16);
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home and about pages' section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
   }
 }

@@ -1,8 +1,12 @@
 defmodule Tuist.Kura.StorageRollup do
   @moduledoc """
   One day of storage telemetry for one Kura account-region: how much the ring
-  evicted, how young the shed content was, and how full the ring got. Rolled
-  up hourly from ClickHouse; claim sizing reads only these rows.
+  evicted, how young the shed content was, how full the ring got, and how many
+  hits the instance served. Rolled up hourly from ClickHouse; claim sizing and
+  placement read only these rows. Disk-pressure days retain a positive eviction
+  count to block occupancy shrink, exclude pressure bytes from turnover, and
+  clear retention ages so a constrained runtime ring cannot establish the
+  configured ring's fit.
   """
 
   use Ecto.Schema
@@ -22,6 +26,8 @@ defmodule Tuist.Kura.StorageRollup do
     field :max_occupancy_percent, :integer
     field :max_live_segment_bytes, :integer
     field :last_ring_budget_bytes, :integer
+    field :min_ring_budget_bytes, :integer
+    field :hit_count, :integer, default: 0
 
     belongs_to :account, Account
 

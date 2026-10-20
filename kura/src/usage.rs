@@ -19,8 +19,6 @@ use crate::{
 };
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
-const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
-const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Eviction reports awaiting a successful delivery. In memory only: the claim
 // sizing policy reads weeks of aggregates, so reports lost to a restart are
 // noise, and keeping them off the durable outbox keeps the on-disk format
@@ -64,6 +62,11 @@ pub struct UsageRollup {
     pub artifact_kind: String,
     pub bytes: u64,
     pub request_count: u64,
+    /// Where the credential behind these requests was issued, when it carried a
+    /// signed origin. Absent on the wire otherwise, so older control planes and
+    /// rollups stored before it existed read the same.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 /// One ring-rotation eviction as it crosses the wire. `reason` is always
@@ -124,6 +127,7 @@ struct UsageBucketKey {
     operation: &'static str,
     protocol: &'static str,
     artifact_kind: &'static str,
+    origin: Option<Arc<str>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -168,12 +172,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "egress",
             "download",
@@ -187,12 +193,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "ingress",
             "upload",
@@ -206,12 +214,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "egress",
             "download",
@@ -225,12 +235,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "ingress",
             "upload",
@@ -245,6 +257,7 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         traffic_plane: &'static str,
         direction: &'static str,
         operation: &'static str,
@@ -263,6 +276,7 @@ impl Usage {
             operation,
             protocol,
             artifact_kind,
+            origin: origin.cloned(),
         };
 
         let mut buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
@@ -299,7 +313,7 @@ impl Usage {
     }
 
     fn rollup_for_bucket(&self, key: &UsageBucketKey, bucket: &UsageBucket) -> UsageRollup {
-        let event_id = format!(
+        let mut event_id = format!(
             "{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.inner.node_id,
             key.window_start_unix_seconds,
@@ -311,6 +325,13 @@ impl Usage {
             key.protocol,
             key.artifact_kind
         );
+        // The control plane dedupes on the id, so buckets that differ only by
+        // origin need distinct ones. Unattributed buckets keep the id they
+        // always had, so a redelivery across an upgrade still dedupes.
+        if let Some(origin) = &key.origin {
+            event_id.push(':');
+            event_id.push_str(origin);
+        }
 
         UsageRollup {
             event_id,
@@ -327,6 +348,7 @@ impl Usage {
             artifact_kind: key.artifact_kind.to_owned(),
             bytes: bucket.bytes,
             request_count: bucket.request_count,
+            origin: key.origin.as_deref().map(ToOwned::to_owned),
         }
     }
 
@@ -488,11 +510,7 @@ async fn flush_loop(state: SharedState) {
 }
 
 async fn delivery_loop(state: SharedState) {
-    let client = match Client::builder()
-        .connect_timeout(USAGE_CONNECT_TIMEOUT)
-        .timeout(USAGE_REQUEST_TIMEOUT)
-        .build()
-    {
+    let client = match crate::control_plane_http::client_builder().build() {
         Ok(client) => client,
         Err(error) => {
             warn!("failed to build usage delivery client: {error}");
@@ -618,7 +636,7 @@ fn eviction_event(
         node_id: node_id.to_owned(),
         region: region.to_owned(),
         segment_id: eviction.segment_id,
-        reason: "capacity".to_owned(),
+        reason: eviction.reason.to_owned(),
         evicted_at_unix_ms: eviction.evicted_at_ms,
         segment_created_at_unix_ms: eviction.segment_created_at_ms,
         newest_content_at_unix_ms: eviction.newest_content_at_ms,
@@ -680,6 +698,7 @@ mod tests {
             operation: "download",
             protocol: "http",
             artifact_kind: "xcframework",
+            origin: None,
         }
     }
 
@@ -711,9 +730,9 @@ mod tests {
     fn record_accumulates_bytes_and_request_count_into_existing_bucket() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", 100);
-        usage.record_public_download("acme", "ios", "xcframework", 250);
-        usage.record_public_download("acme", "ios", "xcframework", 50);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
+        usage.record_public_download("acme", "ios", None, "xcframework", 250);
+        usage.record_public_download("acme", "ios", None, "xcframework", 50);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 1);
@@ -726,24 +745,95 @@ mod tests {
     fn record_keeps_separate_buckets_per_tenant_namespace() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", 100);
-        usage.record_public_download("acme", "android", "xcframework", 200);
-        usage.record_public_upload("acme", "ios", "xcframework", 300);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
+        usage.record_public_download("acme", "android", None, "xcframework", 200);
+        usage.record_public_upload("acme", "ios", None, "xcframework", 300);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 3);
     }
 
     #[test]
+    fn record_keeps_separate_buckets_per_origin() {
+        let usage = test_usage(60, 100);
+        let illinois: Arc<str> = Arc::from("US-IL");
+        let netherlands: Arc<str> = Arc::from("NL");
+
+        usage.record_public_download("acme", "ios", Some(&illinois), "xcframework", 100);
+        usage.record_public_download("acme", "ios", Some(&illinois), "xcframework", 50);
+        usage.record_public_download("acme", "ios", Some(&netherlands), "xcframework", 10);
+        usage.record_public_download("acme", "ios", None, "xcframework", 1);
+
+        let buckets = usage.inner.buckets.lock().unwrap();
+        assert_eq!(buckets.len(), 3);
+        let illinois_bucket = buckets
+            .iter()
+            .find(|(key, _)| key.origin.as_deref() == Some("US-IL"))
+            .map(|(_, bucket)| bucket)
+            .unwrap();
+        assert_eq!(illinois_bucket.request_count, 2);
+        assert_eq!(illinois_bucket.bytes, 150);
+    }
+
+    // The control plane dedupes on the event id, so two origins in one window
+    // must not share one, and an unattributed bucket keeps the id it has always
+    // had so a rollup redelivered across an upgrade still dedupes.
+    #[test]
+    fn rollup_carries_the_origin_and_keeps_the_unattributed_id() {
+        let usage = test_usage(60, 100);
+        let unattributed = bucket_key("acme", "ios", 120);
+        let attributed = UsageBucketKey {
+            origin: Some(Arc::from("US-IL")),
+            ..bucket_key("acme", "ios", 120)
+        };
+        let bucket = UsageBucket {
+            bytes: 1,
+            request_count: 1,
+        };
+
+        let plain = usage.rollup_for_bucket(&unattributed, &bucket);
+        let located = usage.rollup_for_bucket(&attributed, &bucket);
+
+        assert_eq!(plain.origin, None);
+        assert!(plain.event_id.ends_with(":xcframework"));
+        assert_eq!(located.origin.as_deref(), Some("US-IL"));
+        assert_eq!(located.event_id, format!("{}:US-IL", plain.event_id));
+
+        let wire = serde_json::to_value(&plain).unwrap();
+        assert!(wire.get("origin").is_none());
+        let wire = serde_json::to_value(&located).unwrap();
+        assert_eq!(wire["origin"], "US-IL");
+    }
+
+    // Rollups persist in the outbox, so ones stored before the field existed
+    // have to read back.
+    #[test]
+    fn a_rollup_stored_without_an_origin_reads_back() {
+        let usage = test_usage(60, 100);
+        let rollup = usage.rollup_for_bucket(
+            &bucket_key("acme", "ios", 120),
+            &UsageBucket {
+                bytes: 1,
+                request_count: 1,
+            },
+        );
+        let mut stored = serde_json::to_value(&rollup).unwrap();
+        stored.as_object_mut().unwrap().remove("origin");
+
+        let read: UsageRollup = serde_json::from_value(stored).unwrap();
+        assert_eq!(read, rollup);
+    }
+
+    #[test]
     fn record_rejects_new_keys_once_max_buckets_reached() {
         let usage = test_usage(60, 2);
 
-        usage.record_public_download("acme", "ios", "xcframework", 1);
-        usage.record_public_download("acme", "android", "xcframework", 1);
+        usage.record_public_download("acme", "ios", None, "xcframework", 1);
+        usage.record_public_download("acme", "android", None, "xcframework", 1);
         // Third unique key — rejected.
-        usage.record_public_download("globex", "ios", "xcframework", 1);
+        usage.record_public_download("globex", "ios", None, "xcframework", 1);
         // Existing keys still accumulate.
-        usage.record_public_download("acme", "ios", "xcframework", 9);
+        usage.record_public_download("acme", "ios", None, "xcframework", 9);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 2);
@@ -761,8 +851,8 @@ mod tests {
     fn record_uses_saturating_add_on_overflow() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", u64::MAX - 5);
-        usage.record_public_download("acme", "ios", "xcframework", 100);
+        usage.record_public_download("acme", "ios", None, "xcframework", u64::MAX - 5);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         let bucket = buckets.values().next().unwrap();
@@ -872,6 +962,7 @@ mod tests {
 
     fn capacity_eviction(segment_id: &str) -> CapacityEviction {
         CapacityEviction {
+            reason: "capacity",
             segment_id: segment_id.to_owned(),
             segment_created_at_ms: 1_000,
             newest_content_at_ms: 2_000,
@@ -882,18 +973,26 @@ mod tests {
     }
 
     #[test]
+    fn eviction_event_preserves_pressure_reason() {
+        let mut eviction = capacity_eviction("pressure-segment");
+        eviction.reason = "disk_pressure";
+        let event = eviction_event("acme", "node-1", "eu-west", eviction);
+        assert_eq!(event.reason, "disk_pressure");
+    }
+
+    #[test]
     fn eviction_event_maps_fields_and_derives_a_stable_id() {
         let event = eviction_event(
             "acme",
             "node-1.kura.local",
-            "eu-central",
+            "eu-west",
             capacity_eviction("segment-1"),
         );
 
         assert_eq!(event.event_id, "evict:node-1.kura.local:segment-1");
         assert_eq!(event.tenant_id, "acme");
         assert_eq!(event.node_id, "node-1.kura.local");
-        assert_eq!(event.region, "eu-central");
+        assert_eq!(event.region, "eu-west");
         assert_eq!(event.segment_id, "segment-1");
         assert_eq!(event.reason, "capacity");
         assert_eq!(event.evicted_at_unix_ms, 90_000);

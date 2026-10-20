@@ -6,8 +6,8 @@ use rand::Rng as _;
 pub(crate) const MIN_RETRY_AFTER_SECONDS: u64 = 1;
 /// Ceiling for a shed that carries no backlog signal.
 pub(crate) const IDLE_RETRY_AFTER_CEILING_SECONDS: u64 = 2;
-/// Ceiling for a full queue: twice the admission wait, so a returning client
-/// has given the pool a complete turnover.
+/// Ceiling for a full queue. Response-stream admission waits up to five
+/// seconds; shorter admission paths share this jitter window under saturation.
 pub(crate) const SATURATED_RETRY_AFTER_CEILING_SECONDS: u64 = 10;
 
 pub(crate) fn retry_after_ceiling_seconds(backlog: u64, capacity: u64) -> u64 {

@@ -8,6 +8,13 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Localization
+
+  on_mount {TuistWeb.Authentication, :mount_current_user}
+
+  embed_templates "marketing_changelog_entry_live/*"
+
+  def render(assigns), do: changelog_entry(assigns)
 
   def mount(_params, _session, socket) do
     {:ok, socket}
@@ -34,7 +41,15 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)
-     |> assign_structured_data(get_changelog_entry_structured_data(entry))}
+     |> assign_article_head_meta(published_at: entry.date)
+     |> put_structured_data([
+       get_changelog_entry_structured_data(entry),
+       get_breadcrumbs_structured_data([
+         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+         {dgettext("marketing", "Changelog"), Tuist.Environment.app_url(path: ~p"/changelog")},
+         {entry.title, Tuist.Environment.app_url(path: "/changelog/#{entry.id}")}
+       ])
+     ])}
   end
 
   defp changelog_entry_head_image(entry, date) do
@@ -66,15 +81,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
     end
   end
 
-  defp generated_changelog_image_url(entry, date) do
-    Tuist.Environment.app_url(
-      path:
-        OpenGraph.image_path(:changelog_entry,
-          title: entry.title,
-          description: entry.description,
-          date: date,
-          pull_request: entry.pull_request
-        )
-    )
+  # The same title-on-template card blog posts without a cover get.
+  defp generated_changelog_image_url(entry, _date) do
+    Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing_text, title: entry.title))
   end
 end

@@ -83,6 +83,20 @@ type Maintainer struct {
 	// answer that differently, so it belongs with each provider rather than
 	// here.
 	DynamicLabels []LabelAdvertisement
+
+	// PrewarmGate, when non-nil, holds a Node this process creates out of
+	// scheduling until released (see PrewarmGate). nil never taints, and
+	// either way a leftover prewarm taint is removed.
+	PrewarmGate *PrewarmGate
+
+	// RuntimeVersion, when non-nil, reports the Tart version the host runs.
+	// It is published as the Node's container runtime version
+	// (`tart://2.41.1`), which is where an in-place Tart upgrade shows it has
+	// reached a host. Read every heartbeat, since the operator replaces Tart
+	// under a running agent; a failed read keeps the last version read.
+	RuntimeVersion func(ctx context.Context) (string, error)
+
+	runtimeVersion string
 }
 
 // LabelAdvertisement is one named source of dynamic Node labels. The name is
@@ -137,16 +151,19 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
+		m.decidePrewarm(true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
 		}
+		m.readRuntimeVersion(ctx)
 		m.configureNode(node, m.evalDynamicLabels(ctx))
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
+	m.decidePrewarm(false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -177,6 +194,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// metadata/spec first (merge patch persists label deletions as null),
 	// then update status.
 	base := node.DeepCopy()
+	m.readRuntimeVersion(ctx)
 	m.configureNode(node, m.evalDynamicLabels(ctx))
 
 	// configureNode just set this Node's desired status (Ready=True,
@@ -296,6 +314,8 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		}
 	}
 
+	applyPrewarmTaint(node, m.PrewarmGate.Held())
+
 	// Same NoSchedule taint we used for VK so stray Linux Pods don't
 	// land here. Pods that actually want darwin set both the
 	// nodeSelector and a matching toleration.
@@ -317,8 +337,11 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		mem = 16384
 	}
 	if maxPods == 0 {
-		// Apple's macOS SLA caps virtualized macOS instances at 2 per
-		// bare-metal host; Tart refuses to start a third VM.
+		// The Node's Pod ceiling, not the VM ceiling: one guest slot plus one
+		// terminating predecessor. The scheduler counts terminated Pods against
+		// pods capacity until GC deletes them, so this has to exceed the guest
+		// count. Apple's cap of two simultaneous virtualized macOS instances per
+		// host is enforced by Tart, independently of this number.
 		maxPods = 2
 	}
 	if node.Status.Capacity == nil {
@@ -373,6 +396,9 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 	node.Status.NodeInfo.Architecture = "arm64"
 	node.Status.NodeInfo.KubeletVersion = "tart-kubelet-v0"
 	node.Status.NodeInfo.ContainerRuntimeVersion = "tart"
+	if m.runtimeVersion != "" {
+		node.Status.NodeInfo.ContainerRuntimeVersion = "tart://" + m.runtimeVersion
+	}
 
 	if m.NodeIP != "" {
 		// Replace, not merge: a kubelet restart with a new NodeIP
@@ -427,4 +453,22 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 		LastHeartbeatTime:  now,
 		LastTransitionTime: now,
 	})
+}
+
+func (m *Maintainer) decidePrewarm(created bool) {
+	if m.PrewarmGate != nil {
+		m.PrewarmGate.decide(created)
+	}
+}
+
+func (m *Maintainer) readRuntimeVersion(ctx context.Context) {
+	if m.RuntimeVersion == nil {
+		return
+	}
+	version, err := m.RuntimeVersion(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "read tart version")
+		return
+	}
+	m.runtimeVersion = version
 }

@@ -1,0 +1,1235 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/atlas_web/components/core_components.ex:369
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr ""
+
+#: lib/atlas_web/live/login_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "Continue with Google"
+msgstr ""
+
+#: lib/atlas_web/live/login_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "Log in as test user"
+msgstr ""
+
+#: lib/atlas_web/live/login_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Log in to Atlas"
+msgstr ""
+
+#: lib/atlas_web/live/login_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "No authentication providers are configured. Set the GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables to enable Google OAuth."
+msgstr ""
+
+#: lib/atlas_web/components/core_components.ex:77
+#, elixir-autogen, elixir-format
+msgid "close"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:63
+#: lib/atlas_web/live/settings_integrations_live.ex:17
+#: lib/atlas_web/live/settings_integrations_live.ex:31
+#: lib/atlas_web/live/settings_live.ex:8
+#: lib/atlas_web/live/settings_live.ex:14
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Add Channel"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:72
+#: lib/atlas_web/live/settings_slack_bot_live.ex:48
+#: lib/atlas_web/live/settings_slack_bot_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "Bot Token"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:617
+#: lib/atlas_web/live/account_live.ex:764
+#: lib/atlas_web/live/account_live.ex:1005
+#: lib/atlas_web/live/account_live.ex:1252
+#: lib/atlas_web/live/settings_github_app_live.ex:130
+#: lib/atlas_web/live/settings_integrations_live.ex:84
+#: lib/atlas_web/live/settings_integrations_live.ex:164
+#: lib/atlas_web/live/settings_slack_bot_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:134
+#, elixir-autogen, elixir-format
+msgid "Channel"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:120
+#: lib/atlas_web/live/settings_slack_bot_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "Channel ID"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "Channel Name"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:208
+#, elixir-autogen, elixir-format
+msgid "Channel added."
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Channel removed."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:437
+#: lib/atlas_web/live/account_live.ex:822
+#: lib/atlas_web/live/account_live.ex:858
+#: lib/atlas_web/live/account_live.ex:1309
+#: lib/atlas_web/live/settings_github_app_live.ex:72
+#: lib/atlas_web/live/settings_slack_bot_live.ex:58
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:226
+#, elixir-autogen, elixir-format
+msgid "Failed to remove channel."
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:113
+#, elixir-autogen, elixir-format
+msgid "Monitored Channels"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "No channels being monitored yet."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:167
+#: lib/atlas_web/live/settings_slack_bot_live.ex:142
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:128
+#: lib/atlas_web/live/settings_slack_bot_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:991
+#, elixir-autogen, elixir-format
+msgid "Title"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:35
+#: lib/atlas_web/live/settings_live.ex:18
+#: lib/atlas_web/live/settings_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr ""
+
+#: lib/atlas_web/live/settings_live.ex:35
+#, elixir-autogen, elixir-format
+msgid "General instance configuration and preferences."
+msgstr ""
+
+#: lib/atlas_web/live/settings_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "Instance"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Add Bot"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:69
+#, elixir-autogen, elixir-format
+msgid "Are you sure? This will remove the bot and all its monitored channels."
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Bot updated."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Channels"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:39
+#: lib/atlas_web/live/settings_slack_bot_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Configuration"
+msgstr ""
+
+#: lib/atlas_web/components/layouts.ex:45
+#, elixir-autogen, elixir-format
+msgid "Connection lost. Attempting to reconnect..."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:82
+#: lib/atlas_web/live/settings_integrations_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "Create"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "Delete Bot"
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Failed to delete bot."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:462
+#: lib/atlas_web/live/account_live.ex:984
+#: lib/atlas_web/live/settings_github_app_live.ex:44
+#: lib/atlas_web/live/settings_github_app_live.ex:100
+#: lib/atlas_web/live/settings_integrations_live.ex:66
+#: lib/atlas_web/live/settings_integrations_live.ex:99
+#: lib/atlas_web/live/settings_integrations_live.ex:134
+#: lib/atlas_web/live/settings_integrations_live.ex:179
+#: lib/atlas_web/live/settings_slack_bot_live.ex:44
+#: lib/atlas_web/live/settings_slack_bot_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "No Slack bots configured yet. Add one to start monitoring channels."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Slack Bots"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Slack bot created."
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:191
+#, elixir-autogen, elixir-format
+msgid "Slack bot deleted."
+msgstr ""
+
+#: lib/atlas_web/live/settings_slack_bot_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "Slack bot not found."
+msgstr ""
+
+#: lib/atlas_web/components/layouts.ex:58
+#, elixir-autogen, elixir-format
+msgid "Something went wrong. Attempting to reconnect..."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:67
+#: lib/atlas_web/live/settings_slack_bot_live.ex:85
+#, elixir-autogen, elixir-format
+msgid "e.g. Community Support"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:79
+#: lib/atlas_web/live/settings_slack_bot_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Found in your Slack app's Basic Information page"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:78
+#: lib/atlas_web/live/settings_slack_bot_live.ex:52
+#: lib/atlas_web/live/settings_slack_bot_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Signing Secret"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "Add App"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:158
+#, elixir-autogen, elixir-format
+msgid "Add Repository"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "App updated."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:83
+#, elixir-autogen, elixir-format
+msgid "Are you sure? This will remove the app and all its monitored repositories."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:78
+#, elixir-autogen, elixir-format
+msgid "Delete App"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Failed to delete app."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "Failed to remove repository."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:116
+#, elixir-autogen, elixir-format
+msgid "GitHub Apps"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "GitHub app created."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "GitHub app deleted."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "GitHub app not found."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:141
+#, elixir-autogen, elixir-format
+msgid "Monitored Repositories"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:191
+#, elixir-autogen, elixir-format
+msgid "No GitHub apps configured yet. Add one to start monitoring repositories."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "No repositories being monitored yet."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:148
+#, elixir-autogen, elixir-format
+msgid "Owner"
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:182
+#, elixir-autogen, elixir-format
+msgid "Repositories"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:154
+#: lib/atlas_web/live/settings_github_app_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "Repository"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "Repository added."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Repository removed."
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:125
+#: lib/atlas_web/live/settings_integrations_live.ex:159
+#, elixir-autogen, elixir-format
+msgid "The secret configured in your GitHub App's webhook settings"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:60
+#: lib/atlas_web/live/settings_github_app_live.ex:124
+#: lib/atlas_web/live/settings_integrations_live.ex:158
+#, elixir-autogen, elixir-format
+msgid "Webhook Secret"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "Webhook URL"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:101
+#: lib/atlas_web/live/settings_integrations_live.ex:135
+#, elixir-autogen, elixir-format
+msgid "e.g. My GitHub App"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:149
+#: lib/atlas_web/live/settings_github_app_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "e.g. tuist"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:48
+#: lib/atlas_web/live/settings_github_app_live.ex:106
+#: lib/atlas_web/live/settings_integrations_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "App ID"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:113
+#: lib/atlas_web/live/settings_integrations_live.ex:147
+#, elixir-autogen, elixir-format
+msgid "Found in the installation URL after installing the app"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:107
+#: lib/atlas_web/live/settings_integrations_live.ex:141
+#, elixir-autogen, elixir-format
+msgid "Found in your GitHub App's General settings"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:52
+#: lib/atlas_web/live/settings_github_app_live.ex:112
+#: lib/atlas_web/live/settings_integrations_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Installation ID"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:119
+#: lib/atlas_web/live/settings_integrations_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "PEM-encoded private key generated in your GitHub App settings"
+msgstr ""
+
+#: lib/atlas_web/live/settings_github_app_live.ex:56
+#: lib/atlas_web/live/settings_github_app_live.ex:118
+#: lib/atlas_web/live/settings_integrations_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "Private Key"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:112
+#, elixir-autogen, elixir-format
+msgid "Account"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Account not found."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:57
+#: lib/atlas_web/live/account_live.ex:371
+#: lib/atlas_web/live/accounts_live.ex:16
+#: lib/atlas_web/live/accounts_live.ex:42
+#: lib/atlas_web/live/accounts_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Accounts"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:676
+#: lib/atlas_web/live/account_live.ex:1594
+#, elixir-autogen, elixir-format
+msgid "Add Contact"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:604
+#, elixir-autogen, elixir-format
+msgid "Add Handle"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1428
+#, elixir-autogen, elixir-format
+msgid "Add Note"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1088
+#: lib/atlas_web/live/account_live.ex:1597
+#, elixir-autogen, elixir-format
+msgid "Add Term"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1664
+#, elixir-autogen, elixir-format
+msgid "Add a Stripe customer ID to surface invoices automatically."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1399
+#, elixir-autogen, elixir-format
+msgid "Add a note"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1471
+#, elixir-autogen, elixir-format
+msgid "Add a note above or insert timeline events to show them here."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:134
+#, elixir-autogen, elixir-format
+msgid "Add account records to Atlas and they will appear here."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1322
+#, elixir-autogen, elixir-format
+msgid "Add the first signed term so renewal and revenue views can use it."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:870
+#, elixir-autogen, elixir-format
+msgid "Address"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:849
+#, elixir-autogen, elixir-format
+msgid "Address, billing identifiers, and contract signatory."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1354
+#, elixir-autogen, elixir-format
+msgid "Amount"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1415
+#, elixir-autogen, elixir-format
+msgid "Analyzing screenshot…"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Annualizes the MRR equivalent and assumes those renewable customer contracts renew."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "Annualizes the MRR equivalent and assumes those renewable customer contracts renew. USD-denominated contracts are converted to EUR using the latest ECB reference published on %{date}."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:567
+#, elixir-autogen, elixir-format
+msgid "Attach Tuist handles that Atlas should use for future usage joins."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:947
+#: lib/atlas_web/live/account_live.ex:1051
+#, elixir-autogen, elixir-format
+msgid "Bill to"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:914
+#, elixir-autogen, elixir-format
+msgid "Billing"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:844
+#: lib/atlas_web/live/account_live.ex:848
+#, elixir-autogen, elixir-format
+msgid "Billing & Address"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:872
+#, elixir-autogen, elixir-format
+msgid "Billing address used on invoices and contracts."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1099
+#, elixir-autogen, elixir-format
+msgid "Capture the contract term as it was signed: dates, seats, pricing, and PO."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:889
+#: lib/atlas_web/live/account_live.ex:1030
+#, elixir-autogen, elixir-format
+msgid "City"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1229
+#: lib/atlas_web/live/account_live.ex:1300
+#, elixir-autogen, elixir-format
+msgid "Cloud"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:494
+#, elixir-autogen, elixir-format
+msgid "Commercial"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:685
+#, elixir-autogen, elixir-format
+msgid "Contact"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:70
+#, elixir-autogen, elixir-format
+msgid "Contact not found."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:671
+#: lib/atlas_web/live/accounts_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "Contacts"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1097
+#, elixir-autogen, elixir-format
+msgid "Contract Term"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1083
+#, elixir-autogen, elixir-format
+msgid "Contract Terms"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:349
+#: lib/atlas_web/live/account_live.ex:361
+#, elixir-autogen, elixir-format
+msgid "Could not analyze screenshot. Please try again."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1340
+#, elixir-autogen, elixir-format
+msgid "Could not load invoices from Stripe right now. Try again shortly."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:903
+#: lib/atlas_web/live/account_live.ex:1036
+#, elixir-autogen, elixir-format
+msgid "Country"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:521
+#: lib/atlas_web/live/account_live.ex:1197
+#, elixir-autogen, elixir-format
+msgid "Currency"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:642
+#, elixir-autogen, elixir-format
+msgid "Current Value"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:532
+#, elixir-autogen, elixir-format
+msgid "Current value"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:511
+#, elixir-autogen, elixir-format
+msgid "Customer"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "Customers, leads, and prospects stored in Atlas so the product can operate from local revenue data."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1348
+#, elixir-autogen, elixir-format
+msgid "Date"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1198
+#, elixir-autogen, elixir-format
+msgid "Defaults to account currency"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:754
+#: lib/atlas_web/live/account_live.ex:1242
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:759
+#, elixir-autogen, elixir-format
+msgid "Delete this contact? This cannot be undone."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1247
+#, elixir-autogen, elixir-format
+msgid "Delete this term? This cannot be undone."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1222
+#: lib/atlas_web/live/account_live.ex:1298
+#, elixir-autogen, elixir-format
+msgid "Deployment"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:479
+#, elixir-autogen, elixir-format
+msgid "Description"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1174
+#: lib/atlas_web/live/account_live.ex:1288
+#, elixir-autogen, elixir-format
+msgid "Discount"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:522
+#, elixir-autogen, elixir-format
+msgid "EUR"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:423
+#, elixir-autogen, elixir-format
+msgid "Edit Account"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1075
+#, elixir-autogen, elixir-format
+msgid "Edit the account to add address, billing identifiers, and the contract signatory."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:725
+#: lib/atlas_web/live/account_live.ex:954
+#: lib/atlas_web/live/account_live.ex:1054
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1143
+#, elixir-autogen, elixir-format
+msgid "End date"
+msgstr ""
+
+#: lib/atlas_web/live/login_live.ex:34
+#, elixir-autogen, elixir-format
+msgid "Enter the atlas."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:63
+#, elixir-autogen, elixir-format
+msgid "Estimated ARR"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Failed to remove contact."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Failed to remove handle."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:299
+#, elixir-autogen, elixir-format
+msgid "Failed to remove term."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:718
+#, elixir-autogen, elixir-format
+msgid "Finance lead, requester, champion..."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:708
+#, elixir-autogen, elixir-format
+msgid "Full name"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:158
+#, elixir-autogen, elixir-format
+msgid "Handle not found."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:565
+#: lib/atlas_web/live/account_live.ex:653
+#, elixir-autogen, elixir-format
+msgid "Handles"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:451
+#, elixir-autogen, elixir-format
+msgid "How the account appears in Atlas and links out to external systems."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:449
+#, elixir-autogen, elixir-format
+msgid "Identity"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:836
+#, elixir-autogen, elixir-format
+msgid "Imported contacts will appear here, and you can also add your own people with local notes."
+msgstr ""
+
+#: lib/atlas_web/live/settings_integrations_live.ex:40
+#: lib/atlas_web/live/settings_integrations_live.ex:46
+#: lib/atlas_web/live/settings_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "Integrations"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1330
+#, elixir-autogen, elixir-format
+msgid "Invoices"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1661
+#, elixir-autogen, elixir-format
+msgid "Invoices created for this customer in Stripe will appear here automatically."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:337
+#, elixir-autogen, elixir-format
+msgid "Language model is not configured. Set LLM_API_KEY and LLM_MODEL on the server."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:513
+#, elixir-autogen, elixir-format
+msgid "Lead"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:504
+#: lib/atlas_web/live/account_live.ex:639
+#: lib/atlas_web/live/accounts_live.ex:118
+#: lib/atlas_web/live/accounts_live.ex:266
+#, elixir-autogen, elixir-format
+msgid "Lifecycle"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:496
+#, elixir-autogen, elixir-format
+msgid "Lifecycle, contract value, and renewal timing used across the revenue views."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "MRR Equivalent"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1121
+#, elixir-autogen, elixir-format
+msgid "Monthly"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:598
+#, elixir-autogen, elixir-format
+msgid "New handle"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Next Milestone"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:650
+#, elixir-autogen, elixir-format
+msgid "Next Renewal"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:543
+#, elixir-autogen, elixir-format
+msgid "Next renewal"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:133
+#, elixir-autogen, elixir-format
+msgid "No accounts yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1073
+#, elixir-autogen, elixir-format
+msgid "No billing or address details yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:834
+#, elixir-autogen, elixir-format
+msgid "No contacts yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1320
+#, elixir-autogen, elixir-format
+msgid "No contract terms yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:585
+#, elixir-autogen, elixir-format
+msgid "No handles linked yet."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1657
+#, elixir-autogen, elixir-format
+msgid "No invoices in Stripe yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:813
+#, elixir-autogen, elixir-format
+msgid "No notes yet. Capture patterns, preferences, or behaviors Atlas should remember."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1469
+#, elixir-autogen, elixir-format
+msgid "No timeline events yet"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1658
+#, elixir-autogen, elixir-format
+msgid "No upcoming invoices"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "Normalizes each renewable customer contract by term length to estimate monthly recurring revenue in EUR."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1493
+#, elixir-autogen, elixir-format
+msgid "Note"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:734
+#: lib/atlas_web/live/account_live.ex:810
+#, elixir-autogen, elixir-format
+msgid "Notes"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1666
+#, elixir-autogen, elixir-format
+msgid "Nothing scheduled."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1351
+#, elixir-autogen, elixir-format
+msgid "Number"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1230
+#: lib/atlas_web/live/account_live.ex:1300
+#, elixir-autogen, elixir-format
+msgid "On-premise"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1369
+#, elixir-autogen, elixir-format
+msgid "Open in Stripe"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1463
+#, elixir-autogen, elixir-format
+msgid "Open reference"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1303
+#, elixir-autogen, elixir-format
+msgid "PO"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1217
+#, elixir-autogen, elixir-format
+msgid "PO number"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:736
+#, elixir-autogen, elixir-format
+msgid "Patterns, behaviors, preferences, or follow-up guidance from conversations"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1114
+#: lib/atlas_web/live/account_live.ex:1277
+#, elixir-autogen, elixir-format
+msgid "Payment"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1283
+#, elixir-autogen, elixir-format
+msgid "Per seat"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:974
+#, elixir-autogen, elixir-format
+msgid "Person signing the contract on behalf of the customer."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:961
+#: lib/atlas_web/live/account_live.ex:1057
+#, elixir-autogen, elixir-format
+msgid "Phone"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1163
+#, elixir-autogen, elixir-format
+msgid "Price per seat"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:645
+#, elixir-autogen, elixir-format
+msgid "Primary Domain"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:471
+#, elixir-autogen, elixir-format
+msgid "Primary domain"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:512
+#, elixir-autogen, elixir-format
+msgid "Prospect"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1362
+#, elixir-autogen, elixir-format
+msgid "Reference"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:481
+#, elixir-autogen, elixir-format
+msgid "Relationship context, commercial notes, or account summary"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1207
+#, elixir-autogen, elixir-format
+msgid "Renewal notice (weeks)"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "Renews %{date}"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Revenue Snapshot"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:717
+#, elixir-autogen, elixir-format
+msgid "Role or title"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:626
+#: lib/atlas_web/live/account_live.ex:1014
+#: lib/atlas_web/live/account_live.ex:1595
+#: lib/atlas_web/live/account_live.ex:1598
+#, elixir-autogen, elixir-format
+msgid "Save Changes"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:200
+#, elixir-autogen, elixir-format
+msgid "Screenshot is too large. Max size is 5 MB."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:101
+#, elixir-autogen, elixir-format
+msgid "Search by name, domain, or handle..."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1152
+#: lib/atlas_web/live/account_live.ex:1280
+#, elixir-autogen, elixir-format
+msgid "Seats"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1118
+#, elixir-autogen, elixir-format
+msgid "Select cadence"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1226
+#, elixir-autogen, elixir-format
+msgid "Select deployment"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:508
+#, elixir-autogen, elixir-format
+msgid "Select lifecycle"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1401
+#, elixir-autogen, elixir-format
+msgid "Share what happened, follow-ups, or context Atlas should remember. Or paste a screenshot."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:972
+#: lib/atlas_web/live/account_live.ex:1063
+#, elixir-autogen, elixir-format
+msgid "Signatory"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1066
+#, elixir-autogen, elixir-format
+msgid "Signatory title"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:940
+#: lib/atlas_web/live/account_live.ex:1048
+#, elixir-autogen, elixir-format
+msgid "Sold to"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1336
+#, elixir-autogen, elixir-format
+msgid "Source: Stripe"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1132
+#, elixir-autogen, elixir-format
+msgid "Start date"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1359
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:687
+#, elixir-autogen, elixir-format
+msgid "Store the relationship details Atlas should remember, including local notes about patterns, preferences, and behaviors."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:882
+#: lib/atlas_web/live/account_live.ex:1027
+#, elixir-autogen, elixir-format
+msgid "Street"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:397
+#, elixir-autogen, elixir-format
+msgid "Stripe"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:551
+#, elixir-autogen, elixir-format
+msgid "Stripe customer ID"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:926
+#: lib/atlas_web/live/account_live.ex:1042
+#, elixir-autogen, elixir-format
+msgid "Tax ID"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:916
+#, elixir-autogen, elixir-format
+msgid "Tax identifiers and billing recipients used on invoices."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1274
+#, elixir-autogen, elixir-format
+msgid "Term"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Term not found."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1387
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1185
+#: lib/atlas_web/live/account_live.ex:1293
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "Unsupported screenshot format. Use PNG, JPEG, WebP, or GIF."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "Update account details, revenue fields, reconciliation identifiers, and handles."
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "Updated %{date}"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:523
+#, elixir-autogen, elixir-format
+msgid "Use a three-letter ISO currency code."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:553
+#, elixir-autogen, elixir-format
+msgid "Used to surface Stripe data inside Atlas."
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:933
+#: lib/atlas_web/live/account_live.ex:1045
+#, elixir-autogen, elixir-format
+msgid "VAT ID"
+msgstr ""
+
+#: lib/atlas_web/live/accounts_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "Value"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:385
+#, elixir-autogen, elixir-format
+msgid "Website"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1123
+#, elixir-autogen, elixir-format
+msgid "Whole term"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:1122
+#, elixir-autogen, elixir-format
+msgid "Yearly"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:896
+#: lib/atlas_web/live/account_live.ex:1033
+#, elixir-autogen, elixir-format
+msgid "Zip"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:552
+#, elixir-autogen, elixir-format
+msgid "cus_123"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "deliveryhero.com"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "e.g. deliveryhero-production"
+msgstr ""

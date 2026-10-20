@@ -71,8 +71,8 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
         packageToTargetsToArtifactPaths _: [String: [String: Path.AbsolutePath]],
         packageModuleAliases _: [String: [String: String]],
         packageSettings _: TuistCore.PackageSettings
-    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
-        [:]
+    ) async throws -> ResolvedExternalDependencies {
+        ResolvedExternalDependencies(products: [:], packageProducts: [:])
     }
 
     func map(
@@ -81,6 +81,7 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
         packageType: PackageType,
         packageSettings _: TuistCore.PackageSettings,
         packageModuleAliases _: [String: [String: String]],
+        packageProducts _: [String: [String: [ProjectDescription.TargetDependency]]],
         enabledTraits _: Set<String>
     ) async throws -> ProjectDescription.Project? {
         let capturedPrebuilt: CapturedPackagePrebuilt?
@@ -140,6 +141,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .willReturn(.test())
@@ -206,7 +208,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, lintingIssues) = try await subject.load(
@@ -352,7 +354,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
         let subject = SwiftPackageManagerGraphLoader(
             swiftPackageManagerController: swiftPackageManagerController,
             packageInfoMapper: packageInfoMapper,
@@ -430,7 +432,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, lintingIssues) = try await subject.load(
@@ -491,7 +493,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -511,6 +513,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -547,7 +550,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -567,6 +570,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -613,7 +617,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -626,6 +630,112 @@ struct SwiftPackageManagerGraphLoaderTests {
         verify(manifestLoader)
             .loadPackage(at: .value(temporaryDirectory), disableSandbox: .value(true))
             .called(0)
+        verify(manifestLoader)
+            .loadPackage(at: .value(dependencyPackagePath), disableSandbox: .value(true))
+            .called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies(),
+        arguments: [
+            (cachedRevision: "540318ecedd63d883069ae7f1ed811a2df00b6ac", expectedManifestLoads: 0),
+            (cachedRevision: "8f6abcf4c8950e2679d5b2fee4ca284fd7c34886", expectedManifestLoads: 1),
+        ]
+    )
+    func load_when_swifterPMPackageInfoCacheHasSourceControlEntry_usesItOnlyForTheCheckedOutRevision(
+        cachedRevision: String,
+        expectedManifestLoads: Int
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(components: "checkouts", "alamofire")
+
+        try await writeSourceControlWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            revision: "540318ecedd63d883069ae7f1ed811a2df00b6ac"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+        try await writeSwifterPMPackageInfoCache(
+            scratchDirectory: scratchDirectory,
+            rootPackagePath: temporaryDirectory,
+            dependencyPackagePath: dependencyPackagePath,
+            dependencyKind: "remoteSourceControl",
+            dependencyRevision: cachedRevision
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
+
+        // When
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
+        verify(manifestLoader)
+            .loadPackage(at: .value(temporaryDirectory), disableSandbox: .value(true))
+            .called(0)
+        verify(manifestLoader)
+            .loadPackage(at: .value(dependencyPackagePath), disableSandbox: .value(true))
+            .called(.exactly(expectedManifestLoads))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_swifterPMPackageInfoCacheEntryIsForAnotherRegistryVersion_fallsBackToManifestLoader() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+        try await writeSwifterPMPackageInfoCache(
+            scratchDirectory: scratchDirectory,
+            rootPackagePath: temporaryDirectory,
+            dependencyPackagePath: dependencyPackagePath,
+            dependencyVersion: "5.9.0"
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
+
+        // When
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
         verify(manifestLoader)
             .loadPackage(at: .value(dependencyPackagePath), disableSandbox: .value(true))
             .called(1)
@@ -709,7 +819,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, _) = try await subject.load(
@@ -742,6 +852,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         },
                         packageSettings: .any,
                         packageModuleAliases: .any,
+                        packageProducts: .any,
                         enabledTraits: .any
                     )
                     .called(1)
@@ -834,7 +945,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, _) = try await subject.load(
@@ -1092,7 +1203,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -1124,6 +1235,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 },
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -1224,7 +1336,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, _) = try await subject.load(
@@ -1255,6 +1367,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 },
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -1338,7 +1451,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, _) = try await subject.load(
@@ -1350,6 +1463,114 @@ struct SwiftPackageManagerGraphLoaderTests {
         // Then
         #expect(
             got.externalProjects.values.map(\.hash) == [nil]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_local_package_directory_name_differs_from_the_registry_package_it_overrides() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let workspacePath = temporaryDirectory.appending(components: [
+            ".build", "workspace-state.json",
+        ])
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+
+        let localPackagePath = temporaryDirectory.appending(component: "ios-DesignSystem")
+        try await fileSystem.makeDirectory(at: localPackagePath)
+
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "ios-designsystem",
+                      "kind" : "fileSystem",
+                      "location" : "\(localPackagePath.pathString)",
+                      "name" : "DesignSystem"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)"
+                    },
+                    "subpath" : "ios-designsystem"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "acme.Consumer",
+                      "kind" : "registry",
+                      "location" : "acme.Consumer",
+                      "name" : "acme.Consumer"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "1.0.0"
+                    },
+                    "subpath" : "acme/Consumer/1.0.0"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "acme.DesignSystem",
+                      "kind" : "registry",
+                      "location" : "acme.DesignSystem",
+                      "name" : "acme.DesignSystem"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "1.0.0"
+                    },
+                    "subpath" : "acme/DesignSystem/1.0.0"
+                  }
+                ],
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadPackage(at: .any, disableSandbox: .value(true))
+            .willProduce { path, _ in
+                path.basename == "ios-DesignSystem" ? .test(name: "DesignSystem") : .test()
+            }
+        let subject = SwiftPackageManagerGraphLoader(
+            swiftPackageManagerController: swiftPackageManagerController,
+            packageInfoMapper: packageInfoMapper,
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem,
+            contentHasher: contentHasher
+        )
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
+
+        // When
+        let (got, _) = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: PackageSettings.test(),
+            disableSandbox: true
+        )
+
+        // Then: the local package replaces the registry package it overrides, while unrelated registry packages stay.
+        // Paths are compared by their trailing components since the temporary directory can resolve through `/private`.
+        #expect(
+            Set(got.externalProjects.keys.map { $0.pathString.split(separator: "/").suffix(2).joined(separator: "/") }) ==
+                ["Consumer/1.0.0", "\(temporaryDirectory.basename)/ios-DesignSystem"]
         )
     }
 
@@ -1387,6 +1608,43 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
     }
 
+    private func writeSourceControlWorkspaceState(
+        scratchDirectory: Path.AbsolutePath,
+        revision: String
+    ) async throws {
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "alamofire",
+                      "kind" : "remoteSourceControl",
+                      "location" : "https://github.com/Alamofire/Alamofire.git",
+                      "name" : "Alamofire"
+                    },
+                    "state" : {
+                      "checkoutState" : {
+                        "revision" : "\(revision)",
+                        "version" : "5.10.2"
+                      },
+                      "name" : "sourceControlCheckout"
+                    },
+                    "subpath" : "alamofire"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+    }
+
     private func writeSwiftPackageManifest(at packagePath: Path.AbsolutePath) async throws {
         if try await !fileSystem.exists(packagePath, isDirectory: true) {
             try await fileSystem.makeDirectory(at: packagePath)
@@ -1410,7 +1668,10 @@ struct SwiftPackageManagerGraphLoaderTests {
     private func writeSwifterPMPackageInfoCache(
         scratchDirectory: Path.AbsolutePath,
         rootPackagePath: Path.AbsolutePath,
-        dependencyPackagePath: Path.AbsolutePath
+        dependencyPackagePath: Path.AbsolutePath,
+        dependencyKind: String = "registry",
+        dependencyVersion: String? = "5.10.2",
+        dependencyRevision: String? = nil
     ) async throws -> SwifterPMPackageInfoCacheFiles {
         let cacheDirectory = scratchDirectory.appending(components: "swifterpm", "package-info")
         let packagesCacheDirectory = cacheDirectory.appending(component: "packages")
@@ -1439,10 +1700,10 @@ struct SwiftPackageManagerGraphLoaderTests {
               "packages" : [
                 {
                   "identity" : "Alamofire.Alamofire",
-                  "kind" : "registry",
+                  "kind" : "\(dependencyKind)",
                   "location" : "Alamofire.Alamofire",
-                  "revision" : null,
-                  "version" : "5.10.2",
+                  "revision" : \(jsonString(dependencyRevision)),
+                  "version" : \(jsonString(dependencyVersion)),
                   "package_path" : "\(dependencyPackagePath.pathString)",
                   "package_info_path" : "\(dependencyPackageInfoPath.pathString)"
                 }
@@ -1453,5 +1714,9 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
 
         return SwifterPMPackageInfoCacheFiles(dependencyPackageInfoPath: dependencyPackageInfoPath)
+    }
+
+    private func jsonString(_ value: String?) -> String {
+        value.map { "\"\($0)\"" } ?? "null"
     }
 }

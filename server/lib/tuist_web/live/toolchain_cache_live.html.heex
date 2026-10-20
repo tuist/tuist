@@ -1,0 +1,335 @@
+<div id={@cache_id}>
+  <div data-part="filters">
+    <.dropdown
+      id={"#{@cache_id}-environment"}
+      label={
+        case @environment do
+          "ci" -> "CI"
+          "local" -> dgettext("dashboard", "Local")
+          _ -> dgettext("dashboard", "Any")
+        end
+      }
+      secondary_text={dgettext("dashboard", "Environment:")}
+    >
+      <.dropdown_item
+        :for={
+          {environment, label} <- [
+            {"any", dgettext("dashboard", "Any")},
+            {"local", dgettext("dashboard", "Local")},
+            {"ci", "CI"}
+          ]
+        }
+        value={environment}
+        label={label}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", environment) |> Query.put("page", "1")}"}
+        data-selected={@environment == environment}
+      />
+    </.dropdown>
+    <.date_picker
+      id={"#{@cache_id}-date-range"}
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{id: "last-7-days", label: dgettext("dashboard", "Last 7 days"), period: {7, :day}},
+        %{id: "last-30-days", label: dgettext("dashboard", "Last 30 days"), period: {30, :day}},
+        %{id: "custom", label: dgettext("dashboard", "Custom")}
+      ]}
+      selected_preset={@preset}
+      period={@period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel", detail: %{id: "#{@cache_id}-date-range"})
+          }
+        />
+        <.button
+          label={dgettext("dashboard", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply", detail: %{id: "#{@cache_id}-date-range"})
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+  <.async_card
+    :let={ready?}
+    results={[@analytics]}
+    title={dgettext("dashboard", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+    data-widget={@widget}
+    chart_frame="cache"
+  >
+    <div data-part="widgets">
+      <.percentile_dropdown_widget
+        id={"#{@cache_id}-widget-hit_rate"}
+        title={percentile_title(@hit_rate_type)}
+        description={hit_rate_description(@selected_project)}
+        loading={!ready?}
+        value={if ready?, do: value(selected_metric(@analytics.result.metrics, @hit_rate_type))}
+        metrics={if ready?, do: percentile_metrics(@analytics.result.metrics)}
+        selected_type={@hit_rate_type}
+        event_name="select_hit_rate_type"
+        selected={@widget == "hit_rate"}
+        phx_click="select_widget"
+        phx_value_widget="hit_rate"
+        legend_color={percentile_color(@hit_rate_type)}
+        trend_value={if ready?, do: selected_metric(@analytics.result.trends, @hit_rate_type)}
+        trend_label={trend_label(@preset)}
+      />
+      <.widget
+        :for={metric <- transport_widgets(@transfer_type, @latency_type, @throughput_type)}
+        id={"#{@cache_id}-widget-#{metric.id}"}
+        title={transport_title(metric.id, metric.type)}
+        description={@transport_description}
+        loading={!ready?}
+        value={
+          if ready?,
+            do:
+              transport_value(
+                metric.id,
+                transport_metric(@analytics.result, metric.id, metric.type)
+              )
+        }
+        trend_value={if ready?, do: transport_trend(@analytics.result, metric.id, metric.type)}
+        trend_type={
+          case metric.id do
+            "latency" -> :inverse
+            "throughput" -> :regular
+            _ -> :neutral
+          end
+        }
+        trend_label={trend_label(@preset)}
+        selected={@widget == metric.id}
+        phx_click="select_widget"
+        phx_value_widget={metric.id}
+        legend_color={transport_color(metric.color, metric.type)}
+      >
+        <:select>
+          <.dropdown_item
+            :for={type <- metric.options}
+            value={type}
+            phx-click={metric.event}
+            phx-value-type={type}
+            data-selected={metric.type == type}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type={transport_color(metric.color, type)}></div>
+              <span data-part="label">{transport_title(metric.id, type)}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">{if ready?,
+                do:
+                  transport_value(metric.id, transport_metric(@analytics.result, metric.id, type))}</span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
+    </div>
+    <.card_section data-part="analytics-card-chart-section" data-chart-frame="cache">
+      <.chart_type_toggle
+        :if={@widget == "hit_rate"}
+        id={"#{@cache_id}-hit-rate"}
+        chart_type={@chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        uri={@uri}
+      />
+      <.skeleton_chart :if={!ready?} />
+      <.empty_card_section
+        :if={ready? and !chart_available?(@analytics.result, @widget)}
+        data-part="analytics-chart-empty"
+        title={
+          if @widget == "hit_rate",
+            do: dgettext("dashboard_projects", "No cache observations yet"),
+            else: dgettext("dashboard", "No cache measurements yet")
+        }
+        get_started_href={@cache_guide}
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+      <.chart
+        :if={
+          ready? and chart_available?(@analytics.result, @widget) and
+            (@widget != "hit_rate" or @chart_type == "line")
+        }
+        id={"#{@cache_id}-chart"}
+        type="line"
+        extra_options={
+          chart_options(analytics_series(@analytics.result, @widget), chart_formatter(@widget))
+        }
+        series={chart_series(@analytics.result, @widget)}
+        y_axis_min={0}
+        y_axis_max={if @widget == "hit_rate", do: 100}
+      />
+      <.skeleton_chart :if={
+        ready? and @widget == "hit_rate" and @chart_type == "scatter" and !@scatter.ok? and
+          !@scatter.failed
+      } />
+      <.scatter_chart
+        :if={
+          ready? and @analytics.result.series != [] and @widget == "hit_rate" and
+            @chart_type == "scatter"
+        }
+        id={"#{@cache_id}-hit-rate-scatter-chart"}
+        chart={@scatter}
+        period={@period}
+        value_format="{value}%"
+        y_axis_max={100}
+        url_fn={&scatter_url(&1, @selected_account, @selected_project)}
+        truncation_title={
+          dgettext(
+            "dashboard_cache",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
+            date: scatter_oldest_entry_formatted(@scatter.result)
+          )
+        }
+      />
+    </.card_section>
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@recent_builds]}
+    title={dgettext("dashboard_cache", "Recent Builds")}
+    icon="dashboard"
+    data-part="recent-builds"
+  >
+    <:actions>
+      <.button
+        id={"#{@cache_id}-view-more"}
+        variant="secondary"
+        label={dgettext("dashboard_cache", "View more")}
+        size="medium"
+        navigate={build_runs_path(@selected_account, @selected_project)}
+        disabled={!@recent_builds.ok? || Enum.empty?(@recent_builds.result)}
+      />
+    </:actions>
+    <.card_section :if={ready? and @recent_builds.result != []} data-part="recent-builds-section">
+      <div data-part="builds-section">
+        <div data-part="builds-chart">
+          <.legend
+            title={dgettext("dashboard_cache", "Cache hit rate")}
+            value={value(@cache_module.recent_hit_rate(@recent_builds.result))}
+            style="primary"
+          />
+          <p :if={@selected_project.build_system == :mix} data-part="recent-builds-coverage">
+            {recent_builds_coverage(@recent_builds.result)}
+          </p>
+          <.chart
+            id={"#{@cache_id}-recent-builds-chart"}
+            type="bar"
+            extra_options={
+              %{
+                grid: %{width: "98%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+                tooltip: %{valueFormat: "{value}%", dateFormat: "minute"},
+                xAxis: %{
+                  axisLabel: %{show: false},
+                  data:
+                    @recent_builds.result
+                    |> Enum.reverse()
+                    |> Enum.map(&recent_build_datetime(&1.build))
+                },
+                yAxis: %{
+                  splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                  axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                },
+                legend: %{show: false}
+              }
+            }
+            series={[
+              %{
+                data:
+                  recent_chart_data(@recent_builds.result, @selected_account, @selected_project),
+                name: dgettext("dashboard_cache", "Cache hit rate"),
+                type: "bar",
+                barMinHeight: 3
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+        </div>
+        <.table
+          id={"#{@cache_id}-recent-builds-table"}
+          rows={Enum.take(@recent_builds.result, 7)}
+          row_key={fn row -> "#{@cache_id}-build-#{row.build.id}" end}
+          row_navigate={
+            fn row ->
+              unverified_url(
+                @socket,
+                recent_build_path(row, @selected_account, @selected_project)
+              )
+            end
+          }
+        >
+          <:col :let={row} label={dgettext("dashboard_builds", "Command")}>
+            <.text_and_description_cell
+              label={build_command(@selected_project, row.build)}
+              description={build_description(@selected_project, row.build)}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_cache", "Hit Rate")}>
+            <.text_cell label={recent_hit_rate_label(row.cache)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_cache", "Ran by")}>
+            <.build_ran_by_badge_cell build={row.build} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_cache", "Duration")}>
+            <.text_cell
+              label={DateFormatter.format_duration_from_milliseconds(row.build.duration_ms)}
+              icon="history"
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_cache", "Ran at")}>
+            <.text_cell sublabel={DateFormatter.from_now(row.build.inserted_at)} />
+          </:col>
+        </.table>
+      </div>
+    </.card_section>
+    <.skeleton_chart :if={!ready?} />
+    <.empty_card_section
+      :if={ready? and @recent_builds.result == []}
+      title={dgettext("dashboard_cache", "No data yet")}
+      get_started_href={@cache_guide}
+      data-part="empty-builds-table-card-section"
+    >
+      <:image>
+        <img
+          src={~p"/images/empty_table_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_table_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+  </.async_card>
+</div>

@@ -3,11 +3,12 @@ use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FailpointName {
     BeforeSegmentFsync,
+    #[cfg(test)]
+    BeforeWalFsync,
     AfterInlineManifestReadBeforeCommit,
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
     AfterReadArtifactBytesBeforeReturn,
-    BeforeDeleteOutboxMessageAfterSuccess,
     BeforeApplyReplicatedTombstone,
     AfterApplyReplicatedTombstone,
     AfterBackfillIndexBuildChunk,
@@ -20,15 +21,14 @@ impl FailpointName {
     fn as_str(self) -> &'static str {
         match self {
             Self::BeforeSegmentFsync => "before_segment_fsync",
+            #[cfg(test)]
+            Self::BeforeWalFsync => "before_wal_fsync",
             Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
                 "after_artifact_bytes_durable_before_metadata"
             }
             Self::AfterMetadataCommitBeforeReturn => "after_metadata_commit_before_return",
             Self::AfterReadArtifactBytesBeforeReturn => "after_read_artifact_bytes_before_return",
-            Self::BeforeDeleteOutboxMessageAfterSuccess => {
-                "before_delete_outbox_message_after_success"
-            }
             Self::BeforeApplyReplicatedTombstone => "before_apply_replicated_tombstone",
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
             Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",
@@ -45,6 +45,11 @@ impl FailpointName {
 #[derive(Clone, Debug)]
 pub(crate) enum FailpointAction {
     Sleep(Duration),
+    #[cfg(test)]
+    Pause {
+        reached: std::sync::Arc<tokio::sync::Notify>,
+        resume: std::sync::Arc<tokio::sync::Notify>,
+    },
     Error(String),
     Panic(String),
 }
@@ -88,6 +93,12 @@ impl FailpointSet {
                 tokio::time::sleep(duration).await;
                 Ok(())
             }
+            #[cfg(test)]
+            FailpointAction::Pause { reached, resume } => {
+                reached.notify_one();
+                resume.notified().await;
+                Ok(())
+            }
             FailpointAction::Error(message) => {
                 Err(format!("failpoint {}: {message}", name.as_str()))
             }
@@ -125,6 +136,10 @@ impl FailpointSet {
             FailpointAction::Sleep(duration) => {
                 std::thread::sleep(duration);
                 Ok(())
+            }
+            #[cfg(test)]
+            FailpointAction::Pause { .. } => {
+                panic!("Pause is only supported by async failpoints");
             }
             FailpointAction::Error(message) => {
                 Err(format!("failpoint {}: {message}", name.as_str()))

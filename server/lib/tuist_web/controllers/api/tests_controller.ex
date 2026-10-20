@@ -3,25 +3,38 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
+  alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.API.Schemas.Tests.Coverage, as: CoverageSchema
+  alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
+  alias TuistWeb.API.Schemas.Tests.XcodeCoverage
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
 
   require Logger
+
+  plug(ReportPublishingPlug, {:preflight, :test} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
+  plug(ReportPublishingPlug, :test when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test when action != :create)
 
   tags ["Tests"]
 
@@ -100,6 +113,7 @@ defmodule TuistWeb.API.TestsController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+                   actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Duration in milliseconds."},
                    status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
                    is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -162,6 +176,7 @@ defmodule TuistWeb.API.TestsController do
 
               %{
                 id: run.id,
+                actor: Tuist.ReportActor.actor(run),
                 duration: run.duration,
                 status: to_string(run.status),
                 is_ci: run.is_ci,
@@ -199,6 +214,7 @@ defmodule TuistWeb.API.TestsController do
   operation(:create,
     summary: "Create a new test run.",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -224,6 +240,35 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              format: :uuid,
              description: "Optional client-generated UUID for the test run. If not provided, the server generates one."
+           },
+           contract_version: %Schema{
+             type: :string,
+             description:
+               "Version of the client-server analytics contract the caller was built against (e.g. \"0.1\"). Older clients may omit it; the server accepts unknown values."
+           },
+           elixir_version: %Schema{type: :string, maxLength: 128, description: "Optional Mix client runtime metadata."},
+           otp_version: %Schema{type: :string, maxLength: 128, description: "Optional Mix client runtime metadata."},
+           mix_env: %Schema{type: :string, maxLength: 128, description: "Optional Mix client environment metadata."},
+           custom_metadata: %Schema{
+             type: :object,
+             description: "Optional client metadata accepted for wire compatibility; not persisted on test runs.",
+             properties: %{
+               tags: %Schema{
+                 type: :array,
+                 items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                 maxItems: 50
+               },
+               values: %Schema{
+                 type: :object,
+                 additionalProperties: %Schema{type: :string, maxLength: 500},
+                 maxProperties: 20
+               }
+             }
+           },
+           ran_at: %Schema{
+             type: :string,
+             format: :"date-time",
+             description: "ISO 8601 timestamp for when the test run started."
            },
            duration: %Schema{
              description: "Duration of the run in milliseconds.",
@@ -270,6 +315,33 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The git remote URL origin."
            },
+           base_branch: %Schema{
+             type: :string,
+             description:
+               "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+           },
+           merge_base_sha: %Schema{
+             type: :string,
+             description: "The merge base between the run's commit and the base branch, when the client could resolve it."
+           },
+           is_pull_request: %Schema{type: :boolean, description: "Whether the run was for a pull or merge request."},
+           pull_request_number: %Schema{type: :integer, description: "The pull or merge request number, when known."},
+           git_object_format: %Schema{
+             type: :string,
+             enum: ["sha1", "sha256"],
+             description: "The repository's Git object format."
+           },
+           history_source: %Schema{
+             type: :string,
+             enum: ["client", "none"],
+             description:
+               "Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`)."
+           },
+           history_fallback_reason: %Schema{
+             type: :string,
+             description:
+               "Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time."
+           },
            build_run_id: %Schema{
              type: :string,
              description: "The UUID of an associated build run."
@@ -308,7 +380,13 @@ defmodule TuistWeb.API.TestsController do
            skip_test_identifiers: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             description: "The tests the caller asked this run to exclude."
+             description:
+               "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
+           },
+           coverage_enabled: %Schema{
+             type: :boolean,
+             description:
+               "Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown."
            },
            shard_index: %Schema{
              type: :integer,
@@ -316,6 +394,91 @@ defmodule TuistWeb.API.TestsController do
              nullable: true
            },
            build_system: BuildSystem.schema(),
+           stress_new_tests: StressNewTestsResult,
+           git_dirty: %Schema{
+             type: :boolean,
+             description:
+               "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
+           },
+           execution_mode: %Schema{
+             type: :string,
+             enum: ["parallel", "serial"],
+             description:
+               "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
+           },
+           coverage_evidence: %Schema{
+             type: :object,
+             description:
+               "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
+             properties: %{
+               paths: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :string}},
+               scopes: %Schema{
+                 type: :array,
+                 maxItems: 500_000,
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     kind: %Schema{
+                       type: :string,
+                       enum: ["test", "suite", "target"],
+                       description:
+                         "`test`: what one test executed. `suite`: what ran around a suite's tests and belongs to none. `target`: everything the target's processes executed."
+                     },
+                     module: %Schema{type: :string, description: "The test target."},
+                     suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
+                     name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
+                     files: %Schema{
+                       type: :array,
+                       maxItems: 200_000,
+                       items: %Schema{type: :integer},
+                       description: "Indices into `paths`."
+                     },
+                     lines: %Schema{
+                       type: :array,
+                       maxItems: 200_000,
+                       items: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :integer}},
+                       description:
+                         "The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none."
+                     }
+                   },
+                   required: [:kind, :module, :files]
+                 }
+               },
+               overlapped_tests: %Schema{
+                 type: :array,
+                 maxItems: 500_000,
+                 description:
+                   "The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     module: %Schema{type: :string, description: "The test target."},
+                     suite: %Schema{type: :string, description: "Empty for a test outside any suite."},
+                     name: %Schema{type: :string, description: "The test's name."}
+                   },
+                   required: [:module, :name]
+                 }
+               },
+               status: %Schema{
+                 type: :string,
+                 enum: ["collected", "not_linked", "failed"],
+                 description:
+                   "Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it."
+               }
+             },
+             required: [:paths, :scopes]
+           },
+           coverage: CoverageSchema,
+           xcode_coverage: XcodeCoverage,
+           xcode_coverage_storage_key: %Schema{
+             type: :string,
+             description:
+               "The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline."
+           },
+           xcode_coverage_partial: %Schema{
+             type: :boolean,
+             description: "With `xcode_coverage_storage_key`: whether the run left tests out on purpose."
+           },
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -334,6 +497,11 @@ defmodule TuistWeb.API.TestsController do
                  duration: %Schema{
                    type: :integer,
                    description: "The duration of the test module in milliseconds."
+                 },
+                 execution_mode: %Schema{
+                   type: :string,
+                   enum: ["parallel", "serial"],
+                   description: "Whether the module's tests executed in parallel or serially; absent when unknown."
                  },
                  test_suites: %Schema{
                    type: :array,
@@ -429,11 +597,17 @@ defmodule TuistWeb.API.TestsController do
                              status: %Schema{
                                type: :string,
                                description: "The status of this repetition attempt.",
-                               enum: ["success", "failure"]
+                               enum: ["success", "failure", "skipped"]
                              },
                              duration: %Schema{
                                type: :integer,
                                description: "The duration of this repetition in milliseconds."
+                             },
+                             source: %Schema{
+                               type: :string,
+                               description:
+                                 "Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+                               enum: ["run", "stress"]
                              }
                            },
                            required: [:repetition_number, :name, :status]
@@ -496,7 +670,13 @@ defmodule TuistWeb.API.TestsController do
                                      description: "The status.",
                                      enum: ["success", "failure"]
                                    },
-                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."}
+                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."},
+                                   source: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+                                     enum: ["run", "stress"]
+                                   }
                                  },
                                  required: [:repetition_number, :name, :status]
                                }
@@ -535,14 +715,24 @@ defmodule TuistWeb.API.TestsController do
     }
   )
 
+  defp notify_connected(conn, project) do
+    if Project.mix_project?(project) and not ReportPublishingPlug.network_publisher?(conn),
+      do: Projects.notify_connected(project, Authentication.current_user(conn))
+  end
+
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
+        notify_connected(conn, selected_project)
+
         vcs_comment_params = %{
           git_commit_sha: Map.get(body_params, :git_commit_sha),
           git_ref: Map.get(body_params, :git_ref),
@@ -569,10 +759,43 @@ defmodule TuistWeb.API.TestsController do
             storage_key =
               "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
 
+            # The gate's pass writes its own bundle, uploaded beside the run's under
+            # the same id. The worker folds its executions into the test cases they
+            # belong to, so the key travels with the job rather than being rebuilt there.
+            stress_storage_key =
+              if get_in(body_params, [Access.key(:stress_new_tests), Access.key(:has_result_bundle)]) do
+                "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/stress_result_bundle.zip"
+              end
+
             enqueue_xcresult_processing(%{
               test_run_id: test_run.id,
               storage_key: storage_key,
+              stress_storage_key: stress_storage_key,
+              # The worker replaces this row once the bundle is parsed, from the
+              # attributes it carries, so the gate's verdict and the run's Git
+              # history ride along or are lost.
+              stress_mode: test_run.stress_mode,
+              stress_outcome: test_run.stress_outcome,
+              stress_skip_reason: test_run.stress_skip_reason,
+              stress_new_count: test_run.stress_new_count,
+              stress_stressed_count: test_run.stress_stressed_count,
+              stress_excluded_count: test_run.stress_excluded_count,
+              stress_known_count: test_run.stress_known_count,
+              base_branch: test_run.base_branch,
+              merge_base_sha: test_run.merge_base_sha,
+              is_pull_request: test_run.is_pull_request,
+              pull_request_number: test_run.pull_request_number,
+              git_object_format: test_run.git_object_format,
+              history_source: test_run.history_source,
+              history_fallback_reason: test_run.history_fallback_reason,
+              git_repository_id: test_run.git_repository_id,
+              git_dirty: test_run.git_dirty,
+              execution_mode: test_run.execution_mode,
+              coverage_enabled: test_run.coverage_enabled,
               account_id: test_run.account_id,
+              actor_account_id: test_run.actor_account_id,
+              claimed_actor_id: test_run.claimed_actor_id,
+              submission_auth: test_run.submission_auth,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
               project_handle: selected_project.name,
@@ -595,11 +818,18 @@ defmodule TuistWeb.API.TestsController do
               vcs_comment_params: vcs_comment_params
             })
           else
-            Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+            if !ReportPublishingPlug.network_publisher?(conn),
+              do: Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+
             :ok
           end
 
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
+
+      {:error, :invalid_coverage_storage_key} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The coverage storage key must be the key createCoverageUpload returned for this run's id"})
 
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
@@ -607,11 +837,14 @@ defmodule TuistWeb.API.TestsController do
   end
 
   defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
+    actor = test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor()
+
     conn
     |> put_status(:ok)
     |> json(%{
       type: "test",
       id: test_run.id,
+      actor: actor,
       duration: test_run.duration,
       project_id: test_run.project_id,
       url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
@@ -619,6 +852,7 @@ defmodule TuistWeb.API.TestsController do
         Enum.map(test_run.test_case_runs, fn run ->
           result = %{
             id: run.id,
+            actor: actor,
             name: run.name,
             module_name: run.module_name,
             suite_name: run.suite_name
@@ -691,6 +925,7 @@ defmodule TuistWeb.API.TestsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+             actor: ReportActor,
              status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
              duration: %Schema{type: :integer, description: "Duration in milliseconds."},
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -738,6 +973,7 @@ defmodule TuistWeb.API.TestsController do
 
         json(conn, %{
           id: run.id,
+          actor: Tuist.ReportActor.actor(run),
           status: to_string(run.status),
           duration: run.duration,
           is_ci: run.is_ci,
@@ -773,7 +1009,25 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Tests.get_test(test_id, preload: [test_case_runs: :arguments]) do
+    with :ok <- validate_coverage_storage_key(params, test_id) do
+      get_or_create_test(params, test_id)
+    end
+  end
+
+  # An uploaded coverage file is only ever read back under the run's own key
+  # (`Tuist.Tests.Coverage.storage_key/2`), so a run cannot point at another's.
+  # Every key the request names is checked: either one may be the one read.
+  defp validate_coverage_storage_key(params, test_id) do
+    own = Coverage.storage_key(params.project, test_id)
+
+    [Map.get(params, :xcode_coverage_storage_key), Map.get(Map.get(params, :coverage) || %{}, :storage_key)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.all?(&(&1 == own))
+    |> if(do: :ok, else: {:error, :invalid_coverage_storage_key})
+  end
+
+  defp get_or_create_test(params, test_id) do
+    case Tests.get_test(test_id, preload: [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]) do
       {:ok, %{project_id: project_id} = test_run} when project_id == params.project.id ->
         {:ok, test_run}
 
@@ -790,11 +1044,24 @@ defmodule TuistWeb.API.TestsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),
+          base_branch: Map.get(params, :base_branch),
+          merge_base_sha: Map.get(params, :merge_base_sha),
+          is_pull_request: Map.get(params, :is_pull_request),
+          pull_request_number: Map.get(params, :pull_request_number),
+          git_object_format: Map.get(params, :git_object_format),
+          history_source: Map.get(params, :history_source),
+          history_fallback_reason: Map.get(params, :history_fallback_reason),
+          git_dirty: Map.get(params, :git_dirty),
+          git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+          execution_mode: Map.get(params, :execution_mode),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           ci_run_id: Map.get(params, :ci_run_id),
           ci_project_handle: Map.get(params, :ci_project_handle),
@@ -808,7 +1075,14 @@ defmodule TuistWeb.API.TestsController do
           shard_plan_id: Map.get(params, :shard_plan_id),
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
-          skip_test_identifiers: Map.get(params, :skip_test_identifiers, [])
+          skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
+          coverage_enabled: Map.get(params, :coverage_enabled),
+          stress_new_tests: Map.get(params, :stress_new_tests),
+          coverage_evidence: Map.get(params, :coverage_evidence),
+          coverage: Map.get(params, :coverage),
+          xcode_coverage: Map.get(params, :xcode_coverage),
+          xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
+          xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)
         })
     end
   end

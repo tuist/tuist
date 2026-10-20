@@ -28,12 +28,13 @@ defmodule Tuist.Tests.TestModuleRun do
   schema "test_module_runs" do
     field :name, Ch, type: "String"
     field :test_run_id, Ecto.UUID
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
+    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
     field :duration, Ch, type: "Int32"
     field :test_suite_count, Ch, type: "Int32"
     field :test_case_count, Ch, type: "Int32"
     field :avg_test_case_duration, Ch, type: "Int32"
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
     field :project_id, Ch, type: "Nullable(Int64)"
@@ -70,6 +71,6 @@ defmodule Tuist.Tests.TestModuleRun do
       :status,
       :duration
     ])
-    |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
   end
 end

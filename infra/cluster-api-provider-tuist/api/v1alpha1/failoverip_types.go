@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // FailoverIPSpec keeps a provider failover/additional IP routed to a healthy box
@@ -13,7 +12,7 @@ type FailoverIPSpec struct {
 	IP string `json:"ip"`
 
 	// Vendor is the provider whose API moves the IP.
-	// +kubebuilder:validation:Enum=ovh;dedibox
+	// +kubebuilder:validation:Enum=ovh
 	Vendor string `json:"vendor"`
 
 	// Region is the Kura region this IP fronts (informational; matches the pool
@@ -37,8 +36,7 @@ type FailoverIPSpec struct {
 type FailoverIPStatus struct {
 	// ActiveNode is the node the IP is currently routed to.
 	ActiveNode string `json:"activeNode,omitempty"`
-	// Target is the vendor-opaque destination (OVH service name, or Dedibox
-	// "zone/server-id") the IP routes to.
+	// Target is the OVH service name the IP routes to.
 	Target string `json:"target,omitempty"`
 	// Message surfaces the last reconcile outcome (e.g. "no eligible box").
 	Message string `json:"message,omitempty"`
@@ -49,6 +47,9 @@ type FailoverIPStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=".spec.ip"
+// +kubebuilder:printcolumn:name="Vendor",type=string,JSONPath=".spec.vendor"
+// +kubebuilder:printcolumn:name="ActiveNode",type=string,JSONPath=".status.activeNode"
 
 // FailoverIP is the placement of one provider failover IP onto a healthy box of
 // a Kura bare-metal pool.
@@ -71,107 +72,4 @@ type FailoverIPList struct {
 
 func init() {
 	SchemeBuilder.Register(&FailoverIP{}, &FailoverIPList{})
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPSpec) DeepCopyInto(out *FailoverIPSpec) {
-	*out = *in
-	if in.NodePoolSelector != nil {
-		out.NodePoolSelector = make(map[string]string, len(in.NodePoolSelector))
-		for k, v := range in.NodePoolSelector {
-			out.NodePoolSelector[k] = v
-		}
-	}
-	if in.DemuxSelector != nil {
-		out.DemuxSelector = make(map[string]string, len(in.DemuxSelector))
-		for k, v := range in.DemuxSelector {
-			out.DemuxSelector[k] = v
-		}
-	}
-}
-
-// DeepCopy creates a new FailoverIPSpec.
-func (in *FailoverIPSpec) DeepCopy() *FailoverIPSpec {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPSpec)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPStatus) DeepCopyInto(out *FailoverIPStatus) {
-	*out = *in
-	if in.LastReconciledAt != nil {
-		out.LastReconciledAt = (*in.LastReconciledAt).DeepCopy()
-	}
-}
-
-// DeepCopy creates a new FailoverIPStatus.
-func (in *FailoverIPStatus) DeepCopy() *FailoverIPStatus {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPStatus)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIP) DeepCopyInto(out *FailoverIP) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	in.Spec.DeepCopyInto(&out.Spec)
-	in.Status.DeepCopyInto(&out.Status)
-}
-
-// DeepCopy creates a new FailoverIP.
-func (in *FailoverIP) DeepCopy() *FailoverIP {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIP)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyObject returns a runtime.Object copy of the receiver.
-func (in *FailoverIP) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPList) DeepCopyInto(out *FailoverIPList) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ListMeta.DeepCopyInto(&out.ListMeta)
-	if in.Items != nil {
-		out.Items = make([]FailoverIP, len(in.Items))
-		for i := range in.Items {
-			in.Items[i].DeepCopyInto(&out.Items[i])
-		}
-	}
-}
-
-// DeepCopy creates a new FailoverIPList.
-func (in *FailoverIPList) DeepCopy() *FailoverIPList {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPList)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyObject returns a runtime.Object copy of the receiver.
-func (in *FailoverIPList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
 }

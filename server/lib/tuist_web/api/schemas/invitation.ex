@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Schemas.Invitation do
   A schema for an invitation.
   """
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
   alias TuistWeb.API.Schemas.User
 
   require OpenApiSpex
@@ -26,8 +27,13 @@ defmodule TuistWeb.API.Schemas.Invitation do
         description: "The token to accept the invitation",
         type: :string
       },
+      role: %Schema{
+        description: "The role the invitee gets when they accept the invitation",
+        type: :string,
+        enum: Accounts.organization_role_names()
+      },
       inviter: User
     },
-    required: [:id, :invitee_email, :organization_id, :inviter, :token]
+    required: [:id, :invitee_email, :organization_id, :inviter, :token, :role]
   })
 end

@@ -24,7 +24,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     stub(Capacity, :egress_headroom, fn _region_id, _handle -> nil end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
 
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
@@ -33,7 +33,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     # entitlement's own behaviour has its own describe block below.
     BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
-    %{account: account, region: Regions.get("eu-central")}
+    %{account: account, region: Regions.get("eu-west")}
   end
 
   describe "effective_limits/2" do
@@ -111,7 +111,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     end
 
     test "a second write replaces the first rather than colliding", %{account: account} = ctx do
-      region = ctx[:region] || Regions.get("eu-central")
+      region = ctx[:region] || Regions.get("eu-west")
       assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 200, burst_mbps: 900})
       assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 300, burst_mbps: 800})
 
@@ -159,31 +159,31 @@ defmodule Tuist.Kura.EgressLimitsTest do
     test "an override in one region leaves the others on their own defaults", %{
       account: account,
       us_east: us_east,
-      region: eu_central
+      region: eu_west
     } do
-      {:ok, _} = Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+      {:ok, _} = Kura.create_server(%{account_id: account.id, region: "eu-west", image_tag: "0.5.2"})
       assert :ok = EgressLimits.put_override(account, us_east, %{floor_mbps: 800, burst_mbps: nil})
 
       assert EgressLimits.effective_limits(account, us_east) == %{floor_mbps: 800, burst_mbps: 1500}
-      assert EgressLimits.effective_limits(account, eu_central) == %{floor_mbps: 25, burst_mbps: 500}
-      assert EgressLimits.override_for(account, eu_central) == nil
+      assert EgressLimits.effective_limits(account, eu_west) == %{floor_mbps: 25, burst_mbps: 500}
+      assert EgressLimits.override_for(account, eu_west) == nil
     end
 
     # Each region carries its own number, which is what an account spanning
     # boxes of different sizes actually needs.
-    test "each region carries its own pair", %{account: account, us_east: us_east, region: eu_central} do
-      {:ok, _} = Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+    test "each region carries its own pair", %{account: account, us_east: us_east, region: eu_west} do
+      {:ok, _} = Kura.create_server(%{account_id: account.id, region: "eu-west", image_tag: "0.5.2"})
       assert :ok = EgressLimits.put_override(account, us_east, %{floor_mbps: 800, burst_mbps: 1200})
-      assert :ok = EgressLimits.put_override(account, eu_central, %{floor_mbps: 100, burst_mbps: 300})
+      assert :ok = EgressLimits.put_override(account, eu_west, %{floor_mbps: 100, burst_mbps: 300})
 
       assert EgressLimits.effective_limits(account, us_east) == %{floor_mbps: 800, burst_mbps: 1200}
-      assert EgressLimits.effective_limits(account, eu_central) == %{floor_mbps: 100, burst_mbps: 300}
+      assert EgressLimits.effective_limits(account, eu_west) == %{floor_mbps: 100, burst_mbps: 300}
     end
   end
 
   describe "the node budget is the only bound" do
     test "rejects a floor above what the region's boxes advertise", %{account: account, region: region} do
-      stub(Capacity, :egress_budget_mbps, fn "eu-central" -> 1000 end)
+      stub(Capacity, :egress_budget_mbps, fn "eu-west" -> 1000 end)
 
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_floor_mbps" => "2000"})
@@ -193,7 +193,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     end
 
     test "rejects a ceiling above what the region's boxes advertise", %{account: account, region: region} do
-      stub(Capacity, :egress_budget_mbps, fn "eu-central" -> 1000 end)
+      stub(Capacity, :egress_budget_mbps, fn "eu-west" -> 1000 end)
 
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "4000"})
@@ -205,7 +205,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     # The region's own ceiling is 500 here, so a 900 that the box can carry is
     # accepted: the region defaults, the box bounds.
     test "accepts a value above the region's default but inside the box", %{account: account, region: region} do
-      stub(Capacity, :egress_budget_mbps, fn "eu-central" -> 1000 end)
+      stub(Capacity, :egress_budget_mbps, fn "eu-west" -> 1000 end)
 
       assert {:ok, %{burst_mbps: 900}} =
                EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "900"})
@@ -356,7 +356,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
 
   describe "cast_override/2" do
     test "a blank field hands that number back to the region", %{account: account} = ctx do
-      region = ctx[:region] || Regions.get("eu-central")
+      region = ctx[:region] || Regions.get("eu-west")
 
       assert {:ok, %{floor_mbps: nil, burst_mbps: 400}} =
                EgressLimits.cast_override(account, region, %{
@@ -366,7 +366,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     end
 
     test "rejects a floor above its ceiling", %{account: account} = ctx do
-      region = ctx[:region] || Regions.get("eu-central")
+      region = ctx[:region] || Regions.get("eu-west")
 
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{
@@ -378,7 +378,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     end
 
     test "rejects a rate no class can be built from", %{account: account} = ctx do
-      region = ctx[:region] || Regions.get("eu-central")
+      region = ctx[:region] || Regions.get("eu-west")
 
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "0"})
@@ -392,7 +392,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
     end
 
     test "seeds the form from the account's current override", %{account: account} = ctx do
-      region = ctx[:region] || Regions.get("eu-central")
+      region = ctx[:region] || Regions.get("eu-west")
       assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 200, burst_mbps: 900})
 
       changeset = EgressLimits.change_override(account, region)

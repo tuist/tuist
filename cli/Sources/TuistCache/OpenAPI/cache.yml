@@ -5,34 +5,27 @@ components:
     CompleteMultipartUploadRequest:
       description: Request to complete a multipart upload
       properties:
+        checksum_sha256:
+          description: Lowercase hex SHA-256 (64 characters) of the assembled artifact. When present, the server refuses the completion with 422 if the assembled bytes do not match, and otherwise serves the digest back as the tuist-checksum-sha256 header on downloads.
+          type: string
         parts:
           description: Ordered list of part numbers that were uploaded
           items:
             type: integer
-            x-struct:
-            x-validate:
           type: array
-          x-struct:
-          x-validate:
       required:
         - parts
       title: CompleteMultipartUploadRequest
       type: object
-      x-struct: Elixir.CacheWeb.API.Schemas.CompleteMultipartUploadRequest
-      x-validate:
     Error:
       properties:
         message:
           description: The error message
           type: string
-          x-struct:
-          x-validate:
       required:
         - message
       title: Error
       type: object
-      x-struct: Elixir.CacheWeb.API.Schemas.Error
-      x-validate:
     KeyValueResponse:
       properties:
         entries:
@@ -42,22 +35,14 @@ components:
               value:
                 description: The value
                 type: string
-                x-struct:
-                x-validate:
             required:
               - value
             type: object
-            x-struct:
-            x-validate:
           type: array
-          x-struct:
-          x-validate:
       required:
         - entries
       title: KeyValueResponse
       type: object
-      x-struct: Elixir.CacheWeb.API.Schemas.KeyValueResponse
-      x-validate:
     StartMultipartUploadResponse:
       description: Response from starting a multipart upload
       properties:
@@ -65,20 +50,16 @@ components:
           description: The upload ID to use for subsequent part uploads. Null if artifact already exists.
           nullable: true
           type: string
-          x-struct:
-          x-validate:
       required:
         - upload_id
       title: StartMultipartUploadResponse
       type: object
-      x-struct: Elixir.CacheWeb.API.Schemas.StartMultipartUploadResponse
-      x-validate:
   securitySchemes:
     authorization:
       scheme: bearer
       type: http
 info:
-  title: Tuist Cache
+  title: Kura HTTP cache API
   version: 0.1.0
 openapi: 3.0.0
 paths:
@@ -95,8 +76,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -105,8 +84,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -115,29 +92,29 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
           in: header
           name: range
           required: false
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
           in: header
           name: if-range
           required: false
           schema:
             type: string
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+              style: simple
         '206':
           content:
             application/octet-stream: {}
@@ -147,15 +124,16 @@ paths:
               description: The range served, as `bytes <first>-<last>/<total>`
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
             etag:
               description: The representation served, to be echoed in `If-Range` when resuming
               schema:
                 type: string
-                x-struct:
-                x-validate:
+              style: simple
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
               style: simple
         '401':
           content:
@@ -192,8 +170,6 @@ paths:
               description: The artifact's length, as `bytes */<total>`
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
         '422':
           content:
@@ -212,8 +188,6 @@ paths:
               description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
       summary: Download a Xcode cache artifact
       tags:
@@ -230,8 +204,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -240,8 +212,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -250,8 +220,12 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
+        - description: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+          in: header
+          name: tuist-checksum-sha256
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/octet-stream: {}
@@ -260,6 +234,12 @@ paths:
       responses:
         '204':
           description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The declared tuist-checksum-sha256 is malformed
         '401':
           content:
             application/json:
@@ -295,7 +275,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request parameters
+          description: Invalid request parameters, or a body that does not match its declared tuist-checksum-sha256
         '500':
           content:
             application/json:
@@ -318,8 +298,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -328,8 +306,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
       responses:
         '204':
           description: Cache cleaned successfully
@@ -379,8 +355,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -389,8 +363,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -399,13 +371,17 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+              style: simple
         '401':
           content:
             application/json:
@@ -447,8 +423,6 @@ paths:
               description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
       summary: Download a Gradle build cache artifact
       tags:
@@ -465,8 +439,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -475,8 +447,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -485,17 +455,19 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
-        - description: 'Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes received against this value to reject truncated uploads, so chunked transfer encoding (no Content-Length) is not accepted on this endpoint.'
+        - description: Declared body length in bytes. A body that ends before it is rejected as truncated instead of being stored.
           in: header
           name: content-length
           required: true
           schema:
             minimum: 0
             type: integer
-            x-struct:
-            x-validate:
+        - description: Lowercase hex SHA-256 of the request body. When present, a body that does not match is refused with 422, a malformed value with 400, and the digest is served back with the artifact.
+          in: header
+          name: tuist-checksum-sha256
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/octet-stream: {}
@@ -511,7 +483,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Request body was truncated before reaching the declared Content-Length
+          description: Request body was truncated before reaching the declared Content-Length, or the declared tuist-checksum-sha256 is malformed
         '401':
           content:
             application/json:
@@ -547,7 +519,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid or missing request parameters (e.g., missing Content-Length header)
+          description: Invalid or missing request parameters (e.g., missing Content-Length header), or a body that does not match its declared tuist-checksum-sha256
         '500':
           content:
             application/json:
@@ -568,16 +540,12 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
       requestBody:
         content:
           application/json:
@@ -586,28 +554,18 @@ paths:
                 cas_id:
                   description: The CAS ID
                   type: string
-                  x-struct:
-                  x-validate:
                 entries:
                   items:
                     properties:
                       value:
                         description: The value
                         type: string
-                        x-struct:
-                        x-validate:
                     type: object
-                    x-struct:
-                    x-validate:
                   type: array
-                  x-struct:
-                  x-validate:
               required:
                 - cas_id
                 - entries
               type: object
-              x-struct:
-              x-validate:
         description: Key-value entry data
         required: true
       responses:
@@ -645,24 +603,18 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
@@ -705,8 +657,6 @@ paths:
               description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
       summary: Get a key-value entry
       tags:
@@ -722,24 +672,18 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The upload ID from start_multipart
           in: query
           name: upload_id
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
       requestBody:
         content:
           application/json:
@@ -755,7 +699,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Parts mismatch or missing parts
+          description: Parts mismatch or missing parts, or a malformed checksum_sha256
         '401':
           content:
             application/json:
@@ -780,6 +724,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Upload not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The assembled artifact does not match checksum_sha256
         '500':
           content:
             application/json:
@@ -800,32 +750,24 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The upload ID from start_multipart
           in: query
           name: upload_id
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: Part number (1-indexed)
           in: query
           name: part_number
           required: true
           schema:
             type: integer
-            x-struct:
-            x-validate:
       requestBody:
         content:
           application/octet-stream: {}
@@ -898,8 +840,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -908,8 +848,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact hash
           in: query
           name: hash
@@ -918,8 +856,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact name
           in: query
           name: name
@@ -928,8 +864,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Cache category (builds)
           in: query
           name: cache_category
@@ -938,8 +872,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
@@ -985,8 +917,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -995,8 +925,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -1005,8 +933,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact hash
           in: query
           name: hash
@@ -1015,8 +941,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact name
           in: query
           name: name
@@ -1025,8 +949,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Cache category (builds)
           in: query
           name: cache_category
@@ -1035,29 +957,29 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
           in: header
           name: range
           required: false
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
           in: header
           name: if-range
           required: false
           schema:
             type: string
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
             application/octet-stream: {}
           description: Artifact content
+          headers:
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
+              style: simple
         '206':
           content:
             application/octet-stream: {}
@@ -1067,15 +989,16 @@ paths:
               description: The range served, as `bytes <first>-<last>/<total>`
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
             etag:
               description: The representation served, to be echoed in `If-Range` when resuming
               schema:
                 type: string
-                x-struct:
-                x-validate:
+              style: simple
+            tuist-checksum-sha256:
+              description: Lowercase hex SHA-256 of the whole artifact, as declared by its uploader and verified at upload. Absent for artifacts uploaded without one.
+              schema:
+                type: string
               style: simple
         '401':
           content:
@@ -1112,8 +1035,6 @@ paths:
               description: The artifact's length, as `bytes */<total>`
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
         '422':
           content:
@@ -1132,8 +1053,6 @@ paths:
               description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
               schema:
                 type: string
-                x-struct:
-                x-validate:
               style: simple
       summary: Download a module cache artifact
       tags:
@@ -1148,8 +1067,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account
           in: query
           name: account_handle
@@ -1158,8 +1075,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project
           in: query
           name: project_handle
@@ -1168,8 +1083,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact hash
           in: query
           name: hash
@@ -1178,8 +1091,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Artifact name
           in: query
           name: name
@@ -1188,8 +1099,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
         - description: Cache category (builds)
           in: query
           name: cache_category
@@ -1198,8 +1107,6 @@ paths:
             minLength: 1
             pattern: ^(?!\.{1,2}$)[^/\\\x{0}]+$
             type: string
-            x-struct:
-            x-validate:
       responses:
         '204':
           description: Artifact exists
@@ -1238,7 +1145,4 @@ paths:
         - ModuleCache
 security:
   - authorization: []
-servers:
-  - url: http://localhost:8189
-    variables: {}
 tags: []

@@ -1,6 +1,8 @@
 defmodule TuistWeb.Plugs.LoaderPlug do
   @moduledoc ~S"""
-  This plug is responsible for loading (and caching) the resources pointed by the path or body parameters.
+  Loads resources pointed to by request parameters. Private resources may use
+  bounded display caches. Public snapshots are reloaded so a privacy change
+  cannot continue granting anonymous access.
   """
   use TuistWeb, :controller
 
@@ -9,8 +11,11 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
+
+  require Logger
 
   def init([]), do: [:project, :account, :run]
   def init(opts), do: opts
@@ -41,10 +46,10 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   end
 
   def call(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    account = cached(conn, ["account", account_handle], fn -> Accounts.get_account_by_handle(account_handle) end)
+
     account =
-      cached(conn, ["account", account_handle], fn ->
-        Accounts.get_account_by_handle(account_handle)
-      end)
+      if account && account.visibility == :public, do: Accounts.get_account_by_handle(account_handle), else: account
 
     case account do
       nil ->
@@ -93,14 +98,32 @@ defmodule TuistWeb.Plugs.LoaderPlug do
       {:error, :not_found} ->
         raise NotFoundError,
               dgettext("dashboard", "The run with ID %{run_id} was not found.", %{run_id: run_id})
+
+      # The run lives in ClickHouse, which rejects reads it has no memory
+      # budget for. That is a transient backend condition, not a malformed
+      # request, so it renders as 503 rather than falling through this case
+      # as an unmatched clause and surfacing to the user as a 500.
+      {:error, reason} ->
+        Logger.warning("Failed to load run #{run_id}: #{inspect(reason)}")
+
+        raise ServiceUnavailableError,
+              dgettext(
+                "dashboard",
+                "Run analytics are temporarily unavailable. Please try again in a moment."
+              )
     end
   end
 
   def assign_selected_project(conn, project_slug) do
     project =
-      cached(conn, ["project", project_slug], fn ->
-        Projects.get_project_by_slug(project_slug, preload: [:account])
-      end)
+      cached(conn, ["project", project_slug], fn -> Projects.get_project_by_slug(project_slug, preload: [:account]) end)
+
+    project =
+      case project do
+        {:ok, %{visibility: :public}} -> Projects.get_project_by_slug(project_slug, preload: [:account])
+        {:ok, %{account: %{visibility: :public}}} -> Projects.get_project_by_slug(project_slug, preload: [:account])
+        result -> result
+      end
 
     case project do
       {:ok, project} ->
@@ -127,7 +150,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   end
 
   defp cached(conn, cache_key, fetch_value) do
-    cache_ttl = Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1))
+    cache_ttl = min(Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)), to_timeout(minute: 1))
     cache = Map.get(conn.assigns, :cache, :tuist)
 
     cache_key =
@@ -141,7 +164,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
       locking: true
     ]
 
-    if Map.get(conn.assigns, :caching, true) do
+    if Map.get(conn.assigns, :caching, true) and conn.assigns[:auth_freshness] != :strict do
       Tuist.KeyValueStore.get_or_update(cache_key, cache_opts, fetch_value)
     else
       fetch_value.()

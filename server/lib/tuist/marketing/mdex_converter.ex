@@ -13,7 +13,7 @@ defmodule Tuist.Marketing.MDExConverter do
   alias Tuist.Markdown
 
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
-  @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon %{__changed__: nil} |> Noora.Icon.check() |> Safe.to_iodata() |> IO.iodata_to_binary()
 
   @mdex_options [
     extension: [
@@ -34,7 +34,9 @@ defmodule Tuist.Marketing.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      formatter: {:html_inline, theme: "github_light"}
+      # light-dark() token colors so code blocks follow the page's
+      # color-scheme, same as the docs (see Tuist.DocsLoader).
+      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
     ]
   ]
 
@@ -147,7 +149,8 @@ defmodule Tuist.Marketing.MDExConverter do
     id = "mermaid-" <> Integer.to_string(:erlang.phash2(literal))
 
     %MDEx.HtmlBlock{
-      literal: ~s(<div id="#{id}" phx-update="ignore"><pre class="mermaid">#{diagram}</pre></div>)
+      literal:
+        ~s(<div id="#{id}" phx-update="ignore" phx-no-curly-interpolation><pre class="mermaid">#{diagram}</pre></div>)
     }
   end
 
@@ -159,12 +162,14 @@ defmodule Tuist.Marketing.MDExConverter do
 
     copy_source = literal |> String.trim() |> Markdown.html_escape()
 
+    # Live posts compile to HEEx, where `{` starts an interpolation, so code
+    # (JSON, Elixir, Swift...) must opt out or the post fails to compile.
     %MDEx.HtmlBlock{
       literal: """
-      <div class="code-window">\
+      <div class="code-window" phx-no-curly-interpolation>\
       <div data-part="bar">\
       <div data-part="language">#{language}</div>\
-      <div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
+      <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
       </div>\
       <template data-part="copy-source">#{copy_source}</template>\
       <div data-part="code">#{highlighted_html}</div>\

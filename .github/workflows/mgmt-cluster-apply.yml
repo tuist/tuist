@@ -63,6 +63,7 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
+    if: github.repository == 'tuist/tuist'
     # The self-hosted tuist-linux runners are customer runner Pods
     # governed by a NetworkPolicy that only allows public egress on
     # ports 80/443. The mgmt apiserver is reached on 6443, so this
@@ -77,7 +78,7 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"

@@ -29,7 +29,7 @@ Describe 'singleton handoff to joined nodes'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  It 'moves singleton data to nodes that join later through the outbox'
+  It 'moves singleton data to nodes that join later through their pull links'
     keyvalue_status="$(status_only -X PUT \
       "${KURA_US_URL}/api/cache/keyvalue?tenant_id=acme&namespace_id=handoff" \
       -H "content-type: application/json" \

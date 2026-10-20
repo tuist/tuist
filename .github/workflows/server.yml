@@ -7,19 +7,27 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
       - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   merge_group: {}
 
@@ -31,7 +39,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,9 +59,9 @@ defaults:
 jobs:
   swift-test:
     name: Swift Tests (XCActivityLogParser)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcactivitylog_nif
@@ -71,9 +78,9 @@ jobs:
   # binary, so this job guards both.
   swift-test-xcresult:
     name: Swift Tests (XCResultParser)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcresult_nif
@@ -86,6 +93,8 @@ jobs:
           key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+      - name: Verify isolated process hosts
+        run: bash Tests/ProcessHost/test.sh
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project
@@ -94,12 +103,10 @@ jobs:
     # pattern as `setup-server-mix` callers.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       # Pre-compile the project in its own step so the OOM (if any)
       # surfaces here rather than inside the extract heartbeat loop —
       # makes the failure mode obvious. The throttle stack:
@@ -224,42 +231,30 @@ jobs:
           fi
 
           echo "✅ All dashboard translation templates present"
-  test:
-    name: Test
-    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
-    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
-    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
-    # headroom this job had before the default was downsized (#11052).
+  test-build:
+    name: Build Test Shards
     runs-on: tuist-linux-large
-    timeout-minutes: 75
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    # Local `mix test` compiles only the "en" locale for fast cold builds
-    # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
-    # locale set so the `:locale`-tagged i18n tests run and are covered here.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
+    outputs:
+      current-matrix: ${{ steps.current.outputs.matrix }}
+      floor-matrix: ${{ steps.floor.outputs.matrix }}
+      current-reference: ${{ steps.current.outputs.reference }}
+      floor-reference: ${{ steps.floor.outputs.reference }}
     env:
       TUIST_DEV_ALL_LOCALES: "1"
-    services:
-      postgres:
-        image: public.ecr.aws/docker/library/postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
-          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
-          mix-cache-key: mix-test-v2
-          mix-cache-restore-key: mix-test-v2-
-          restore-mix-cache: "false"
+          restore-mix-cache: deps
+          mise-cache: "false"
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
         with:
@@ -269,51 +264,126 @@ jobs:
             cldr-locales-v1-
       - name: Prefetch CLDR locale data
         run: mise/tasks/cldr/prefetch-locale-data.sh
-      - name: Compile
+      # Discovering a cold SDK task compiles every dependency before Tuist can
+      # restore its cache. Enter through the bootstrap-aware compile alias first.
+      - name: Compile with dependency caching
         run: mix compile --warnings-as-errors
-      - name: Start ClickHouse
-        run: mise run --no-deps clickhouse:start
-      - name: Setup database
-        run: mise run --no-deps db:reset
-      - name: Run tests
-        run: mix test --warnings-as-errors
-  test-clickhouse-floor:
-    name: Test (oldest supported ClickHouse)
-    # The self-hosting requirements promise ClickHouse 25, but every ClickHouse
-    # we operate is newer: dev and the Test job pin 26.1, the Helm chart ships
-    # 26.1, and the bundled Compose file ships 26.5. Nothing exercised the
-    # documented floor, so a query setting or function introduced after it
-    # reached self-hosted deployments as a failed migration rather than as a
-    # failed build (#12515). Running the suite here replays every ClickHouse
-    # migration and every runtime query against the floor.
-    #
-    # The release under test comes from Tuist.ClickHouseVersions, which is also
-    # what the migration guard asserts and what the self-hosting requirements
-    # publish, so the three cannot drift apart.
-    runs-on: tuist-linux-large
-    timeout-minutes: 75
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+      # On main the build is instrumented for native coverage once here, so
+      # the coverage shards count without compiling every module for `cover`
+      # again. The floor plan uploads the same build; its shards don't count.
+      - name: Build and plan current ClickHouse shards
+        id: current
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors ${{ github.event_name == 'push' && '--cover' || '' }}
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
+      - name: Plan oldest supported ClickHouse shards
+        id: floor
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
+  test:
+    name: Test
+    # Shards download the compiled build from Build Test Shards, so they fit the
+    # default shape and stay out of the large pool's queue.
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    needs: test-build
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.current-matrix) }}
     env:
-      # Matches the Test job. Several locale assertions live in tests that carry
-      # no `:locale` tag, so they run either way and fail against the "en"-only
-      # locale set that `mix test` compiles by default.
       TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.current-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the oldest supported ClickHouse release
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          restore-mix-cache: deps
+          mise-cache: "false"
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      # A checkout newer than the downloaded build makes Mix treat the path
+      # dependencies as changed and recompile the app in db:reset.
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex --include-children + tuist.test --prepare-only
+      # Run migrations in another process so migration regression tests can
+      # require their modules without triggering redefinition warnings.
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      # On main the shards also report the server's coverage to tuist/server.
+      # A run from a dirty checkout keeps its coverage off the commit: a cold
+      # cache install writes checksums into mise.lock and deps.get can rewrite
+      # mix.lock, neither of which changes the measured code. Git is told to
+      # ignore them rather than having them restored, which would leave the
+      # fetched dependencies out of step with mix.lock and stop Mix.
+      - name: Ignore lockfile changes for coverage
+        if: github.event_name == 'push'
+        run: git update-index --assume-unchanged ../mise.lock mix.lock
+      - name: Run shard ${{ matrix.shard }}
+        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover' || '' }}
+  test-clickhouse-floor:
+    name: Test (oldest supported ClickHouse)
+    # Keep exercising the release declared by Tuist.ClickHouseVersions, including
+    # every migration, rather than testing only against the newer hosted release.
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    needs: test-build
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.floor-matrix) }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.floor-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: deps
+          mise-cache: "false"
+      # This install must be unlocked: mise.lock pins the newer CI release.
+      - name: Pin ClickHouse to the oldest supported release
         run: |
           file=lib/tuist/clickhouse_versions.ex
           version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
@@ -321,19 +391,89 @@ jobs:
             echo "Could not resolve @oldest_tested_release from $file" >&2
             exit 1
           fi
-          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Testing against ClickHouse ${version}"
+          mise use "github:ClickHouse/ClickHouse@${version}"
+          clickhouse --version
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex --include-children + tuist.test --prepare-only
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run shard ${{ matrix.shard }}
+        run: mix tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
+  # On main, tells the server the commit's coverage is all in once every
+  # shard ran: a shard with a failing test still reported its coverage. A
+  # failed signal leaves the commit in progress without turning the run red.
+  coverage-complete:
+    name: Complete Coverage
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    needs: test
+    if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
-          mix-cache-key: mix-test-v2
-          mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: deps
+          mise-cache: "false"
+      - name: Signal that the commit's coverage is complete
+        run: mix 'do' deps.compile tuist_ex --include-children + tuist.coverage.complete
+  test-unsharded:
+    name: Test (unsharded fallback, ${{ matrix.clickhouse }})
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    needs: test-build
+    # A failed planner stays red, but must not leave its fixing PR untested.
+    # Forks also use these unprivileged, explicitly unsharded jobs.
+    if: |
+      always() && !cancelled() &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event.pull_request.head.repo.fork == true || needs.test-build.result == 'failure')
+    strategy:
+      fail-fast: false
+      matrix:
+        clickhouse: [current, floor]
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: ${{ matrix.clickhouse == 'current' && 'erlang elixir github:ClickHouse/ClickHouse' || 'erlang elixir' }}
           restore-mix-cache: "false"
-      # Not passed through mise-install-args: that path installs `--locked`, and
-      # mise.lock pins the version the rest of CI runs on.
       - name: Pin ClickHouse to the oldest supported release
+        if: matrix.clickhouse == 'floor'
         run: |
-          mise use "github:ClickHouse/ClickHouse@${CLICKHOUSE_FLOOR_VERSION}"
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          mise use "github:ClickHouse/ClickHouse@${version}"
           clickhouse --version
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
@@ -350,17 +490,16 @@ jobs:
         run: mise run --no-deps clickhouse:start
       - name: Setup database
         run: mise run --no-deps db:reset
-      - name: Run tests
+      - name: Run tests without Tuist authentication
         run: mix test --warnings-as-errors
   credo:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
@@ -369,37 +508,59 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: erlang elixir node aube npm:prettier
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install mix dependencies
-        run: mix deps.get
+      - uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install aube dependencies
         run: aube install
       - name: Check Elixir format
         run: mix format --check-formatted
+      - name: Test frontend interactions
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
       - name: Check CSS custom property references
         working-directory: ${{ github.workspace }}
         run: mise run css:lint-tokens server
+  image-budget:
+    name: Image budget
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image inspection tools
+        uses: ./.github/actions/mise
+        with:
+          working_directory: mise/tasks/marketing
+          install_args: --locked conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
+      - name: Test image budget guard
+        working-directory: ${{ github.workspace }}
+        run: bash mise/tasks/marketing/image-budget-test.sh
+      - name: Check served image budgets
+        working-directory: ${{ github.workspace }}
+        run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
     name: esbuild
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir node aube
       - name: Restore Aube Cache
         uses: actions/cache@v4
@@ -439,12 +600,10 @@ jobs:
     name: Security
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -462,13 +621,19 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
+      # The docker driver builds inside the runner's dind dockerd, whose
+      # --registry-mirror routes docker.io base-image pulls through the
+      # in-cluster pull-through cache. A docker-container builder resolves
+      # registries on its own and would bypass that mirror.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
       - name: Docker build
         run: |
           log_file=/tmp/server-docker-build.log
@@ -483,8 +648,6 @@ jobs:
             --build-arg TUIST_VERSION=1.24.11.11 \
             --build-arg MIX_ENV=prod \
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
-            --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
-            --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
             "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
           build_pid=$!
           while kill -0 "$build_pid" 2>/dev/null; do
@@ -579,25 +742,24 @@ jobs:
     # 4 vCPU / 16 GB shape restores the headroom from before #11052.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
       - name: Start ClickHouse

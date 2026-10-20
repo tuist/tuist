@@ -70,7 +70,7 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
         --cobe-visible-germany-developer: 0;
         --cobe-visible-japan-developer: 0;
         --cobe-visible-us-east-kura: 0;
-        --cobe-visible-eu-central-kura: 0;
+        --cobe-visible-eu-west-kura: 0;
         --cobe-visible-ap-northeast-kura: 0;
 
         pointer-events: none;
@@ -122,12 +122,12 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
         position-anchor: --cobe-germany-developer;
       }
 
-      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-central-kura"] {
-        position-anchor: --cobe-eu-central-kura;
+      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-west-kura"] {
+        position-anchor: --cobe-eu-west-kura;
       }
 
       [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="germany-developer"],
-      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-central-kura"] {
+      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-west-kura"] {
         top: anchor(center);
         right: anchor(left);
         transform: translate(calc(-1 * var(--noora-spacing-2)), -50%);
@@ -168,9 +168,9 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
         filter: blur(calc((1 - var(--cobe-visible-us-east-kura)) * var(--noora-spacing-2)));
       }
 
-      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-central-kura"] {
-        opacity: var(--cobe-visible-eu-central-kura);
-        filter: blur(calc((1 - var(--cobe-visible-eu-central-kura)) * var(--noora-spacing-2)));
+      [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-west-kura"] {
+        opacity: var(--cobe-visible-eu-west-kura);
+        filter: blur(calc((1 - var(--cobe-visible-eu-west-kura)) * var(--noora-spacing-2)));
       }
 
       [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="ap-northeast-kura"] {
@@ -320,8 +320,8 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
             <span data-scenario-label="global-mesh" data-label-for="us-east-kura">
               <i data-part="cache-marker" />us-east Kura
             </span>
-            <span data-scenario-label="global-mesh" data-label-for="eu-central-kura">
-              <i data-part="cache-marker" />eu-central Kura
+            <span data-scenario-label="global-mesh" data-label-for="eu-west-kura">
+              <i data-part="cache-marker" />eu-west Kura
             </span>
             <span data-scenario-label="global-mesh" data-label-for="ap-northeast-kura">
               <i data-part="cache-marker" />ap-northeast Kura
@@ -341,7 +341,7 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
           <div data-scenario-copy="global-mesh">
             <strong>One short cache trip per environment</strong>
             <p>
-              Continuous integration reads from <code>us-east</code>. Germany reads from <code>eu-central</code>, and Japan reads from <code>ap-northeast</code>. The
+              Continuous integration reads from <code>us-east</code>. Germany reads from <code>eu-west</code>, and Japan reads from <code>ap-northeast</code>. The
               short purple arcs show those local reads while the mesh keeps results shared.
             </p>
           </div>
@@ -428,8 +428,8 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
                 kind: "client",
               },
               {
-                id: "eu-central-kura",
-                location: [50.1109, 8.6821],
+                id: "eu-west-kura",
+                location: [48.8566, 2.3522],
                 kind: "cache",
               },
               {
@@ -448,9 +448,10 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
           },
         }
 
+        // `token` is a custom property name or any CSS color expression.
         function tokenColor(element, token) {
           const probe = document.createElement("span")
-          probe.style.color = `var(${token})`
+          probe.style.color = token.startsWith("--") ? `var(${token})` : token
           element.append(probe)
 
           const context = document.createElement("canvas").getContext("2d")
@@ -473,7 +474,7 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
             this.isVisible = false
 
             this.colors = {
-              base: tokenColor(this.el, "--noora-purple-100"),
+              base: tokenColor(this.el, "light-dark(var(--noora-purple-100), var(--noora-purple-900))"),
               glow: tokenColor(this.el, "--noora-surface-background-primary"),
               cache: tokenColor(this.el, "--noora-button-primary-background"),
               client: tokenColor(this.el, "--noora-surface-label-primary"),

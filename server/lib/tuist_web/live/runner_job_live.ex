@@ -9,13 +9,17 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -36,7 +40,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -57,6 +61,8 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
+        buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -70,10 +76,18 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id,
+             include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(selected_account)
+           )
+         )
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -132,6 +146,93 @@ defmodule TuistWeb.RunnerJobLive do
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
 
   def header_title(job), do: job_title(job)
+
+  attr :volumes, :list, required: true
+  attr :account_name, :string, required: true
+  attr :failed, :boolean, default: false
+
+  def job_volumes(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :filled,
+        if(assigns.failed,
+          do: Enum.filter(assigns.volumes, &CacheVolumes.out_of_space?(&1.size_bytes, &1.capacity_bytes)),
+          else: []
+        )
+      )
+
+    ~H"""
+    <.card
+      :if={@volumes != []}
+      title={dgettext("dashboard_runners", "Volumes")}
+      icon="database"
+      data-part="volumes-card"
+    >
+      <.card_section>
+        <.alert
+          :for={usage <- @filled}
+          id={"runner-job-volume-full-alert-#{usage.volume_id}"}
+          status="warning"
+          type="secondary"
+          size="large"
+          title={
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
+          }
+          description={
+            dgettext(
+              "dashboard_runners",
+              "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job.",
+              used: volume_bytes(usage.size_bytes),
+              capacity: volume_bytes(usage.capacity_bytes)
+            )
+          }
+        />
+        <.table
+          id="runner-job-volumes"
+          rows={@volumes}
+          row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
+        >
+          <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
+            <.badge_cell
+              :if={not is_nil(usage.warm)}
+              label={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                  usage.warm -> dgettext("dashboard_runners", "Hit")
+                  true -> dgettext("dashboard_runners", "Miss")
+                end
+              }
+              color={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> "warning"
+                  usage.warm -> "success"
+                  true -> "neutral"
+                end
+              }
+              style="light-fill"
+            />
+            <.text_cell :if={is_nil(usage.warm)} label="—" />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
+            <.text_cell label={volume_bytes(usage.size_bytes)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Capacity")}>
+            <.text_cell label={volume_bytes(usage.capacity_bytes)} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp volume_bytes(nil), do: "—"
+  defp volume_bytes(value), do: ByteFormatter.format_bytes(value)
 
   def header_status(%{status: "completed", conclusion: conclusion}) do
     case conclusion do
@@ -213,6 +314,19 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def github_job_url(_), do: nil
+
+  @doc """
+  The Buildkite build a job belongs to, or `nil` for a GitHub job.
+
+  Buildkite's own job-level anchor is not part of any documented URL
+  contract, so this stops at the build, which is stable.
+  """
+  def buildkite_build_url(%{organization_slug: org, pipeline_slug: pipeline, build_number: number})
+      when is_binary(org) and org != "" and is_binary(pipeline) and pipeline != "" and is_integer(number) and number > 0 do
+    "https://buildkite.com/#{org}/#{pipeline}/builds/#{number}"
+  end
+
+  def buildkite_build_url(_), do: nil
 
   @doc """
   Builds the deep link to a single workflow_job. Mirrors GitHub's
@@ -308,6 +422,62 @@ defmodule TuistWeb.RunnerJobLive do
     if starts != [] and ends != [] do
       %{min: Enum.min(starts), max: Enum.max(ends)}
     end
+  end
+
+  @doc """
+  Left offset of a step's Gantt bar as a percentage of the job window,
+  or `nil` when the step or window can't place it. The value is
+  formatted as a percentage for the bar's offset custom property.
+  """
+  def step_bar_offset_percent(step, %{min: min, max: max}) when max > min do
+    case step_epoch_ms(step.started_at) do
+      nil ->
+        nil
+
+      started ->
+        started
+        |> Kernel.-(min)
+        |> Kernel./(max - min)
+        |> clamp_unit()
+        |> format_bar_percent()
+    end
+  end
+
+  def step_bar_offset_percent(%{started_at: %DateTime{}}, %{min: min, max: max}) when max == min, do: "0.0%"
+
+  def step_bar_offset_percent(_, _), do: nil
+
+  @doc """
+  Width of a step's Gantt bar as a percentage of the job window. A
+  zero-length step still returns `"0.0%"` so the stylesheet can fall back
+  to a min-width tick — otherwise a 0s "Set up job" row would render
+  nothing at all.
+  """
+  def step_bar_width_percent(step, %{min: min, max: max}) when max > min do
+    with started when not is_nil(started) <- step_epoch_ms(step.started_at),
+         completed when not is_nil(completed) <- step_epoch_ms(step.completed_at) do
+      completed
+      |> Kernel.-(started)
+      |> max(0)
+      |> Kernel./(max - min)
+      |> clamp_unit()
+      |> format_bar_percent()
+    else
+      _ -> nil
+    end
+  end
+
+  def step_bar_width_percent(%{started_at: %DateTime{}, completed_at: %DateTime{}}, %{min: min, max: max})
+      when max == min, do: "0.0%"
+
+  def step_bar_width_percent(_, _), do: nil
+
+  defp clamp_unit(value) when is_float(value) or is_integer(value) do
+    value |> max(0.0) |> min(1.0)
+  end
+
+  defp format_bar_percent(value) do
+    "#{Float.round(value * 100, 2)}%"
   end
 
   @doc """
@@ -478,8 +648,8 @@ defmodule TuistWeb.RunnerJobLive do
     }
   end
 
-  defp assign_runner_insights(socket, selected_account, job) do
-    case Jobs.projects_for_runner_job(selected_account, job) do
+  defp assign_runner_insights(socket, selected_account, job, buildkite_job) do
+    case Jobs.projects_for_runner_job(selected_account, job, buildkite_job) do
       {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
@@ -491,8 +661,8 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
       {:ok, projects} ->
-        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
-        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id, buildkite_job)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id, buildkite_job)
 
         build_command_events = Jobs.command_events_for_runs(build_runs, :build)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
@@ -616,12 +786,12 @@ defmodule TuistWeb.RunnerJobLive do
 
   def terminal_tab_visible?(_interactive, true), do: true
 
-  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+  def terminal_tab_visible?(%{can_attach?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
     do: true
 
   def terminal_tab_visible?(_, _), do: false
 
-  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+  def vnc_tab_visible?(%{can_attach?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
     do: true
 
   def vnc_tab_visible?(_), do: false
@@ -630,7 +800,7 @@ defmodule TuistWeb.RunnerJobLive do
     terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
   end
 
-  def interactive_vnc_unavailable_reason(%{can_read?: false}),
+  def interactive_vnc_unavailable_reason(%{can_attach?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
 
   def interactive_vnc_unavailable_reason(%{macos?: false}),
@@ -760,7 +930,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.vnc_requestable? ->
@@ -791,7 +961,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.shell_requestable? ->
@@ -834,11 +1004,16 @@ defmodule TuistWeb.RunnerJobLive do
   defp maybe_auto_request_interactive_sessions(socket), do: socket
 
   # A public account lets anyone mount this LiveView, and any client can push
-  # the disconnect event regardless of which tabs were rendered, so re-check
-  # `:runners_read` here rather than trusting that the interactive tabs were
-  # visible. `close_for_job/5` additionally scopes the close to the user who
-  # holds the session.
-  defp close_interactive_session(%{assigns: %{interactive: %{can_read?: false}}} = socket, kind)
+  # the disconnect event regardless of which tabs were rendered, so gate the
+  # close rather than trusting that the interactive tabs were visible.
+  # `close_for_job/5` additionally scopes the close to the user who holds the
+  # session.
+  #
+  # This reads the mount-time snapshot on purpose, where requesting a session
+  # resolves the permission afresh. Closing only ever ends access, so a member
+  # demoted mid-session should still be able to hang up rather than leave their
+  # session running until it times out.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_attach?: false}}} = socket, kind)
        when kind in [:vnc, :shell] do
     socket
   end
@@ -921,11 +1096,11 @@ defmodule TuistWeb.RunnerJobLive do
   def log_ts(_), do: ""
 
   # Renders a list of grouped log nodes (`{:line, line}` /
-  # `{:group, header, children}`) as the Steps tab body. Groups
-  # become collapsible `<details>` elements that match GitHub's
-  # own log UI; lines render with ANSI SGR codes decoded into
-  # `<span>` classes so the user sees colours instead of literal
-  # `[36;1m` artefacts.
+  # `{:group, header, children}` / `{:action, header, children}`) as
+  # the Steps tab body. Groups and composite-action steps become
+  # collapsible `<details>` elements that match GitHub's own log UI;
+  # lines render with ANSI SGR codes decoded into `<span>` classes so
+  # the user sees colours instead of literal `[36;1m` artefacts.
   attr(:tree, :list, required: true)
 
   def log_tree(assigns) do
@@ -941,7 +1116,7 @@ defmodule TuistWeb.RunnerJobLive do
     assigns = assign(assigns, :line, line)
 
     ~H"""
-    <div data-part="log-line">
+    <div data-part="log-line" data-annotation={LogFormatter.annotation(@line.message)}>
       <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
@@ -971,7 +1146,49 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  # Per-step ranges are computed once (three small ClickHouse queries,
+  # A step of a composite action, rendered like GitHub's nested step
+  # header: status icon, name, and duration. Failed steps start
+  # expanded so the error is visible without a click.
+  def log_node(%{node: {:action, _header, _children}} = assigns) do
+    {:action, header, children} = assigns.node
+
+    assigns =
+      assigns
+      |> assign(:header, header)
+      |> assign(:children, children)
+      |> assign(:status, step_status(%{conclusion: header.conclusion}))
+
+    ~H"""
+    <details data-part="log-group" data-kind="action" open={@header.conclusion == "failure"}>
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.line.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron" data-empty={to_string(@children == [])}>
+            <.chevron_right />
+          </span>
+          <span data-part="log-action-icon" data-status={@status}>
+            <.circle_check :if={@status == :success} />
+            <.alert_circle :if={@status == :failure} />
+            <.alert_hexagon :if={@status == :warning} />
+            <.circle_dashed :if={@status == :processing} />
+          </span>
+          <span data-part="log-action-name">{@header.name}</span>
+          <span :if={@header.duration_ms} data-part="log-action-duration">
+            {DateFormatter.format_duration_from_milliseconds(@header.duration_ms,
+              fractional_seconds: false
+            )}
+          </span>
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} />
+      </div>
+    </details>
+    """
+  end
+
+  # Per-step ranges are computed once (two small ClickHouse queries,
   # no log-body scan); the expanded step's lines are fetched on demand
   # and cached individually. A user who never opens a step pays
   # nothing beyond mount; a job with hundreds of thousands of lines
@@ -991,6 +1208,9 @@ defmodule TuistWeb.RunnerJobLive do
         case Map.get(ranges, number) do
           {first, last} ->
             JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+
+          :unattributed ->
+            :unattributed
 
           _ ->
             []
@@ -1070,6 +1290,18 @@ defmodule TuistWeb.RunnerJobLive do
     assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
+  # `:runners_interactive_access`, not the page's `:runners_read`:
+  # attaching to a running VM executes commands on it, so it stays with members
+  # that can write.
+  #
+  # Resolved per call rather than read off the socket. `InteractiveSessions`
+  # mints tokens without authorizing, and a socket outlives the role that
+  # opened it, so a member demoted while the page is open would otherwise keep
+  # requesting sessions until they reload.
+  defp can_attach?(current_user, selected_account) do
+    Authorization.authorize(:runners_interactive_access, current_user, selected_account) == :ok
+  end
+
   defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
     platform = Catalog.fleet_platform(job.fleet_name)
     macos? = platform == :macos
@@ -1077,13 +1309,11 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
-    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
-    # running VM stays members-only even when the account is public.
-    can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
+    can_attach? = can_attach?(current_user, selected_account)
 
-    vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
+    vnc_requestable? = can_attach? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
-    shell_requestable? = can_read? and InteractiveSessions.shell_requestable?(job)
+    shell_requestable? = can_attach? and InteractiveSessions.shell_requestable?(job)
 
     vnc_session =
       selected_account.id
@@ -1096,7 +1326,7 @@ defmodule TuistWeb.RunnerJobLive do
       |> with_shell_session_token(shell_session_token)
 
     %{
-      can_read?: can_read?,
+      can_attach?: can_attach?,
       macos?: macos?,
       linux?: linux?,
       running?: running?,

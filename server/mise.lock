@@ -19,10 +19,6 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-da
 [tools.age."platforms.windows-x64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"
 
-[[tools."asdf:aeons/asdf-minio"]]
-version = "2025-09-07T16-13-09Z"
-backend = "asdf:aeons/asdf-minio"
-
 [[tools.aube]]
 version = "1.6.2"
 backend = "github:endevco/aube"
@@ -112,6 +108,33 @@ url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/34
 checksum = "sha256:7323406b781232bdc33f2356c03da968d1f7633ddfb19a7c82f982b83e92c56c"
 url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-client-26.1.2.11-amd64.tgz"
 url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543176"
+
+[[tools."github:minio/minio"]]
+version = "2025-09-07T16-13-09Z"
+backend = "github:minio/minio"
+
+[tools."github:minio/minio".options]
+version_prefix = "RELEASE."
+
+[tools."github:minio/minio"."platforms.linux-arm64"]
+checksum = "sha256:5c83cd2cf151717ba0243f73e1c7802ff36e272b67144bdd7f1f7d684fd6f03d"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.linux-arm64.RELEASE.2025-09-07T16-13-09Z"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404655924"
+
+[tools."github:minio/minio"."platforms.linux-x64"]
+checksum = "sha256:7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.linux-amd64.RELEASE.2025-09-07T16-13-09Z"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404655976"
+
+[tools."github:minio/minio"."platforms.macos-arm64"]
+checksum = "sha256:7c3b3039b76e55a1b80935848ed83998d5e8d317374f87851f46a019ff5c0aa4"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.darwin-arm64.RELEASE.2025-09-07T16-13-09Z"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404656051"
+
+[tools."github:minio/minio"."platforms.macos-x64"]
+checksum = "sha256:4759080aeef7385aaceaac1131c30aaeb99605921553967dc6d3ef4e16ac64f9"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.darwin-amd64.RELEASE.2025-09-07T16-13-09Z"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404656124"
 
 [[tools.helm]]
 version = "3.16.3"

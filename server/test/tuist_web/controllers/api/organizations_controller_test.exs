@@ -126,6 +126,64 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["plan"] == "air"
     end
 
+    test "embedded invitations carry the role they will grant", %{conn: conn, user: user} do
+      # Given — the Invitation schema marks role required, so an embedded
+      # invitation without it fails generated-client decoding.
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org")
+
+      # Then
+      [invitation] = json_response(conn, :ok)["invitations"]
+      assert invitation["role"] == "viewer"
+    end
+
+    test "lists viewers alongside admins and users", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      viewer = AccountsFixtures.user_fixture(email: "tuist-viewer@tuist.io")
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert Enum.find(response["members"], &(&1["id"] == viewer.id))["role"] == "viewer"
+    end
+
+    test "does not return invitations to an organization member without invitation read access", %{conn: conn, user: user} do
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(member)
+        |> get(~p"/api/organizations/tuist-org")
+
+      assert json_response(conn, :ok)["invitations"] == []
+    end
+
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -867,6 +925,28 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["name"] == "tuist-member"
       assert response["role"] == "admin"
       assert Accounts.organization_admin?(member, organization)
+    end
+
+    test "updates a member to a viewer role", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org/members/tuist-member", role: "viewer")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["role"] == "viewer"
+      assert Accounts.organization_viewer?(member, organization)
+      refute Accounts.organization_user?(member, organization)
+      refute Accounts.organization_admin?(member, organization)
     end
 
     test "updates a member with an account token with members write scope", %{conn: conn, user: user} do

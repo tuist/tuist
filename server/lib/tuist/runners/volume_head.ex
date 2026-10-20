@@ -23,6 +23,12 @@ defmodule Tuist.Runners.VolumeHead do
     # Inventory digest of the account's current warm set (the sorted cache
     # entry-name hash the guest already computes for its dirty marker).
     field :tree_digest, :string
+    # SHA-256 of the master image object's bytes, when the promoting guest
+    # reported one. The inventory digest detects cache-set changes and keys the
+    # object; this is what a converging host verifies the downloaded bytes
+    # against before adopting them. Nil for promotes from runner images that
+    # predate the content hash — hosts then skip the content check.
+    field :content_digest, :string
     # Host that published this HEAD, for observability only.
     field :node_name, :string
 

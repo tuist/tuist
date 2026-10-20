@@ -20,23 +20,63 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 ```
 clusters/
 ├── README.md                  this file
-├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass
-├── cluster-staging.yaml       per-env Cluster CRs in topology mode
-├── cluster-canary.yaml
-├── cluster-production.yaml
-├── cluster-preview.yaml
-└── cluster-pentest.yaml
+├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass  (mgmt-cluster-apply.yml)
+├── bare-metal.yaml            runner substrate: bare-metal-worker class
+│                              (Kata, whole-disk root)        (mgmt-cluster-apply.yml)
+├── bare-metal-stateful.yaml   stateful substrate: stateful-worker class
+│                              (separate /data, no Kata, per-cluster RAID;
+│                              carries ClickHouse)            (mgmt-cluster-apply.yml)
+├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
+├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
+├── cluster-pentest.yaml       isolated pentest Cluster CR    (mgmt-cluster-apply.yml)
+└── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
+    ├── staging/{cluster,kustomization}.yaml
+    ├── canary/{cluster,kustomization}.yaml
+    ├── production/{cluster,kustomization}.yaml
+    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
+    ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
+    └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
+
+## Reconciliation ownership
+
+Two mechanisms apply these manifests, split deliberately (see
+[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+
+- **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
+  `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
+  scoped never to prune a `Cluster` object. This is the source of truth
+  for the staging / canary / production and hive / once / atlas topologies.
+- **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
+  path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
+  templates (whose delete-and-apply fallback for `field is immutable` a plain
+  Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
+  glob without touching the workflow), `machinedrainrules.yaml`, and the
+  `cluster-preview.yaml` (replicas mutated out-of-band by the preview
+  workflows) and `cluster-pentest.yaml` (isolated security-assessment) CRs.
+  Flux never sees these files.
+
+Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
+(`infra/k8s/cluster-production.yaml`). Keep each `workloads/<tenant>/cluster.yaml`
+byte-identical to the live object so the first Flux reconcile is a no-op;
+the tenant-repo copies are then retired to a pointer.
 
 ## Target shape per cluster
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 | `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
+
+Canary's third general-purpose worker reserves capacity for deployment hooks
+and rolling-update surge pods alongside its two CNPG instances. Two workers
+could run the steady-state workloads, but the 512Mi ClickHouse schema-clone
+hook remained unschedulable until Helm timed out and rolled back. After
+changing this pool, wait for Flux to reconcile and the new worker to become
+Ready before retrying the deployment.
 
 `tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
 It intentionally has no Kura, runner, Mac, processor, or stable-egress pools.
@@ -51,6 +91,25 @@ active label on one Ready candidate. It exists on staging/canary too so
 the failover path is exercised down the deployment cascade before
 production. See the pool comment in `cluster-production.yaml`.
 
+## Worker health checks
+
+Each MachineDeployment class in the ClusterClass defines a
+`MachineHealthCheck`: Ready `Unknown` or `False` for 5 minutes on cloud
+workers, and 10 minutes on bare metal, where remediation stays disabled. A
+pool's `healthCheck` in a Cluster CR replaces the class block entirely, not
+field by field. If an override sets only `remediation`, the pool gets no
+unhealthy node conditions and only the default startup timeout. Overrides
+must restate `checks`.
+
+Cloud workers remediate one unhealthy node at a time (`unhealthyInRange:
+"[0-1]"`). When two nodes in a pool are unhealthy at once, CAPI holds, and the
+"Worker node pool below desired replicas" alert pages after 15 minutes.
+
+`nodeLockupHardening` is an opt-in worker variable that applies the kernel
+lockup panics and systemd watchdog from `cluster-api-provider-tuist` to cloud
+workers. Changing it rolls the pool, so set it as a MachineDeployment override
+one pool at a time.
+
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,
 optional Hetzner Cloud Network config, optional placement groups.
@@ -59,7 +118,7 @@ Managed Kura region mapping is:
 
 | Product region | Cluster ID | CAPI Cluster | Hetzner location |
 |---|---|---|---|
-| `eu-central` | `eu-central-1` | `tuist` node pool `kura` | `fsn1` |
+| `eu-west` | `eu-west-1` | `tuist` node pool `kura-dedibox` | OVHcloud, Gravelines |
 | `us-east` | `us-east-1` | `tuist` node pool `kura-us-east` | `ash` |
 | `us-west` | `us-west-1` | `tuist` node pool `kura-us-west` | `hil` |
 
@@ -84,6 +143,56 @@ The safe prerequisite is a third pre-ordered production runner host and
 a matching replica increase. That gives the MachineDeployment spare
 capacity to create and verify a current-revision node before an old node
 is drained.
+
+## Resizing the control plane
+
+`hcloudControlPlaneMachineType` is patched into the control-plane
+`HCloudMachineTemplate`, so changing it makes the topology controller
+create a new template and roll the `KubeadmControlPlane`. KCP uses its
+default rolling update (`maxSurge: 1`): it adds a fourth member on the new
+type, which joins etcd as a learner and is promoted to a voter, then removes
+one old member. It repeats that three times. Each step replaces a Hetzner
+server, so the control-plane nodes get new names and public IPs.
+
+Merging a change under `workloads/` is the apply: Flux polls the repository
+every minute, so the roll starts about a minute after merge. Before merging:
+
+- If the CAPI or caph controllers changed since the last control-plane roll,
+  rehearse with a same-type roll on staging (set the staging KCP's
+  `spec.rollout.after` to now) rather than resizing staging. Check the field
+  with `kubectl explain kcp.spec.rollout.after` (older APIs use
+  `spec.rolloutAfter`), and confirm a new control-plane Machine appears;
+  if none does, nothing rolled.
+- Confirm etcd has three healthy voters (`etcdctl endpoint status --cluster`
+  in an etcd pod, which needs `/elevate` for `pods/exec`; without it,
+  `etcd_server_has_leader` is 1 on every member, leader changes are flat, and
+  WAL fsync p99 is normal) and the KCP reports three up-to-date, Ready
+  replicas.
+- Check the fleet for host rules that pin the API endpoint to one member.
+  The roll gives every member a new server, and a member's IP is not always
+  reused, so a node whose host NATs the load balancer address to a single
+  member loses the API when that member is removed. On 2026-10-07 a
+  redirect left over from an incident took the EU East Kura node down this
+  way (see `infra/kura-controller/incidents/2026-09-22-eu-east.md`). On
+  each Linux fleet host, `sudo iptables -t nat -S OUTPUT` must show nothing
+  that matches the load balancer address or a control-plane member's IP.
+  During the roll, a worker that goes NotReady right after a member is
+  deleted points to such a pin.
+- Pick an off-peak window with no server deploy running or queued.
+- Silence `Hetzner control-plane load-balancer target unhealthy` for the
+  window: each new member is a load-balancer target for several minutes
+  before its apiserver answers. The Flux `Kustomization` also times out
+  (15 minutes) before the roll finishes. Neither is a failure signal.
+
+The control-plane `MachineHealthCheck` never remediates a member that fails
+to register a Node (`nodeStartupTimeoutSeconds: 0`), so a stuck join halts
+the roll with the old members still serving. Deleting the stuck Machine also
+deletes its server, and KCP immediately creates a replacement, so pause first:
+annotate the `KubeadmControlPlane` with `cluster.x-k8s.io/paused` and diagnose
+on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
+also stops every worker pool from scaling or remediating. Then remove the
+annotation and either delete the stuck Machine (KCP retries) or revert.
+Reverting the type is another full roll, not an undo.
 
 ## Adapting from caph upstream
 

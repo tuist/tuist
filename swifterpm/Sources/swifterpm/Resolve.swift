@@ -6,6 +6,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig _: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -41,7 +42,7 @@ enum PackageResolver {
                 version: resolvedFileSchemaVersion(toolsVersion: toolsVersion)
             )
             if writeResolvedFile {
-                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
             }
             return resolved
         }
@@ -69,11 +70,11 @@ enum PackageResolver {
         )
         resolved.originHash = originHash
         resolved.pins = dedupePinsByIdentity(resolved.pins)
-        resolved = resolved.normalizedForResolvedFile()
+        resolved = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
             // SwiftPM writes Package.resolved with its own originHash; rewrite
             // with ours so consumers can detect manifest changes.
-            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
         }
         progress?.finished(pinCount: resolved.pins.count)
         return resolved
@@ -83,7 +84,7 @@ enum PackageResolver {
         let data: Data?
     }
 
-    private static func resolveWithSwiftPackageManagerProcess(
+    static func resolveWithSwiftPackageManagerProcess(
         packageDir: URL,
         scratchDir: URL?,
         cacheDir: URL,
@@ -93,42 +94,177 @@ enum PackageResolver {
         scmToRegistryTransformation: SCMToRegistryTransformation,
         useExistingResolvedFile: Bool,
         writeResolvedFile: Bool,
+        forceResolvedVersions: Bool = false,
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
+        let authentication = try await NativeRegistryAuthentication.prepare(
+            packageDir: packageDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation
+        )
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
-        let snapshot =
+        let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
+        // `swift package resolve` also reads pins from
+        // `<scratch>/workspace-state.json` when Package.resolved is missing,
+        // so a stale workspace state silently pins the resolve at whatever
+        // the previous install had checked out — the exact scenario `update`
+        // exists to escape. Clear both together and let SwiftPM rewrite each
+        // from the fresh solver output.
+        let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
+        let scratchLock = try await PathLock.acquire(
+            at: effectiveScratchDir.appendingPathComponent(".swifterpm.lock")
+        )
+        defer { withExtendedLifetime(scratchLock) {} }
+        let existingCheckouts = effectiveScratchDir.appendingPathComponent("checkouts")
+        let preexisting = try await fileSystem.exists(existingCheckouts.absolutePath)
+            ? Set(try await fileSystem.contentsOfDirectory(at: existingCheckouts).map(\.lastPathComponent)) : []
+        try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: effectiveScratchDir)
+        let prepared = try await NativeWorkspace.prepare(scratchDir: effectiveScratchDir)
+        let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
+        let workspaceStateSnapshot =
+            !useExistingResolvedFile
+                ? try await snapshotResolvedFile(at: workspaceStatePath) : nil
         if !useExistingResolvedFile {
             try? await fileSystem.removePath(resolvedPath)
+            try? await fileSystem.removePath(workspaceStatePath)
         }
 
         do {
-            try await SystemProcess.run(
-                "swift",
-                swiftPackageResolveArguments(
-                    packageDir: packageDir,
-                    scratchDir: scratchDir,
-                    cacheDir: cacheDir,
-                    registryConfigurationPath: registryConfigurationPath,
-                    defaultRegistryURL: defaultRegistryURL,
-                    disableSandbox: disableSandbox,
-                    scmToRegistryTransformation: scmToRegistryTransformation
-                ),
-                workingDirectory: packageDir,
+            try await runNativeResolution(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation,
+                authentication: authentication,
+                environment: Environment.resolution,
+                forceResolvedVersions: forceResolvedVersions,
                 forwardOutput: forwardOutput
             )
-            let resolved = try await ResolvedFile.read(packageDir: packageDir)
-            if !writeResolvedFile, let snapshot {
-                try await restoreResolvedFile(snapshot, at: resolvedPath)
+            let resolvedPathExists = try await fileSystem.exists(resolvedPath.absolutePath)
+            var resolved = resolvedPathExists
+                ? try await ResolvedFile.read(packageDir: packageDir)
+                : ResolvedPins(originHash: nil, pins: [], version: 3)
+            let currentCheckouts = try await fileSystem.exists(existingCheckouts.absolutePath)
+                ? Set(try await fileSystem.contentsOfDirectory(at: existingCheckouts).map(\.lastPathComponent)) : []
+            resolved.nativeOwnedCheckouts = prepared.union(currentCheckouts.subtracting(preexisting))
+            if !writeResolvedFile, let resolvedSnapshot {
+                try await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+                if let workspaceStateSnapshot {
+                    try await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
+                }
             }
             return resolved
         } catch {
-            if let snapshot {
-                try? await restoreResolvedFile(snapshot, at: resolvedPath)
+            if let resolvedSnapshot {
+                try? await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
+            }
+            if let workspaceStateSnapshot {
+                try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
         }
+    }
+
+    private static func runNativeResolution(
+        packageDir: URL,
+        scratchDir: URL?,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation,
+        authentication: NativeRegistryAuthentication.Plan,
+        environment: [String: String]?,
+        forceResolvedVersions: Bool,
+        forwardOutput: Bool
+    ) async throws {
+        let bridged: Bool
+        let input: String
+        switch authentication {
+        case .native:
+            bridged = false
+            input = ""
+        case let .inlineNetrc(contents):
+            bridged = true
+            input = contents
+        }
+        let arguments = swiftPackageResolveArguments(
+            packageDir: packageDir,
+            scratchDir: scratchDir,
+            cacheDir: cacheDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation,
+            forceResolvedVersions: forceResolvedVersions,
+            netrcArguments: bridged ? (Environment.netrc.keychainDisabled ? ["--disable-keychain"] : []) : nil
+        )
+        try await SystemProcess.run(
+            bridged ? "/bin/sh" : "swift",
+            bridged ? ["-c", NativeRegistryAuthentication.credentialOwnerScript, "swifterpm-netrc", "swift"] + arguments :
+                arguments,
+            workingDirectory: packageDir,
+            customEnvironment: environment,
+            input: input,
+            gracefulShutdown: bridged,
+            forwardOutput: forwardOutput
+        )
+    }
+
+    /// Returns true when SwifterPM cannot restore every pinned dependency from
+    /// its own source cache. In that case native SwiftPM is the shortest
+    /// correct path: it is already responsible for fetching each missing pin.
+    ///
+    /// Registry pins are probed the same way, against the checksum marker the cache keeps
+    /// inside each registry release. Keying the cache path on identity, version and registry
+    /// URL alone is what makes that probe possible without asking the registry anything.
+    static func shouldUseNativeColdPath(
+        packageDir: URL,
+        cacheRoot: URL,
+        registryConfig: RegistryConfig
+    ) async throws -> Bool {
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        guard try await fileSystem.exists(resolvedPath.absolutePath) else {
+            return true
+        }
+
+        let pins = try await ResolvedFile.read(packageDir: packageDir).pins
+        guard pins.allSatisfy({
+            PinKind.isSourceControl($0.kind)
+                || PinKind.isRegistry($0.kind)
+                || $0.kind == "fileSystem"
+        })
+        else {
+            return false
+        }
+
+        for pin in pins {
+            guard PinKind.isSourceControl(pin.kind) else {
+                guard PinKind.isRegistry(pin.kind) else {
+                    return true
+                }
+                guard try await WorkspaceRestorer.cachedRegistrySourceExists(
+                    cacheRoot: cacheRoot,
+                    registryConfig: registryConfig,
+                    pin: pin
+                ) else {
+                    return true
+                }
+                continue
+            }
+            let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
+            guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {
+                return true
+            }
+        }
+        return false
     }
 
     private static func swiftPackageResolveArguments(
@@ -138,7 +274,9 @@ enum PackageResolver {
         registryConfigurationPath: URL?,
         defaultRegistryURL: String?,
         disableSandbox: Bool,
-        scmToRegistryTransformation: SCMToRegistryTransformation
+        scmToRegistryTransformation: SCMToRegistryTransformation,
+        forceResolvedVersions: Bool = false,
+        netrcArguments: [String]? = nil
     ) -> [String] {
         var arguments = [
             "package",
@@ -159,11 +297,9 @@ enum PackageResolver {
         if disableSandbox {
             arguments.append("--disable-sandbox")
         }
-        // The child solves the graph, which means it fetches availability and
-        // manifests from the same registries this process authenticates against. Its
-        // environment is inherited, so `SWIFTPM_NETRC_DATA` already reaches it, but
-        // the flags are ours alone until they are forwarded.
-        arguments.append(contentsOf: Environment.netrc.swiftPackageArguments)
+        // The compatibility owner supplies its own netrc flags; normal invocations
+        // preserve the configured provider selection and any filtered environment.
+        arguments.append(contentsOf: netrcArguments ?? Environment.netrc.swiftPackageArguments)
         switch scmToRegistryTransformation {
         case .disabled:
             arguments.append("--disable-scm-to-registry-transformation")
@@ -171,6 +307,9 @@ enum PackageResolver {
             arguments.append("--use-registry-identity-for-scm")
         case .replaceSCMWithRegistry:
             arguments.append("--replace-scm-with-registry")
+        }
+        if forceResolvedVersions {
+            arguments.append("--force-resolved-versions")
         }
         arguments.append("resolve")
         return arguments
@@ -191,6 +330,165 @@ enum PackageResolver {
         }
     }
 
+    /// Drop pins whose declaring dependency has been removed from the
+    /// manifest since the seed `Package.resolved` was written. Native
+    /// SwiftPM's `swift package resolve` tries to fetch every pin it sees,
+    /// so an orphan whose location no longer resolves (a private mirror
+    /// gone, a revoked network, a moved repo) aborts the whole resolve
+    /// instead of being dropped as unused.
+    ///
+    /// Only prunes when the manifest actually diverged from the seed
+    /// (originHash mismatch) and only pins whose identity is definitely no
+    /// longer declared by the root manifest or any local package under it.
+    /// Direct-dep pins keep their exact recorded versions; transitives of
+    /// pruned direct deps are dropped along with them and re-resolved from
+    /// the remaining manifest, matching the behavior of a `resolve` that
+    /// never saw the removed dependency in the first place.
+    ///
+    /// Package.resolved is rewritten in place so both the warm and cold
+    /// paths see the pruned seed. Reachable package manifests are inspected
+    /// from version-specific cached sources or registry downloads before a
+    /// pin is considered orphaned. Unversioned scratch checkouts and local
+    /// repositories may describe another revision and cannot establish reachability.
+    /// If a reachable manifest is unavailable or cannot be evaluated, pruning
+    /// is skipped and normal resolution handles the current requirements.
+    ///
+    /// `workspace-state.json` is cleared when pruning happens, because SwiftPM
+    /// otherwise re-associates the seed with the stale checkout state and still
+    /// reaches for the orphan.
+    static func pruneStalePinsIfNeeded(
+        packageDir: URL,
+        scratchDir: URL,
+        cacheRoot: URL,
+        mirrors: MirrorConfig,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation = .disabled
+    ) async throws {
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        guard try await fileSystem.exists(resolvedPath.absolutePath) else { return }
+
+        let resolved = try await ResolvedFile.read(packageDir: packageDir)
+        guard !resolved.pins.isEmpty else { return }
+
+        let currentOriginHash = try await originHash(packageDir: packageDir)
+        guard resolved.originHash != currentOriginHash else { return }
+
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var dependencies = try ManifestParser.dependencies(manifest)
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            dependencies.append(contentsOf: try ManifestParser.dependencies(localPackage.manifest))
+        }
+        var expectedIdentities = Set(dependencies.map { mirrors.identity(of: $0) })
+        let transformedIdentities = Set(resolved.pins.filter { pin in
+            switch scmToRegistryTransformation {
+            case .disabled:
+                false
+            case .replaceSCMWithRegistry:
+                PinKind.isRegistry(pin.kind)
+            case .useRegistryIdentityForSCM:
+                PinKind.isSourceControl(pin.kind) && MirrorConfig.isRegistryIdentity(pin.identity)
+            }
+        }.map { $0.identity.lowercased() })
+        // The registry can map a source-control URL to an unrelated identity,
+        // and the pin may omit the original URL. Preserve transformed pins only
+        // while a reachable manifest still declares a source-control dependency.
+        if dependencies.contains(where: { $0.kind == .sourceControl }) {
+            expectedIdentities.formUnion(transformedIdentities)
+        }
+        var identitiesToInspect = Array(expectedIdentities)
+        var inspectedIdentities = Set<String>()
+        while let identity = identitiesToInspect.popLast() {
+            guard inspectedIdentities.insert(identity).inserted,
+                  let pin = resolved.pins.first(where: {
+                      $0.identity.lowercased() == identity
+                  })
+            else {
+                continue
+            }
+
+            // A pin that is not directly declared can still be a valid
+            // transitive dependency. Only prune once every reachable package
+            // has a materialized manifest that we can inspect. If a direct
+            // package is unavailable, retaining the unknown pins is safer than
+            // deleting a valid transitive lock entry.
+            guard let manifest = try? await manifestForPin(
+                pin,
+                scratchDir: scratchDir,
+                cacheRoot: cacheRoot,
+                disableSandbox: disableSandbox
+            ), let dependencies = try? ManifestParser.dependencies(manifest) else {
+                return
+            }
+            for dependency in dependencies {
+                if dependency.kind == .sourceControl {
+                    for transformedIdentity in transformedIdentities
+                        where expectedIdentities.insert(transformedIdentity).inserted
+                    {
+                        identitiesToInspect.append(transformedIdentity)
+                    }
+                }
+                let dependencyIdentity = mirrors.identity(of: dependency)
+                if expectedIdentities.insert(dependencyIdentity).inserted {
+                    identitiesToInspect.append(dependencyIdentity)
+                }
+            }
+        }
+
+        let survivors = resolved.pins.filter {
+            expectedIdentities.contains($0.identity.lowercased())
+        }
+        guard survivors.count != resolved.pins.count else { return }
+
+        var pruned = resolved
+        pruned.pins = survivors
+        try await ResolvedFile.write(packageDir: packageDir, resolved: pruned, mirrors: mirrors)
+
+        let workspaceStatePath = scratchDir.appendingPathComponent("workspace-state.json")
+        if try await fileSystem.exists(workspaceStatePath.absolutePath) {
+            try? await fileSystem.removePath(workspaceStatePath)
+        }
+    }
+
+    private static func manifestForPin(
+        _ pin: ResolvedPin,
+        scratchDir: URL,
+        cacheRoot: URL,
+        disableSandbox: Bool
+    ) async throws -> Any? {
+        var candidates: [URL] = []
+        if PinKind.isRegistry(pin.kind),
+           let subpath = try? PinKind.registryDownloadSubpath(pin)
+        {
+            candidates.append(
+                scratchDir
+                    .appendingPathComponent("registry/downloads")
+                    .appendingPathComponent(subpath)
+            )
+        }
+        if let cached = try? Cache.sourcePath(root: cacheRoot, pin: pin) {
+            candidates.append(cached)
+        }
+        for candidate in candidates {
+            guard try await fileSystem.exists(
+                candidate.appendingPathComponent("Package.swift").absolutePath
+            ) else {
+                continue
+            }
+            return try await ManifestLoader.dumpPackage(
+                packageDir: candidate,
+                disableSandbox: disableSandbox
+            )
+        }
+        return nil
+    }
+
     /// Load the resolved pins for `packageDir`, resolving fresh only when
     /// needed. Centralizes the read-only / current-file / seed-and-resolve
     /// decision so every entry point (and any `SwifterPMCore` embedder) seeds
@@ -200,6 +498,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -235,14 +534,30 @@ enum PackageResolver {
         // read the file as-is even when it predates the `originHash` field
         // (SwiftPM Package.resolved v2). Tightening this to `readIfCurrent`
         // would silently fall through to a full resolve for every v2 file.
+        // SwiftPM still resolves again, even with `--skip-update`, when a mirror now maps a pin
+        // to a package with another identity.
         if skipUpdate, resolvedFileExists {
-            return try await ResolvedFile.read(packageDir: packageDir)
+            let existing = try await ResolvedFile.read(packageDir: packageDir)
+            if existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+               try await mirroredRegistryDependenciesArePinned(
+                   by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+               )
+            {
+                return existing
+            }
         }
         if preferResolvedFile,
-           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir)
+           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+           try await mirroredRegistryDependenciesArePinned(
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+           ),
+           try await localPackageDependenciesArePinned(
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+           )
         {
             return try await normalizeLoadedResolvedFile(
-                existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
+                existing, packageDir: packageDir, mirrors: mirrors, writeResolvedFile: writeResolvedFile
             )
         }
         // Mirror SwiftPM: `resolve` seeds the solver with the existing
@@ -263,6 +578,7 @@ enum PackageResolver {
             scratchDir: scratchDir,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
@@ -271,6 +587,93 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// The `originHash` does not cover the mirrors, and a registry pin only records the identity
+    /// a mirror resolved to, so a changed registry mirror shows up as a dependency of the root or
+    /// of a local package whose mirrored identity has no pin.
+    private static func mirroredRegistryDependenciesArePinned(
+        by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        guard !mirrors.isEmpty else { return true }
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var dependencies = try ManifestParser.dependencies(manifest)
+        for localPackage in try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        ) {
+            dependencies.append(contentsOf: try ManifestParser.requiredDependencies(localPackage.manifest))
+        }
+        return mirrors.registryDependenciesArePinned(dependencies, by: resolved.pins)
+    }
+
+    /// The `originHash` only covers the root `Package.swift`, so it stays the same
+    /// when a local package declares different dependencies, whether its manifest
+    /// was edited or branches on `Context.environment`. Every remote dependency a
+    /// local package's products require must have a pin that satisfies its
+    /// requirement for the resolved file to be current. SwiftPM does not pin a local
+    /// package's test-only or unused dependencies.
+    private static func localPackageDependenciesArePinned(
+        by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dependency in try ManifestParser.requiredDependencies(localPackage.manifest) {
+                guard resolved.pins.contains(where: { pin($0, satisfies: dependency, mirrors: mirrors) }) else {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func pin(
+        _ pin: ResolvedPin,
+        satisfies dependency: ManifestDependency,
+        mirrors: MirrorConfig
+    ) -> Bool {
+        let identity = mirrors.identity(of: dependency)
+        var pinIdentities: Set<String> = [pin.identity.lowercased()]
+        if let originalLocation = pin.originalLocation {
+            pinIdentities.insert(ResolvedPin.identity(package: nil, location: originalLocation))
+        }
+        // A registry pin that replaced a source-control dependency is identified as
+        // `scope.name`, and SwiftPM does not always record its `originalLocation`.
+        if PinKind.isRegistry(pin.kind),
+           let name = pin.identity.split(separator: ".", maxSplits: 1).last
+        {
+            pinIdentities.insert(name.lowercased())
+        }
+        guard pinIdentities.contains(identity) else {
+            return false
+        }
+        switch dependency.requirement {
+        case let .branch(branch):
+            return pin.state.branch == branch
+        case let .revision(revision):
+            return pin.state.revision == revision
+        case .exact, .range:
+            guard let range = ManifestParser.versionRange(for: dependency.requirement),
+                  let version = pin.state.version.flatMap({ try? SemVer($0) })
+            else { return false }
+            return range.contains(version)
+        }
     }
 
     /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`
@@ -299,26 +702,38 @@ enum PackageResolver {
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws {
-        let arguments = swiftPackageResolveArguments(
+        let scratch = scratchDir ?? packageDir.appendingPathComponent(".build")
+        let scratchLock = try await PathLock.acquire(at: scratch.appendingPathComponent(".swifterpm.lock"))
+        defer { withExtendedLifetime(scratchLock) {} }
+        _ = try await NativeWorkspace.prepare(scratchDir: scratch)
+        // The restored workspace makes this a no-fetch validation. Legacy environment
+        // providers are irrelevant here, and refusing them would break warm installs.
+        // Use the manifest environment so rotating fetch credentials cannot invalidate
+        // SwiftPM's native manifest cache or change the graph being validated.
+        try await runNativeResolution(
             packageDir: packageDir,
             scratchDir: scratchDir,
             cacheDir: cacheDir,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
-            scmToRegistryTransformation: scmToRegistryTransformation
-        ) + ["--force-resolved-versions"]
-        try await SystemProcess.run("swift", arguments, workingDirectory: packageDir)
+            scmToRegistryTransformation: scmToRegistryTransformation,
+            authentication: .native,
+            environment: Environment.manifestValues,
+            forceResolvedVersions: true,
+            forwardOutput: false
+        )
     }
 
     private static func normalizeLoadedResolvedFile(
         _ resolved: ResolvedPins,
         packageDir: URL,
+        mirrors: MirrorConfig,
         writeResolvedFile: Bool
     ) async throws -> ResolvedPins {
-        let normalized = resolved.normalizedForResolvedFile()
+        let normalized = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
-            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized, mirrors: mirrors)
         }
         return normalized
     }

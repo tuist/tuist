@@ -8,13 +8,37 @@ The chart that introduces the groups (this one) owns the bindings
 for them, so deploying this chart to a fresh cluster gets the
 identity → RBAC story end-to-end with no external dependency.
 
-Tier shape (matches what tuist-ops's PolicyController returns):
+LOAD-BEARING BEYOND THIS CHART. In staging, human kubectl no longer
+arrives through Pomerium at all — it comes over the tailnet via
+Tailscale's API server proxy, which injects these same group names
+from the `tailscale.com/cap/kubernetes` grants in
+infra/tailscale/acls.json (see
+infra/helm/tailscale-operator/values-staging.yaml). The bindings
+below are what those grants resolve against, so uninstalling the
+Pomerium release in staging would silently drop every human to no
+tier at all — through either door. Move this file before removing
+that release, don't delete it with it.
+
+Tier shape (matches what tuist-ops's PolicyController returns, and
+what the staging ACL grants name):
 
   tuist-admins         → view   (Owner / Admin tailnet role)
   tuist-eng            → view   (Member tailnet role)
-  tuist-<env>-write    → edit   (elevation grant; per-env so a
-                                 prod elevation can't unlock
-                                 staging or vice versa)
+  tuist-<env>-write    → edit   (per-env so a prod elevation
+                                 can't unlock canary or vice
+                                 versa)
+
+On canary and production the write group is only ever injected
+against an active JIT elevation, so every comment below that
+talks about "an active elevation" holds there. On STAGING the
+policy endpoint injects `tuist-staging-write` unconditionally
+(`TuistOps.JIT.Policy.always_write_env?/1`), so everything this
+file binds to the write group — including the directly-bound
+`tuist-cnpg-decommission`, `tuist-volume-decommission`,
+`tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
+access for every engineering identity in the staging cluster.
+That is intended: staging serves no customers and is the env we
+break on purpose.
 
 View tier excludes Secrets by Kubernetes' built-in role definition.
 Edit allows reads/writes on Secrets + most resources but cannot
@@ -69,7 +93,8 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
-# CRs, the RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects.
+# CRs, the RunnerPool CRs, the CNPG Postgres clusters, DNSEndpoints, CRDs,
+# and RBAC objects.
 # This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
@@ -106,6 +131,9 @@ rules:
       - postgresql.cnpg.io
       - barmancloud.cnpg.io
     resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
@@ -157,6 +185,40 @@ rules:
   - apiGroups: ["tuist.dev"]
     resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+# RackSwitch objects: a rack's switches as the cluster sees them
+# (infra/rack-switch-fleet). Spec is rendered from the site definition and
+# applied from git; status is what `rack:fleet publish` observed, patched from an
+# operator's machine that can reach the switches, hence `rackswitches/status`.
+# Scoped to this kind, like runnerpools above, so other `tuist.dev` kinds do not
+# inherit write access from the edit tier.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackswitches-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["tuist.dev"]
+    resources: ["rackswitches", "rackswitches/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+# RackPDU and RackATS objects: a rack's PDUs and transfer switches, rendered
+# from the same site definition as RackSwitch and applied from git. Status is
+# the CAPI provider's alone, so only the objects themselves are writable here.
+# Deleting one leaves its credentials Secret behind, so it cannot strand a card.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackpower-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus", "rackatses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 # CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
 # CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
@@ -335,8 +397,9 @@ subjects:
 #   * `machines` delete only. Every machine in the workload cluster is
 #     MachineSet-owned (the control plane lives in the mgmt cluster), so a
 #     delete can only recreate a worker host, never a control-plane node.
-#     machinesets/machinedeployments are untouched — scaling or tearing down a
-#     fleet stays a break-glass action.
+#     machinesets are untouched, and machinedeployments only through the
+#     `/scale` subresource granted by `tuist-fleet-scale` below — tearing down
+#     or redefining a fleet stays a break-glass action.
 #   * machines/status update/patch — the owning CAPI Machine keeps its own
 #     terminal failureReason/failureMessage, and clearing the infra machine's
 #     status does not clear the parent's. Without this the Machine reports
@@ -355,9 +418,35 @@ subjects:
 #     MachineSet cannot recreate it, and repairing the template needs
 #     break-glass. Update/patch only — create/delete would change which template
 #     a fleet renders from, which is fleet management.
+#   * ovhdedicatedmachines patch — backfill a live Machine's egressBudgetMbps
+#     when its OnDelete fleet template has the budget but the existing clone
+#     does not. The provider then advertises the Node's egress resource without
+#     recreating the host. No template, /status, update, create or delete grant.
+#     RBAC cannot limit patch to a field: this also permits other spec/metadata
+#     patches on OVH Machines in this cluster. Treat it as host recovery and
+#     scope the actual patch to the diagnosed field; fleet configuration still
+#     goes through a reviewed chart change. Like the other recovery verbs,
+#     this is standing access in staging and JIT-only in canary/production.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
+#   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
+#     tuist.dev/os-update, tuist.dev/os-reinstall and tuist.dev/power-action
+#     annotations, and park a host. Not /status: a rack host's quarantine
+#     clears by expiring. rackhosts delete: retire a host the chart no longer
+#     declares, which the chart keeps (helm.sh/resource-policy: keep), as for
+#     racklinuxhosts. No create: which boxes a rack has is the chart's.
+#   * racklinuxhosts update/patch — raise a rack Linux host's
+#     reinstallGeneration, which reinstalls it, set its online field or the
+#     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
+#     host the chart no longer declares: the chart keeps a RackLinuxHost it
+#     drops (helm.sh/resource-policy: keep), so without it a retired box's
+#     inventory and Machine stay behind. No create: which boxes a rack has is
+#     the chart's.
+#   * rackpdus and rackatses update/patch: the tuist.dev/accept-certificate
+#     annotation that pins a PDU or transfer switch card's new certificate. No
+#     create or delete: which power devices a rack has is the site
+#     definition's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -376,6 +465,21 @@ rules:
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachinetemplates"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["ovhdedicatedmachines"]
+    verbs: ["patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackapplesiliconmachines"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["racklinuxhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus", "rackatses"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
@@ -398,6 +502,63 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: tuist-fleet-unwedge
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
+# Capacity capability for a fleet whose node count is too low to run the deploy
+# that would raise it. Bound directly to the write-elevation group, like
+# `tuist-fleet-unwedge` above.
+#
+# Why it is not break-glass: a fleet's replica count is set by the chart, so the
+# supported way to change it is a deploy. That deploy runs on the fleet it is
+# changing. When a Linux runner fleet is short of nodes, its own release pipeline
+# queues behind the jobs the surviving nodes are already saturated with, and the
+# release that would add nodes is the one that cannot get a runner. Capacity is
+# therefore the one fleet property whose repair path can be blocked by the thing
+# it repairs, and an elevation that is requested with a stated intent, TTL-bounded
+# and audited is a better control for it than credentials reserved for incidents.
+#
+# Why the blast radius is small: `/scale` writes `.spec.replicas` and nothing
+# else (`specReplicasPath` on the CRD). The machine template, strategy, selector
+# and every other field stay immutable, so this cannot retarget a fleet, change
+# what a node is, or delete one. Raising it adds nodes from the provider's
+# pre-ordered pool; lowering it removes nodes the same way a chart change would,
+# through the MachineDeployment's own strategy rather than around it.
+#
+# The value is still the chart's to own. A scale applied here is reverted by the
+# next release that renders a different number, which is the intended behaviour:
+# the manual scale restores service, the chart remains the source of truth, and
+# the two converge rather than one silently winning.
+#
+# Deliberately narrow: the `/scale` subresource only, on machinedeployments only.
+# `machinesets` are excluded because scaling one directly fights its owning
+# MachineDeployment, and full `update` on machinedeployments is excluded because
+# that is fleet redefinition rather than capacity.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-fleet-scale
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machinedeployments/scale"]
+    verbs: ["get", "update", "patch"]
+---
+# Per-env like the bindings above, so a prod elevation cannot scale a staging
+# fleet or vice versa.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-fleet-scale
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-fleet-scale
 subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write

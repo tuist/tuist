@@ -1,0 +1,758 @@
+import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
+import { densityLayout } from "./BuildTimelineDensity.mjs";
+import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
+import { bindInspectorResize } from "./BuildTimelineResize.mjs";
+import { bindScrollIndicator, formatNumber } from "noora";
+import {
+  normalizeEvents,
+  matchesEvent,
+  timelineDuration,
+  timeLabel,
+  clampRange,
+  zoomRange,
+  cursorTime,
+  cursorTimeLabel,
+  scrollGeometry,
+  scrollStart,
+  neighborEvent,
+} from "./BuildTimelineModel.mjs";
+import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
+import { bindDragFocus } from "./BuildTimelineFocus.mjs";
+
+let nextLogRequest = 0;
+let nextNavigationRequest = 0;
+
+export default {
+  mounted() {
+    this.payload = this.el.dataset.version;
+    this.abort = new AbortController();
+    this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
+    const signal = this.abort.signal;
+    this.stepsReady = false;
+    this.part("workspace").hidden = true;
+    this.part("empty").hidden = true;
+    this.part("payload-loading").hidden = false;
+    this.part("step-count").hidden = true;
+    this.part("target-count").hidden = true;
+    // Start the compressed metadata download independently of the small metric bootstrap.
+    const steps = fetch(this.el.dataset.url, { credentials: "same-origin", signal, redirect: "error" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Timeline unavailable");
+        return response.json();
+      })
+      .then(
+        (timeline) => ({ timeline }),
+        (error) => ({ error }),
+      );
+    return this.pushEvent("load-timeline", { version: Number(this.payload) })
+      .then(async ({ timeline }) => {
+        if (signal.aborted) return;
+        if (!timeline) throw new Error("Timeline unavailable");
+        this.initialize(timeline);
+        const result = await steps;
+        if (signal.aborted) return;
+        if (result.error) {
+          this.part("payload-loading").hidden = true;
+          this.part("payload-error").hidden = false;
+          return;
+        }
+        this.receiveSteps(result.timeline);
+      })
+      .catch(() => {
+        if (signal.aborted) return;
+        this.destroyed();
+        this.part("timeline-content").hidden = true;
+        this.part("summary").hidden = true;
+        this.part("payload-loading").hidden = true;
+        this.part("payload-error").hidden = false;
+      });
+  },
+
+  receiveSteps(timeline) {
+    if (timeline.local_navigation != null) this.localNavigation = timeline.local_navigation;
+    if (timeline.logs_available != null) this.logsAvailable = timeline.logs_available;
+    this.allEvents = normalizeEvents(timeline.events || [], this.source);
+    const wasFullBuild = this.range.start === 0 && this.range.span === this.duration;
+    this.duration = Math.max(this.duration, timeline.duration);
+    this.maxSpan = this.duration;
+    this.initialRange = { start: 0, span: this.duration };
+    if (wasFullBuild) this.range = { ...this.initialRange };
+    this.stepsReady = true;
+    this.part("payload-loading").hidden = true;
+    const hasSteps = this.allEvents.length > 0;
+    this.part("workspace").hidden = !hasSteps;
+    this.part("empty").hidden = hasSteps || !!this.metrics.samples.length;
+    this.part("step-count").hidden = !hasSteps;
+    this.part("target-count").hidden = !hasSteps || timeline.target_count == null;
+    this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
+    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count);
+    this.el.querySelector('[data-stat="targets"]').textContent = formatNumber(timeline.target_count);
+    this.filter();
+  },
+
+  initialize(timeline) {
+    this.source = this.el.dataset.source || "xcode";
+    this.category = null;
+    this.groupLabels = Object.fromEntries(
+      Array.from(this.part("legend").querySelectorAll("[data-kind]"), (el) => [el.dataset.kind, el.textContent.trim()]),
+    );
+    this.localNavigation = timeline.local_navigation === true;
+    this.logsAvailable = timeline.logs_available !== false;
+    this.metrics = new TimelineMetrics(timeline.machine_metrics || [], {
+      cores: this.el.dataset.metricCores,
+      in: this.el.dataset.metricIn,
+      out: this.el.dataset.metricOut,
+      read: this.el.dataset.metricRead,
+      write: this.el.dataset.metricWrite,
+    });
+    this.part("machine-metrics").hidden = !this.metrics.samples.length;
+    for (const track of this.metrics.tracks) {
+      this.el.querySelector(`[data-metric="${track.key}"]`).hidden = !this.metrics.samples.some((sample) =>
+        track.fields.some((field) => Number.isFinite(sample[field])),
+      );
+    }
+    this.events = normalizeEvents(timeline.events || [], this.source);
+    this.search = "";
+    this.allEvents = this.events;
+    this.duration = timelineDuration(timeline, this.events, this.el.dataset.duration);
+    this.maxSpan = this.duration;
+    this.range = { start: 0, span: this.duration };
+    this.initialRange = { ...this.range };
+    this.logRequest = ++nextLogRequest;
+    this.palette = null;
+    this.part("payload-error").hidden = true;
+    this.part("timeline-content").hidden = false;
+    this.part("summary").hidden = false;
+    this.requestLog = debounce((event, request) => this.loadLog(event, request), 150, this.abort.signal);
+    this.navigationRequest = ++nextNavigationRequest;
+    this.stepHandler = this.handleEvent("timeline-step", ({ request_id, step }) => {
+      if (request_id !== this.navigationRequest || !step || this.abort.signal.aborted) return;
+      const event = normalizeEvents([step], this.source)[0];
+      this.select(event);
+      this.setRange(event.start_ms - event.duration_ms * 0.1, Math.max(1, event.duration_ms * 1.2));
+    });
+    this.logHandler = this.handleEvent("timeline-log", (response) => this.receiveLog(response));
+    const on = (el, name, fn, options = {}) => el.addEventListener(name, fn, { ...options, signal: this.abort.signal });
+    this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
+    this.control = (name) => this.el.querySelector(`[data-control="${name}"]`);
+    this.scrollport = this.part("scrollport");
+    this.chart = this.part("chart");
+    this.surfaces = [
+      {
+        element: this.part("focus-region"),
+        canvas: this.chart,
+        ruler: this.part("step-ruler"),
+        cursor: this.part("time-cursor"),
+        selection: this.part("focus-selection"),
+      },
+      ...Array.from(this.el.querySelectorAll('[data-part="metric-plot"]'), (element) => ({
+        element,
+        canvas: element.querySelector("[data-metric-canvas]"),
+        ruler: element.querySelector("[data-metric-ruler]"),
+        cursor: element.querySelector('[data-part="metric-cursor"]'),
+        selection: element.querySelector('[data-part="metric-selection"]'),
+      })),
+    ];
+    this.resizeInspector = bindInspectorResize(this.part("inspector-divider"), {
+      availableWidth: () => this.part("workspace").clientWidth,
+      setWidth: (width) => this.el.style.setProperty("--timeline-inspector-width", `${width}px`),
+      signal: this.abort.signal,
+    });
+    this.scrollIndicators = ["horizontal"].map((axis) => {
+      const track = document.createElement("div");
+      track.className = "noora-scroll-indicator";
+      track.dataset.orientation = axis;
+      track.setAttribute("aria-hidden", "true");
+      const thumb = document.createElement("div");
+      thumb.dataset.part = "thumb";
+      track.appendChild(thumb);
+      this.part("timeline-chart").appendChild(track);
+      return { axis, track, ...bindScrollIndicator(this.scrollport, track, thumb, axis) };
+    });
+    const cancelFocus = this.surfaces.map((surface) =>
+      bindDragFocus(surface.element, {
+        geometry: () => {
+          const rect = surface.canvas.getBoundingClientRect();
+          return { ...this.range, left: rect.left + 12, width: rect.width - 24 };
+        },
+        preview: (range) => this.previewFocus(range),
+        focus: (range) => this.setRange(range.start, range.span),
+        signal: this.abort.signal,
+      }),
+    );
+    this.cancelFocus = () => cancelFocus.forEach((cancel) => cancel());
+    this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
+    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count ?? this.events.length);
+    const targets = this.el.querySelector('[data-stat="targets"]');
+    targets.textContent = formatNumber(timeline.target_count ?? 0);
+    targets.parentElement.hidden = timeline.target_count == null;
+    on(
+      this.control("search"),
+      "input",
+      debounce(() => this.filter(), 150, this.abort.signal),
+    );
+    for (const button of this.part("legend").querySelectorAll("button[data-kind]")) {
+      on(button, "click", () => this.filterCategory(button.dataset.kind));
+    }
+    for (const surface of this.surfaces) {
+      bindPinchZoom(
+        surface.element,
+        (factor, event) => {
+          const rect = surface.canvas.getBoundingClientRect();
+          const anchor = (event.clientX - rect.left - 12) / Math.max(1, rect.width - 24);
+          this.zoom(factor, Math.max(0, Math.min(1, anchor)));
+        },
+        this.abort.signal,
+      );
+    }
+    on(
+      this.part("machine-metrics"),
+      "wheel",
+      (event) => {
+        if (event.ctrlKey || event.metaKey) return;
+        const delta = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+        if (!delta) return;
+        event.preventDefault();
+        this.scrollport.scrollLeft +=
+          delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.scrollport.clientWidth : 1);
+      },
+      { passive: false },
+    );
+    on(this.scrollport, "scroll", () => {
+      this.hideTooltip();
+      this.cancelFocus();
+      if (Math.abs(this.scrollport.scrollLeft - this.lastScrollLeft) > 0.5) {
+        this.range.start = scrollStart(
+          this.scrollport.scrollLeft,
+          this.scrollport.scrollWidth - this.scrollport.clientWidth,
+          this.range,
+          this.duration,
+        );
+        this.relayout();
+      }
+      this.scheduleDraw();
+    });
+    const resetPalette = () => {
+      this.palette = null;
+      this.scheduleDraw();
+    };
+    on(window, "changed-preferred-theme", resetPalette);
+    if (document.fonts) {
+      on(document.fonts, "loadingdone", resetPalette);
+    }
+    on(this.chart, "click", (e) => this.select(this.hit(e)));
+    on(this.chart, "dblclick", (e) => this.focusStep(this.hit(e)));
+    on(this.chart, "mousemove", (e) => this.hover(e));
+    on(this.chart, "mouseleave", () => this.hideTooltip());
+    for (const event of ["pointerdown", "keydown"]) {
+      on(this.part("build-controls"), event, (e) => e.stopPropagation());
+    }
+    on(this.part("build-controls"), "pointermove", (e) => {
+      e.stopPropagation();
+      this.hideCursor();
+      this.hideTooltip();
+    });
+    for (const surface of this.surfaces) {
+      on(surface.element, "keydown", (e) => this.keydown(e));
+      on(surface.canvas, "pointermove", (e) => {
+        if (e.pointerType === "touch" || this.focusing) return;
+        this.cursorX = e.clientX;
+        this.cursorSource = surface.canvas;
+        this.updateCursor();
+      });
+      on(surface.canvas, "pointerleave", () => this.hideCursor());
+    }
+    const resize = () => {
+      this.resizeInspector();
+      this.relayout();
+    };
+    on(window, "resize", resize);
+    this.resize = new ResizeObserver(resize);
+    this.resize.observe(this.el);
+    this.resize.observe(this.part("timeline-chart"));
+    this.resize.observe(this.scrollport);
+    this.filtered = this.events;
+    this.relayout();
+  },
+
+  updated() {
+    if (this.payload !== this.el.dataset.version) {
+      this.destroyed();
+      this.frame = null;
+      this.mounted();
+    }
+  },
+
+  destroyed() {
+    this.cancelFocus?.();
+    this.logRequest = ++nextLogRequest;
+    this.abort.abort();
+    if (this.logHandler) this.removeHandleEvent(this.logHandler);
+    this.logHandler = null;
+    if (this.stepHandler) this.removeHandleEvent(this.stepHandler);
+    this.stepHandler = null;
+    for (const indicator of this.scrollIndicators || []) {
+      indicator.destroy();
+      indicator.track.remove();
+    }
+    this.resize?.disconnect();
+    this.scrollIndicators = [];
+    this.layout = null;
+    cancelAnimationFrame(this.frame);
+  },
+
+  filter() {
+    this.search = this.control("search").value;
+    this.select(null);
+    this.events = this.allEvents.filter((event) =>
+      matchesEvent(event, this.search, this.category, this.groupLabels, this.localNavigation),
+    );
+    this.filtered = this.events;
+    this.relayout();
+  },
+
+  filterCategory(category) {
+    this.category = this.category === category ? null : category;
+    for (const button of this.part("legend").querySelectorAll("button[data-kind]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.kind === this.category));
+    }
+    this.filter();
+  },
+
+  relayout() {
+    this.cancelFocus();
+    this.layoutDirty = true;
+    this.hideTooltip();
+    this.scheduleDraw();
+  },
+
+  syncScroll() {
+    this.el.style.setProperty("--timeline-header-height", `${this.part("build-controls").offsetHeight}px`);
+    const geometry = scrollGeometry(this.scrollport.clientWidth, this.range, this.duration);
+    this.part("tracks").style.width = `${geometry.width}px`;
+    const overflow = this.scrollport.scrollWidth - this.scrollport.clientWidth;
+    const remaining = this.duration - this.range.span;
+    this.scrollport.scrollLeft = remaining > 0 ? (this.range.start / remaining) * overflow : 0;
+    this.lastScrollLeft = this.scrollport.scrollLeft;
+    for (const indicator of this.scrollIndicators) {
+      indicator.update();
+    }
+  },
+
+  setRange(start, span) {
+    this.range = clampRange(start, Math.min(span, this.maxSpan), this.duration);
+    this.relayout();
+  },
+
+  focusStep(event) {
+    if (!event) return;
+    this.select(event);
+    this.setRange(event.start_ms - event.duration_ms * 0.1, event.duration_ms * 1.2);
+  },
+
+  hideTooltip() {
+    this.part("tooltip").hidden = true;
+  },
+
+  hideCursor() {
+    this.cursorX = null;
+    for (const surface of this.surfaces) surface.cursor.hidden = true;
+    this.updateMetricValues(null);
+  },
+
+  updateCursor() {
+    if (this.cursorX == null || this.focusing) return;
+    const rect = this.cursorSource.getBoundingClientRect();
+    const time = cursorTime(this.cursorX - rect.left, rect.width, this.range);
+    const fraction = (time - this.range.start) / this.range.span;
+    for (const surface of this.surfaces) {
+      const width = surface.canvas.getBoundingClientRect().width;
+      const x = 12 + fraction * (width - 24);
+      surface.cursor.hidden = false;
+      const line = surface.cursor.querySelector('[data-part="cursor-line"]');
+      line.style.left = `${x}px`;
+      line.style.top = `${surface.ruler.offsetTop + 28}px`;
+      const label = surface.cursor.querySelector('[data-part="cursor-time"]');
+      label.style.top = `${surface.ruler.offsetTop + 5}px`;
+      label.textContent = cursorTimeLabel(time);
+      label.style.left = `${Math.max(0, Math.min(width - label.offsetWidth, x - label.offsetWidth / 2))}px`;
+    }
+    this.updateMetricValues(time);
+  },
+
+  previewFocus(range) {
+    this.focusing = !!range;
+    if (range) {
+      this.hideTooltip();
+      this.hideCursor();
+    }
+    for (const surface of this.surfaces) {
+      surface.selection.hidden = !range;
+      if (!range) continue;
+      const width = surface.canvas.getBoundingClientRect().width - 24;
+      surface.selection.style.top = `${surface.ruler.offsetTop}px`;
+      surface.selection.style.left = `${12 + width * range.left}px`;
+      surface.selection.style.width = `${width * range.width}px`;
+      const label = surface.selection.querySelector('[data-part="focus-duration"]');
+      label.textContent = timeLabel(range.span);
+    }
+  },
+
+  hover(pointer) {
+    if (this.focusing) return;
+    const event = this.hit(pointer);
+    this.chart.style.cursor = event ? "pointer" : "crosshair";
+    const tooltip = this.part("tooltip");
+    tooltip.hidden = !event;
+    if (!event) return;
+    tooltip.querySelector("strong").textContent = event.title;
+    tooltip.querySelector("span").textContent =
+      `${[event.project, event.target].filter(Boolean).join(" / ")} · ${timeLabel(event.duration_ms)}`;
+    this.positionTooltip(pointer);
+  },
+
+  positionTooltip(pointer) {
+    const tooltip = this.part("tooltip");
+    const rect = this.part("timeline-content").getBoundingClientRect();
+    tooltip.style.left = `${Math.max(8, Math.min(pointer.clientX - rect.left + 12, rect.width - tooltip.offsetWidth - 8))}px`;
+    tooltip.style.top = `${Math.max(33, pointer.clientY - rect.top - tooltip.offsetHeight - 12)}px`;
+  },
+
+  zoom(factor, anchor = 0.5) {
+    const range = zoomRange(this.range, Math.min(factor, this.maxSpan / this.range.span), anchor, this.duration);
+    this.setRange(range.start, range.span);
+  },
+
+  scheduleDraw() {
+    if (this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = null;
+      if (this.layoutDirty) {
+        this.layoutDirty = false;
+        this.syncScroll();
+        this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
+        this.part("no-matches").hidden =
+          !this.stepsReady ||
+          !(this.search || this.category) ||
+          !this.allEvents.length ||
+          this.layout.events.length > 0;
+      }
+      this.draw();
+    });
+  },
+
+  context(canvas, height, width = this.scrollport.clientWidth) {
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
+    if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.textAlign = "left";
+    ctx.font = this.fonts.body;
+    return { ctx, width };
+  },
+
+  colors() {
+    const probe = document.createElement("span");
+    this.el.append(probe);
+    const color = (token) => {
+      probe.style.color = `var(${token})`;
+      return getComputedStyle(probe).color;
+    };
+    const font = (weight, size) => {
+      probe.style.font = `var(--noora-font-weight-${weight}) var(--noora-font-body-${size})`;
+      const style = getComputedStyle(probe);
+      return `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    };
+    this.fonts = { body: font("regular", "small"), label: font("medium", "small") };
+    const colors = {
+      compile: color("--timeline-fill-compile"),
+      link: color("--timeline-fill-link"),
+      script: color("--timeline-fill-script"),
+      resource: color("--timeline-fill-resource"),
+      other: color("--timeline-fill-other"),
+      failure: color("--timeline-fill-failure"),
+      fetch: color("--timeline-fill-fetch"),
+      setup: color("--timeline-fill-setup"),
+      transform: color("--timeline-fill-transform"),
+      test: color("--timeline-fill-test"),
+      package: color("--timeline-fill-package"),
+      labels: Object.fromEntries(
+        [
+          "compile",
+          "link",
+          "script",
+          "resource",
+          "other",
+          "failure",
+          "fetch",
+          "setup",
+          "transform",
+          "test",
+          "package",
+        ].map((kind) => [kind, color(`--timeline-label-${kind}`)]),
+      ),
+      accent: color("--noora-chart-primary"),
+      metricPrimary: color("--noora-chart-primary"),
+      metricSecondary: color("--noora-chart-secondary"),
+      text: color("--noora-surface-label-primary"),
+      muted: color("--noora-surface-label-secondary"),
+      border: color("--noora-surface-border-primary"),
+      grid: color("--noora-chart-lines"),
+      background: color("--noora-surface-background-primary"),
+      secondary: color("--noora-surface-background-secondary"),
+    };
+    probe.remove();
+    return colors;
+  },
+
+  draw() {
+    if (!this.layout) return;
+    const colors = (this.palette ||= this.colors());
+    const height = this.scrollport.clientHeight;
+    const { ctx, width } = this.context(this.chart, height);
+    const inset = 12;
+    const plotWidth = width - inset * 2;
+    const x = (ms) => inset + ((ms - this.range.start) / this.range.span) * plotWidth;
+    ctx.fillStyle = colors.background;
+    ctx.fillRect(0, 0, width, height);
+    this.drawRuler(inset, plotWidth, colors);
+    this.drawMetrics(colors);
+    ctx.strokeStyle = colors.border;
+    ctx.globalAlpha = 0.45;
+    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 140)));
+    for (let i = 0; i <= tickCount; i++) {
+      const px = inset + (i / tickCount) * plotWidth;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, height);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    this.rectsByLane = [];
+    for (const event of this.layout.events) {
+      const gap = Math.min(2, event.rowHeight * 0.1);
+      const barHeight = event.rowHeight - gap * 2;
+      const top = event.y + gap;
+      const left = Math.max(inset, x(event.start_ms));
+      const right = Math.min(width - inset, x(event.end));
+      const barWidth = Math.min(width - inset - left, Math.max(2, right - left));
+      const kind = event.status === "failure" ? "failure" : event.kind;
+      const color = colors[kind];
+      ctx.fillStyle = color;
+      ctx.globalAlpha = this.selected && this.selected.event_id !== event.event_id ? 0.55 : 1;
+      ctx.beginPath();
+      ctx.roundRect(left, top, barWidth, barHeight, Math.min(3, barHeight / 2));
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (barWidth > 50 && barHeight >= 18) {
+        ctx.fillStyle = colors.labels[kind];
+        this.text(
+          ctx,
+          [event.target, event.title].filter(Boolean).join(" · "),
+          left + 7,
+          top + barHeight / 2 + 4,
+          barWidth - 14,
+        );
+      }
+      const lane = event.lane;
+      (this.rectsByLane[lane] ||= []).push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
+    }
+    for (const surface of this.surfaces) {
+      const cursorLabel = surface.cursor.querySelector('[data-part="cursor-time"]');
+      cursorLabel.style.backgroundColor = colors.accent;
+      cursorLabel.style.color = this.barTextColor(colors.accent);
+    }
+    this.updateCursor();
+    this.part("range").textContent =
+      `${timeLabel(this.range.start)} – ${timeLabel(this.range.start + this.range.span)}`;
+  },
+
+  barTextColor(color) {
+    this.textColors ||= new Map();
+    if (!this.textColors.has(color)) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      const channels = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      this.textColors.set(color, luminance > 0.179 ? "#000000" : "#ffffff");
+    }
+    return this.textColors.get(color);
+  },
+
+  text(ctx, text, x, y, maxWidth) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y - 14, Math.max(0, maxWidth), 19);
+    ctx.clip();
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  },
+
+  drawMetrics(colors) {
+    if (!this.metrics?.samples.length) return;
+    for (const track of this.metrics.tracks) {
+      const canvas = this.el.querySelector(`[data-metric-canvas="${track.key}"]`);
+      const { ctx, width } = this.context(canvas, 120, canvas.parentElement.clientWidth);
+      this.drawRulerCanvas(canvas.parentElement.querySelector("[data-metric-ruler]"), 12, width - 24, colors, width);
+      this.metrics.draw(ctx, width, 120, track, this.range, colors);
+    }
+    this.updateMetricValues(null);
+  },
+
+  updateMetricValues(time) {
+    if (!this.metrics?.samples.length) return;
+    for (const track of this.metrics.tracks) {
+      const output = this.el.querySelector(`[data-metric-value="${track.key}"]`);
+      output.textContent = this.metrics.label(track, time);
+      this.el
+        .querySelector(`[data-metric-canvas="${track.key}"]`)
+        .setAttribute("aria-label", `${track.key}: ${output.textContent}`);
+    }
+  },
+
+  drawRuler(labelWidth, plotWidth, colors) {
+    this.drawRulerCanvas(this.part("step-ruler"), labelWidth, plotWidth, colors);
+  },
+
+  drawRulerCanvas(canvas, labelWidth, plotWidth, colors, canvasWidth) {
+    const { ctx, width } = this.context(canvas, 32, canvasWidth);
+    ctx.fillStyle = colors.background;
+    ctx.fillRect(0, 0, width, 32);
+    ctx.fillStyle = colors.muted;
+    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 140)));
+    for (let i = 0; i <= tickCount; i++) {
+      ctx.textAlign = i === tickCount ? "right" : "left";
+      ctx.fillText(
+        timeLabel(this.range.start + (i / tickCount) * this.range.span),
+        labelWidth + (i / tickCount) * plotWidth,
+        21,
+      );
+    }
+  },
+
+  hit(event) {
+    const rect = this.chart.getBoundingClientRect();
+    const x = event.clientX - rect.left,
+      y = event.clientY - rect.top;
+    const lane = this.layout?.rows.findIndex((row) => y >= row.y && y < row.y + row.height);
+    return hitInLane(this.rectsByLane?.[lane], x, y);
+  },
+
+  select(event) {
+    this.navigationRequest = ++nextNavigationRequest;
+    this.selected = event;
+    const logRequest = (this.logRequest = ++nextLogRequest);
+    this.hideTooltip();
+    this.part("inspector").hidden = !event;
+    this.part("inspector-divider").hidden = !event;
+    this.part("selection").hidden = !event;
+    if (event) {
+      const details = {
+        title: event.title,
+        project: event.project || "—",
+        target: event.target || "—",
+        start: timeLabel(event.start_ms),
+        duration: timeLabel(event.duration_ms),
+      };
+      this.part("category-badge").querySelector("span").textContent = this.localNavigation
+        ? event.category
+        : this.part("legend").querySelector(`[data-kind="${event.kind}"]`).textContent;
+      this.part("outcome-success").hidden = event.status !== "success";
+      this.part("outcome-failure").hidden = event.status !== "failure";
+      const otherOutcome = this.part("outcome-other");
+      otherOutcome.hidden = ["success", "failure"].includes(event.status);
+      if (!otherOutcome.hidden) {
+        const labels = JSON.parse(this.el.dataset.outcomeLabels || "{}");
+        otherOutcome.querySelector("span").textContent = labels[event.status] || labels.unknown;
+      }
+      this.part("step-log").hidden = !this.logsAvailable;
+      if (this.logsAvailable) {
+        this.showLogLoading();
+        this.requestLog(event, logRequest);
+      }
+      for (const [key, value] of Object.entries(details))
+        this.el.querySelector(`[data-detail="${key}"]`).textContent = value;
+    }
+    this.scheduleDraw();
+  },
+
+  showLogLoading() {
+    const status = this.part("log-status");
+    status.hidden = false;
+    status.textContent = this.el.dataset.logLoading;
+    const content = this.part("log-content");
+    content.hidden = true;
+    content.textContent = "";
+    this.part("log-truncated").hidden = true;
+  },
+
+  loadLog(event, request) {
+    if (request !== this.logRequest) return;
+    const signal = this.abort.signal;
+    this.pushEvent("load-timeline-log", { event_id: event.event_id, request_id: request })
+      .then((reply) => {
+        if (reply?.error && !signal.aborted) this.receiveLog({ request_id: request, error: true });
+      })
+      .catch(() => {
+        if (!signal.aborted) this.receiveLog({ request_id: request, error: true });
+      });
+  },
+
+  receiveLog({ request_id, log, error }) {
+    if (request_id !== this.logRequest || this.abort.signal.aborted) return;
+    const status = this.part("log-status");
+    if (error) {
+      status.textContent = this.el.dataset.logError;
+      return;
+    }
+    const text = log?.log || "";
+    const content = this.part("log-content");
+    content.textContent = text;
+    content.hidden = !text;
+    content.scrollLeft = 0;
+    status.hidden = !!text;
+    status.textContent = this.el.dataset.logEmpty;
+    this.part("log-truncated").hidden = !log?.log_truncated;
+  },
+
+  keydown(event) {
+    if (["Home", "+", "=", "-"].includes(event.key)) {
+      event.preventDefault();
+      if (event.key === "Home") this.setRange(this.initialRange.start, this.initialRange.span);
+      else this.zoom(event.key === "-" ? 2 : 0.5);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.focusStep(this.selected);
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key)) return;
+    event.preventDefault();
+    if (this.localNavigation) {
+      const direction = event.key === "End" ? "last" : event.key === "ArrowLeft" ? "previous" : "next";
+      const step = neighborEvent(this.filtered, this.selected?.event_id, direction);
+      if (step) {
+        this.select(step);
+        this.setRange(step.start_ms - step.duration_ms * 0.1, Math.max(1, step.duration_ms * 1.2));
+      }
+      return;
+    }
+    const request = (this.navigationRequest = ++nextNavigationRequest);
+    this.pushEvent("load-timeline-step", {
+      request_id: request,
+      event_id: this.selected?.event_id ?? null,
+      direction: event.key === "End" ? "last" : event.key === "ArrowLeft" ? "previous" : "next",
+      search: this.search,
+    });
+  },
+};

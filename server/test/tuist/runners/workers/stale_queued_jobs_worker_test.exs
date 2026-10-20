@@ -10,11 +10,20 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
 
   setup :verify_on_exit!
 
+  setup do
+    stub(GitHubClient, :workflow_run_status, fn _installation, _repository, _run_id ->
+      {:ok, %{status: "in_progress", conclusion: nil}}
+    end)
+
+    :ok
+  end
+
   defp candidate(opts) do
     %{
       workflow_job_id: Keyword.get(opts, :workflow_job_id, 76_348_428_905),
       account_id: Keyword.get(opts, :account_id, 3),
       repository: Keyword.get(opts, :repository, "tuist/tuist"),
+      workflow_run_id: Keyword.get(opts, :workflow_run_id, 32_985_506_614),
       # Default: queued long enough to verify against GitHub (> 1h) but
       # within the 24h hard backstop, so backstop reaps don't fire
       # unless a test explicitly ages the row.
@@ -78,6 +87,44 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
 
       expect(Claims, :complete, fn _wfid -> :ok end)
       expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
+
+      assert :ok = StaleQueuedJobsWorker.perform(%Oban.Job{})
+    end
+
+    test "completes a still-queued job well inside the backstop when its workflow run is completed" do
+      # A `startup_failure` run leaves its remaining jobs `queued` on
+      # GitHub forever. Waiting for the 24h backstop leaves the row at
+      # the head of the fleet queue for a full day, where dispatch keeps
+      # handing it to runners that can never be assigned it. The run's
+      # terminal status settles it immediately.
+      account = account_fixture()
+      stale = candidate(account_id: account.id)
+
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(GitHubClient, :workflow_run_status, fn _installation, "tuist/tuist", run_id ->
+        assert run_id == stale.workflow_run_id
+        {:ok, %{status: "completed", conclusion: "startup_failure"}}
+      end)
+
+      expect(Claims, :complete, fn wfid ->
+        assert wfid == stale.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :complete, fn wfid, conclusion ->
+        assert wfid == stale.workflow_job_id
+        assert conclusion == "startup_failure"
+        {:ok, %{}}
+      end)
 
       assert :ok = StaleQueuedJobsWorker.perform(%Oban.Job{})
     end

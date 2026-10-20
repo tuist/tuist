@@ -5,7 +5,7 @@ defmodule Tuist.GitHub.Client do
   Functions that target a specific installation accept an `:installation`
   field — any struct or map carrying `:installation_id` and `:client_url`.
   The host of the GitHub instance (github.com or a self-hosted GitHub
-  Enterprise Server) is derived from `:client_url`.
+  Enterprise Server) uses the optional `:api_url` override or is derived from `:client_url`.
   """
 
   alias Tuist.GitHub.App
@@ -32,7 +32,8 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/installation/repositories?per_page=100"
       )
 
-    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+    with {:ok, url} <- VCS.github_api_request_url(url, Map.get(installation, :client_url), api_url),
+         {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
@@ -85,6 +86,16 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  def get_repository(installation, repository_full_handle) do
+    api_url = installation_api_url(installation)
+
+    github_request(&Req.get/1,
+      url: "#{api_url}/repos/#{repository_full_handle}",
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
   def get_user_by_id(%{id: github_id, installation: installation}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/user/#{github_id}"
@@ -98,30 +109,43 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_username(%{username: username, installation: installation}) do
+  @doc """
+  Looks a user up through a repository the installation can read.
+
+  `/users/:username` is not used because, for an Enterprise Managed User, it
+  is guarded by the enterprise's IP allow list, which the repository's
+  collaborator permission endpoint is not.
+  """
+  def get_repository_user_by_username(%{
+        repository_full_handle: repository_full_handle,
+        username: username,
+        installation: installation
+      }) do
     api_url = installation_api_url(installation)
-    url = "#{api_url}/users/#{username}"
+    url = "#{api_url}/repos/#{repository_full_handle}/collaborators/#{username}/permission"
 
     case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
-      {:ok, %{"id" => id, "login" => login}} ->
+      {:ok, %{"user" => %{"id" => id, "login" => login}}} ->
         {:ok, %VCS.User{id: to_string(id), username: login}}
 
       {:ok, _} ->
         {:error, :not_found}
 
       # `github_request/2` flattens every non-2xx into a message. Only a 404
-      # says the account does not exist. A 5xx, a secondary rate limit, an
-      # expired installation token or a transport failure all mean the
-      # question could not be asked, which is a different thing to tell the
-      # caller than "no such user".
+      # says the account does not exist. A 403, a 5xx, a secondary rate
+      # limit, an expired installation token or a transport failure all mean
+      # the question could not be asked, which is a different thing to tell
+      # the caller than "no such user".
       {:error, message} when is_binary(message) ->
         if String.starts_with?(message, "Unexpected status code: 404") do
           {:error, :not_found}
         else
+          Logger.warning("github: user lookup failed: #{message}", repo: repository_full_handle)
           {:error, :unavailable}
         end
 
-      _ ->
+      error ->
+        Logger.warning("github: user lookup failed: #{inspect(error)}", repo: repository_full_handle)
         {:error, :unavailable}
     end
   end
@@ -319,6 +343,37 @@ defmodule Tuist.GitHub.Client do
       installation: installation,
       api_url: api_url
     )
+  end
+
+  @doc """
+  Returns a workflow run's GitHub-side status
+  (`"queued"` / `"in_progress"` / `"completed"`) and conclusion, in the
+  same shape as `get_workflow_job/3`.
+
+  A run that has reached `completed` will never assign its remaining
+  jobs to a runner, even though the per-job endpoint keeps reporting
+  them as `queued`: the shape a `startup_failure` run leaves behind.
+  The recovery workers read the run to tell that apart from a job that
+  is genuinely still waiting.
+
+  See: https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
+  """
+  def workflow_run_status(installation, repository_full_handle, run_id)
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    case get_workflow_run(%{
+           repository_full_handle: repository_full_handle,
+           installation: installation,
+           run_id: run_id
+         }) do
+      {:ok, %{"status" => status} = run} when is_binary(status) ->
+        {:ok, %{status: status, conclusion: Map.get(run, "conclusion")}}
+
+      {:ok, _body} ->
+        {:error, :malformed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
@@ -522,6 +577,33 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Lists the jobs of a workflow run's latest attempt with their GitHub-side
+  `status` and the `runner_name` GitHub placed each one on. Returns at most
+  100 jobs, the API's page size.
+
+  See: https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run
+  """
+  def list_workflow_run_jobs(installation, repository_full_handle, run_id)
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}/jobs?per_page=100"
+
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
+      {:ok, %{"jobs" => jobs}} when is_list(jobs) ->
+        {:ok,
+         for %{"id" => id, "status" => status} = job <- jobs, is_integer(id) do
+           %{id: id, status: status, runner_name: Map.get(job, "runner_name")}
+         end}
+
+      {:ok, _body} ->
+        {:error, :malformed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Lists the App's recent webhook deliveries (the App's central
   delivery log — App-wide, not per-installation). Used by
   `Tuist.Runners.Workers.WebhookRedeliveryWorker` to discover
@@ -531,8 +613,10 @@ defmodule Tuist.GitHub.Client do
     * `:credentials` — App credentials map (defaults to global
       env-configured github.com App). Pass per-installation creds
       from `Tuist.VCS.list_github_apps/0` to query a GHES App's log.
-    * `:api_url` — host root (defaults to api.github.com). Goes
-      with `:credentials` for GHES Apps.
+    * `:api_url` — full REST API base URL (defaults to api.github.com).
+      Goes with `:credentials` for GHES Apps.
+    * `:client_url` — canonical browser URL, used to rebase GHES pagination
+      links onto an API proxy while preserving its path prefix.
     * `:next_url` — opaque cursor from a previous call's `meta.next_url`
       for paginating to the next page.
 
@@ -560,13 +644,14 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/app/hook/deliveries?per_page=100"
       )
 
-    with {:ok, jwt} <- App.get_jwt(opts) do
+    with {:ok, url} <- VCS.github_api_request_url(url, Keyword.get(opts, :client_url), api_url),
+         {:ok, jwt} <- App.get_jwt(opts),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
-          url: url,
-          headers: app_jwt_headers(jwt),
-          finch: Tuist.Finch
-        ] ++ Retry.retry_options()
+          url: request_url,
+          headers: app_jwt_headers(jwt)
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.get(req_opts) do
         {:ok, %{status: 200, body: deliveries, headers: headers}} when is_list(deliveries) ->
@@ -600,13 +685,13 @@ defmodule Tuist.GitHub.Client do
     api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
     url = "#{api_url}/app/hook/deliveries/#{delivery_id}/attempts"
 
-    with {:ok, jwt} <- App.get_jwt(opts) do
+    with {:ok, jwt} <- App.get_jwt(opts),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
-          url: url,
-          headers: app_jwt_headers(jwt),
-          finch: Tuist.Finch
-        ] ++ Retry.retry_options()
+          url: request_url,
+          headers: app_jwt_headers(jwt)
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
         {:ok, %{status: 202}} ->
@@ -655,7 +740,9 @@ defmodule Tuist.GitHub.Client do
 
   defp parse_iso8601(_), do: nil
 
-  defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
+  defp installation_api_url(%{client_url: client_url} = installation) when is_binary(client_url),
+    do: VCS.installation_api_url(installation)
+
   defp installation_api_url(_), do: VCS.api_url(:github, nil)
 
   # Pin GHES URLs to a public IP to defend against DNS rebinding /
@@ -669,7 +756,7 @@ defmodule Tuist.GitHub.Client do
   defp pin_ghes_url(url, _api_url) do
     case SSRFGuard.pin(url) do
       {:ok, pinned_url, hostname} ->
-        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname), redirect: false]}
 
       {:error, reason} ->
         {:error, "GitHub Enterprise Server host failed SSRF check: #{inspect(reason)}"}

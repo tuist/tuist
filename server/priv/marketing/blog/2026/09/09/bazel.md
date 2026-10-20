@@ -1,0 +1,125 @@
+---
+title: "Bazel remote caching and insights in Tuist"
+category: "product"
+tags: ["product", "bazel"]
+excerpt: "Tuist now supports Bazel remote caching and insights. Here's how we got there, from a low-latency cache network to the protocols Bazel speaks."
+author: pepicrft
+live: true
+---
+
+If there's one build system that's ahead of the rest in helping teams with the challenges of code being written fast and concurrently, it's [Bazel](https://bazel.build). Did you know that **Bazel motivated our initial work on Tuist**? Over the years, we drew a lot of inspiration from it, for example, when building our [module cache](https://tuist.dev/en/docs/guides/features/cache/module-cache) on top of [Xcode project generation](https://tuist.dev/en/docs/guides/features/projects). And as we kept investing in infrastructure and in supporting other build systems, it became clear that we had to support Bazel. **Well, that time is here.**
+
+I went back and forth a few times on how to approach this blog post. An agent could look at Bazel's documentation and our implementation, give it some structure, and call it done. But that felt wrong. Not just because of the writing style, but because it's tiring to read blog posts that are a sequence of facts, one after another. So I took a step back and asked myself: what would I want to read if I had been following Tuist and, all of a sudden, saw these folks talking about Bazel? That's what I want this post to be, and I hope you like it (and that Codex doesn't leave any typos anywhere).
+
+If you'd rather watch than read, here's the video version:
+
+<iframe title="Bazel remote caching and insights in Tuist" width="560" height="315" src="https://videos.tuist.dev/videos/embed/3Nkg6AjttaDqdFrJEHBwHZ" allow="fullscreen" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" style="border: 0px;"></iframe>
+
+## See it for yourself
+
+Before I tell you how we got here, let me show you where we landed. We wired up the build and test pipelines of [Kura](https://github.com/tuist/tuist/tree/main/kura), a project I'll tell you more about in a moment, and data started flowing. I could paste a few screenshots here, but they'd likely be outdated a few years from now, and that sucks. So I thought, why not tap into the amazing capabilities of the technology that makes Tuist possible, Elixir and the Erlang VM, and render a live view of how the Bazel data shows up in the dashboard? We care a lot about the infrastructure being fast and reliable, but just as much about the presentation layer: the dashboard, and the APIs agents consume, carefully designed so that agents are effective and humans have a great time navigating the data. The [Kura dashboard](https://tuist.dev/tuist/kura) is public, so you can poke around yourself, but here's what its builds look like right now:
+
+<.live_component module={TuistWeb.Marketing.Components.BazelDashboardLab} id="bazel-dashboard-lab" />
+
+Every invocation also comes with an interactive timeline, so you can explore what happened step by step. Here's one of Kura's latest:
+
+<div>{live_render(@socket, TuistWeb.Marketing.BazelTimelineShowcaseLive, id: "bazel-timeline-showcase")}</div>
+
+## Kura
+
+In [a previous blog post](/blog/2026/08/25/the-physics-of-build-systems), I talked about the importance of low latency for small cache artifacts. Bazel's cache artifacts can be very granular, which means that before building an integration with Bazel, **we had to shorten the latency between compute and cache**. And let me tell you, that's quite a challenge. Many services colocate compute and cache and call it done. We offer that too, but it only solves the problem for remote automation like CI. What about developers working from other regions? Then we're talking about a distributed system, where the cache needs to be replicated across all those nodes. We built a technology, Kura, and a [Kubernetes](https://kubernetes.io)-based deployment system to solve that, but it's so cool that it deserves its own blog post. For now, I'll just say that we have a regional network of cache servers where we can dedicate resources, and we've designed the economics so that anyone can access the cache and have a good experience with it. And if the closest region still isn't close enough, you can bring Kura **into your office's private network**: a [self-hosted node](https://tuist.dev/en/docs/guides/features/cache/self-hosting) joins your account's cache mesh, replicates the cache, and Tuist points the machines around it to that node.
+
+And that's very important to us. Caching is something everyone wants (who says no to shorter build times?). Like everyone else, we'd love to sell caching to large companies as part of a bigger package, since the economics of those deals are much more attractive than selling cache to an indie developer. But we think that's short-sighted, because that developer might join a company in the future or build something unprecedented, and we want to be part of that journey. **Our cache must be fast and reasonably priced for anyone, from anywhere.**
+
+Dogfooding is crucial for improving the product, so guess which build system we use to build Kura, which is written in [Rust](https://www.rust-lang.org), with its own cache: Bazel. So if you see me mentioning Kura around, now you know what it is.
+
+## Authentication and attribution
+
+With the technology and infrastructure out of the way, we started working on authenticating Bazel against our servers. We read docs, checked other products, and also sent our agents to look around and summarize the state of things. We didn't like what we saw. Some solutions ask teams to create a token in a dashboard and share it across all environments, which is bad security-wise. Others use a token per member, which is slightly better but inconvenient: developers have to go to a dashboard, generate a value, copy it, and place it in the right spot in their environment. **That's not the developer experience we strive for at Tuist.**
+
+The [Tuist CLI](https://tuist.dev/en/docs/guides/install-tuist), which we conveniently distribute through [Mise](https://mise.jdx.dev), has authentication and session management built in. `tuist auth login` completes the authentication in the browser and then continues in the terminal. From that moment on, the CLI manages a short-lived access token and a longer-lived refresh token in the background, rotating the access token and dealing with concurrent refreshes across processes. It's something we've iterated on over the years and know works smoothly, so we wanted to tap into it. The question was how.
+
+We looked at what Bazel provides and quickly discarded most of the options:
+
+- **Google credentials:** They're dynamic, but they aren't suitable. Users authenticate against Tuist, not Google.
+- **`.netrc`, static headers, a username and password in the URL, client certificates:** This is exactly the kind of static setup we wanted to avoid. It's inconvenient for developers, and teams work around the inconvenience by sharing credentials with everyone, which is wrong.
+
+That left us with **[credential helpers](https://bazel.build/reference/command-line-reference#param-credential-helper)**, the most flexible option on the list. What if a helper could wire Bazel into our credential management logic? We quickly realized we had to get creative. Bazel invokes the helper with a single argument, `get`, from the workspace root, and nothing else. That's not enough context for us: the Tuist project might live in a subdirectory of the workspace, and the helper also needs to know where the generated Bazel configuration lives. So we couldn't point Bazel straight at the `tuist` executable. But what if a small script acted as a **stateful proxy** between Bazel and Tuist? That's how we landed on one helper per repository worktree, at `<config dir>/credentials/tuist-bazel-credential-helper-<account>-<project>-<hash>`. The script remembers which checkout it belongs to and passes that to the helper logic in the Tuist CLI, which reads the project's configuration to know the account and project. All Bazel expects back is a payload with the headers to attach and when they expire:
+
+```json
+{
+  "headers": {
+    "Authorization": ["Bearer <token>"]
+  },
+  "expires": "2026-09-10T12:09:00Z"
+}
+```
+
+Attribution, on the other hand, was the easy part: the generated configuration tells Bazel to send the account and project with every request, so we know who each cache hit belongs to. With all of this in place, plugging Bazel into [Tuist's remote cache](https://tuist.dev/en/docs/guides/features/cache/bazel-cache) takes **just two commands**:
+
+```bash
+tuist auth login  # Once, across all your repositories
+tuist bazel setup # Once per repository
+```
+
+As people obsessed with developer experience, we'd love to have it all in a single step: run `bazel build`, get prompted to log in if you aren't authenticated, and skip the helper indirection altogether. Unfortunately, that's not something we control. Hopefully, one day, we'll have a tiny bit of influence on Bazel's direction, but that wasn't the focus of this effort. If you steer Bazel and you're open to it, we'd be happy to contribute.
+
+## Cache
+
+Alright, Bazel can now authenticate its requests. Next, we needed the cache server to speak Bazel's cache protocol. Which one is that? Glad you asked, 'cause we asked ourselves the same question. It's called the [Remote Execution API](https://github.com/bazelbuild/remote-apis) (REAPI), and it turns out it's simpler than you'd imagine. It builds on two pieces: a [content-addressable store](https://en.wikipedia.org/wiki/Content-addressable_storage), where every file lives under the hash of its contents, and **action cache items**. An action cache item remembers the result of a build step. Its key is a hash of the step's command, environment, and declared inputs, and its value points at the outputs that step produced. When a machine using the same cache reaches that step again, **Bazel reuses those outputs instead of running it**.
+
+```json
+{
+  "actionDigest": { "hash": "e3d9…7a02", "sizeBytes": "148" },
+  "actionResult": {
+    "outputFiles": [
+      { "path": "bin/Networking.swiftmodule", "digest": { "hash": "5c0e…91d4", "sizeBytes": "182344" } },
+      { "path": "bin/Client.o", "digest": { "hash": "9f2c…b41a", "sizeBytes": "48213" } }
+    ],
+    "exitCode": 0
+  }
+}
+```
+
+Are you still with me? I hope so, 'cause these days it's tricky to hold anyone's attention. I hope the snippet above caught yours, because it captures Bazel's cache really well. The payload represents the result of compiling a `Networking` module. Note how it references the compilation that happened, its exit code, and the files it produced. Which is a beautiful segue into the protocol's other building block: **CAS blobs**. Notice that those output files have hashes. They point to blobs, the binaries behind those files, which Bazel can retrieve instead of running the same action locally. It fetches only the ones it actually needs and skips the work altogether.
+
+<!-- Illustration: how Bazel interacts with the action cache and the CAS. -->
+
+While writing this, I wondered why Google chose [gRPC](https://grpc.io) as the transport here. Unfortunately, not much has been written about it, and we weren't at Google to witness the decision from the inside. But it seems the API was designed with remote execution in mind first, and caching came along with it. Remote execution needs streaming progress, streaming of large files, cancellation, and flow control, which are exactly the features gRPC's [2015 design principles](https://grpc.io/blog/principles/) list, along with metadata for auth and standard status codes.
+
+So on the server side, we implemented that protocol. The challenge wasn't implementing the contract, but **writing and reading those files as efficiently as possible while treating resources as bounded**. That's a topic for the Kura blog post, though. With authentication in place, the caching protocol implemented, and accounts getting their own deployed cache instances, we had our Bazel remote cache, which we'd use to build Kura itself. Isn't that cool? However, something was missing... We don't consider support for a build system complete until it comes with insights, so that users understand their builds, their test runs, and how they interact with the cache. We don't consider it ready either until we match our competitors' floor in breadth, and then top it up with our sprinkles of developer experience and UI. **First we make it work, then we make it the best.** Everyone has similar menus; we want a Michelin-star one. Not sure if I should be saying this, but we're here to compete, right? I don't think that's a secret to anyone, and we'll all get better for it. So, let's talk about insights.
+
+## Insights
+
+Next up: getting those insights into the server. Guess what, there's another language. Bazel is famous for building projects in dozens of programming languages, and it turns out it speaks a few of its own too. So there was another protocol to learn, and a few quirks we only discovered along the way. It's called the [Build Event Protocol](https://bazel.build/remote/bep) (BEP), and it's sent over the Build Event Service (BES). Where the cache protocol is about storing what a build produces, this one is about what happens during it. I won't go into the details, but in a nutshell, **Bazel narrates every command as a stream of [protobuf](https://protobuf.dev) events**: the start, progress output, configured targets, test results, metrics, and the finish with an exit code.
+
+How naive we were. We thought implementing the protocol, persisting the events, and showing them in a dashboard would be it. If you know Bazel, you're probably laughing right now. We quickly ran into a design trait that made our plan incomplete: **the events carry facts and references to files, and the files themselves travel through the cache**.
+
+What does that mean in practice? Say you run your tests with Bazel. I expected the results to come through the event stream with everything else, and I couldn't have been more wrong. The events tell you that a test target failed, but the details, like the [JUnit](https://junit.org) report (`test.xml`), the test logs, or the build's timing profile, are uploaded to the cache as blobs, and the events only point at them by hash. Whoever receives the events has to go and get those files from the cache. Otherwise, all you can show is that tests ran and whether they passed, not which ones failed or why.
+
+```mermaid
+graph LR
+  bazel["Bazel"] -->|"events: tests failed, report is blob 9f2c"| bes["Build Event Service"]
+  bazel -->|"blobs: test.xml, test.log, profile"| cas["Cache"]
+  subgraph kura["Kura"]
+    bes
+    cas
+  end
+  bes -.->|"reads blob 9f2c"| cas
+  bes -->|"invocation + test results"| server["Tuist server"]
+```
+
+My first reaction was that I'd have designed it differently, because integrating with it felt unnecessarily complicated. But things like this are usually done for a reason, so, like any modern software developer, I asked Codex to dig into why. And there's a good one. With remote execution or remote caching, **the machine sending the events often doesn't have those files**. The test might have run on a remote worker or come straight from the cache, and Bazel [avoids downloading outputs it doesn't need](https://blog.bazel.build/2023/10/06/bwob-in-bazel-7.html). All it has is the hash, so a reference is the only thing it can send without downloading the file just to upload it again. On top of that, test reports can be arbitrarily large, and stuffing them into an ordered stream would hold up every event behind them. And the cache already knows how to store and deduplicate files, so there's no reason for a second way of moving them.
+
+Once that clicked, the design worked in our favor. Kura is both the cache and the event receiver, so when an event points at a test report, the file is already sitting in its storage. Kura reads it locally, sends a bounded copy to the server along with the invocation, and **your build never waits for any of it**.
+
+
+## What this means for Tuist
+
+I know you might have a lot of questions at this point, especially if you've been following us since we proposed project generation as a way to make describing an Xcode project graph more approachable. Let me put it plainly: nothing changes. The world of toolchains is diverse, and we're designing infrastructure and technology that embraces that diversity. We build our own technologies, like generated projects or [Once](https://github.com/tuist/once), in areas where we think we can bring fresh air to the space, while making other toolchains work too. At the end of the day, it's all graphs, and graphs can be optimized and observed. Do you prefer Bazel? Go for it. Would you rather stay closer to Apple's Xcode build system? That's fine too. We'll go the extra mile for every one of them.
+
+I also won't hide the fact that agents have made it easier to adopt and maintain a Bazel setup. In fact, we've seen a bit of a trend, with some companies, like Shopify, even building their own build system. We're building [ours](https://github.com/tuist/once) too. So expect the space to stay fluid, and we're preparing for that. Our goal is to make going from zero to remote caching and execution as easy as writing a prompt, and we're designing both the technology and the economics so that it's possible for anyone. That's the future we want to enable once inference gets extremely fast.
+
+If you give it a shot, I'd love to hear your feedback. Send me an email at pedro@tuist.dev or [book a call](https://cal.tuist.dev/team/tuist/tuist) with me to chat about it. We've done our best to iron out the rough edges, but you know... it's software, so you might run into edge cases we didn't think of. Oh, and try asking your coding agent to sign you up and connect your project to Tuist. It should be able to do everything for you. Fun times, no? Anyway, I hope you like what we've put together, and that you can feel the love that went into this letter to Bazel.
+
+**One more thing...** Remember that Bazel's cache protocol is called the Remote Execution API? The name isn't a coincidence, and so far we've only implemented the caching half of it. **Linux and macOS remote execution is coming**, so Bazel will be able to run your build's actions on our machines instead of yours. Stay tuned.

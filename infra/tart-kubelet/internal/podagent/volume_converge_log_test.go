@@ -1,8 +1,13 @@
 package podagent
 
 import (
+	"context"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,16 +34,27 @@ func (capturingSink) Enabled(int) bool                 { return true }
 func (s capturingSink) WithValues(...any) logr.LogSink { return s }
 func (s capturingSink) WithName(string) logr.LogSink   { return s }
 
-func (capturingSink) Error(_ error, msg string, _ ...any) { recordLogMessage(msg) }
-func (capturingSink) Info(_ int, msg string, _ ...any)    { recordLogMessage(msg) }
+func (capturingSink) Error(_ error, msg string, kv ...any) { recordLogMessage(withValues(msg, kv)) }
+func (capturingSink) Info(_ int, msg string, kv ...any)    { recordLogMessage(withValues(msg, kv)) }
 
-// controller-runtime's delegating logger can only be fulfilled ONCE, so the sink
-// is installed a single time for the package and the buffer is reset per test
-// rather than swapping loggers.
+// withValues appends the call's key/value pairs so a test can assert on them;
+// tests matching a message by substring are unaffected.
+func withValues(msg string, kv []any) string {
+	for i := 0; i+1 < len(kv); i += 2 {
+		msg += fmt.Sprintf(" %v=%v", kv[i], kv[i+1])
+	}
+	return msg
+}
+
+// controller-runtime's delegating logger can only be fulfilled ONCE, and it
+// falls back to a null logger 30s after start if nothing has fulfilled it, so
+// the sink is installed at init rather than on first use, and the buffer is
+// reset per test rather than swapping loggers.
+func init() { log.SetLogger(logr.New(capturingSink{})) }
+
 var (
-	logCaptureOnce sync.Once
-	logCaptureMu   sync.Mutex
-	logCaptured    []string
+	logCaptureMu sync.Mutex
+	logCaptured  []string
 )
 
 func recordLogMessage(msg string) {
@@ -50,7 +66,6 @@ func recordLogMessage(msg string) {
 // captureLogs resets the capture buffer and returns a reader for it.
 func captureLogs(t *testing.T) func() []string {
 	t.Helper()
-	logCaptureOnce.Do(func() { log.SetLogger(logr.New(capturingSink{})) })
 	logCaptureMu.Lock()
 	logCaptured = nil
 	logCaptureMu.Unlock()
@@ -118,11 +133,12 @@ func TestConvergeMasterReportsAHeadItCannotVerify(t *testing.T) {
 			})
 			r := &Reconciler{
 				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
 			}
 
-			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
 
 			// Either way the local master is untouched: the digest check is the guard
 			// that stops a corrupt master propagating fleet-wide, and reporting does
@@ -139,6 +155,88 @@ func TestConvergeMasterReportsAHeadItCannotVerify(t *testing.T) {
 				t.Fatalf("staged the wrong digest: %q", staged)
 			case !tc.wantStaged && err == nil:
 				t.Fatalf("staged %q from a local measurement failure", staged)
+			}
+		})
+	}
+}
+
+// The content digest is the end-to-end byte check: the promoting guest hashed
+// the settled image file, so a downloaded object that does not reproduce that
+// hash — a bit flipped in the store, on the wire, or in RAM — must not become
+// this host's master, and the disproof is staged for the guest to report just
+// like an inventory mismatch. The inventory digest cannot catch this class:
+// it hashes entry names and sizes, not file contents.
+func TestConvergeMasterVerifiesTheContentDigest(t *testing.T) {
+	served := []byte("the-bytes-the-promoting-guest-hashed")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(served)
+	}))
+	defer srv.Close()
+
+	// What the fake backend measures as the inventory digest (sha1 of the
+	// bytes), and the real content hash of the bytes as served.
+	inventory := sha1.Sum(served)
+	content := sha256.Sum256(served)
+	treeDigest := hex.EncodeToString(inventory[:])
+
+	for _, tc := range []struct {
+		name          string
+		contentDigest string
+		wantAdopted   bool
+		wantStaged    bool
+	}{
+		{
+			// Bit-for-bit match, and the inventory agrees: adopt.
+			name:          "content digest matches",
+			contentDigest: hex.EncodeToString(content[:]),
+			wantAdopted:   true,
+		},
+		{
+			// The object does not reproduce the digest the HEAD advertises —
+			// proof about the object, so it is staged for retirement under the
+			// HEAD's TREE digest (the identity the server retires by).
+			name:          "content digest does not match",
+			contentDigest: strings.Repeat("0", 64),
+			wantStaged:    true,
+		},
+		{
+			// A HEAD promoted by a guest that predates the content hash: the
+			// check is skipped and the inventory check still decides — which
+			// passes here, so the master is adopted (the status quo).
+			name:        "no content digest on the HEAD",
+			wantAdopted: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := newTestManager(t, 100)
+			statusDir := t.TempDir()
+			stageHead(t, statusDir, volumeHead{
+				Generation:    4,
+				Digest:        treeDigest,
+				ContentDigest: tc.contentDigest,
+				DownloadURL:   srv.URL,
+			})
+			r := &Reconciler{
+				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
+				ConvergeHeadWaitInterval: time.Millisecond,
+				ConvergeHeadWaitAttempts: 2,
+			}
+
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
+
+			if masterExists(m, "42") != tc.wantAdopted {
+				t.Fatalf("master adopted = %v, want %v", masterExists(m, "42"), tc.wantAdopted)
+			}
+
+			staged, err := os.ReadFile(filepath.Join(statusDir, unverifiableHeadFile))
+			switch {
+			case tc.wantStaged && err != nil:
+				t.Fatalf("no unverifiable-HEAD report staged for the guest: %v", err)
+			case tc.wantStaged && string(staged) != treeDigest:
+				t.Fatalf("staged %q, want the HEAD's tree digest %q", staged, treeDigest)
+			case !tc.wantStaged && err == nil:
+				t.Fatalf("staged %q from a verifiable HEAD", staged)
 			}
 		})
 	}
@@ -201,11 +299,12 @@ func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
 			}
 			r := &Reconciler{
 				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
 			}
 
-			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
 
 			got := messages()
 			for _, msg := range got {
@@ -214,6 +313,77 @@ func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
 				}
 			}
 			t.Fatalf("no log line mentioning %q; got %v", tc.want, got)
+		})
+	}
+}
+
+// newTestConvergeWorker is a worker whose waits are milliseconds.
+func newTestConvergeWorker(m *VolumeManager) *ConvergeWorker {
+	return &ConvergeWorker{
+		Volumes:      m,
+		pollInterval: 5 * time.Millisecond,
+		stallTimeout: 2 * time.Second,
+		retryBackoff: time.Millisecond,
+	}
+}
+
+// convergeNow runs a job's convergence end to end: queue the HEAD its guest
+// staged, then let the worker take everything it may.
+func convergeNow(r *Reconciler, statusDir, volume, account string) {
+	r.queueConvergence("vm1", statusDir, volume, account)
+	for r.Converge.step(context.Background()) {
+	}
+}
+
+// startTestConvergeWorker runs a test worker until the test ends.
+func startTestConvergeWorker(t *testing.T, m *VolumeManager) *ConvergeWorker {
+	t.Helper()
+	w := newTestConvergeWorker(m)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = w.Start(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return w
+}
+
+// The materialize counter has no account label, so this line is the only way to
+// tell a warm rate that moved from a mix of accounts that did.
+func TestMaterializeLogsTheAccountAndResult(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		seed  bool
+		total uint64
+		want  string
+	}{
+		{name: "warm", seed: true, total: 100 * gib, want: "result=warm"},
+		{name: "cold", total: 100 * gib, want: "result=cold"},
+		{name: "declined", total: gib / 2, want: "result=declined"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			messages := captureLogs(t)
+			root := t.TempDir()
+			m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: tc.total, perMaster: gib, root: root})
+			if tc.seed {
+				seedMasterGen(t, m, "42", masterImageContent("42"), 3)
+			}
+			att := mustAllocate(t, m, "vm-1")
+			store := NewStore()
+			store.Put("ns", "pod", &Entry{VMName: "vm-1", Volume: att, VolumeStatusDir: t.TempDir()})
+			r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+			r.maybeMaterializeVolume(materializePod("42", ""))
+
+			for _, msg := range messages() {
+				if strings.HasPrefix(msg, "materialized cache volume") && strings.Contains(msg, "account=42") && strings.Contains(msg, tc.want) {
+					return
+				}
+			}
+			t.Fatalf("no materialize line with account=42 and %s; got %v", tc.want, messages())
 		})
 	}
 }

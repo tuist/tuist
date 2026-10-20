@@ -21,7 +21,7 @@ extension FileListGlob {
         )
         let pattern = String(resolvedPath.pathString.dropFirst())
 
-        return try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().filter { path in
+        return try await fileSystem.manifestGlob(directory: AbsolutePath.root, include: [pattern]).collect().filter { path in
             guard !resolvedExcluding.contains(path) else {
                 return false
             }
@@ -40,7 +40,7 @@ extension FileListGlob {
         var result: Set<AbsolutePath> = []
         for path in excluding {
             let resolved = try generatorPaths.resolve(path: path)
-            let globs = try await fileSystem.glob(
+            let globs = try await fileSystem.manifestGlob(
                 directory: .root,
                 include: [String(resolved.pathString.dropFirst())]
             )

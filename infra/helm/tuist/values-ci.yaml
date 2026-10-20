@@ -4,6 +4,10 @@
 # — server-deployment.yml resolves them from the latest `<component>@`
 # git tags and passes them via --set at deploy time. This overlay feeds
 # dummy values so static rendering/validation passes.
+server:
+  image:
+    tag: validation
+
 kuraController:
   image:
     tag: validation
@@ -21,6 +25,10 @@ codebaseSearch:
     tag: validation
 
 registry:
+  image:
+    tag: validation
+
+runnersController:
   image:
     tag: validation
 

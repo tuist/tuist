@@ -1,0 +1,42 @@
+# Gradle analytics
+
+This context owns Gradle report ingestion, task rankings and execution details.
+
+- `Tuist.Gradle` validates and buffers build/task reports. Write through `IngestRepo`/buffers and read through `ClickHouseRepo`.
+- `TaskAnalytics` scopes rankings, totals, time series, previous-period comparisons and history by the same project and comparable build filters. Task identity includes root project, build path, task path and task type. Summary totals are not limited by the ranking row cap; distinct task totals are computed across the whole period, not by summing time buckets.
+- `task_executions` returns paginated individual task attempts with outcomes, observed durations, timestamps, and build project/tag metadata; build accounts are batch-preloaded for Ran by badges; search and sorting apply before pagination and retain the full task identity and build cohort.
+- Cacheability summaries honor explicit execution telemetry, falling back to the reported boolean only when task cacheability is absent (stored as an empty string); explicit unknown cacheability stays unknown. Hit-rate analytics divide total remote hits by total hits plus confirmed misses, using the same rule for each time bucket; never average bucket percentages. Empty intervals have a null rate. Cacheable tasks without remote lookups have a zero hit rate; non-cacheable and unknown tasks without lookups retain a null rate.
+- Duration chart averages and percentiles aggregate individual executed tasks across the full comparison periods and within each time bucket, excluding cache hits and skipped work. Empty buckets have null averages and percentiles, not zero durations. Never derive period averages or percentiles by averaging bucket statistics.
+- Remote misses require a confirmed lookup; compute transfer throughput from bytes and positive remote download/upload operation durations for the same transfers, excluding missing timings; do not estimate it from task duration. Cumulative task time is not elapsed build time saved.
+- Schema changes require updating `server/data-export.md`. Existing Gradle tables retain data for 90 days.
+- `gradle_builds` is ordered by `(project_id, inserted_at)`; lookups of specific builds (`Gradle.get_build/2`, build entity parent contexts) must filter by `project_id` and `id IN` so the `idx_id` bloom filter skips the project's other granules. Keep such reads bounded to a page of IDs. Do not derive `inserted_at` bounds from observation times: native rows can carry historical `inserted_at` values and replays or clamping would hide an existing parent. `mix_builds` has the same `idx_id`, and `SchemaClone.reconcile/1` keeps both on the in-cluster ClickHouse.
+
+Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
+
+- ID-only `Gradle.get_build/1` fails closed for UUIDs shared by multiple projects. Scoped lookups remain available and every child query uses the authorized parent's project as well as its build ID.
+- `Gradle.get_task/3` retrieves one execution with UUID validation and both project/build scoping; never expose task details by task ID alone.
+
+- Keep task telemetry limited to identity, cacheability, incremental status, and cache outcomes used by the Tasks UI, plus transfer durations needed by existing throughput widgets. Do not collect unused explanations, build options, or duplicate project paths.
+
+- `Timeline` loads all timed tasks, configuration operations and transforms for the authorized build and project. Nullable `gradle_builds.started_at` is the report duration origin; legacy reports use the earliest recorded operation or machine timestamp and identify that fallback. Machine samples share this origin. Missing timestamps/outcomes are never inferred from upload time or overall build success. Existing source retention applies; no operation logs are collected.
+
+- Keep the nearest real machine sample before the build origin when there are samples during the build. Its negative offset brackets the first displayed interval without inventing a reading at zero. Samples entirely before the build provide no timeline coverage.
+
+- Step API/MCP queries normalize the three operation tables through a ClickHouse union with database filtering, ordering and pagination; detail lookups do not load the full timeline or machine samples. Legacy origins are computed from scalar minimum timestamps. The dashboard still loads all operations for the interactive timeline.
+
+- Timeline metric bootstrapping queries samples separately from step metadata. For legacy builds, scalar timestamp minima keep bootstrap and downloaded operations on exactly the same origin without loading all operations into LiveView.
+
+- Preserve zero-duration operations, including cached/skipped/no-source tasks, in both dashboard metadata and paginated step queries. If a legacy origin is absent, the captured query returns no steps; a subsequent request can discover a newly arrived origin instead of emitting epoch-sized offsets.
+- Full dashboard metadata retains every operation for local navigation but omits sample-row reads; scalar metric bounds preserve origin, duration and availability. Bootstrap reads samples without loading operation rows, and API/MCP step endpoints remain paginated.
+
+- Timeline availability checks timed operation rows or samples aligned with the same origin as the actual timeline. Untimed legacy tasks and samples entirely before the build must not expose an empty Timeline tab.
+
+- Legacy clock-origin metadata remains available to API/MCP clients, but the dashboard does not display an internal missing-start-timestamp banner over otherwise valid recorded steps and samples.
+
+- Cache hit-rate analytics expose `has_data` from observed cacheable-task buckets. A recorded zero percent hit rate is valid data; absence of observations is the empty state.
+
+- `Metrics` serves project-scoped Grafana health using half-open time ranges and parameterized filters. Aggregate counts/rates/percentiles from builds for both time buckets and whole-period statistics. Success rate excludes cancelled builds. Attention is the union of failed and slow builds; default slow threshold is the cohort's whole-period 90th percentile. Keep missing evidence null. Existing custom metadata keys `tuist.workload`, `tuist.failure_category`, and `tuist.cache_time_saved_ms` provide optional reporting overrides; failed known verification task types can establish verification failures, but other failures remain unknown. Never turn cache hits or cumulative task duration into elapsed savings. Lists are bounded and recent failure accounts are batch loaded.
+
+The generic build-health queries expose Gradle `cache_work_avoided` estimates from `tuist.cache_work_avoided_ms`. Legacy Gradle response maps omit these additive generic metrics. They are cumulative task-time estimates and remain separate from explicitly reported elapsed savings.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

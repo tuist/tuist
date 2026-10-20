@@ -1,0 +1,114 @@
+# Auto-bump the cloudflare-operator image pin in
+# `infra/helm/cloudflare-operator/values-mgmt.yaml`.
+#
+# Before this file existed, every operator change needed a human-authored
+# PR to move `image.tag` forward — even a straightforward controller fix
+# had to wait for someone (usually the author) to notice the new image was
+# published, open a chore PR, and get it reviewed. #13205 exposed that
+# gap: an unrelated Cloudflare 400 kept SBFM stuck on `allow` for the
+# full turnaround, because the fix lived in an image that wasn't
+# reachable from the pin. Flux already reconciled the values file — it
+# just had no way to change what the values file said.
+#
+# The three resources here close that loop for a `HelmRelease` (the same
+# path other infra controllers take):
+#
+#   1. `ImageRepository` polls ghcr.io/tuist/cloudflare-operator every
+#      minute for the current tag list.
+#   2. `ImagePolicy` filters that list to timestamp-prefixed sha tags
+#      (`sha-<epoch>-<12-char-sha>`, published by
+#      `.github/workflows/cloudflare-operator-image.yml`) and picks the
+#      one with the largest epoch. Git SHAs have no chronological order,
+#      which is why the workflow embeds the epoch — Flux's ImagePolicy
+#      sorts by strings, not by manifest metadata.
+#      https://fluxcd.io/flux/components/image/imagepolicies/
+#   3. `ImageUpdateAutomation` writes that tag into
+#      `values-mgmt.yaml` (limited by `spec.update.path` to the
+#      cloudflare-operator values directory, so it can never touch a
+#      values file for another chart) and commits back through the
+#      flux-system GitRepository, which is authenticated with the same
+#      GitHub App ESO already provisions for source-controller.
+#
+# Rollout: the automation is enabled on first reconcile. It is safe to
+# leave un-gated because until the first build under the updated
+# `.github/workflows/cloudflare-operator-image.yml` publishes a tag
+# matching the `ImagePolicy`'s `sha-<epoch>-<sha>` pattern, the policy
+# has nothing to select and `.status.latestImage` stays empty, so no
+# bump commit is written. Gating via `spec.suspend: true` in git was
+# tried and rejected: a suspended `ImageUpdateAutomation` never
+# publishes a Ready status, so kstatus reports it as `InProgress` and
+# the parent `Kustomization` (which has `wait: true`) fails its
+# health-check timeout, taking `cloudflare-config` down with it as a
+# `DependencyNotReady`. And even if that were tolerable, kustomize-
+# controller owns `spec.suspend` through server-side apply, so a
+# `kubectl patch ... suspend:false` gets reverted on the next
+# reconcile.
+#
+# Kill-switch: commit `spec.suspend: true` here (or delete the resource
+# outright). A live `kubectl patch` does not stick.
+#
+# Because the automation only writes one specific field in one
+# specific file, there is nothing to roll back on the git side beyond
+# reverting the offending bump commit.
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: cloudflare-operator
+  namespace: flux-system
+spec:
+  image: ghcr.io/tuist/cloudflare-operator
+  interval: 1m
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: cloudflare-operator
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: cloudflare-operator
+  # Only consider tags shaped like `sha-<epoch>-<12-char-sha>`; ignore
+  # the human-facing `sha-<sha>` and `latest` tags the workflow also
+  # publishes.
+  filterTags:
+    pattern: '^sha-(?P<ts>[0-9]+)-[0-9a-f]{12}$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageUpdateAutomation
+metadata:
+  name: cloudflare-operator
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        # Same identity Flux uses for its own commit trail. Not tied to
+        # any human's GitHub account.
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      # `.Updated` was removed from the image-automation-controller
+      # template API (a template using it stalls with
+      # `RemovedTemplateField`); `.Changed.Changes` is the current
+      # equivalent.
+      messageTemplate: |
+        chore(infra): bump cloudflare-operator image{{ range .Changed.Changes }} to {{ .NewValue }}{{ end }}
+    push:
+      branch: main
+  update:
+    strategy: Setters
+    # Scope the file rewriter to just the cloudflare-operator values
+    # directory so a stray `# {"$imagepolicy": "..."}` marker in any
+    # other chart cannot be flipped by this automation.
+    path: ./infra/helm/cloudflare-operator

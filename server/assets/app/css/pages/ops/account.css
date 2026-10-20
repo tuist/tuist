@@ -56,6 +56,10 @@
     max-width: 480px;
   }
 
+  & [data-part="kura-placement-description"],
+  & [data-part="kura-placement-empty"],
+  & [data-part="kura-traffic-mix-empty"],
+  & [data-part="kura-placement-proposal-evidence"],
   & [data-part="kura-storage-claim-description"],
   & [data-part="kura-sized-claim"],
   & [data-part="kura-disk-usage-empty"],
@@ -67,12 +71,14 @@
     font: var(--noora-font-body-medium);
   }
 
-  & [data-part="kura-claim-proposal-summary"] {
+  & [data-part="kura-claim-proposal-summary"],
+  & [data-part="kura-placement-proposal-summary"] {
     color: var(--noora-surface-label-primary);
     font-weight: var(--noora-font-weight-medium);
   }
 
-  & [data-part="kura-claim-history-section"] {
+  & [data-part="kura-claim-history-section"],
+  & [data-part="kura-placement-history-section"] {
     & > [data-part="header"] {
       display: flex;
       flex-direction: row;
@@ -92,6 +98,10 @@
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
   & [data-part="prepaid-empty"],
+  & [data-part="standing-prepaid-description"],
+  & [data-part="standing-prepaid-next"],
+  & [data-part="prepaid-pool-description"],
+  & [data-part="free-tier-description"],
   & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
@@ -124,14 +134,20 @@
     }
   }
 
-  & #prepaid-minutes-form {
+  & #prepaid-minutes-form,
+  & #standing-prepaid-minutes-form,
+  & #prepaid-pool-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
     max-width: 480px;
   }
 
-  & [data-part="prepaid-quote"] {
+  & [data-part="prepaid-quote"],
+  & [data-part="standing-prepaid-quote"],
+  & [data-part="prepaid-pool-quote"],
+  & [data-part="prepaid-pool-coverage"],
+  & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);

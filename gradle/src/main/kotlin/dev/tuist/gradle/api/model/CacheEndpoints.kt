@@ -22,13 +22,18 @@ import com.google.gson.annotations.SerializedName
  * List of available cache endpoints
  *
  * @param endpoints 
+ * @param provisioning Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
  */
 
 
 data class CacheEndpoints (
 
     @SerializedName("endpoints")
-    val endpoints: kotlin.collections.List<kotlin.String>
+    val endpoints: kotlin.collections.List<kotlin.String>,
+
+    /* Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready. */
+    @SerializedName("provisioning")
+    val provisioning: kotlin.Boolean? = null
 
 ) {
 

@@ -1,12 +1,70 @@
 package dev.tuist.gradle
 
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MachineMetricsCollectorTest {
 
     private fun createCollector() = MachineMetricsCollector(sampleIntervalMs = 50)
+
+    private fun timestampsStoppingAfterPeriodicReading(stopMillis: Long): List<Double> {
+        val periodicReading = CountDownLatch(1)
+        val readings = AtomicInteger()
+        val collector = MachineMetricsCollector(sampleIntervalMs = 1000, currentTimeMillis = {
+            when (readings.getAndIncrement()) {
+                0 -> 2000L
+                1 -> { periodicReading.countDown(); 3000L }
+                else -> stopMillis
+            }
+        })
+        collector.start()
+        val observedPeriodicReading = periodicReading.await(5, TimeUnit.SECONDS)
+        val timestamps = collector.stop().map { it.timestamp }
+        assertTrue(observedPeriodicReading)
+        return timestamps
+    }
+
+    @Test
+    fun `stop replaces a periodic reading taken less than 200 ms earlier`() {
+        assertEquals(listOf(2.0, 3.05), timestampsStoppingAfterPeriodicReading(stopMillis = 3050))
+    }
+
+    @Test
+    fun `stop keeps a periodic reading taken at least 200 ms earlier`() {
+        assertEquals(listOf(2.0, 3.0, 3.25), timestampsStoppingAfterPeriodicReading(stopMillis = 3250))
+    }
+
+    @Test
+    fun `uses the supplied operation clock for boundary timestamps`() {
+        var operationTime = 2000L
+        val collector = MachineMetricsCollector(sampleIntervalMs = 60_000, currentTimeMillis = { operationTime })
+        collector.start()
+        operationTime = 2250L
+        val samples = collector.stop()
+        assertEquals(listOf(2.0, 2.25), samples.map { it.timestamp })
+    }
+
+    @Test
+    fun `short builds include samples at monitoring start and stop`() {
+        val collector = MachineMetricsCollector(sampleIntervalMs = 60_000)
+        val beforeStart = System.currentTimeMillis() / 1000.0
+        collector.start()
+        val afterStart = System.currentTimeMillis() / 1000.0
+        val beforeStop = System.currentTimeMillis() / 1000.0
+        val samples = collector.stop()
+        val afterStop = System.currentTimeMillis() / 1000.0
+
+        assertEquals(2, samples.size)
+        assertTrue(samples.first().timestamp in beforeStart..afterStart)
+        assertTrue(samples.last().timestamp in beforeStop..afterStop)
+        assertEquals(0L, samples.first().networkBytesIn)
+        assertEquals(0L, samples.first().diskBytesRead)
+        assertEquals(samples, collector.stop())
+    }
 
     @Test
     fun `stop returns empty list when no samples collected`() {

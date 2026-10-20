@@ -1,0 +1,1 @@
+<testsuites><testsuite name="Outer"><testcase name="before"><failure/></testcase><testsuite name="Inner"><testcase name="inside"><failure/></testcase></testsuite><testcase name="after"><failure/></testcase></testsuite></testsuites>

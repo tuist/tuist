@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "status" => %{"type" => "string"},
         "duration" => %{"type" => "integer"},
         "is_ci" => %{"type" => "boolean"},
@@ -90,6 +91,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       {:ok,
        %{
          id: run.id,
+         actor: Tuist.ReportActor.actor(run),
          status: to_string(run.status),
          duration: run.duration,
          is_ci: run.is_ci,

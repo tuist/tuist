@@ -7,21 +7,26 @@
 // /etc/kcpassword, the TOFU host-key pin) is an input; everything
 // macOS-shaped is the same on every host:
 //   - Auto-login (Virtualization.framework requires a live console).
+//   - No self-initiated macOS updates and no Setup Assistant panes in
+//     the auto-login session.
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
 //   - Tart install (the caller-supplied tart.app tarball pinned in
-//     the operator image is extracted to /usr/local/lib/tart.app
-//     with a /usr/local/bin/tart wrapper).
+//     the operator image is extracted to /usr/local/lib/tart/<version>
+//     with a /usr/local/bin/tart wrapper; see tart.go).
 //   - Kubeconfig drop + tart-kubelet binary upload + launchd plist.
 //
 // Steps, in order, idempotent on retry:
 //  1. Wait for SSH (host has just booted from the provider's image).
 //  2. Grant the SSH user passwordless sudo using UserPassword.
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//     so Virtualization.framework has a live console session.
+//     so Virtualization.framework has a live console session. A host
+//     still without an Aqua session for the user is restarted once and
+//     fails bootstrap if the session does not come up (see
+//     ensureGUISession).
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
-//     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
+//     to /usr/local/lib/tart/<version> + wrapper at /usr/local/bin/tart.
 //  6. Install Tailscale's open-source tailscaled (extracted from the
 //     operator-baked binaries tarball), register it as a system
 //     daemon via `tailscaled install-system-daemon`, and `tailscale
@@ -54,6 +59,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -105,10 +111,15 @@ type Config struct {
 	// read at startup. We ship the whole `.app` rather than the bare
 	// executable inside it because Tart's signature + Virtualization.
 	// framework entitlements live on the bundle, not the binary alone.
-	// Pinning the version in the operator image makes the Tart version
-	// reproducible across reboots and re-provisions; bumping it is a
-	// deliberate Dockerfile change.
+	// The operator image carries every Tart version the fleet may run;
+	// which one a host gets is TartVersion.
 	TartTarball []byte
+
+	// TartVersion is the version TartTarball holds, as `tart --version`
+	// prints it. Both the first bootstrap and the drift update install it
+	// when the host's `tart --version` differs, so changing it upgrades or
+	// rolls back Tart in place (see installTart).
+	TartVersion string
 
 	// TailscaleBinaries is the gzipped tar of the `tailscale` and
 	// `tailscaled` darwin/arm64 binaries cross-compiled from the
@@ -135,6 +146,12 @@ type Config struct {
 	// the credential hasn't been provisioned yet.
 	TailscaleAuthKey string
 
+	// TailscaleState is tailscaled's state file, restored before the daemon starts
+	// on a host that has none. A rack host erased and installed again carries it
+	// over, so it rejoins the tailnet as the device it was instead of as a new one
+	// that gets a suffixed name next to the old record.
+	TailscaleState []byte
+
 	// TailscaleTags are the Tailscale ACL tags advertised on this
 	// node at `tailscale up` time. Drives which ACL groups can dial
 	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
@@ -157,6 +174,13 @@ type Config struct {
 	// one env advertises (see the tailscale-operator chart values).
 	TailscaleAcceptRoutes bool
 
+	// TailscalePersistentDevice joins the host as a standard tagged device
+	// instead of an ephemeral one. The rack kind sets it and the rented
+	// fleet does not; renderTailscaleScript has the reasoning. Only an
+	// OAuth-client credential is affected: a legacy pre-auth key carries
+	// its own ephemerality and takes no parameters.
+	TailscalePersistentDevice bool
+
 	// SkipTailscaleInstall skips the installTailscale step in
 	// UpdateTartKubelet. It exists for one caller: a drift update that
 	// SSHes over the tailnet (the fallback when the mini's public :22 is
@@ -168,6 +192,19 @@ type Config struct {
 	// reinstall Tailscale normally. Transport-only: never set in the
 	// canonical config, so it doesn't affect HostConfigHash.
 	SkipTailscaleInstall bool
+
+	// TakeOver marks the push that takes a rack host's runtime over from
+	// another env. Tailscale logs in afresh (`--force-reauth`), so the device
+	// joins with this config's credential and tags rather than keeping the
+	// ones it has, and what the previous owner's server alone can answer is
+	// dropped: tart-kubelet's queued cache-volume usage reports (see
+	// dropPreviousOwnerState). Per host, set only on that one push.
+	TakeOver bool
+
+	// RuntimeOwner is the env whose operator pushes this config, checked
+	// against the host's RuntimeOwnerPath before anything changes (see
+	// claimRuntime). Empty on rented hosts, which have one owner for life.
+	RuntimeOwner string
 
 	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
@@ -210,6 +247,21 @@ type Config struct {
 	// is set, for hosts configured out-of-band).
 	VMCachePNVLAN uint32
 
+	// VMCacheGatewayCIDRs are the addresses of the rack's runner-cache
+	// gateways, which VMs may reach on TCP 443 through the VM egress
+	// firewall. A rack gateway sits on the segment the host itself is on,
+	// so the traffic leaves on the default route and the VM NAT's general
+	// leg translates it. Only the rack fleet sets it. Each entry must parse
+	// as an IPv4 CIDR; bootstrap fails closed otherwise.
+	VMCacheGatewayCIDRs []string
+
+	// ImageMirrors are the rack's VM image caches, each `<upstream>=<endpoint>`
+	// (`ghcr.io=http://10.10.0.11:5000`), which tart-kubelet tries in order
+	// before the upstream when it pulls a golden base (`--image-mirror`). The
+	// host itself pulls, from the segment it is on, so this opens nothing in
+	// the VM egress firewall. Only the rack fleet sets it.
+	ImageMirrors []string
+
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
 	// dropped at the pf edge by installSSHIngressGuard. The operator's
@@ -219,6 +271,10 @@ type Config struct {
 	// parse as an IPv4 CIDR and bootstrap fails closed otherwise.
 	// Empty installs the guard with just the tailnet and loopback
 	// allowances plus the live session's source address.
+	//
+	// The rack kind appends the host's subnet routers, the source its
+	// LAN dial arrives from. A rack host has no public address, so that
+	// path is its only way in without its own tailnet identity.
 	SSHIngressAllowCIDRs []string
 
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
@@ -230,6 +286,15 @@ type Config struct {
 	// chart without tailnet plumbing doesn't ship node_exporter
 	// listening on a public IP.
 	NodeExporterBinary []byte
+
+	// HostSensorsBinary is the darwin/arm64 tuist-host-sensors binary
+	// (cross-built in the operator image from infra/macos-host-sensors). A
+	// launchd job runs it every 30 seconds to write the host's temperatures,
+	// fan speeds, power and thermal pressure for node_exporter's textfile
+	// collector. The released node_exporter cannot read Apple silicon's
+	// temperatures on a healthy host, which is why this exists. Empty, or no
+	// NodeExporterBinary to serve the readings, removes the job.
+	HostSensorsBinary []byte
 
 	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary
 	// (cross-built in the operator image from infra/macos-log-shipper).
@@ -327,6 +392,15 @@ type Config struct {
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
 
+	// ExpectedSerial, when set, is the hardware serial the host must report
+	// before anything is pushed to it, and before its host key is pinned. A
+	// host we own is dialled at an address its inventory records, and an
+	// address answered by the wrong box (a swapped tray, a lease another box
+	// still holds) would otherwise be bootstrapped under this host's name and
+	// providerID, with its key pinned as this host's. Rented hosts leave it
+	// empty: their provider hands out the address with the box.
+	ExpectedSerial string
+
 	// GHActionsRunner, when non-nil, installs a GitHub Actions
 	// self-hosted runner agent on the host as the final step of
 	// bootstrap, after tart-kubelet is up. Used for the bare-metal
@@ -370,7 +444,10 @@ type Config struct {
 	// golden clones need. Sized at provisioning as what the disk leaves
 	// after golden images, the max concurrent pod clones, and OS headroom.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
-	RunnerCacheVolumeGiB int
+	RunnerCacheVolumeGiB      int
+	CustomCacheURL            string
+	CustomCacheNamespace      string
+	CustomCacheServiceAccount string
 
 	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
 	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
@@ -380,12 +457,14 @@ type Config struct {
 	// RunnerCacheVolumeGiB > 0.
 	CacheVolumeMasterCapGiB int
 
-	// CacheVolumeCASGiB is the Xcode compilation cache's byte budget WITHIN
-	// each per-account cache image (folded in as a subdir), passed to
+	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
+	// WITHIN each per-account cache image (folded in as a subdir), passed to
 	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
 	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// 0 (default) leaves the compilation cache VM-local. Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
+	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
+	// bounds one generation of a store that keeps two — so this is what the
+	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
+	// Only meaningful when RunnerCacheVolumeGiB > 0.
 	CacheVolumeCASGiB int
 }
 
@@ -413,16 +492,45 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer client.Close()
+	// A closure: ensureGUISession may restart the host and hand back a new client.
+	defer func() { client.Close() }()
 
+	// No fingerprint on this path: the key belongs to whichever box answered,
+	// and pinning it would refuse the right one when it takes the address.
+	if err := verifyHostSerial(ctx, client, cfg.ExpectedSerial); err != nil {
+		return "", err
+	}
 	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
+	}
+	// After passwordless sudo, which the claim needs; before anything of the
+	// runtime.
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
+	}
+	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
+		return hk.Observed(), err
 	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
 	}
 	if err := DisableIdleSleep(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
+	}
+	if err := installSoftwareUpdatePolicy(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install software update policy: %w", err)
+	}
+	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("suppress setup assistant: %w", err)
+	}
+	// After auto-login and Setup Assistant suppression, which the session a
+	// restart brings up depends on, and before anything that would make the
+	// host look like a working Node without one.
+	guiHost := newSSHGUISessionHost(client, cfg.IP, cfg.SSHUser, signer, hk)
+	guiErr := ensureGUISession(ctx, guiHost, cfg.SSHUser, defaultGUISessionWait)
+	client = guiHost.client
+	if guiErr != nil {
+		return hk.Observed(), fmt.Errorf("gui session: %w", guiErr)
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
@@ -432,7 +540,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
-	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
@@ -492,6 +600,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
+	// After the log shipper, for the same reason it is last.
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -511,10 +623,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // bumps via the same operator-image-bump → drift-reconcile path),
 // and reloads the launchd job.
 //
-// Skips one-shot host prep (sudo, auto-login, hostname, Tart) —
-// those don't change between updates and re-running them would
-// either be wasted SSH work or risk disrupting the running VMs
-// (Tart). The pf VM-egress firewall IS re-run: its ruleset is now
+// Skips one-shot host prep (sudo, auto-login, hostname): those
+// don't change between updates and re-running them would be wasted
+// SSH work. Tart IS re-run: installTart installs the desired version
+// beside the one running VMs were started from and leaves those VMs
+// alone, so a version change reaches an existing host here instead of
+// waiting for Machine replacement. The pf VM-egress firewall IS re-run: its ruleset is now
 // config-shaped (the Kura/DNS carve-out CIDRs), the install is
 // idempotent, and `pfctl -f` swaps rulesets atomically without
 // dropping established states — so a values change reaches existing
@@ -528,7 +642,21 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // On the update path KnownHostFingerprint is normally already set (the
 // bootstrap reconcile populated it), so this is a verification rather
 // than a capture.
-func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
+//
+// The whole update is bounded by hostConfigUpdateTimeout. The caller's
+// reconcile context has no deadline, and a host can complete the handshake
+// and then never answer, which would hold that Machine's reconcile until
+// the operator restarts. Session setup and uploads do not watch the context,
+// so the deadline closes the client to unblock them.
+func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, hostConfigUpdateTimeout)
+	defer cancel()
+	defer func() {
+		if err != nil && ctx.Err() != nil {
+			err = fmt.Errorf("host config update gave up after %s: %w", hostConfigUpdateTimeout, err)
+		}
+	}()
+
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("parse ssh key: %w", err)
@@ -539,12 +667,25 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 	defer client.Close()
+	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
+	defer stop()
 
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
+	}
+	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
+		return hk.Observed(), err
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
+	}
+	// Before the kubelet reload, so the restarted kubelet reports the Tart it
+	// will drive. A no-op when the host already runs cfg.TartVersion.
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
+		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
@@ -583,6 +724,12 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
 	}
+	if err := installSoftwareUpdatePolicy(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh software update policy: %w", err)
+	}
+	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh setup assistant suppression: %w", err)
+	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
 	}
@@ -603,6 +750,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	// a tart-kubelet roll from landing at all.
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
+	}
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
 	return hk.Observed(), nil
 }
@@ -635,9 +785,11 @@ type PerHost struct {
 	ProviderID           string
 	Kubeconfig           string
 	TailscaleAuthKey     string
+	TailscaleState       []byte
 	VNCRelayHost         string
 	VMCachePNVLAN        uint32
 	KnownHostFingerprint string
+	ExpectedSerial       string
 	NodeLabels           map[string]string
 	GHActionsRunner      *GHActionsRunnerConfig
 	// DisableVMGC is a per-host role signal (builder hosts set it); the
@@ -646,6 +798,10 @@ type PerHost struct {
 	// SkipTailscaleInstall is transport-only: it gates whether
 	// installTailscale runs and changes no rendered output.
 	SkipTailscaleInstall bool
+	// TakeOver and RuntimeOwner belong to a handover and an owner, never to
+	// the fleet.
+	TakeOver     bool
+	RuntimeOwner string
 }
 
 // WithPerHost returns a copy of c with the per-host fields replaced by p.
@@ -660,13 +816,17 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.ProviderID = p.ProviderID
 	c.Kubeconfig = p.Kubeconfig
 	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.TailscaleState = p.TailscaleState
 	c.VNCRelayHost = p.VNCRelayHost
 	c.VMCachePNVLAN = p.VMCachePNVLAN
 	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.ExpectedSerial = p.ExpectedSerial
 	c.NodeLabels = p.NodeLabels
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC
 	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	c.TakeOver = p.TakeOver
+	c.RuntimeOwner = p.RuntimeOwner
 	return c
 }
 
@@ -690,6 +850,14 @@ func (c Config) WithPerHost(p PerHost) Config {
 // empty per-host substitution is well-formed; none slice or index a value
 // that must be non-empty.
 func HostConfigHash(cfg Config) string {
+	return sha256Hex([]byte(hostConfigMaterial(cfg)))
+}
+
+// hostConfigMaterial is what HostConfigHash digests. The digest lands in
+// Machine status, which the read-only tier can see, so this must hold no
+// secret: the per-host credentials are stripped below and nothing else
+// carries one.
+func hostConfigMaterial(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
 	// and the embedded binaries are kept. Stripping is an empty overlay
@@ -702,17 +870,17 @@ func HostConfigHash(cfg Config) string {
 	// (a) Rendered scripts, concatenated in a fixed order. A
 	// label prefixes each so two scripts can't alias into one
 	// another's bytes and hide a change.
+	// A malformed canonical CIDR can't render a script. Fold the inputs the
+	// renderer rejected instead, so the hash stays deterministic and
+	// distinct rather than panicking. The error's text is left out: the
+	// material is built from Config values only.
 	firewall, err := renderVMEgressFirewallScript(cfg)
 	if err != nil {
-		// A malformed canonical CIDR can't render a script. Fold the
-		// error text in instead so the hash stays deterministic and
-		// distinct rather than panicking — the operator already
-		// validates these inputs before they reach a host.
-		firewall = "ERROR:" + err.Error()
+		firewall = fmt.Sprintf("ERROR:%q", append([]string{cfg.VMKuraEgressCIDR, cfg.VMClusterDNSIP, cfg.VMCachePNCIDR}, cfg.VMCacheGatewayCIDRs...))
 	}
 	sshGuard, err := renderSSHIngressGuardScript(cfg)
 	if err != nil {
-		sshGuard = "ERROR:" + err.Error()
+		sshGuard = fmt.Sprintf("ERROR:%q", cfg.SSHIngressAllowCIDRs)
 	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
@@ -725,8 +893,13 @@ func HostConfigHash(cfg Config) string {
 		{"node-exporter", renderNodeExporterScript()},
 		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
+		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
+		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
+		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"tart-install", renderTartInstallScript(hostTartLayout, cfg.TartVersion)},
+		{"tart-prune", renderTartPruneScript(hostTartLayout)},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
 	} {
@@ -739,20 +912,16 @@ func HostConfigHash(cfg Config) string {
 	// (b) SHA of each embedded binary the drift loop actually re-pushes.
 	// The bytes themselves ride SSH stdin (not the scripts), so their
 	// drift is only visible to the hash through their content SHA.
-	//
-	// TartTarball is intentionally omitted: Tart is bootstrap-only (the
-	// hypervisor can't be swapped under running VMs, so UpdateTartKubelet
-	// never re-installs it). Hashing it would force a pointless re-push on
-	// a Tart bump that couldn't actually update Tart anyway — that bump
-	// rolls via Machine replacement, not config drift.
 	for _, bin := range []struct {
 		name  string
 		bytes []byte
 	}{
 		{"tart-kubelet", cfg.TartKubeletBinary},
+		{"tart-tarball", cfg.TartTarball},
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
 		{"log-shipper-binary", cfg.LogShipperBinary},
+		{"host-sensors-binary", cfg.HostSensorsBinary},
 	} {
 		b.WriteString(bin.name)
 		b.WriteByte('\x00')
@@ -762,7 +931,7 @@ func HostConfigHash(cfg Config) string {
 		b.WriteByte('\x00')
 	}
 
-	return sha256Hex([]byte(b.String()))
+	return b.String()
 }
 
 // SetHostname makes the macOS hostname match the CR name, so
@@ -1052,12 +1221,19 @@ func renderLaunchdPlist(cfg Config) string {
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CustomCacheURL != "" {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+		}
 		if cfg.CacheVolumeMasterCapGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
 		}
 		if cfg.CacheVolumeCASGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
 		}
+	}
+	imageMirrorArgs := ""
+	for _, mirror := range cfg.ImageMirrors {
+		imageMirrorArgs += fmt.Sprintf("\n    <string>--image-mirror=%s</string>", xmlEscape(mirror))
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
@@ -1081,7 +1257,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s%[14]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1095,7 +1271,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg, imageMirrorArgs)
 }
 
 func shellQuote(s string) string {
@@ -1162,6 +1338,18 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 	}
 }
 
+// sshPort is the port every dial targets.
+var sshPort = "22"
+
+// sshHandshakeTimeout bounds the SSH version exchange, key exchange and auth
+// after the TCP connect.
+var sshHandshakeTimeout = 30 * time.Second
+
+// hostConfigUpdateTimeout bounds one UpdateTartKubelet. A full update uploads
+// a few binaries and waits at most a couple of minutes on the host, so this
+// only ever cuts off a host that has stopped answering.
+var hostConfigUpdateTimeout = 15 * time.Minute
+
 func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
 	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
 }
@@ -1171,6 +1359,10 @@ func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, er
 // signer, e.g. SSH agent auth where the keys live in 1Password and
 // the agent socket signs on demand. Same host-key TOFU semantics as
 // Dial.
+//
+// ClientConfig.Timeout covers only the TCP connect. launchd owns a Mac mini's
+// :22 and accepts the connection before sshd runs, so a wedged host completes
+// TCP and never sends a banner; the handshake gets its own deadline.
 func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
@@ -1178,7 +1370,25 @@ func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Cl
 		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
-	return ssh.Dial("tcp", ip+":22", cfg)
+	addr := net.JoinHostPort(ip, sshPort)
+	conn, err := net.DialTimeout("tcp", addr, cfg.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Now().Add(sshHandshakeTimeout)); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
 }
 
 func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
@@ -1250,44 +1460,15 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 // macOS implements auto-login via:
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
-func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
-	// No password to XOR into /etc/kcpassword means we'd write a
-	// broken kcpassword (just the cipher key with no plaintext under
-	// it) and macOS would silently fail to auto-login the user. That
-	// path is hit on adopted pool hosts where Scaleway no longer
-	// surfaces the bootstrap password; the operator is expected to
-	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
-	// prep-script flow. Bail before doing damage.
-	if password == "" {
-		return nil
-	}
+//
+// autoLoginScript renders the auto-login setup. Split out of EnableAutoLogin
+// so its content is assertable without an SSH session: the sealed-marker
+// check inside it is a hardcoded constant that has to stay in step with
+// encodeKCPassword, and it must not reacquire a dependency on Xcode Command
+// Line Tools, which a rack host does not have.
+func autoLoginScript(user, password string) string {
 	encoded := encodeKCPassword(password)
-	// Stage the binary kcpassword via base64 to avoid TTY issues.
-	//
-	// Why we kick loginwindow at the end:
-	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
-	// macOS's loginwindow at boot does NOT honor the auto-login
-	// preference unless a display device is attached — so the system
-	// boots, the console stays at the root user, and no Aqua (GUI)
-	// session for the auto-login user comes up. Apple's
-	// Virtualization.framework refuses to start macOS guests in that
-	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
-	// which means tart-kubelet's `tart run` fails on every pod even
-	// after Tart and the kubelet are correctly installed.
-	//
-	// `launchctl kickstart -k system/com.apple.loginwindow` is the
-	// modern way to do this and handles both cases uniformly:
-	//   * loginwindow IS running: SIGTERM the existing instance and
-	//     respawn it.
-	//   * loginwindow is NOT running: just spawn it.
-	// `killall -HUP loginwindow` (the previous approach) exits 1 with
-	// "No matching processes were found" when loginwindow is missing,
-	// which is the state we land in if the host had loginwindow exit
-	// via SIGHUP earlier (launchd's policy is to not auto-respawn
-	// after SIGHUP for a console-bound daemon). kickstart talks to
-	// launchd's service registry directly so the missing-process case
-	// is a clean start, not an error.
-	script := fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -euo pipefail
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
@@ -1315,25 +1496,71 @@ done
 # session — Tart can't start guests, all runner pods hit
 # TartCreateFailed indefinitely.
 #
-# Read kcpassword as root and XOR-decode it; the first 8 bytes are
-# the signal. Python exit 1 here propagates via 'set -e' and fails
-# the bootstrap loudly, so the operator fixes the bootstrap-Secret-
-# vs-host password drift before the host ships.
-sudo /usr/bin/python3 - <<'CHECK'
-import sys
-key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
-with open('/etc/kcpassword', 'rb') as f:
-    enc = f.read()
-dec = bytes(b ^ key[i %% len(key)] for i, b in enumerate(enc))
-if dec.startswith(b'<sealed>'):
-    sys.stderr.write("kcpassword replaced by macOS with <sealed> marker — bootstrap-stored password does not match m1's actual password on this host\n")
-    sys.exit(1)
-CHECK
+# Compared as CIPHERTEXT rather than XOR-decoded, which is the same
+# test done with tools every macOS has. Apple's key is fixed and so is
+# the marker, so "<sealed>" always encodes to these 8 bytes; matching
+# them is equivalent to decoding and checking the prefix.
+#
+# This used to decode with /usr/bin/python3. That is a Command Line
+# Tools SHIM, not an interpreter: on a host without Xcode it exits
+# non-zero with "xcode-select: error: No developer tools were found",
+# which set -e turned into a bootstrap failure that named auto-login
+# and said nothing about the real cause. Rented images ship Xcode so
+# this never surfaced there; an MDM-provisioned rack host does not, and
+# it failed all 8 attempts on the BER1 prototype (2026-09-09). od is in
+# the base system and needs no developer tools.
+#
+# A match exits 1, which propagates via set -e and fails the bootstrap
+# loudly, so the operator fixes the password drift before the host
+# ships.
+if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "41fa3742bed9b9d4" ]; then
+  echo "kcpassword replaced by macOS with the <sealed> marker: the stored password does not match this host's actual password for '%[1]s'" >&2
+  exit 1
+fi
 
 if [ "$session_up" = "0" ]; then
-  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap restarts the host to apply auto-login"
 fi
 `, user, encoded)
+}
+
+func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	// No password to XOR into /etc/kcpassword means we'd write a
+	// broken kcpassword (just the cipher key with no plaintext under
+	// it) and macOS would silently fail to auto-login the user. That
+	// path is hit on adopted pool hosts where Scaleway no longer
+	// surfaces the bootstrap password; the operator is expected to
+	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
+	// prep-script flow. Bail before doing damage.
+	if password == "" {
+		return nil
+	}
+	// Stage the binary kcpassword via base64 to avoid TTY issues.
+	//
+	// Why we kick loginwindow at the end:
+	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
+	// macOS's loginwindow at boot does NOT honor the auto-login
+	// preference unless a display device is attached — so the system
+	// boots, the console stays at the root user, and no Aqua (GUI)
+	// session for the auto-login user comes up. Apple's
+	// Virtualization.framework refuses to start macOS guests in that
+	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
+	// which means tart-kubelet's `tart run` fails on every pod even
+	// after Tart and the kubelet are correctly installed.
+	//
+	// `launchctl kickstart -k system/com.apple.loginwindow` is the
+	// modern way to do this and handles both cases uniformly:
+	//   * loginwindow IS running: SIGTERM the existing instance and
+	//     respawn it.
+	//   * loginwindow is NOT running: just spawn it.
+	// `killall -HUP loginwindow` (the previous approach) exits 1 with
+	// "No matching processes were found" when loginwindow is missing,
+	// which is the state we land in if the host had loginwindow exit
+	// via SIGHUP earlier (launchd's policy is to not auto-respawn
+	// after SIGHUP for a console-bound daemon). kickstart talks to
+	// launchd's service registry directly so the missing-process case
+	// is a clean start, not an error.
+	script := autoLoginScript(user, password)
 	return RunCommand(ctx, client, script)
 }
 
@@ -1380,6 +1607,109 @@ sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout
 	return RunCommand(ctx, client, script)
 }
 
+func installSoftwareUpdatePolicy(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderSoftwareUpdatePolicyScript())
+}
+
+// renderSoftwareUpdatePolicyScript stops macOS from downloading or installing
+// OS updates, Background Security Improvements (SplatEnabled) and critical
+// updates on its own. Update checks and system data files (XProtect,
+// Gatekeeper) stay on. OS changes happen in operator-run waves.
+func renderSoftwareUpdatePolicyScript() string {
+	return `set -euo pipefail
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate SplatEnabled -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool false
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
+`
+}
+
+// setupAssistantSkipItems are the Setup Assistant panes the auto-login user
+// never sees. macOS ignores keys it does not know.
+var setupAssistantSkipItems = []string{
+	"Accessibility", "AppleID", "Appearance", "AppStore", "Biometric",
+	"Diagnostics", "FileVault", "iCloudDiagnostics", "iCloudStorage",
+	"Intelligence", "Location", "OSShowcase", "Privacy", "ScreenTime", "Siri",
+	"SoftwareUpdate", "TermsOfAddress", "TOS", "UnlockWithWatch",
+	"UpdateCompleted", "Welcome",
+}
+
+var setupAssistantSeenFlags = []string{
+	"DidSeeAccessibility", "DidSeeActivationLock", "DidSeeAppStore",
+	"DidSeeAppearanceSetup", "DidSeeApplePaySetup", "DidSeeCloudSetup",
+	"DidSeeLockdownMode", "DidSeePrivacy", "DidSeeScreenTime",
+	"DidSeeSiriSetup", "DidSeeSyncSetup", "DidSeeSyncSetup2",
+	"DidSeeTermsOfAddress", "DidSeeTouchIDSetup",
+	"DidSeeiCloudLoginForStorageServices",
+}
+
+var setupAssistantSeenProductVersions = []string{
+	"DidSeeNewFeaturesProductVersion", "LastSeenCloudProductVersion",
+	"LastSeenDiagnosticsProductVersion", "LastSeenIntelligenceProductVersion",
+	"LastSeenSiriProductVersion", "LastSeenSyncProductVersion",
+	"LastSeeniCloudStorageServicesProductVersion",
+}
+
+func installSetupAssistantSuppression(ctx context.Context, client *ssh.Client, cfg Config) error {
+	return RunCommand(ctx, client, renderSetupAssistantScript(cfg))
+}
+
+// renderSetupAssistantScript keeps Setup Assistant out of the auto-login
+// session (cfg.SSHUser, see EnableAutoLogin). The seen flags carry the running
+// OS version and lapse at the next OS update; SkipSetupItems does not. The
+// managed copies are plain files because ManagedClient, not cfprefsd, writes
+// /Library/Managed Preferences.
+func renderSetupAssistantScript(cfg Config) string {
+	var plist strings.Builder
+	plist.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>SkipSetupItems</key>
+  <array>
+`)
+	for _, item := range setupAssistantSkipItems {
+		fmt.Fprintf(&plist, "    <string>%s</string>\n", xmlEscape(item))
+	}
+	plist.WriteString("  </array>\n</dict>\n</plist>\n")
+
+	return fmt.Sprintf(`set -euo pipefail
+AUTOLOGIN_USER=%[1]s
+sudo mkdir -p "/Library/Managed Preferences/$AUTOLOGIN_USER"
+sudo chmod 755 "/Library/Managed Preferences" "/Library/Managed Preferences/$AUTOLOGIN_USER"
+for plist in "/Library/Managed Preferences/com.apple.SetupAssistant.managed.plist" "/Library/Managed Preferences/$AUTOLOGIN_USER/com.apple.SetupAssistant.managed.plist"; do
+  sudo tee "$plist" >/dev/null <<'SKIPITEMS'
+%[2]sSKIPITEMS
+  sudo chown root:wheel "$plist"
+  sudo chmod 644 "$plist"
+done
+sudo defaults write /Library/Preferences/com.apple.SetupAssistant.managed SkipSetupItems -array %[3]s
+sudo -u "$AUTOLOGIN_USER" defaults write com.apple.SetupAssistant.managed SkipSetupItems -array %[3]s
+
+PRODUCT_VERSION="$(sw_vers -productVersion)"
+BUILD_VERSION="$(sw_vers -buildVersion)"
+mark_seen() {
+  for key in %[4]s; do
+    "$@" "$key" -bool true
+  done
+  for key in %[5]s; do
+    "$@" "$key" -string "$PRODUCT_VERSION"
+  done
+  "$@" LastSeenBuddyBuildVersion -string "$BUILD_VERSION"
+}
+mark_seen sudo defaults write /Library/Preferences/com.apple.SetupAssistant
+mark_seen sudo -u "$AUTOLOGIN_USER" defaults write com.apple.SetupAssistant
+`,
+		shellQuote(cfg.SSHUser),
+		plist.String(),
+		strings.Join(setupAssistantSkipItems, " "),
+		strings.Join(setupAssistantSeenFlags, " "),
+		strings.Join(setupAssistantSeenProductVersions, " "),
+	)
+}
+
 // kcpasswordKey is Apple's well-known XOR cipher used to obfuscate
 // the auto-login password in /etc/kcpassword. Not security; just
 // unicode/locale safety.
@@ -1397,36 +1727,6 @@ func encodeKCPassword(password string) string {
 	}
 	// base64 for transport via SSH stdin.
 	return b64(src)
-}
-
-// installTart unpacks the operator-baked `tart.app` tarball into
-// /usr/local/lib/tart.app and writes a /usr/local/bin/tart wrapper
-// that execs the binary inside the bundle. Idempotent — overwrites on
-// every call, which is fine because the operator image pins the
-// version and a re-run on an already-bootstrapped host is rare.
-//
-// Why a wrapper script instead of a symlink: Tart's
-// Virtualization.framework entitlements are scoped to the .app
-// bundle's signature, so the executable has to be invoked through its
-// bundle path. The wrapper hides that path detail from callers
-// (tart-kubelet, operators SSHing in to debug) which all want a
-// stable `tart` on PATH.
-func installTart(ctx context.Context, client *ssh.Client, tarball []byte) error {
-	if len(tarball) == 0 {
-		return fmt.Errorf("tart tarball is empty")
-	}
-	script := `set -euo pipefail
-sudo mkdir -p /usr/local/lib /usr/local/bin
-sudo rm -rf /usr/local/lib/tart.app
-sudo tar -xzf - -C /usr/local/lib
-sudo tee /usr/local/bin/tart >/dev/null <<'EOF'
-#!/bin/sh
-exec /usr/local/lib/tart.app/Contents/MacOS/tart "$@"
-EOF
-sudo chmod 0755 /usr/local/bin/tart
-/usr/local/bin/tart --version
-`
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -1478,6 +1778,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // chart typo from producing an unparseable — or worse, creative —
 // ruleset).
 //
+// A rack host also passes cfg.VMCacheGatewayCIDRs on 443: the rack's cache
+// gateways on its own segment, translated by the VM NAT's default-route leg.
+//
 // The carve-out needs a second half: NAT. vmnet's built-in NAT only
 // translates VM egress toward the default-route interface, so
 // packets the host forwards into the tailscale utun keep their
@@ -1507,7 +1810,7 @@ func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config
 	if err := RunCommand(ctx, client, script); err != nil {
 		return err
 	}
-	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" && len(cfg.VMCacheGatewayCIDRs) == 0 {
 		return nil
 	}
 	return RunCommand(ctx, client, renderVMNATScript(cfg))
@@ -1554,14 +1857,30 @@ pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 			return "", fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
 		}
 		carveOut += fmt.Sprintf(`
-# Runner-cache Private Network carve-out: VMs dial per-account Kura
-# NodePorts published by the kura node pool on the Scaleway Private
-# Network (the endpoint dispatch hands out on node-port regions).
-# 30000:32767 is Kubernetes' default NodePort range. The kura-side
-# NetworkPolicies admit only this subnet, and Kura's app-layer JWT
-# tenant check is the per-account boundary.
-pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
+# Runner-cache Private Network carve-out: VMs dial the kura node pool on
+# the Scaleway Private Network. Dispatch hands out the regional gateway's
+# HTTPS hostname, which resolves to its PN address (443), and jobs handed
+# the former node-address URL dial per-account NodePorts (30000:32767,
+# Kubernetes' default range). The kura-side NetworkPolicies admit only
+# this subnet, and Kura's app-layer JWT tenant check is the per-account
+# boundary.
+pass out quick proto tcp from <vm_sources> to %s port { 443, 30000:32767 } keep state
 `, cfg.VMCachePNCIDR)
+	}
+
+	if len(cfg.VMCacheGatewayCIDRs) > 0 {
+		carveOut += `
+# Rack runner-cache gateway carve-out: VMs dial the rack's Kura gateways
+# over HTTPS on the segment the host sits on. Kura's app-layer JWT
+# tenant check is the per-account boundary.
+`
+		for _, cidr := range cfg.VMCacheGatewayCIDRs {
+			ip, _, err := net.ParseCIDR(cidr)
+			if err != nil || ip.To4() == nil {
+				return "", fmt.Errorf("vm cache gateway cidr %q is not an IPv4 CIDR: %v", cidr, err)
+			}
+			carveOut += fmt.Sprintf("pass out quick proto tcp from <vm_sources> to %s port 443 keep state\n", cidr)
+		}
 	}
 
 	script := `set -euo pipefail
@@ -1679,14 +1998,120 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	return script, nil
+	return script + renderVMGuardScript(strings.ReplaceAll(carveOut, "pass out quick", "pass in quick")), nil
+}
+
+// vmPrivateDestinations is everything a guest has no business reaching:
+// RFC 1918, the tailnet's CGNAT range, link-local (cloud metadata) and
+// multicast. The host's own addresses are blocked separately with `self`.
+const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/4"
+
+// renderVMGuardScript installs the VM egress filter where it can see a
+// guest's address. The `tuist.runners` rules above are all `out` and keyed on
+// the 192.168.64.x source, but the host NATs that source to its own address
+// on the default-route interface before pf filters the packet there (pf
+// filters translated packets), so on that path they match nothing and the
+// guest reaches the host's LAN, its own listeners and, on a rack, every other
+// machine on the segment. A guest's packet arrives `in` on the vmnet bridge
+// with its own source, before it is routed or translated, which is where the
+// SSH ingress guard already filters it (verified from a runner VM on
+// ber1-proto-01), so the same filter is applied there.
+//
+// The guests' DHCP and DNS are the host's, on the vmnet gateway, so those two
+// pass first. Every host address (static `self`, re-expanded by the re-arm) is
+// dropped next, ahead of the carve-outs, because a carve-out range can hold
+// one of them (the host's PN address is in the PN CIDR). The cluster's node
+// ports (Cilium VXLAN, cilium-health, kubelet) are dropped to every
+// destination: a rack guest leaves through the address the storage node uses
+// as its cluster InternalIP, so Cilium would take it for that node. Then the
+// carve-outs, the `tuist.runners` ones turned inbound, and a drop for
+// everything else private. Public destinations pass.
+//
+// vmnet also gives every guest a link-local and a ULA IPv6 address, outside
+// the IPv4 guest range, and the host's listeners bind both families. pf
+// cannot tell a guest's IPv6 source from the host's own, so the IPv6 rules key
+// on the vmnet bridges instead: bridge100 and up (bridge0 is Thunderbolt
+// Bridge). A rule on a bridge that does not exist yet loads and matches once it
+// appears. DNS stays open, because the guest's first resolver is the host's
+// link-local address. ICMPv6 is left alone for neighbour discovery.
+//
+// The host dials its guests too (tart-kubelet's metrics forwarder and VNC
+// relays), from its bridge address, which is inside the guest range. Those
+// connections match no pass rule on the way out, so they leave no state, and
+// the guest's reply would arrive inbound to a host address and hit the drop.
+// The outbound pass gives them that state. It only matches the host's own
+// packets: a guest's packet is filtered inbound on the bridge first.
+//
+// Same sub-anchor trick and re-arm as installSSHIngressGuard: a
+// `com.apple/` sub-anchor is live the moment it is loaded, and the re-arm
+// restores it within a minute of a reboot or a flush.
+func renderVMGuardScript(carveOutIn string) string {
+	return fmt.Sprintf(`
+sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
+# Tuist runner VM egress guard, on the vmnet bridge, before NAT.
+vm_bridges = "{ bridge100, bridge101, bridge102, bridge103 }"
+table <vm_sources> persist { 192.168.64.0/22 }
+table <vm_private_dst> persist { %s }
+pass out quick from <vm_sources> to <vm_sources> flags any keep state
+pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
+pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
+block drop in quick from <vm_sources> to self
+block drop in quick proto udp from <vm_sources> to any port 8472
+block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }
+%s
+block drop in quick from <vm_sources> to <vm_private_dst>
+pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }
+PFCONF
+
+sudo tee /usr/local/bin/tuist-pf-vmguard >/dev/null <<'VMGUARD'
+#!/bin/sh
+# Re-loads the VM egress guard into the com.apple/tuist.vmguard pf sub-anchor
+# (see renderVMGuardScript in macos-host-bootstrap). Every run re-expands
+# 'self' to the host's current addresses, so it reloads even when the file is
+# unchanged.
+set -u
+[ -f /etc/pf.anchors/tuist.vmguard ] || exit 0
+pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard
+VMGUARD
+sudo chmod 0755 /usr/local/bin/tuist-pf-vmguard
+sudo pfctl -E 2>/dev/null || true
+sudo /usr/local/bin/tuist-pf-vmguard
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-vmguard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-vmguard</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pf-vmguard.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo launchctl bootout system/dev.tuist.pfctl-vmguard 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+`, vmPrivateDestinations, carveOutIn)
 }
 
 // renderVMNATScript builds the VM->cache NAT helper + its launchd
 // supervisor. Only the configured carve-out CIDRs vary; the derived
 // interface is resolved at runtime on the host. Folded into the host
-// config hash. Callers gate this on at least one of VMKuraEgressCIDR /
-// VMCachePNCIDR being set, matching installVMEgressFirewall.
+// config hash. Callers gate this on at least one of VMKuraEgressCIDR,
+// VMCachePNCIDR or VMCacheGatewayCIDRs being set, matching
+// installVMEgressFirewall.
 func renderVMNATScript(cfg Config) string {
 	return fmt.Sprintf(`set -euo pipefail
 sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
@@ -1985,9 +2410,8 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 //     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
 //     job first so new binaries aren't held open).
 //  3. `tailscale up` with the per-fleet credential. Every Mac mini in
-//     the fleet uses the same one, and the key it mints is ephemeral
-//     so stale node records age out automatically: the right shape
-//     for a CAPI-managed fleet where machines come and go.
+//     the fleet uses the same one. The key it mints is ephemeral on a
+//     rented mini and standard on a rack mini; see renderTailscaleScript.
 //
 // No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
 // chart's per-env values gate the tailnet end-to-end, and a partial
@@ -2016,8 +2440,31 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	if err := RunCommandWithStdin(ctx, client, keyScript, strings.NewReader(cfg.TailscaleAuthKey)); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
+	if len(cfg.TailscaleState) > 0 {
+		if err := RunCommandWithStdin(ctx, client, renderTailscaleStateRestoreScript(tailscaleStatePath), bytes.NewReader(cfg.TailscaleState)); err != nil {
+			return fmt.Errorf("restore tailscale state: %w", err)
+		}
+	}
 
 	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// tailscaleStatePath is where the launchd job renderTailscaleScript writes
+// points tailscaled's --state.
+const tailscaleStatePath = "/var/lib/tailscale/tailscaled.state"
+
+// renderTailscaleStateRestoreScript writes the state from stdin only when the
+// host has none, so a host that is already on the tailnet keeps its own.
+func renderTailscaleStateRestoreScript(path string) string {
+	return fmt.Sprintf(`set -eu
+if sudo test -s %[1]s; then
+  cat >/dev/null
+  exit 0
+fi
+sudo mkdir -p "$(dirname %[1]s)"
+sudo tee %[1]s >/dev/null
+sudo chmod 0600 %[1]s
+`, shellQuote(path))
 }
 
 // validateTailscaleCredential rejects a config the host could only fail on.
@@ -2045,6 +2492,24 @@ func validateTailscaleCredential(cfg Config) error {
 // fleet-wide tags / accept-routes and the per-host hostname vary. Folded
 // into the host config hash; the canonical config leaves NodeName empty,
 // so the hostname arg drops out and the hash stays host-independent.
+//
+// Tailscale removes an ephemeral device 30 to 60 minutes after it was last
+// active, however long it had been online. Its docs also say an ephemeral
+// device present for four hours "will count as a standard tagged device",
+// but that sentence is about billing (it stops drawing on the ephemeral
+// minutes allowance), not about removal. Only an explicit ephemeral=false
+// makes a device standard, because a key minted from an OAuth client
+// defaults to ephemeral=true.
+//
+// A rented mini joins ephemeral. It is wiped when released, so its record
+// should go with it, and it keeps an allow-listed public :22 that a
+// re-bootstrap can re-join the tailnet over.
+//
+// A rack mini joins standard (TailscalePersistentDevice). It is hardware we
+// keep and can sit powered off for days, and it has no public address, so
+// an ephemeral registration strands it: on 2026-09-18 the BER1 prototype came
+// back from a few days unpowered with its device deleted. Retiring one for
+// good means deleting its device by hand.
 func renderTailscaleScript(cfg Config) string {
 	tagsArg := ""
 	if len(cfg.TailscaleTags) > 0 {
@@ -2064,6 +2529,14 @@ func renderTailscaleScript(cfg Config) string {
 		// are VM routes: vmnet NATs VM egress through the host's
 		// routing table.
 		acceptRoutesArg = " --accept-routes"
+	}
+	ephemeral := "true"
+	if cfg.TailscalePersistentDevice {
+		ephemeral = "false"
+	}
+	reauthArg := ""
+	if cfg.TakeOver {
+		reauthArg = " --force-reauth"
 	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
@@ -2186,22 +2659,16 @@ fi
 # false, and a host parked in manual-approval limbo fails this join
 # exactly the way an expired credential would.
 #
-# ephemeral=true carries its weight only for the first four hours of a
-# host's life: Tailscale converts a device that stays online that long
-# into a standard tagged one, so a mini that ran for weeks is no longer
-# ephemeral by the time CAPI replaces it and its record outlives the
-# machine either way. It is set to preserve the behaviour the fleet
-# already had, NOT because it cleans up after the fleet. Nothing deletes
-# a mini's tailnet device today (reconcileDelete revokes the kubelet
-# identity and stops there); a reaper is the tracked follow-up, and
-# ephemeral should go once one exists.
+# ephemeral is explicit because the minted key defaults to true. It is
+# true on rented minis and false on rack minis, whose device must
+# survive the host being powered off (see renderTailscaleScript).
 #
 # The prefix test leaves a legacy pre-auth key working untouched:
 # appending these parameters to one would corrupt it, and bootstrap
 # has to succeed against either credential while envs migrate.
 TS_AUTH_KEY="$(sudo cat /etc/tuist/tailscale-auth-key)"
 case "$TS_AUTH_KEY" in
-  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=true&preauthorized=true" ;;
+  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=%[4]s&preauthorized=true" ;;
 esac
 
 # Capture up's combined stdout+stderr so a failure surfaces
@@ -2213,7 +2680,7 @@ trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
     --authkey="$TS_AUTH_KEY" \
     --reset \
-    --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
+    --ssh=false%[1]s%[2]s%[3]s%[5]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
   sudo cat "$TS_UP_LOG" >&2
   exit 1
@@ -2232,7 +2699,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg, acceptRoutesArg)
+`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral, reauthArg)
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -2440,15 +2907,28 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // rather than a refusal. The `tuist.runners` anchor cannot compensate:
 // its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
 // anything appended to the end of /etc/pf.conf. So the VM sources get an
-// explicit pass, preceded by a block that still denies them the host's
-// and a sibling's :22.
+// explicit pass, preceded by blocks that still deny them a sibling's :22
+// and every one of the host's own addresses.
+//
+// The vmnet range alone is not enough for the host. A VM that dials the
+// host's en0, LAN or tailnet address is routed to the host itself and
+// delivered to the same *:22 listener, so the flood the guard exists to
+// stop could come from a customer workload. The host block uses pf's
+// static `self`, which pfctl expands to the host's addresses on every
+// load; the 60s re-arm reloads the file, so a new address is covered
+// within a minute. The dynamic `(self)` form looks like the better fit
+// and is not: xnu has no interface groups, so it resolves to the `ALL`
+// kif, whose table stays empty. It loads cleanly and matches nothing.
 //
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
 // carrying it. That also makes the guard self-correcting: if the
 // operator's egress address changes and the configured list goes stale,
 // the public dial is dropped, the drift loop falls back to the tailnet,
-// and that push rewrites the table with the new address.
+// and that push rewrites the table with the new address. It is not
+// durable: each push replaces the previous session's source, so a path
+// that has to keep working after the host loses its tailnet identity
+// must be in cfg.SSHIngressAllowCIDRs.
 //
 // The rules load into the `com.apple/tuist.sshguard` sub-anchor, the same
 // trick renderVMNATScript uses and for the same reason. A top-level
@@ -2495,23 +2975,35 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # path at once.
 #
 # pf is first-match-wins across 'quick' rules, so the pass lines
-# MUST stay above the block.
+# MUST stay above the block. They use 'flags any' so a session that
+# was already open when pf was enabled gets state instead of hitting
+# the block; the default 'flags S/SA' only admits a new SYN.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
+table <vm_ssh_private> persist { %s }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
-pass in quick on lo0 proto tcp to any port 22 keep state
-pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+pass in quick on lo0 proto tcp to any port 22 flags any keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 
 # A Tart VM's egress arrives inbound on the vmnet bridge before it is
 # routed and NAT'd out, so the catch-all block below also swallows every
 # SSH the customer workload makes. The guard protects the host's own
 # listener, not the workload's outbound reach: VMs keep :22 to the
-# internet, but not to the host or a sibling VM.
+# internet, but not to a sibling VM or to any of the host's addresses.
+# A VM that dials the host's LAN, public or tailnet address reaches the
+# same listener as one that dials the bridge. 'self' is expanded on
+# every load, and the re-arm reloads this file every minute, so a new
+# host address is covered within a minute. The dynamic '(self)' form
+# resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
-pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+# Nor to a private network: the VM egress guard drops those too, but the
+# pass below is quick, so whichever anchor pf evaluates first decides.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
 PFCONF
@@ -2523,7 +3015,9 @@ sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
 # anchor file is the source of truth, so this needs no SSH session and
 # re-converges after a reboot or an external ruleset flush. pfctl swaps
 # anchor contents atomically, so re-running is cheap and never leaves a
-# window with no rules.
+# window with no rules. Every run re-expands 'self' in the VM block to
+# the host's current addresses, so it must reload even when the file is
+# unchanged.
 set -u
 [ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
 pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard
@@ -2556,7 +3050,7 @@ sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo launchctl bootout system/dev.tuist.pfctl-sshguard 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
-`, allow), nil
+`, allow, vmPrivateDestinations), nil
 }
 
 // renderNodeExporterScript is the static SSH script that installs the
@@ -2651,8 +3145,11 @@ done
 }
 
 func renderNodeExporterScript() string {
+	// The textfile collector serves the readings the host sensors job writes
+	// (host_sensors.go). The directory is created here, by the reader, because
+	// a missing directory is a scrape error on a host without that job.
 	return `set -euo pipefail
-sudo mkdir -p /usr/local/bin
+sudo mkdir -p /usr/local/bin ` + hostSensorsDir + `
 sudo tee /usr/local/bin/node_exporter >/dev/null
 sudo chmod 0755 /usr/local/bin/node_exporter
 sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
@@ -2680,6 +3177,8 @@ exec /usr/local/bin/node_exporter \
   --collector.meminfo \
   --collector.netdev \
   --collector.os \
+  --collector.textfile \
+  --collector.textfile.directory=` + hostSensorsDir + ` \
   --collector.time \
   --collector.uname
 WRAPPER
@@ -2874,6 +3373,17 @@ func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
 // once and never mutated, so concurrent reconciles can share the same
 // backing slice safely.
 func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) error {
+	return runCommand(ctx, client, cmd, stdin, nil)
+}
+
+// RunCommandOutput is RunCommandWithStdin returning the command's stdout.
+func RunCommandOutput(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) (string, error) {
+	var stdout bytes.Buffer
+	err := runCommand(ctx, client, cmd, stdin, &stdout)
+	return stdout.String(), err
+}
+
+func runCommand(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader, stdout io.Writer) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -2882,6 +3392,9 @@ func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, st
 
 	if stdin != nil {
 		session.Stdin = stdin
+	}
+	if stdout != nil {
+		session.Stdout = stdout
 	}
 
 	var stderr bytes.Buffer
@@ -2910,4 +3423,20 @@ func b64(b []byte) string {
 func sha256Hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// ValidateImageMirror checks one ImageMirrors entry against the form
+// tart-kubelet's `--image-mirror` accepts, `<upstream>=http(s)://host[:port]`.
+// tart-kubelet refuses to start on a malformed flag, so the operator checks
+// before it pushes one to every rack host.
+func ValidateImageMirror(mirror string) error {
+	upstream, endpoint, ok := strings.Cut(mirror, "=")
+	if !ok || upstream == "" || strings.ContainsAny(upstream, "/=") {
+		return fmt.Errorf("image mirror %q is not <upstream>=<endpoint>", mirror)
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.Trim(u.Path, "/") != "" || u.RawQuery != "" {
+		return fmt.Errorf("image mirror %q: the endpoint must be http(s)://host[:port]", mirror)
+	}
+	return nil
 }

@@ -141,12 +141,28 @@ func (t Tree) PruneClasses(ctx context.Context, classes map[uint16]TenantClass) 
 	return nil
 }
 
-// ClassStats is one tenant class's kernel counters, for the metrics endpoint.
+// ClassStats is one tenant class's kernel counters and applied rates, for the
+// metrics endpoint.
+//
+// LendedPackets and BorrowedPackets are HTB's own accounting of where a
+// class's traffic came from: a packet a leaf sends within its own rate counts
+// as lended, one it can only send by taking tokens from the root class counts
+// as borrowed. Their ratio is the tenant's demand against its floor, which no
+// byte counter carries.
+//
+// RateBps and CeilBps are read back from the kernel rather than taken from the
+// desired class, so they describe what HTB is enforcing — clamps and hand
+// edits included — and land in the same unit as SentBytes, which is what the
+// demand-against-floor query compares.
 type ClassStats struct {
-	Minor        uint16
-	SentBytes    uint64
-	Drops        uint64
-	BacklogBytes uint64
+	Minor           uint16
+	SentBytes       uint64
+	Drops           uint64
+	BacklogBytes    uint64
+	LendedPackets   uint64
+	BorrowedPackets uint64
+	RateBps         uint64
+	CeilBps         uint64
 }
 
 // Stats reads the per-class counters and the root qdisc's direct-packet
@@ -163,10 +179,14 @@ func (t Tree) Stats(ctx context.Context) ([]ClassStats, uint64, error) {
 			continue
 		}
 		stats = append(stats, ClassStats{
-			Minor:        minor,
-			SentBytes:    class.Stats.Bytes,
-			Drops:        class.Stats.Drops,
-			BacklogBytes: class.Stats.Backlog,
+			Minor:           minor,
+			SentBytes:       class.Stats.Bytes,
+			Drops:           class.Stats.Drops,
+			BacklogBytes:    class.Stats.Backlog,
+			LendedPackets:   class.Stats.Lended,
+			BorrowedPackets: class.Stats.Borrowed,
+			RateBps:         class.Rate,
+			CeilBps:         class.Ceil,
 		})
 	}
 	direct, err := t.directPackets(ctx)
@@ -176,13 +196,20 @@ func (t Tree) Stats(ctx context.Context) ([]ClassStats, uint64, error) {
 	return stats, direct, nil
 }
 
+// tcClass is the shape of one `tc -s -j class show` entry. HTB's xstats
+// (lended/borrowed/giants/tokens) are printed into the same JSON object as the
+// generic stats, not beside it — tc_class.c opens "stats" around both.
 type tcClass struct {
 	Class  string `json:"class"`
 	Handle string `json:"handle"`
+	Rate   uint64 `json:"rate"`
+	Ceil   uint64 `json:"ceil"`
 	Stats  struct {
-		Bytes   uint64 `json:"bytes"`
-		Drops   uint64 `json:"drops"`
-		Backlog uint64 `json:"backlog"`
+		Bytes    uint64 `json:"bytes"`
+		Drops    uint64 `json:"drops"`
+		Backlog  uint64 `json:"backlog"`
+		Lended   uint64 `json:"lended"`
+		Borrowed uint64 `json:"borrowed"`
 	} `json:"stats"`
 }
 

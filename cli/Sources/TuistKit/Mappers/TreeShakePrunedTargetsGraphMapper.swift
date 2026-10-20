@@ -31,6 +31,15 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
         var treeShakenProjects: [AbsolutePath: Project] = [:]
         var treeShakenDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
+        // Schemes of projects that lost every target, but that still reference targets kept in
+        // other projects. An aggregate test scheme declared on the app project is the common case:
+        // a cache hit on the app's own test target empties that project, and dropping the scheme
+        // with it would leave the non-cached test targets of every other project unrunnable.
+        // The originating path is carried so that two removed projects declaring a same-named
+        // scheme resolve to the same winner on every run, rather than to whichever one
+        // `graph.projects` happened to yield first.
+        var reparentedSchemes: [(projectPath: AbsolutePath, scheme: Scheme)] = []
+        var removedProjectsDeclaringPackages: [AbsolutePath: Project] = [:]
 
         for (projectPath, project) in graph.projects {
             let (treeShakenTargets, projecttreeShakenDependencies) = treeShake(
@@ -40,14 +49,42 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 graph: graph,
                 sourceTargets: sourceTargets
             )
-            if !treeShakenTargets.isEmpty {
-                let schemes = treeShake(
+            if treeShakenTargets.isEmpty {
+                // Xcode resolves the `container:` paths of a test plan relative to the scheme's container, and
+                // Tuist only rewrites the test plans it generates. A scheme whose test plans are all
+                // hand-written therefore stays on its project, which is kept without targets to host it.
+                let (hostedSchemes, movedSchemes) = project.schemes.reduce(into: ([Scheme](), [Scheme]())) {
+                    if usesOnlyReferencedTestPlans($1) { $0.0.append($1) } else { $0.1.append($1) }
+                }
+                let keptHostedSchemes = treeShake(
+                    schemes: hostedSchemes,
+                    sourceTargets: sourceTargets,
+                    prunedTargets: prunedTargets,
+                    projectPath: projectPath
+                )
+                let keptMovedSchemes = treeShake(
+                    schemes: movedSchemes,
+                    sourceTargets: sourceTargets,
+                    prunedTargets: prunedTargets,
+                    projectPath: nil
+                )
+                reparentedSchemes.append(contentsOf: keptMovedSchemes.map { (projectPath, $0) })
+                if !keptHostedSchemes.isEmpty {
+                    var project = project
+                    project.targets = [:]
+                    project.schemes = keptHostedSchemes
+                    treeShakenProjects[projectPath] = project
+                } else if !project.packages.isEmpty {
+                    removedProjectsDeclaringPackages[projectPath] = project
+                }
+            } else {
+                var project = project
+                project.schemes = treeShake(
                     schemes: project.schemes,
                     sourceTargets: sourceTargets,
-                    prunedTargets: prunedTargets
+                    prunedTargets: prunedTargets,
+                    projectPath: projectPath
                 )
-                var project = project
-                project.schemes = schemes
                 project.targets = Dictionary(
                     uniqueKeysWithValues: treeShakenTargets.map { ($0.name, $0) }
                 )
@@ -58,11 +95,26 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             }
         }
 
+        // A cached binary that replaced every target of a project still uses the package products those targets
+        // depended on. The project stays, without targets, so that the workspace keeps resolving its packages.
+        let projectsDeclaringReachablePackageProducts = removedProjectsDeclaringPackages.isEmpty
+            ? []
+            : projectsDeclaringPackageProducts(reachableFrom: sourceTargets, dependencies: treeShakenDependencies)
+        for projectPath in projectsDeclaringReachablePackageProducts {
+            guard var project = removedProjectsDeclaringPackages[projectPath] else { continue }
+            project.targets = [:]
+            project.schemes = []
+            treeShakenProjects[projectPath] = project
+        }
+
         let workspace = treeShake(
             workspace: graph.workspace,
             projects: Array(treeShakenProjects.values),
             sourceTargets: sourceTargets,
-            prunedTargets: prunedTargets
+            prunedTargets: prunedTargets,
+            reparentedSchemes: reparentedSchemes
+                .sorted { ($0.scheme.name, $0.projectPath.pathString) < ($1.scheme.name, $1.projectPath.pathString) }
+                .map(\.scheme)
         )
 
         var graph = graph
@@ -72,19 +124,53 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
+    private func usesOnlyReferencedTestPlans(_ scheme: Scheme) -> Bool {
+        guard let testPlans = scheme.testAction?.testPlans, !testPlans.isEmpty else { return false }
+        return testPlans.allSatisfy { $0.kind == .referenced }
+    }
+
+    /// The paths of the projects whose targets declared the package products that the kept targets reach.
+    private func projectsDeclaringPackageProducts(
+        reachableFrom sourceTargets: Set<TargetReference>,
+        dependencies: [GraphDependency: Set<GraphDependency>]
+    ) -> Set<AbsolutePath> {
+        var stack = sourceTargets.map { GraphDependency.target(name: $0.name, path: $0.projectPath) }
+        var visited = Set<GraphDependency>()
+        var projectPaths = Set<AbsolutePath>()
+        while let dependency = stack.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+            if case let .packageProduct(projectPath, _, _) = dependency {
+                projectPaths.insert(projectPath)
+            }
+            stack.append(contentsOf: dependencies[dependency, default: []])
+        }
+        return projectPaths
+    }
+
     fileprivate func treeShake(
         workspace: Workspace,
         projects: [Project],
         sourceTargets: Set<TargetReference>,
-        prunedTargets: Set<TargetReference>
+        prunedTargets: Set<TargetReference>,
+        reparentedSchemes: [Scheme]
     ) -> Workspace {
         let projectPaths = Set(projects.map(\.path))
         let projects = workspace.projects.filter { projectPaths.contains($0) }
-        let schemes = treeShake(
+        var schemes = treeShake(
             schemes: workspace.schemes,
             sourceTargets: sourceTargets,
-            prunedTargets: prunedTargets
+            prunedTargets: prunedTargets,
+            projectPath: nil
         )
+        // A workspace can only hold one scheme per name, so a reparented scheme yields to a
+        // workspace scheme that already owns its name, and to the reparented scheme that sorts
+        // first. `reparentedSchemes` arrives ordered by name and originating project path, which
+        // is what makes the surviving scheme the same on every run.
+        var schemeNames = Set(schemes.map(\.name))
+        for scheme in reparentedSchemes where !schemeNames.contains(scheme.name) {
+            schemes.append(scheme)
+            schemeNames.insert(scheme.name)
+        }
         var workspace = workspace
         workspace.schemes = schemes
         workspace.projects = projects
@@ -165,17 +251,30 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return (targets: treeShakenTargets, dependencies: treeShakenDependencies)
     }
 
+    /// `projectPath` is the path of the project that will host the schemes, or `nil` when the workspace does.
     fileprivate func treeShake(
         schemes: [Scheme],
         sourceTargets: Set<TargetReference>,
-        prunedTargets: Set<TargetReference>
+        prunedTargets: Set<TargetReference>,
+        projectPath: AbsolutePath?
     ) -> [Scheme] {
-        schemes.compactMap { scheme -> Scheme? in
+        // A project scheme can only reference targets of its own project, so a pre/post-action target
+        // that gets pruned can only be replaced by a target of that project.
+        let isReferenceableFromScheme: (TargetReference) -> Bool = { projectPath == nil || $0.projectPath == projectPath }
+        return schemes.compactMap { scheme -> Scheme? in
             var scheme = scheme
 
             if var buildAction = scheme.buildAction {
                 buildAction.targets = buildAction.targets.filter(sourceTargets.contains)
-                let buildFallback = buildAction.targets.first
+                let survivingBuildTargets = Set(buildAction.targets)
+                let buildFor = buildAction.buildFor.reduce(
+                    into: [TargetReference: Set<BuildAction.BuildFor>]()
+                ) { result, entry in
+                    guard survivingBuildTargets.contains(entry.key) else { return }
+                    result[entry.key] = entry.value
+                }
+                buildAction.buildFor = buildFor
+                let buildFallback = buildAction.targets.first(where: isReferenceableFromScheme)
                 buildAction.preActions = buildAction.preActions.map {
                     rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: buildFallback)
                 }
@@ -198,12 +297,9 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 // Fall back to a surviving testable in the test action; if there's only a
                 // surviving test plan, use its first surviving testable; otherwise fall back
                 // to the build action's first surviving buildable.
-                // Fall back to a surviving testable in the test action; if there's only a
-                // surviving test plan, use its first surviving testable; otherwise fall back
-                // to the build action's first surviving buildable.
-                let testFallback = testAction.targets.first?.target
-                    ?? testAction.testPlans?.lazy.compactMap(\.testTargets.first).first?.target
-                    ?? scheme.buildAction?.targets.first
+                let testFallback = testAction.targets.lazy.map(\.target).first(where: isReferenceableFromScheme)
+                    ?? testAction.testPlans?.lazy.flatMap(\.testTargets).map(\.target).first(where: isReferenceableFromScheme)
+                    ?? scheme.buildAction?.targets.first(where: isReferenceableFromScheme)
                 testAction.preActions = testAction.preActions.map {
                     rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: testFallback)
                 }

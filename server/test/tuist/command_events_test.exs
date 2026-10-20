@@ -4,6 +4,7 @@ defmodule Tuist.CommandEventsTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -79,7 +80,7 @@ defmodule Tuist.CommandEventsTest do
         :telemetry_test.attach_event_handlers(self(), [Tuist.Telemetry.event_name_cache()])
 
       # When
-      command_event =
+      {:ok, command_event} =
         CommandEvents.create_command_event(%{
           name: "generate",
           subcommand: "",
@@ -123,6 +124,42 @@ defmodule Tuist.CommandEventsTest do
 
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
     end
+
+    test "returns not found without storing the event when the project no longer exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      Repo.delete!(project)
+
+      # When
+      got =
+        with_flushed_ingestion_buffers(fn ->
+          CommandEvents.create_command_event(%{
+            name: "generate",
+            subcommand: "",
+            command_arguments: [],
+            duration: 100,
+            tuist_version: "4.1.0",
+            swift_version: "5.2",
+            macos_version: "10.15",
+            project_id: project.id,
+            cacheable_targets: [],
+            local_cache_target_hits: [],
+            remote_cache_target_hits: [],
+            test_targets: [],
+            local_test_target_hits: [],
+            remote_test_target_hits: [],
+            is_ci: false,
+            client_id: "client-id",
+            status: :success,
+            ran_at: ~U[2024-03-04 01:00:00Z]
+          })
+        end)
+
+      # Then
+      assert got == {:error, :not_found}
+
+      assert ClickHouseRepo.aggregate(from(e in Event, where: e.project_id == ^project.id), :count) == 0
+    end
   end
 
   describe "get_command_event_by_id/1" do
@@ -141,6 +178,25 @@ defmodule Tuist.CommandEventsTest do
       assert event.id == command_event.id
       assert event.name == command_event.name
       assert event.user_id == command_event.user_id
+    end
+
+    test "preloads the verified actor independently of legacy publisher attribution" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          actor_account_id: user.account.id,
+          claimed_actor_id: "workstation",
+          submission_auth: "token"
+        )
+
+      assert {:ok, reloaded} = CommandEvents.get_command_event_by_id(event.id)
+      assert reloaded.actor_account.id == user.account.id
+
+      assert %{source: :verified, verified_account_handle: name, claimed_actor_id: "workstation"} =
+               Tuist.ReportActor.actor(reloaded)
+
+      assert name == user.account.name
     end
 
     test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
@@ -2083,6 +2139,25 @@ defmodule Tuist.CommandEventsTest do
       result = CommandEvents.get_project_last_interaction_data([project.id])
 
       assert result == %{}
+    end
+
+    test "looks up more projects than fit in one ClickHouse HTTP request" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -1, :day)
+        )
+
+      project_ids = Enum.to_list(-20_000..-1//1) ++ [project.id]
+
+      # When
+      result = CommandEvents.get_project_last_interaction_data(project_ids)
+
+      # Then
+      assert result == %{project.id => event.ran_at}
     end
   end
 

@@ -36,6 +36,10 @@ pub enum Access {
     /// exhausted its free tier. Ordered above `Refused` so the introspection
     /// floor still only ever rises, and below `Read` so it grants nothing.
     PaymentRequired,
+    /// Blocked like `PaymentRequired`, because the account lost its paid plan
+    /// to a subscription payment Stripe gave up on. Kept apart so the refusal
+    /// tells the caller to settle the payment rather than to upgrade.
+    PaymentFailed,
     Read,
     ReadWrite,
 }
@@ -48,6 +52,12 @@ impl Access {
             target::Action::Write => Self::ReadWrite,
         }
     }
+
+    /// Whether this level refuses for billing rather than for access, which
+    /// ends authorization instead of sending it on to another route.
+    pub fn is_payment_refusal(self) -> bool {
+        matches!(self, Self::PaymentRequired | Self::PaymentFailed)
+    }
 }
 
 /// What a request is asking for, as the transports describe it. Both HTTP and
@@ -55,20 +65,15 @@ impl Access {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestContext {
     pub transport: String,
-    pub route: String,
     pub method: String,
     pub operation: String,
     pub server_tenant_id: String,
     pub tenant_id: Option<String>,
     pub namespace_id: Option<String>,
-    pub producer: Option<String>,
-    pub artifact_key: Option<String>,
-    pub artifact_hash: Option<String>,
+    #[serde(default)]
+    pub authorization: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    #[serde(default)]
-    pub query: BTreeMap<String, String>,
-    pub status_code: Option<u16>,
 }
 
 #[derive(Clone, Debug)]

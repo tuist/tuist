@@ -52,6 +52,78 @@ spec:
                 - region
                 - image
               properties:
+                plannedHandover:
+                  type: object
+                  required: [id, podName, podUID, incarnation]
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    incarnation:
+                      type: string
+                      minLength: 1
+                servingMode:
+                  type: string
+                  enum: [ColocatedLegacy, PositiveFenceV1]
+                replicaRecovery:
+                  type: object
+                  required: [id, podName, podUID, pvcUID, pvUID, hostName, fenceEvidence]
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    pvcUID:
+                      type: string
+                      minLength: 1
+                    pvUID:
+                      type: string
+                      minLength: 1
+                    hostName:
+                      type: string
+                      minLength: 1
+                    fenceEvidence:
+                      type: string
+                      minLength: 1
+                primaryPromotion:
+                  type: object
+                  required: [previousEpoch, previousPodUID, previousIncarnation, previousHost, fenceEvidence, podName, podUID, incarnation]
+                  properties:
+                    previousEpoch:
+                      type: integer
+                      minimum: 1
+                    previousPodUID:
+                      type: string
+                      minLength: 1
+                    previousIncarnation:
+                      type: string
+                      minLength: 1
+                    previousHost:
+                      type: string
+                      minLength: 1
+                    fenceEvidence:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    incarnation:
+                      type: string
+                      minLength: 1
                 accountHandle:
                   type: string
                   minLength: 1
@@ -76,11 +148,30 @@ spec:
                   type: integer
                   format: int32
                   minimum: 1
+                privateHost:
+                  type: string
+                  maxLength: 253
+                # Every serving managed region renders this account hostname;
+                # advertising is a separate, readiness-gated DNS decision.
+                stableHost:
+                  type: string
+                  pattern: '^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.cache\.tuist\.dev$'
+                  maxLength: 79
+                stableAdvertise:
+                  type: boolean
+                stableAWSRegion:
+                  type: string
+                clientHostAliases:
+                  description: Retained client hostnames for account renames; DNS, ingress and TLS only.
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 253
+                    pattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
                 publicHost:
                   type: string
                   maxLength: 253
-                # Deprecated: ignored. gRPC co-hosts on publicHost.
-                # Retained for backward compatibility. See tuist/tuist#11390.
+                # Deprecated compatibility field: gRPC shares publicHost.
                 grpcPublicHost:
                   type: string
                   maxLength: 253
@@ -93,10 +184,8 @@ spec:
                 # meshPeerHostNetwork.
                 publicHostNetwork:
                   type: boolean
-                # Private marks an instance with no public endpoint:
-                # the controller skips the Ingress/external-dns surface
-                # and the in-cluster Service is the only access path
-                # (runner-cache nodes).
+                # PrivateHost opts private instances into the shared gateway,
+                # restricted to clientCIDRs, with DNS targeting the node PN IP.
                 private:
                   type: boolean
                 # NodePort data plane for runner fleets that share a
@@ -139,6 +228,18 @@ spec:
                 memoryCeilingMib:
                   type: integer
                   format: int32
+                # limits.cpu. requests.cpu has no field here: the controller
+                # observes it per instance. Zero sets no CPU limit.
+                cpuCeilingMilli:
+                  type: integer
+                  format: int32
+                  # The observed request is clamped down to this, so a ceiling
+                  # under the smallest reservation the controller will ever ask
+                  # for (50m) would drag the request below its own floor. A
+                  # quota that tight also stalls the container on an idle box.
+                  x-kubernetes-validations:
+                    - rule: "self == 0 || self >= 50"
+                      message: "cpuCeilingMilli must be 0 (no CPU limit) or at least 50, the smallest reservation the controller will request"
                 # Ceilings oversubscribe the box. When true the pod also
                 # requests its ceiling as the tuist.dev/memory-ceiling-mib
                 # extended resource so the scheduler bounds that
@@ -184,6 +285,19 @@ spec:
                 # provider). Only used when meshPeerHostNetwork is true.
                 meshPeerFailoverIp:
                   type: string
+                # Pods run on nodes whose pod network the cluster cannot route
+                # to (rack nodes): they resolve through these nameservers
+                # instead of cluster DNS, and the controller reads their status
+                # through the API server's pod port-forward.
+                nodeLocalNetwork:
+                  type: object
+                  required: [nameservers]
+                  properties:
+                    nameservers:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: string
                 storageClassName:
                   type: string
                 storageSize:
@@ -205,8 +319,101 @@ spec:
             status:
               type: object
               properties:
+                replicaRecovery:
+                  type: object
+                  properties:
+                    request:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                        podName:
+                          type: string
+                          minLength: 1
+                        podUID:
+                          type: string
+                          minLength: 1
+                        pvcUID:
+                          type: string
+                          minLength: 1
+                        pvUID:
+                          type: string
+                          minLength: 1
+                        hostName:
+                          type: string
+                          minLength: 1
+                        fenceEvidence:
+                          type: string
+                          minLength: 1
+                    phase:
+                      type: string
+                      minLength: 1
+                    sourcePod:
+                      type: string
+                      minLength: 1
+                    sourceUID:
+                      type: string
+                      minLength: 1
+                    targetPodUID:
+                      type: string
+                    sourceIncarnation:
+                      type: string
+                      minLength: 1
+                    pvcName:
+                      type: string
+                      minLength: 1
+                    pvName:
+                      type: string
+                      minLength: 1
+                    startedAt:
+                      type: string
+                      minLength: 1
+                    verifiedAt:
+                      type: string
+                      minLength: 1
+                    message:
+                      type: string
+                      minLength: 1
+                stableEndpoint:
+                  type: object
+                  required: [host, setIdentifier, awsRegion, ready, observedGeneration]
+                  properties:
+                    host:
+                      type: string
+                    setIdentifier:
+                      type: string
+                    awsRegion:
+                      type: string
+                    target:
+                      type: string
+                    healthCheckID:
+                      type: string
+                    ready:
+                      type: boolean
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                    lastCheckedAt:
+                      type: string
+                      format: date-time
+                    withdrawnAt:
+                      type: string
+                      format: date-time
                 phase:
                   type: string
+                endpointLastCheckedAt:
+                  type: string
+                  format: date-time
+                endpointReason:
+                  type: string
+                endpointMessage:
+                  type: string
+                privateURL:
+                  type: string
+                endpointObservedGeneration:
+                  type: integer
+                  format: int64
                 publicURL:
                   type: string
                 grpcPublicURL:
@@ -226,6 +433,38 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                cpuAutosize:
+                  type: object
+                  properties:
+                    samplesMilli:
+                      type: array
+                      maxItems: 10
+                      items:
+                        type: integer
+                        format: int32
+                    sampledAt:
+                      type: string
+                      format: date-time
+                    requestMilli:
+                      type: integer
+                      format: int32
+                    peakMilli:
+                      type: integer
+                      format: int32
+                    bucketStartedAt:
+                      type: string
+                      format: date-time
+                    bucketPeaksMilli:
+                      type: array
+                      items:
+                        type: integer
+                        format: int32
+                    scheduleCapMilli:
+                      type: integer
+                      format: int32
+                    scheduleCapSetAt:
+                      type: string
+                      format: date-time
                 rolloutHealth:
                   type: object
                   properties:
@@ -241,9 +480,6 @@ spec:
                     backfillDegraded:
                       type: boolean
                     backfillBudgetExhaustedPeers:
-                      type: integer
-                      format: int64
-                    outboxMessages:
                       type: integer
                       format: int64
                     fdTimeoutCount:
@@ -264,3 +500,16 @@ spec:
                     sampledAt:
                       type: string
                       format: date-time
+                peerRoles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      nodeURL:
+                        type: string
+                      gateway:
+                        type: boolean
+                      primary:
+                        type: boolean
+                      node:
+                        type: string

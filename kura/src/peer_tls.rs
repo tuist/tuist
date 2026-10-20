@@ -33,7 +33,6 @@ struct PeerIdentity {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PeerClientTimeouts {
     Download,
-    Upload,
 }
 
 /// Builds outbound peer HTTP clients with the current peer mTLS identity. The
@@ -43,17 +42,22 @@ enum PeerClientTimeouts {
 #[derive(Clone)]
 pub struct PeerClientFactory {
     identity: Arc<ArcSwapOption<PeerIdentity>>,
+    topology_routing: bool,
 }
 
 impl PeerClientFactory {
     pub fn plain() -> Self {
         Self {
             identity: Arc::new(ArcSwapOption::const_empty()),
+            topology_routing: false,
         }
     }
 
     pub async fn from_config(config: &Config) -> Result<Self, String> {
-        let factory = Self::plain();
+        let factory = Self {
+            topology_routing: config.peer_topology.is_some(),
+            ..Self::plain()
+        };
         if config.peer_tls.is_some() {
             factory.reload_from_config(config).await?;
         }
@@ -105,21 +109,6 @@ impl PeerClientFactory {
             .map_err(|error| format!("failed to build peer HTTP client: {error}"))
     }
 
-    /// A client for streaming request BODIES to a peer (outbox artifact
-    /// replication). It carries no `read_timeout`: while a request body
-    /// uploads, the response read side is silent by design — the receiver
-    /// sends nothing until the whole body has been consumed — so the
-    /// download client's 30s read timeout acts as a hard ceiling on total
-    /// upload time and permanently fails any artifact that streams longer
-    /// (observed in production as an outbox message retrying for hours).
-    /// Stall protection is the caller's byte-progress watchdog, which keys
-    /// on the upload actually moving instead of on response silence.
-    pub fn build_upload(&self) -> Result<Client, String> {
-        self.builder(PeerClientTimeouts::Upload)?
-            .build()
-            .map_err(|error| format!("failed to build peer upload HTTP client: {error}"))
-    }
-
     pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
         self.builder(PeerClientTimeouts::Download)?
             .resolve_to_addrs(host, &[address])
@@ -129,6 +118,11 @@ impl PeerClientFactory {
 
     fn builder(&self, timeouts: PeerClientTimeouts) -> Result<reqwest::ClientBuilder, String> {
         let mut builder = Client::builder().connect_timeout(Duration::from_secs(5));
+        if self.topology_routing {
+            builder = builder
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy();
+        }
         if timeouts == PeerClientTimeouts::Download {
             // Idle/read timeout, NOT a total request timeout. A backfill
             // artifact streams its whole body over this client; under
@@ -147,7 +141,7 @@ impl PeerClientFactory {
             let ca = Certificate::from_pem(&identity.ca_pem)
                 .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
 
-            builder = builder.identity(id).add_root_certificate(ca);
+            builder = builder.identity(id).tls_certs_only([ca]);
         }
 
         Ok(builder)
@@ -364,29 +358,6 @@ mod tests {
         path
     }
 
-    // A read timeout on the upload client is a hard ceiling on total upload
-    // time, because the response side stays silent until the receiver has
-    // consumed the whole body: it strands every artifact that streams for
-    // longer than the timeout, permanently. Proving that functionally would
-    // cost a >30s transfer per run, so this asserts the property directly.
-    // reqwest's Debug prints `read_timeout` only when one is configured.
-    #[test]
-    fn upload_client_has_no_read_timeout_and_download_client_keeps_one() {
-        let factory = PeerClientFactory::plain();
-
-        let upload = format!("{:?}", factory.build_upload().expect("build upload client"));
-        assert!(
-            !upload.contains("read_timeout"),
-            "the upload client must carry no read timeout; got {upload}"
-        );
-
-        let download = format!("{:?}", factory.build().expect("build download client"));
-        assert!(
-            download.contains("read_timeout"),
-            "the download client's read timeout is load-bearing for backfill; got {download}"
-        );
-    }
-
     // End-to-end proof that the internal mTLS listener surfaces the verified
     // client certificate: a request over the acceptor carries the leaf cert's
     // fingerprint identity as a request auth, and two different client
@@ -490,6 +461,59 @@ mod tests {
             peer_identity_from_der(client_b_cert.der()).0.as_ref()
         );
         assert_ne!(identity_a, identity_b);
+
+        let private_url = format!("https://localhost:{}", addr.port());
+        let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
+            provider: "ovh".into(),
+            private_network: Some("verified-vrack".into()),
+            private_url: Some(private_url.clone()),
+        };
+        let ctx = crate::test_support::test_context(|config| {
+            config.peer_topology = Some(topology.clone());
+            config.peer_tls = Some(PeerTlsConfig {
+                ca_cert_path: peer_tls.ca_cert_path.clone(),
+                cert_path: write_pem(dir.path(), "client.crt", &client_a_cert.pem()),
+                key_path: write_pem(dir.path(), "client.key", &client_a_key.serialize_pem()),
+            });
+        })
+        .await;
+        let factory = PeerClientFactory::from_config(&ctx.state.config)
+            .await
+            .unwrap();
+        ctx.state.client.store(Arc::new(factory.build().unwrap()));
+        for (provider, canonical) in [
+            ("ovh", "https://public.invalid:7443".to_owned()),
+            ("vultr", private_url),
+        ] {
+            let mut remote = topology.clone();
+            remote.provider = provider.into();
+            ctx.state
+                .apply_peer_views(vec![crate::sync::roles::PeerView {
+                    private_healthy: true,
+                    url: canonical.clone(),
+                    region: "remote".into(),
+                    topology: Some(remote),
+                    serving: true,
+                    draining: false,
+                }]);
+            let response = ctx
+                .state
+                .peer_request(
+                    reqwest::Method::GET,
+                    &canonical,
+                    &format!("{canonical}/identity"),
+                )
+                .unwrap()
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.text().await.unwrap(),
+                identity_a,
+                "{provider} routing preserves authenticated mTLS"
+            );
+        }
 
         handle.shutdown();
         let _ = server.await;

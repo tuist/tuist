@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+### ⛰️  Features
+
+* Add shared build-health metrics for Gradle, Xcode, Bazel, and Once: build counts, success rate, duration percentiles, slow-build thresholds, failed-or-slow build counts, workload summaries, and recent failures. ([#13908](https://github.com/tuist/tuist/pull/13908))
+* Classify failed builds as verification, infrastructure/tooling, or unclassified from recorded evidence, with custom metadata overrides, Build Runs filters, and category badges with accessible explanations in build details. ([#13908](https://github.com/tuist/tuist/pull/13908))
+* Collect estimated cumulative task time saved by Gradle task cache hits, distinguish missing estimates from recorded zero, and show estimates with reporting coverage in cache analytics and build details. Compare cache totals with the preceding equal-length period using the same filters and neutral styling. ([#13908](https://github.com/tuist/tuist/pull/13908))
+* Extend the Grafana data source with shared build-health queries, filters, dashboard variables, a standard build-health dashboard, and server-side alert queries. Document authentication, metric identifiers, toolchain differences, and Grafana alert rules with Slack notifications. Existing duration and Gradle query types retain their behavior. ([#13908](https://github.com/tuist/tuist/pull/13908))
+
 ## What's Changed in server@1.207.6<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

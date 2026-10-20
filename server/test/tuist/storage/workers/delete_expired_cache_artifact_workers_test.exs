@@ -8,12 +8,14 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
   alias Tuist.Repo
   alias Tuist.Storage.CacheArtifactRetention
   alias Tuist.Storage.LegacyBuildArtifactRetention
+  alias Tuist.Storage.RunArtifactRetention
   alias Tuist.Storage.Workers.ArtifactRetentionWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
+  alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   describe "perform/1" do
     test "bucket workers keep active jobs unique until completion" do
@@ -22,7 +24,8 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
         DeleteExpiredXcodeModuleCacheArtifactsWorker,
         DeleteExpiredGradleCacheArtifactsWorker,
         DeleteExpiredCasCacheArtifactsWorker,
-        DeleteExpiredLegacyBuildArtifactsWorker
+        DeleteExpiredLegacyBuildArtifactsWorker,
+        SweepExpiredRunArtifactsWorker
       ]
 
       Enum.each(workers, fn worker ->
@@ -145,6 +148,34 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
         worker: DeleteExpiredLegacyBuildArtifactsWorker,
         args: %{"continuation_token" => "next-cursor", "retention_days" => 90}
       )
+    end
+
+    test "the run artifact sweep deletes expired run artifacts and reschedules the next page" do
+      expect(RunArtifactRetention, :delete_expired, fn opts ->
+        assert opts[:continuation_token] == "cursor"
+        assert opts[:retention_days] == 45
+        {:ok, "next-cursor"}
+      end)
+
+      job =
+        insert_job(SweepExpiredRunArtifactsWorker, %{
+          "continuation_token" => "cursor",
+          "retention_days" => 45
+        })
+
+      assert {:snooze, 0} = SweepExpiredRunArtifactsWorker.perform(job)
+
+      assert_enqueued(
+        worker: SweepExpiredRunArtifactsWorker,
+        args: %{"continuation_token" => "next-cursor", "retention_days" => 45}
+      )
+    end
+
+    test "the self-hosted run artifact sweep does nothing when run artifact retention is not configured" do
+      stub(Environment, :artifact_retention_days, fn -> %{build_archives: 30} end)
+      reject(&RunArtifactRetention.delete_expired/1)
+
+      assert :ok = perform_job(SweepExpiredRunArtifactsWorker, %{"self_hosted" => true})
     end
 
     test "does not schedule another page when the cache retention scan is complete" do

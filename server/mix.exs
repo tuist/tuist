@@ -12,6 +12,7 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
+      tuist: [project: "tuist/server", cache: true],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
@@ -100,6 +101,7 @@ defmodule Tuist.MixProject do
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
+      {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
@@ -159,9 +161,16 @@ defmodule Tuist.MixProject do
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:x509, "~> 0.9"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      # Upstream has no Hex release carrying the commits we depend on, so this
+      # tracks git. Pinned to an explicit ref rather than `branch: "master"`:
+      # master is 180+ commits ahead and includes a resource-indicator
+      # (RFC 8707) rewrite of the token schema and refresh grant, so moving
+      # forward has to be a deliberate, reviewed step with the matching
+      # migration, not a side effect of `mix deps.update`.
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
+      {:tuist_ex, path: "../tuist_ex", runtime: false},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
@@ -171,7 +180,6 @@ defmodule Tuist.MixProject do
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},
@@ -181,6 +189,13 @@ defmodule Tuist.MixProject do
       # `mix release` refuses to assemble a release with duplicated modules.
       # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
       {:grpcbox, "~> 0.18.0", override: true},
+      # gRPC listener for events.tuist.dev. Serves the `once.events.v1`
+      # protocol on its own port so the interactive HTTP endpoint is
+      # untouched; grpc-elixir carries its own cowboy2 HTTP/2 server, so
+      # there is no need to teach Bandit gRPC.
+      {:grpc, "~> 0.9"},
+      {:protobuf, "~> 0.14"},
+      {:protobuf_generate, "~> 0.1", only: [:dev]},
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
@@ -224,7 +239,12 @@ defmodule Tuist.MixProject do
         "run priv/repo/timezone.exs",
         "ecto.migrate"
       ],
-      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
+      compile: [
+        "deps.compile tuist_ex --include-children",
+        "deps.loadpaths --no-compile --no-deps-check",
+        "tuist.compile"
+      ],
+      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "tuist.test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"

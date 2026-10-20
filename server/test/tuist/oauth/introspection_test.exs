@@ -3,10 +3,12 @@ defmodule Tuist.OAuth.IntrospectionTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "token_response/1" do
@@ -368,6 +370,23 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert Tuist.Authentication.authenticated_subject(token) == nil
     end
 
+    # A user reaching two tenants carries both in the lists of accounts refused
+    # for billing. One tenant's node must not learn the other's billing status.
+    test "names no other tenant among the accounts refused for billing" do
+      %{user: user, granted: granted, refused: refused} = two_tenants_one_refused_for_a_failed_payment()
+      {:ok, cache_token, _claims} = Cache.issue_cache_token(user)
+
+      for token <- [user.token, cache_token] do
+        assert %{active: true, cache_payment_required: [], cache_payment_failed: []} =
+                 Introspection.token_response(token, granted.account)
+      end
+
+      assert %{active: true, cache_payment_required: [handle], cache_payment_failed: [handle]} =
+               Introspection.token_response(cache_token, refused.account)
+
+      assert handle == refused.account.name
+    end
+
     test "constrains grants to the given account and drops other tenants" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "scoped-org", creator: user)
@@ -486,5 +505,25 @@ defmodule Tuist.OAuth.IntrospectionTest do
     :tuist
     |> Application.fetch_env!(Tuist.Guardian)
     |> Keyword.fetch!(:issuer)
+  end
+
+  defp two_tenants_one_refused_for_a_failed_payment do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    granted = AccountsFixtures.organization_fixture(name: "granted-tenant", creator: user)
+    Accounts.add_user_to_organization(user, granted, role: :admin)
+    ProjectsFixtures.project_fixture(account: granted.account)
+
+    refused =
+      AccountsFixtures.organization_fixture(
+        name: "refused-tenant",
+        creator: user,
+        current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits]
+      )
+
+    Accounts.add_user_to_organization(user, refused, role: :admin)
+    ProjectsFixtures.project_fixture(account: refused.account)
+    BillingFixtures.subscription_fixture(account_id: refused.account.id, plan: :pro, status: "unpaid")
+
+    %{user: user, granted: granted, refused: refused}
   end
 end

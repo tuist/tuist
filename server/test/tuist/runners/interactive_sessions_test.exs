@@ -407,6 +407,36 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert same_session.id == session.id
     end
 
+    test "resolves the shell session by pod when the live claim has no job attached" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "live-shell-detached-claim-pod"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(
+          job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}),
+          account,
+          user
+        )
+
+      # A claim outlives the job it was minted for: a displaced job is detached
+      # from the claim so the Pod keeps its slot, leaving `workflow_job_id` NULL
+      # until GitHub binds the next one. The Pod still holds the session.
+      stub(Claims, :by_pod_name, fn ^pod_name ->
+        {:ok,
+         %{
+           workflow_job_id: nil,
+           account_id: account.id,
+           fleet_name: "linux-amd64",
+           pod_name: pod_name
+         }}
+      end)
+
+      assert InteractiveSessions.current_shell_for_pod(pod_name).id == session.id
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, pod_name)
+      assert same_session.id == session.id
+    end
+
     test "refreshes an existing shell session to the current job pod when no live binding exists" do
       account = account_fixture()
       user = user_fixture()

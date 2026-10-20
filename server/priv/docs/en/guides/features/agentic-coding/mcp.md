@@ -11,8 +11,10 @@
 It makes applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [Visual Studio Code](https://code.visualstudio.com) interoperable with Tuist.
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
-Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions.
-The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
+Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
+The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
+
+Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
 
 ## Model Context Protocol versus skills
 
@@ -22,7 +24,11 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
+Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. The server's initialization instructions and public server card describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline, without asking agents to fetch or follow external authentication documents. These server-wide instructions keep workflow guidance generic: tool authentication does not authenticate local command-line tools or build-system integrations, and agents should verify requested changes through the relevant Tuist tools. Build-system-specific setup and authentication checks are documented in the integration guides and prompts. Tuist still advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md` separately.
+
+The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
+
+Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
 
 Clients that already support remote browser authentication can continue authenticating in the browser. Clients and agents that support `auth.md` can register anonymously, present a trusted provider identity assertion, or start a service-authenticated email claim. Registration returns a Tuist-signed identity assertion, which the agent exchanges at the standard token endpoint for a one-hour access token. Tuist publishes its public signing key and supports standard token revocation and provider security-event delivery.
 
@@ -30,9 +36,11 @@ An unauthenticated agent should read the `WWW-Authenticate` header returned by t
 
 Before an agent starts an email claim, it must ask the user to confirm the email address for their Tuist account. It must not infer that address from a provider profile, Git configuration, environment variable, or session metadata.
 
-The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
+The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After browser authorization or claim, the credential is user-scoped and each tool applies the same authorization checks as the dashboard. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's project are not members of it, so they additionally present an operator grant minted at `ops.tuist.dev` in an `x-tuist-operator-grant` header. The grant is verified on every request, honoured only for the operator it was minted for, and scoped to the single account it names — nothing is stored between requests, so it is sent with each call and cannot outlive its expiry. A header carrying a grant that is not honoured fails the request with `operator_grant_rejected` rather than falling back to unprivileged access.
+Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
+
+Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>
@@ -171,9 +179,9 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
-## Gradle authentication uses two credentials
+## Build-system integrations use two credentials
 
-The credential used for Model Context Protocol tools does not authenticate the Gradle plugin. Before an agent edits or verifies a Gradle integration, it should run:
+The credential used for Model Context Protocol tools does not authenticate the Gradle plugin or Bazel's remote services. Before an agent edits or verifies a Gradle or Bazel integration, it should run:
 
 ```bash
 tuist auth whoami --url https://tuist.dev
@@ -204,13 +212,13 @@ This read-only tool searches Tuist's documentation, [application programming int
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `search_tuist` | Start answering Tuist questions from public documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+| `search_tuist` | Search public Tuist documentation, the application programming interface reference, GitHub releases, community discussions, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
 #### Source-backed answers
 
 These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
-Compatible clients receive server instructions during initialization that route ordinary Tuist questions through documentation and source-backed tools before local files or general web search. This means users can ask a question directly without invoking the `ask_tuist` prompt first. The prompt remains available when users want to start the same workflow explicitly.
+Compatible clients receive factual descriptions of the tools' source revision, links, and result limits during initialization, alongside inline OAuth authentication information. These descriptions do not prescribe answer style or a verification workflow. Users can ask a question directly without invoking the `ask_tuist` prompt first; the prompt remains available for an explicit source-backed workflow.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -225,10 +233,68 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_accounts` | List personal and organization account handles available to the authenticated user, including whether each account can create projects. | None |
+| `get_organization` | Get an organization's member directory. Pending invitations require the same administrator permission as the dashboard; invitation acceptance tokens are never returned. | `account_handle` |
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
-| `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. | `organization_handle`, `email` |
+| `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
+| `invite_organization_member` | Invite an email address to an organization, whether or not it belongs to an existing Tuist user. Tuist emails an acceptance link that expires after 14 days; when the server cannot send email, `email_sent` is `false` and the link must be copied from the dashboard. Accepts `user` (the default), `admin`, or `viewer`. Requires organization administrator permission. | `organization_handle`, `email` |
+| `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
+| `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
+| `connect_project_repository` | Link a project to a GitHub repository that the account's GitHub App installation can access. The project adopts the repository's default branch. Requires project administrator permission. | `account_handle`, `project_handle`, `repository_full_handle` |
+| `disconnect_project_repository` | Remove a project's link to its GitHub repository. Requires project administrator permission. | `account_handle`, `project_handle` |
+
+#### Account tokens
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_account_tokens` | List account token metadata without exposing token values. | `account_handle` |
+| `get_account_token` | Get account token metadata without exposing its value. | `account_handle`, `token_id` |
+| `list_project_tokens` | List project token metadata without exposing token values. | `account_handle`, `project_handle` |
+
+#### Continuous-integration runners
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_runner_jobs` | List continuous-integration runner jobs for an account. | `account_handle` |
+| `get_runner_job` | Get a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_steps` | List the steps recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
+| `list_runner_profiles` | List continuous-integration runner profiles for an account, with the `runs-on` label of each. | `account_handle` |
+| `get_runner_catalog` | List the machine shapes and Xcode versions a runner profile can use. | `account_handle` |
+| `create_runner_profile` | Create a runner profile with a platform, a machine shape and, on macOS, an Xcode version. Optionally set which branches save its cache volumes. Requires account administration or the `account:runners:write` scope. | `account_handle`, `name`, `platform`, `vcpus`, `memory_gb` |
+| `update_runner_profile` | Change a runner profile's machine shape, Xcode version, or which branches save its custom cache volume changes. Omitted fields keep their value. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
+| `delete_runner_profile` | Delete a runner profile after user confirmation. Default profiles can't be deleted. Requires account administration or the `account:runners:write` scope. | `account_handle`, `profile_name` |
+
+Runner volume tools expose the same data as the Volumes dashboard. Read tools
+require runner access; clearing requires account administration or the `account:runners:write` scope, and user confirmation.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_runner_volumes` | Filter by name and repository, sort and paginate volumes. | `account_handle` |
+| `get_runner_volume` | Repository, platform, capacity, used space and last use. | `account_handle`, `volume_id` |
+| `list_runner_volume_jobs` | Paginated job and workflow references, cache status, hit outcome and mount time. | `account_handle`, `volume_id` |
+| `list_runner_job_volumes` | Volumes mounted by a job. | `account_handle`, `workflow_job_id` |
+| `get_runner_volume_analytics` | Storage series, job runs, hit rate and trends. Optional `volume_id`, `start` and `end` (ISO 8601); defaults to seven days, maximum 90. | `account_handle` |
+| `clear_runner_volume` | Clear saved contents. Running jobs keep their private copies but cannot save them; later jobs start empty. | `account_handle`, `volume_id` |
+
+Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
+`name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
+and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
+`null`. Cache status describes whether volume changes were saved, not job success.
+
+#### Webhooks
+
+Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_webhook_endpoints` | List webhook endpoints for an account. | `account_handle` |
+| `get_webhook_endpoint` | Get a webhook endpoint. | `account_handle`, `webhook_endpoint_id` |
+| `list_webhook_delivery_attempts` | List delivery attempts for an endpoint. | `account_handle`, `webhook_endpoint_id` |
+| `get_webhook_delivery_attempt` | Get a delivery attempt. | `account_handle`, `webhook_endpoint_id`, `delivery_attempt_id` |
 
 #### Xcode builds
 
@@ -238,24 +304,105 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. | `build_run_id` |
 | `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_steps` | List recorded build steps with timings and outcomes, without log text. | `build_run_id` |
+| `get_xcode_build_step` | Get one recorded build step, including its log and truncation flag. | `build_run_id`, `step_id` |
 | `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |
 | `list_xcode_build_cache_tasks` | List cacheable tasks (cache hits/misses) for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_cas_outputs` | List [content-addressable storage](https://en.wikipedia.org/wiki/Content-addressable_storage) outputs for a specific Xcode build run. | `build_run_id` |
+
+`list_xcode_build_steps` returns pages of 20 steps by default (maximum 100 via `page_size`), with `page` and `pagination_metadata` for navigation. Use `search` to match titles, projects, or targets, or filter exact `project`, `target`, `category` (for example, `swiftCompilation`), and `status` (`success` or `failure`). Sort by `duration_ms` for slowest first (the default) or `start_ms` for chronological order. Step IDs break ties and are returned as decimal strings to preserve their full 64-bit precision. IDs are scoped to a build and should not be matched across builds.
+
+Optional `start_ms` and `end_ms` select steps overlapping a time range in milliseconds from build start; the end is exclusive. Both tools accept a build UUID or dashboard URL as `build_run_id`. Pass the returned step `id` unchanged as `step_id` to retrieve its log. Logs retain up to 64 KiB per step, with `log_truncated` indicating omitted output.
+
+Steps are collected by default when Xcode builds are processed. Recorded step data is retained for 90 days. The list response includes `availability`: `available` when recorded steps exist, even if filters match none; `processing` when the build is still processing and has no steps yet; or `unavailable` when steps were not recorded or have expired.
+
+The same operations are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps` and `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`, with the same filters and pagination. Both require read access to the build's project.
 
 #### Gradle builds
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `get_gradle_integration_guide` | Return the complete authentication, project setup, Gradle plugin, cache policy, and two-build verification workflow. Agents should call it before editing an existing Android or Gradle project. | None |
-| `list_gradle_builds` | List Gradle build runs for a project. | `account_handle`, `project_handle` |
-| `get_gradle_build` | Get detailed information about a specific Gradle build run. | `build_run_id` |
-| `list_gradle_build_tasks` | List tasks for a specific Gradle build run, including outcome and cache status. | `build_run_id` |
+| `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
+| `get_gradle_build` | Get build metadata and task/cache counts. | `build_run_id` |
+| `list_gradle_build_tasks` | List task outcomes, composite build identity, cacheability, and incremental status. | `build_run_id` |
+| `list_gradle_build_steps` | List timed tasks, configuration and transforms, with search, metadata and overlapping time filters. | `build_run_id` |
+| `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; per-step logs are unavailable. | `build_run_id`, `step_id` |
+
+Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
+
+Bazel step IDs returned from retained summaries remain readable if a full profile arrives between listing and fetching a step. An indexed profile whose step data has expired reports unavailable. Gradle step lists include zero-duration cached and skipped operations.
+
+#### Bazel invocations
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
+| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
+| `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
+| `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
+| `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
+| `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
+| `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
+#### Cargo builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Individual test runs are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
+| `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
+
+#### Mix builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_mix_builds` | List Mix (Elixir) compile builds for a project, newest first, including custom metadata. Filter by `git_branch`, `status`, `is_ci`, or `mix_env`. | `account_handle`, `project_handle` |
+| `get_mix_build` | Get build metadata, diagnostics counts, and the dependency cache summary. | `account_handle`, `project_handle`, `build_id` |
+
+#### Once runs
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_once_runs` | List Once runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
+| `get_once_run` | Get a run with its action totals, cache summary, and, for test runs, test totals. | `account_handle`, `project_handle`, `run_id` |
+
+Cargo build, Mix build, and Once run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
+
+#### Tasks, actions, modules and files
+
+These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
+
+| Tool | Description | Required parameters |
+| --- | --- | --- |
+| `list_build_entities` | List the tasks, modules, actions or files of one kind seen across a project's builds. | `account_handle`, `project_handle`, `kind` |
+| `get_build_entity` | Get one build entity with its native identity and analytics for the chosen period. | `account_handle`, `project_handle`, `kind`, `id` |
+| `list_build_entity_history` | List the recorded executions, compilations or cache events of one build entity, newest first. | `account_handle`, `project_handle`, `kind`, `id` |
+
+| `kind` | Toolchain | History lists |
+| --- | --- | --- |
+| `gradle_tasks` | Gradle tasks | Task executions |
+| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `once_actions` | Once actions | Executions |
+| `mix_files` | Mix compiled files | Compilations |
+| `mix_modules` | Mix compiled modules | Compilations |
+
+These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+`get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
+
+New observations are indexed after deployment; this feature does not backfill existing run telemetry. Identity metadata outlives individual observations under the <.localized_link href="/guides/server/data-retention">data-retention policy</.localized_link>.
 
 #### Tests
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
+| `list_test_runs` | List test runs for a project. The `query` fields are `git_branch`, `scheme`, and `status`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring, and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run, including temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
@@ -265,8 +412,13 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 | `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
 | `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
-| `update_test_case` | Update a test case's state or flaky classification. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `update_test_case` | Update a test case's state or flaky classification. A change can dispatch an event to configured webhook endpoints, including external services. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
+| `get_coverage` | Get a project's code coverage with its targets, at a commit or at a branch's latest complete commit. Without `git_commit_sha` or `branch`, it reads the default branch. | `account_handle`, `project_handle` |
+| `list_coverage_files` | List the files a commit's code coverage measured, with their line coverage, at a commit or at a branch's latest complete commit. Supports `search`, sorting, and pagination. | `account_handle`, `project_handle` |
+| `get_coverage_file` | Get a file's code coverage and its functions at a commit or at a branch's latest complete commit. Set `include_lines` to get each line's execution count. | `account_handle`, `project_handle`, `path` |
+
+The code coverage tools are available to accounts with code coverage enabled.
 
 #### Bundles
 
@@ -291,6 +443,38 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
 | `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status and diagnostic component hashes, including additional hashing inputs. | `run_id` |
 
+#### Previews
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_previews` | List shareable app previews for a project. | `account_handle`, `project_handle` |
+| `get_preview` | Get a preview and temporary download URLs for its builds. | `preview_id` |
+| `get_latest_preview` | Find the latest preview for a running app binary. | `account_handle`, `project_handle`, `binary_id`, `build_version` |
+
+#### Automations
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_automation_alerts` | List automation alerts for a project. | `account_handle`, `project_handle` |
+| `get_automation_alert` | Get an automation alert. | `alert_id` |
+| `list_automation_alert_revisions` | List the revision history for an automation alert. Action credentials are redacted. | `alert_id` |
+| `list_project_notification_alerts` | List project notification alert rules. Requires the same administrator permission as the dashboard settings page. Webhook addresses are redacted. | `account_handle`, `project_handle` |
+
+### Events
+
+Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas:
+
+| Event | When it is sent | Subscription filter |
+|-------|-----------------|---------------------|
+| `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
+| `build.failed` | A local or continuous integration Xcode, Gradle, or Bazel build finishes with a failure. | `account_handle`, `project_handle` |
+| `test_run.failed` | A local or continuous integration test run finishes with a failure, including a merged sharded run or an abandoned run. | `account_handle`, `project_handle` |
+| `ci_job.failed` | A Tuist runner job completes with a failure. | `account_handle` |
+
+To subscribe, the client calls `events/subscribe` with the event name, the handles listed above in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Project events require account membership and read access to the corresponding test or build data; runner job events require account membership and runner read access. Claimed [`auth.md`](https://workos.com/auth-md) access tokens, claimed account tokens, and browser authorization grants can create subscriptions; delivery stops when the associated credential is no longer active. Each user can keep up to 25 active subscriptions. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's access or credential is removed. The optional `ttlMs` is capped between one hour and 30 days. Tuist retries a timed-out callback and unsubscribes it after at least three consecutive timeouts spanning five minutes; subscribe again after restoring the callback.
+
+When an event occurs, Tuist sends its resource identifier and dashboard URL to the callback. Build and test run failures also include `is_ci` and `git_branch`, so clients can ignore local failures or filter by branch. Build events include `build_system`; runner job events include both `workflow_job_id` and `workflow_run_id`. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. Tuist retries failed deliveries, so clients should use the stable `eventId` to discard duplicates. The payload omits test names, logs, and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
+
 ### Prompts
 
 | Prompt | Description |
@@ -303,10 +487,11 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `compare_generations` | Guides you through comparing two generation runs to identify performance regressions and module cache changes. |
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 | `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. It includes separate tool and Gradle authentication, account discovery, project creation, remote cache policy, build insights, and read-back verification. |
+| `integrate_bazel_project` | Guides you through creating or selecting a Bazel project, authenticating the command line, configuring the remote cache and build insights, and verifying the integration through Tuist build data. |
 | `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
 | `ask_tuist` | Answers a Tuist question using public material for context and focused implementation and test evidence as the source of truth for current behavior. It requires a `question` and cites revision-pinned evidence. |
 
-Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_bazel_project` accepts an optional `server_url` for self-hosted or local installations. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
 
 #### Gradle integration prompt features
 

@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"os"
+	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 
@@ -115,31 +117,48 @@ func TestAutoscalingOrDefaultAccessors(t *testing.T) {
 	if got := nilAuto.MinWarmPoolFloorOrDefault(); got != 1 {
 		t.Errorf("nil-receiver MinWarmPoolFloor = %d, want CRD default 1", got)
 	}
+
+	if !unset.HoldRecentPeakOrDefault() || !nilAuto.HoldRecentPeakOrDefault() {
+		t.Error("unset HoldRecentPeak = false, want CRD default true")
+	}
+	if off := (&RunnerPoolAutoscaling{HoldRecentPeak: ptr.To(false)}); off.HoldRecentPeakOrDefault() {
+		t.Error("explicit-false HoldRecentPeak = true, want false")
+	}
+}
+
+func TestAutoscalingExplicitFalseHoldRecentPeakReachesTheWire(t *testing.T) {
+	raw, err := json.Marshal(RunnerPoolAutoscaling{HoldRecentPeak: ptr.To(false)})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(raw), `"holdRecentPeak":false`) {
+		t.Fatalf("wire = %s, want an explicit holdRecentPeak:false", raw)
+	}
 }
 
 func TestProvisioningOrDefaultAccessors(t *testing.T) {
 	unset := &RunnerPoolProvisioning{}
-	if got := unset.MaxConcurrentPerFleetSelectorOrDefault(); got != 4 {
-		t.Errorf("unset MaxConcurrentPerFleetSelector = %d, want 4", got)
+	if got := unset.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("unset MaxConcurrentPerNode = %d, want 6", got)
 	}
 	if got := unset.StartTimeoutSecondsOrDefault(); got != 300 {
 		t.Errorf("unset StartTimeoutSeconds = %d, want 300", got)
 	}
 
 	configured := &RunnerPoolProvisioning{
-		MaxConcurrentPerFleetSelector: ptr.To[int32](2),
-		StartTimeoutSeconds:           ptr.To[int32](0),
+		MaxConcurrentPerNode: ptr.To[int32](2),
+		StartTimeoutSeconds:  ptr.To[int32](0),
 	}
-	if got := configured.MaxConcurrentPerFleetSelectorOrDefault(); got != 2 {
-		t.Errorf("configured MaxConcurrentPerFleetSelector = %d, want 2", got)
+	if got := configured.MaxConcurrentPerNodeOrDefault(); got != 2 {
+		t.Errorf("configured MaxConcurrentPerNode = %d, want 2", got)
 	}
 	if got := configured.StartTimeoutSecondsOrDefault(); got != 0 {
 		t.Errorf("explicit-zero StartTimeoutSeconds = %d, want 0", got)
 	}
 
 	var nilProvisioning *RunnerPoolProvisioning
-	if got := nilProvisioning.MaxConcurrentPerFleetSelectorOrDefault(); got != 4 {
-		t.Errorf("nil MaxConcurrentPerFleetSelector = %d, want 4", got)
+	if got := nilProvisioning.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("nil MaxConcurrentPerNode = %d, want 6", got)
 	}
 }
 
@@ -152,5 +171,46 @@ func TestProvisioningExplicitZeroStartTimeoutReachesTheWire(t *testing.T) {
 	}
 	if got := string(payload); !strings.Contains(got, `"startTimeoutSeconds":0`) {
 		t.Fatalf("explicit zero start timeout dropped from serialized provisioning: %s", got)
+	}
+}
+
+// Check the actual admission schema as well as the Go shape: misnested fields
+// cause Kubernetes to prune cache configuration before the controller sees it.
+func TestCacheVolumeFieldsSurviveCRDAdmission(t *testing.T) {
+	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.UnmarshalStrict(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	versions := doc["spec"].(map[string]any)["versions"].([]any)
+	schema := versions[0].(map[string]any)["schema"].(map[string]any)["openAPIV3Schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)["spec"].(map[string]any)["properties"].(map[string]any)
+	for _, name := range []string{"cacheVolumeRoot", "cacheVolumeURL", "image", "fleetSelector"} {
+		field, ok := properties[name].(map[string]any)
+		if !ok || field["type"] != "string" {
+			t.Fatalf("missing string spec property %s", name)
+		}
+	}
+}
+
+func TestHoldRecentPeakSurvivesCRDAdmission(t *testing.T) {
+	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.UnmarshalStrict(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	versions := doc["spec"].(map[string]any)["versions"].([]any)
+	schema := versions[0].(map[string]any)["schema"].(map[string]any)["openAPIV3Schema"].(map[string]any)
+	spec := schema["properties"].(map[string]any)["spec"].(map[string]any)["properties"].(map[string]any)
+	autoscaling := spec["autoscaling"].(map[string]any)["properties"].(map[string]any)
+	field, ok := autoscaling["holdRecentPeak"].(map[string]any)
+	if !ok || field["type"] != "boolean" || field["default"] != true {
+		t.Fatalf("autoscaling.holdRecentPeak = %v, want a boolean defaulting to true", field)
 	}
 }

@@ -125,6 +125,56 @@ defmodule TuistWeb.Storybook.Chart do
         }
       },
       %Variation{
+        id: :range_bar_timeline,
+        description: "Range-bar timeline with overlapping work",
+        attributes: %{
+          id: "range-bar-timeline",
+          style: "width: 800px; height: 320px;",
+          type: "custom",
+          show_legend: false,
+          grid_lines: true,
+          labels: ["Loading and analysis", "Execution lane 1", "Execution lane 2"],
+          series: [
+            %{
+              type: "custom",
+              renderItem: "fn:rangeBar",
+              data: [
+                %{
+                  value: [0, 0, 980],
+                  name: "Analyze dependencies",
+                  durationLabel: "Analysis duration",
+                  startLabel: "Started after",
+                  itemStyle: %{color: "var:noora-chart-secondary"}
+                },
+                %{
+                  value: [1, 820, 2_270],
+                  name: "Compile sources",
+                  durationLabel: "Execution duration",
+                  startLabel: "Started after",
+                  itemStyle: %{color: "var:noora-chart-primary"}
+                },
+                %{
+                  value: [2, 1_150, 1_930],
+                  name: "Link executable",
+                  durationLabel: "Execution duration",
+                  startLabel: "Started after",
+                  itemStyle: %{color: "var:noora-chart-tertiary"}
+                }
+              ]
+            }
+          ],
+          extra_options: %{
+            grid: %{left: 150, right: 24, top: 24, bottom: 40},
+            tooltip: %{formatter: "fn:rangeBarTooltip"},
+            xAxis: %{
+              axisLabel: %{formatter: "fn:formatMilliseconds"},
+              splitLine: %{show: true, lineStyle: %{type: "dashed"}}
+            },
+            yAxis: %{axisTick: %{show: false}}
+          }
+        }
+      },
+      %Variation{
         id: :test_run_duration,
         description: "Test run duration chart showing pass/fail status",
         attributes: %{

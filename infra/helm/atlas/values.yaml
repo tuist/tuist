@@ -1,0 +1,216 @@
+# Standalone defaults: supply an existing Secret with DATABASE_URL and application keys.
+# Optional managed services require their operators and explicit configuration.
+nameOverride: ''
+fullnameOverride: ''
+host: atlas.example.org
+appSecretName: ''
+image:
+  repository: ghcr.io/tuist/atlas
+  tag: ''
+  pullPolicy: IfNotPresent
+  pullSecretName: ''
+replicaCount: 1
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 75
+pdb:
+  enabled: false
+  minAvailable: 1
+service:
+  port: 80
+  targetPort: 4000
+env:
+  # Explicit env values take precedence over envFrom application Secrets.
+  ATLAS_DEMO_MODE: 'false'
+  ATLAS_ALLOWED_EMAIL_DOMAIN: example.org
+  POOL_SIZE: '10'
+  DATABASE_SSL: 'false'
+  MCP_PROXY_SERVERS: '[]'
+probes:
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+migrationJob:
+  enabled: true
+  backoffLimit: 2
+  # Optional separate credentials for migrations (required by the demo).
+  appSecretName: ''
+demo:
+  enabled: false
+  # Demo egress permits only DNS and this separately provisioned PostgreSQL.
+  databaseNamespace: atlas-demo
+  databasePodSelector:
+    app.kubernetes.io/name: atlas-demo-postgres
+ingress:
+  enabled: false
+  className: ''
+  clusterIssuer: ''
+  tlsSecretName: ''
+  operatorGrant: false
+  licenseValidationRateLimit:
+    enabled: false
+    requestsPerSecond: 5
+    burstMultiplier: 3
+externalSecrets:
+  refreshInterval: 1h
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  items: {}
+  pullSecret:
+    enabled: false
+    item: ''
+    field: ''
+  enabled: false
+# Deprecated: retains legacy namespace/service-account objects only, never RBAC.
+# Atlas does not execute agents in Kubernetes sandboxes.
+agentSandboxes:
+  enabled: false
+  namespace: atlas-agents
+  serviceAccountName: condukt-agent
+tuistServer:
+  enabled: false
+  internalUrl: ''
+  tokenAudience: tuist-server
+  tokenMountPath: /var/run/secrets/tuist
+  tokenExpirationSeconds: 3600
+postgres:
+  enabled: false
+  instances: 1
+  storageSize: 100Gi
+  storageClass: ''
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.0
+  database: atlas
+  owner: atlas
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  backup:
+    enabled: false
+    endpointURL: ''
+    destinationPath: ''
+    retention: 30d
+    schedule: 0 0 3 * * *
+    credentialsSecretName: atlas-postgres-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: ''
+      secretKeyRemoteRef: ''
+vector:
+  enabled: false
+  image:
+    repository: ghcr.io/opendata-oss/vector
+    tag: 0.2.1
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  resources:
+    requests:
+      cpu: '1'
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+  service:
+    port: 8080
+  storage:
+    endpointURL: ''
+    region: ''
+    bucket: ''
+    prefix: vector
+    externalSecret:
+      accessKeyRemoteRef: ''
+      secretKeyRemoteRef: ''
+  cache:
+    size: 50Gi
+    storageClass: ''
+    mountPath: /var/cache/opendata-vector
+    diskCapacityBytes: 42949672960
+    memoryCapacityBytes: 536870912
+  config:
+    dimensions: 1024
+    distanceMetric: L2
+    flushInterval: 60
+    splitThresholdVectors: 150
+    mergeThresholdVectors: 50
+    splitSearchNeighbourhood: 0
+    metadataFields:
+    - name: source_type
+      field_type: String
+      indexed: true
+    - name: document_id
+      field_type: String
+      indexed: true
+clickhouse:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: 26.1.2.11
+    pullPolicy: IfNotPresent
+  database: atlas
+  username: default
+  service:
+    httpPort: 8123
+    nativePort: 9000
+  persistence:
+    size: 100Gi
+    storageClass: ''
+  resources:
+    requests:
+      cpu: 2
+      memory: 4Gi
+    limits:
+      memory: 8Gi
+  nodeSelector: {}
+  tolerations: []
+  probes:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+  backup:
+    enabled: false
+    schedule: 30 3 * * *
+    s3:
+      bucket: ''
+      path: ''
+      region: ''
+      endpoint: ''
+    credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: ''
+      secretKeyRemoteRef: ''
+    activeDeadlineSeconds: 3600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi

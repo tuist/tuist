@@ -44,20 +44,7 @@
               else: @run.scheme
             )}
           </h1>
-          <.badge
-            :if={Enum.any?(@run.custom_tags || [])}
-            label={List.first(@run.custom_tags)}
-            color="success"
-            style="light-fill"
-            size="large"
-          />
-          <.badge
-            :for={tag <- Enum.slice(@run.custom_tags || [], 1..-1//1)}
-            label={tag}
-            color="information"
-            style="light-fill"
-            size="large"
-          />
+          <.run_tags tags={@run.custom_tags || []} />
         </div>
         <.link_button
           :if={@test_run}
@@ -104,6 +91,11 @@
         >
           <:icon_left><.download /></:icon_left>
         </.button>
+        <.pull_request_button
+          project={@run.project}
+          git_ref={@run.git_ref}
+          disabled={@run.status == "processing"}
+        />
         <.button
           :if={@run.status == "processing"}
           label={dgettext("dashboard_builds", "CI Run")}
@@ -178,6 +170,12 @@
         patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@timeline_available}
+        label={dgettext("dashboard_builds", "Timeline")}
+        selected={@selected_tab == "timeline"}
+        patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+      />
+      <.tab_menu_horizontal_item
         :if={@has_binary_cache_data}
         label={dgettext("dashboard_builds", "Module Cache")}
         selected={@selected_tab == "module-cache"}
@@ -200,12 +198,26 @@
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
       <.tab_menu_horizontal_item
-        :if={length(@machine_metrics) > 0}
+        :if={
+          length(@machine_metrics) > 0 and
+            not Enum.any?(@machine_metrics, &is_number(&1.offset_ms))
+        }
         label={dgettext("dashboard_builds", "Machine Metrics")}
         selected={@selected_tab == "machine-metrics"}
         patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
       />
     </.tab_menu_horizontal>
+    <section :if={@selected_tab == "timeline" and @run.status != "processing"}>
+      <.build_timeline_section
+        timeline={@timeline}
+        source="xcode"
+        duration={@run.duration}
+        version={@timeline_version}
+        url={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
+        }
+      />
+    </section>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Build Details")}
@@ -329,6 +341,7 @@
               </div>
             </div>
           </div>
+          <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
           <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
             <span data-part="custom-metadata-label">
               {dgettext("dashboard_builds", "Custom metadata")}
@@ -943,124 +956,29 @@
         >
           <.card_section data-part="xcode-cache-card-section">
             <%= if @selected_cache_tab == "cacheable-tasks" do %>
-              <.card_section
-                :if={@run.cacheable_tasks_count > 0}
-                data-part="cacheable-tasks-card-section"
-              >
-                <div data-part="title">
-                  <span data-part="label">
-                    {dgettext("dashboard_builds", "Cacheable tasks:")}
-                  </span>
-                  <span data-part="value">
-                    {@run.cacheable_tasks_count}
-                  </span>
-                </div>
-                <.chart
-                  id="cacheable-tasks-breakdown-chart"
-                  type="bar"
-                  extra_options={
-                    %{
-                      tooltip: %{
-                        trigger: "axis",
-                        axisPointer: %{
-                          type: "none"
-                        }
-                      },
-                      legend: %{
-                        left: "-0.3%",
-                        top: "bottom",
-                        orient: "horizontal",
-                        textStyle: %{
-                          color: "var:noora-surface-label-primary",
-                          fontFamily: "monospace",
-                          fontWeight: 400,
-                          fontSize: 10,
-                          lineHeight: 12
-                        },
-                        icon:
-                          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-                        itemWidth: 8,
-                        itemHeight: 4
-                      },
-                      grid: %{
-                        width: "99%",
-                        left: "0%",
-                        height: "60%",
-                        top: "0%"
-                      },
-                      xAxis: %{
-                        type: "value",
-                        axisLabel: %{
-                          show: false
-                        },
-                        splitLine: %{show: false}
-                      },
-                      yAxis: %{
-                        type: "category",
-                        data: [dgettext("dashboard_builds", "Cacheable tasks")],
-                        axisLabel: %{
-                          show: false
-                        }
-                      }
-                    }
-                  }
-                  series={
-                    local_hits = @run.cacheable_task_local_hits_count
-                    remote_hits = @run.cacheable_task_remote_hits_count
-
-                    misses =
+              <.cache_breakdown
+                id="cacheable-tasks-breakdown-chart"
+                label={dgettext("dashboard_builds", "Cacheable tasks:")}
+                segments={[
+                  %{
+                    name: dgettext("dashboard_builds", "Local"),
+                    count: @run.cacheable_task_local_hits_count,
+                    color: "var:hits-chart-legend-local"
+                  },
+                  %{
+                    name: dgettext("dashboard_builds", "Remote"),
+                    count: @run.cacheable_task_remote_hits_count,
+                    color: "var:hits-chart-legend-remote"
+                  },
+                  %{
+                    name: dgettext("dashboard_builds", "Missed"),
+                    count:
                       @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
-                        @run.cacheable_task_local_hits_count
-
-                    [
-                      %{
-                        name: dgettext("dashboard_builds", "Local"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [local_hits],
-                        color: "var:hits-chart-legend-local",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :local)
-                        }
-                      },
-                      %{
-                        name: dgettext("dashboard_builds", "Remote"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [remote_hits],
-                        color: "var:hits-chart-legend-remote",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
-                        }
-                      },
-                      %{
-                        name: dgettext("dashboard_builds", "Missed"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [misses],
-                        color: "var:hits-chart-legend-missed",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
-                        }
-                      }
-                    ]
+                        @run.cacheable_task_local_hits_count,
+                    color: "var:hits-chart-legend-missed"
                   }
-                  x_axis_min={0}
-                  x_axis_max={@run.cacheable_tasks_count}
-                />
-              </.card_section>
+                ]}
+              />
               <div data-part="latency-widgets">
                 <.percentile_dropdown_widget
                   id="widget-avg-read-latency"
@@ -1200,17 +1118,12 @@
               <.table
                 id="cacheable-tasks-table"
                 rows={@cacheable_tasks}
-                row_key={fn task -> task.key end}
-                row_expandable={
-                  fn task ->
-                    if is_map(@task_cas_outputs_map) do
-                      not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
-                    else
-                      false
-                    end
-                  end
+                row_key={fn task -> cacheable_task_row_id(task.key) end}
+                row_expandable={fn task -> task.has_cas_outputs end}
+                row_toggle={
+                  fn task -> JS.push("toggle-task-cas-outputs", value: %{key: task.key}) end
                 }
-                expanded_rows={MapSet.to_list(@expanded_task_keys)}
+                expanded_rows={Enum.map(@expanded_task_keys, &cacheable_task_row_id/1)}
               >
                 <:col
                   :let={task}
@@ -1276,45 +1189,50 @@
                   </.button_cell>
                 </:col>
                 <:expanded_content :let={task}>
-                  <div data-part="cas-outputs-list">
-                    <div
-                      :for={cas_output <- Map.get(@task_cas_outputs_map, task.key, [])}
-                      data-part="cas-output-item"
-                    >
-                      <span data-part="cas-output-text">
-                        <span data-part="cas-output-label">
-                          {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
-                        </span>
-                        <.popover
-                          id={"cas-output-popover-#{cas_output.node_id}"}
-                          tabindex="-1"
-                          placement="top"
-                        >
-                          <:trigger :let={attrs}>
-                            <span {attrs} data-part="cas-output-hash">
-                              {String.slice(cas_output.node_id, 0, 40)}
-                            </span>
-                          </:trigger>
-                          <div data-part="hash-tooltip-content">
-                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
-                            <.button
-                              id={"cas-output-copy-#{cas_output.node_id}"}
-                              variant="secondary"
-                              size="small"
-                              label={dgettext("dashboard_builds", "Copy")}
-                              phx-hook="Clipboard"
-                              tabindex="-1"
-                              data-clipboard-value={cas_output.node_id}
-                              phx-click={JS.dispatch("pointerdown", to: "body")}
-                            >
-                              <:icon_right><.copy /></:icon_right>
-                            </.button>
-                          </div>
-                        </.popover>
-                        <span data-part="cas-output-label">...</span>
-                      </span>
-                    </div>
-                  </div>
+                  <%= if state = MapSet.member?(@expanded_task_keys, task.key) && Map.get(@task_cas_outputs_map, task.key) do %>
+                    <.async_result :let={page} assign={state.result}>
+                      <:loading>
+                        <div data-part="task-cas-loading">
+                          <.skeleton_box width="100%" height="80px" />
+                        </div>
+                      </:loading>
+                      <:failed><.error_state data-part="task-cas-error" /></:failed>
+                      <.cache_output_list
+                        id={cacheable_task_row_id(task.key)}
+                        outputs={
+                          Enum.map(page.outputs, fn output ->
+                            %{
+                              key: output.node_id,
+                              label:
+                                "#{dgettext("dashboard_builds", "CAS output")} #{output.type}:"
+                            }
+                          end)
+                        }
+                      >
+                        <:empty_state>
+                          <.table_empty_state title={
+                            dgettext("dashboard_builds", "No CAS outputs found")
+                          } />
+                        </:empty_state>
+                      </.cache_output_list>
+                      <.error_state :if={state.result.failed} data-part="task-cas-error" />
+                      <div :if={page.has_next?} data-part="task-cas-actions">
+                        <.button
+                          variant="secondary"
+                          label={
+                            if state.result.loading,
+                              do: dgettext("dashboard_builds", "Loading..."),
+                              else: dgettext("dashboard_builds", "Load more")
+                          }
+                          disabled={state.result.loading != nil}
+                          data-part="task-cas-load-more"
+                          phx-click={
+                            JS.push("load-more-task-cas-outputs", value: %{key: task.key})
+                          }
+                        />
+                      </div>
+                    </.async_result>
+                  <% end %>
                 </:expanded_content>
                 <:empty_state>
                   <.table_empty_state
@@ -1647,6 +1565,7 @@
     <% end %>
     <%= if @selected_tab == "module-cache" and @run.status != "processing" and @has_binary_cache_data do %>
       <.module_cache_tab
+        project={@selected_project}
         binary_cache_analytics={@binary_cache_analytics}
         binary_cache_filter={@binary_cache_filter}
         binary_cache_page={@binary_cache_page}

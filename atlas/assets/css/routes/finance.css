@@ -1,0 +1,471 @@
+#finance,
+#finance-vendors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+    max-width: 64rem;
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="summary"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="summary"] > [data-part="summary-item"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="breadcrumbs"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="breadcrumbs"] a {
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+  }
+
+  & [data-part="overview-section"],
+  & [data-part="projections-section"],
+  & [data-part="accounts-table-section"],
+  & [data-part="invoices-table-section"],
+  & [data-part="expenses-section"],
+  & [data-part="transactions-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="overview-actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="widgets"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &#finance-vendors [data-part="widgets"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    & [data-part="widget-link"],
+    & [data-part="widget"] {
+      height: 100%;
+    }
+
+    & [data-part="widget"] [data-part="value"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
+  & [data-part="overview-chart-section"] > [data-part="chart"] {
+    width: 100%;
+    height: 18rem;
+  }
+
+  & [data-part="overview-chart-section"] > [data-part="chart"] .noora-chart,
+  & [data-part="overview-chart-section"] > [data-part="chart"] .noora-chart > [data-part="chart"] {
+    width: 100%;
+    height: 100%;
+  }
+
+  & [data-part="overview-chart-section"] > [data-part="chart-empty"] {
+    padding: var(--noora-spacing-6);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    text-align: center;
+  }
+
+  & [data-part="overview-chart-section"] > [data-part="chart-note"] {
+    margin: var(--noora-spacing-4) 0 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    text-align: center;
+  }
+
+
+  & [data-part="transactions-actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="table-footer"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="table-footer"] a {
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+  }
+
+  & [data-part="expenses-list"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="expenses-footer"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="expenses-pagination"] {
+    display: flex;
+    justify-content: center;
+  }
+
+  & [data-part="expenses-footer"] a {
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+  }
+
+  & [data-part="expenses-empty"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--noora-spacing-4);
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-10) var(--noora-spacing-6);
+    min-height: 12rem;
+    background: var(--noora-surface-background-secondary);
+    text-align: center;
+  }
+
+  & [data-part="expenses-empty-icon"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--noora-radius-3);
+    box-shadow: var(--noora-border-light-default);
+    width: 2.5rem;
+    height: 2.5rem;
+    background: var(--noora-surface-background-primary);
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="expenses-empty-icon"] svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  & [data-part="expenses-empty-content"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    max-width: 28rem;
+  }
+
+  & [data-part="expenses-empty-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="expenses-empty-subtitle"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="expense"] {
+    border-radius: var(--noora-radius-4);
+    box-shadow: var(--noora-border-light-default);
+    background: var(--noora-surface-background-primary);
+    overflow: hidden;
+  }
+
+  & [data-part="expense"] [data-part="collapsible"] > [data-part="root"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="expense"] [data-part="trigger"] {
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    padding: var(--noora-spacing-5);
+    text-align: left;
+  }
+
+  & [data-part="expense-header"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 1fr) auto auto;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="expense-vendor"],
+  & [data-part="expense-transaction"],
+  & [data-part="expense-meta"],
+  & [data-part="line-item-text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+  }
+
+  & [data-part="expense-meta"] {
+    align-items: flex-end;
+  }
+
+  & [data-part="vendor-link"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  & [data-part="vendor-link"]:hover {
+    color: var(--noora-surface-label-primary);
+  }
+
+  & [data-part="expense-categories"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="expense-toggle"] {
+    display: flex;
+  }
+
+  & [data-part="expense"] [data-part="open-collapsible-button"] {
+    display: none;
+  }
+
+  & [data-part="collapsible"][data-state="open"] [data-part="closed-collapsible-button"] {
+    display: none;
+  }
+
+  & [data-part="collapsible"][data-state="open"] [data-part="open-collapsible-button"] {
+    display: inline-flex;
+  }
+
+  & [data-part="vendor"],
+  & [data-part="transaction-reference"],
+  & [data-part="amount"],
+  & [data-part="description"],
+  & [data-part="line-item-amount"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="transaction-reference"] {
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="number"],
+  & [data-part="date"],
+  & [data-part="category"],
+  & [data-part="expense-kicker"],
+  & [data-part="transaction-empty"],
+  & [data-part="line-item-category"],
+  & [data-part="line-item-empty"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="expense"] [data-part="content"] {
+    padding: 0 var(--noora-spacing-5) var(--noora-spacing-5);
+  }
+
+  & [data-part="line-items"] {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-2);
+  }
+
+  & [data-part="line-item"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--noora-spacing-4);
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-3) 0;
+    background: var(--noora-surface-background-primary);
+  }
+
+  & [data-part="line-item"]:last-child {
+    border-bottom: 0;
+  }
+
+  @media (max-width: 640px) {
+    & [data-part="expenses-footer"] {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+
+    & [data-part="footer-spacer"] {
+      display: none;
+    }
+
+    & [data-part="expense-header"] {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    & [data-part="expense-transaction"] {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    & [data-part="expense-meta"] {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      align-items: flex-start;
+    }
+
+    & [data-part="line-item"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  & [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="search"] {
+    width: min(100%, 30rem);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 960px) {
+    & [data-part="filters"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    & [data-part="search"] {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="transactions-table"] > div {
+    overflow-x: hidden;
+  }
+
+  & [data-part="transactions-table"] > div > table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  & [data-part="transactions-table"] th,
+  & [data-part="transactions-table"] td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  & [data-part="transactions-table"] [data-part="cell"] {
+    min-width: 0;
+  }
+
+  & [data-part="transactions-table"] [data-part="column"],
+  & [data-part="transactions-table"] [data-part="label"],
+  & [data-part="transactions-table"] [data-part="description"] {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  & [data-part="transactions-table"] th:nth-child(1),
+  & [data-part="transactions-table"] td:nth-child(1) {
+    width: 12rem;
+  }
+
+  & [data-part="transactions-table"] th:nth-child(2),
+  & [data-part="transactions-table"] td:nth-child(2) {
+    width: 34%;
+  }
+
+  & [data-part="transactions-table"] th:nth-child(3),
+  & [data-part="transactions-table"] td:nth-child(3) {
+    width: 18%;
+  }
+
+  & [data-part="transactions-table"] th:nth-child(4),
+  & [data-part="transactions-table"] td:nth-child(4),
+  & [data-part="transactions-table"] th:nth-child(5),
+  & [data-part="transactions-table"] td:nth-child(5),
+  & [data-part="transactions-table"] th:nth-child(7),
+  & [data-part="transactions-table"] td:nth-child(7) {
+    width: 7rem;
+  }
+
+  & [data-part="transactions-table"] th:nth-child(6),
+  & [data-part="transactions-table"] td:nth-child(6) {
+    width: 11rem;
+  }
+}

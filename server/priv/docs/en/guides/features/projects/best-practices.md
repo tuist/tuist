@@ -76,6 +76,40 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
+#### Cached dependency installation on GitHub Actions {#dependency-cache-volumes}
+
+For generated projects, use [tuist/install](https://github.com/tuist/install) to install the dependencies pinned in `Package.resolved` and cache them between runs. It automatically uses <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> on Tuist Runners and GitHub's cache on other runners.
+
+```yaml
+name: Generate project
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: tuist-macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: tuist/install@v1
+      - run: tuist generate --no-open
+```
+
+For a project in a subdirectory, pass its path relative to the checkout:
+
+```yaml
+- uses: tuist/install@v1
+  with:
+    path: apps/ios
+```
+
+See the [action reference](https://github.com/tuist/install#usage) for additional options.
+
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
 Coding agents and human contributors increasingly work in parallel: a developer keeps a worktree open for the feature they are reviewing while one or more agents iterate on their own branches in sibling worktrees. A few project choices make this much smoother.
@@ -127,7 +161,7 @@ If a worktree falls back to source builds when you expected a cache hit, follow 
 
 #### Speed up Swift Package resolution with the registry {#worktrees-registry}
 
-Each worktree resolves Swift packages independently. On a project with a large dependency graph that adds up fast. Switching to the <.localized_link href="/guides/features/registry">Tuist Registry</.localized_link> avoids re-cloning git histories and drops resolution from minutes to seconds.
+Each worktree resolves Swift packages independently. On a project with a large dependency graph that adds up fast. Switching to the <.localized_link href="/guides/features/package-registries/swift">Tuist Registry</.localized_link> avoids re-cloning git histories and drops resolution from minutes to seconds.
 
 #### Give agents access to project insights {#worktrees-mcp}
 

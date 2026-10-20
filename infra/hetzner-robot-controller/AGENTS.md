@@ -19,9 +19,17 @@ controller does the two things caph deliberately doesn't:
    only writes them to `spec.status.hardwareDetails` (a deliberate
    safety — `spec` is operator intent). The controller watches
    for hosts where `hardwareDetails` is populated but
-   `rootDeviceHints` is empty, and patches the first two WWNs
-   into `spec.rootDeviceHints.raid.wwn` (RAID 1 layout matching
-   Hetzner's default for AX-class hardware).
+   `rootDeviceHints` is empty, and patches the WWNs of one disk
+   group into `spec.rootDeviceHints.raid.wwn`: the same-size group
+   holding the most capacity. installimage hands the set to mdadm,
+   which sizes every member to the smallest, so an array spanning
+   a box's two 1.92 TB disks and its two 7.68 TB ones installs as
+   3.84 TB usable out of 19.2 TB of flash, and the layout is fixed
+   at install. Capacity rather than disk count decides, and a
+   group too small to mirror is skipped. The RAID level is not
+   chosen here at all; it comes from the `statefulRaidLevel`
+   ClusterClass variable, which has to agree with the selection: 1
+   for a two-disk selection, 10 for a four-disk one.
 
 Net: the operator's bring-up workflow becomes "order in Robot
 panel with `tuist-bm-staging-N` naming → bump replicas." No
@@ -112,6 +120,64 @@ and is applied by `mgmt-cluster-apply.yml`.
 | `--robot-user-path`               | `/etc/hetzner-robot-controller/robot-user`             | File the chart mounts from `org-tuist/hetzner` Secret                    |
 | `--robot-pass-path`               | `/etc/hetzner-robot-controller/robot-pass`             | Same                                                                     |
 | `--leader-elect`                  | `true`                                                 | Required when `replicas > 1`                                             |
+
+## Fleet credentials
+
+Robot user/pass and the shared SSH key are fleet-level (one Hetzner
+Robot account spans every Robot host across staging, canary and
+production), so both 1Password items live in the mgmt cluster's own
+vault (`tuist-k8s-mgmt`).
+
+The mgmt cluster runs no external-secrets-operator, so the operator
+creates the two Secrets manually once per mgmt cluster bring-up:
+
+```bash
+# Robot webservice credentials: caph drives the Robot API with these
+op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/username" > /tmp/robot-user
+op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-robot-credentials \
+  --from-file=hetznerRobotUser=/tmp/robot-user \
+  --from-file=hetznerRobotPassword=/tmp/robot-pass
+# caph reads Robot keys from the SAME Secret as the hcloud token
+# (the one named in HetznerClusterTemplate.hetznerSecretRef, today
+# `hetzner`). Merge the keys in:
+ROBOT_USER_B64=$(base64 -w0 < /tmp/robot-user)
+ROBOT_PASS_B64=$(base64 -w0 < /tmp/robot-pass)
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist patch secret hetzner \
+  --type=merge -p "{\"data\":{\"hetznerRobotUser\":\"${ROBOT_USER_B64}\",\"hetznerRobotPassword\":\"${ROBOT_PASS_B64}\"}}"
+shred -u /tmp/robot-user /tmp/robot-pass
+
+# SSH key: caph SSHes into rescue mode with this
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-bare-metal-ssh-key \
+  --from-file=sshkey-name=/tmp/sshname \
+  --from-file=ssh-publickey=/tmp/sshpub \
+  --from-file=ssh-privatekey=/tmp/sshpriv
+shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
+```
+
+Once ESO lands on the mgmt cluster, both Secrets can move to
+`ExternalSecret` resources next to the `infra/k8s/clusters/bare-metal*.yaml`
+templates and this manual step goes away.
+
+### Emergency SSH access
+
+If a Robot host misbehaves and caph isn't responding, SSH in directly
+with the shared key. caph configures it into
+`/root/.ssh/authorized_keys` as part of the cloud-init bootstrap, so it
+stays valid through reinstalls:
+
+```bash
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key" \
+  --account=tuist.1password.com > /tmp/hbm
+chmod 600 /tmp/hbm
+ssh -i /tmp/hbm root@<host-ip>
+# remember to: shred -u /tmp/hbm afterwards
+```
 
 ## Selection conventions
 
@@ -217,6 +283,30 @@ Coverage:
 
 Tests use controller-runtime's `fake.Client` and an in-memory
 `robot.FakeClient` — no live Robot API or k8s cluster required.
+
+## Releasing
+
+`.github/workflows/hetzner-robot-controller-release.yml` cuts the
+tag and publishes the image on push to `main`, and the mgmt cluster
+runs whatever tag `infra/k8s/mgmt/hetzner-robot-controller.yaml`
+pins. Renovate raises the pin once a release exists.
+
+What makes a commit releasable is the **paths it touches**, not its
+scope. `include_paths` in `mise/tasks/release/components.json`
+restricts the range to this directory, and `cliff.toml` then accepts
+any conventional commit in it apart from `chore` and `ci`. A change
+landing under `feat(server)` or `fix(infra)` releases exactly as one
+under `fix(hetzner-robot-controller)` does.
+
+`cliff.toml` used to match on the scope instead, and that is how the
+WWN four-disk fix shipped nowhere. It merged under `feat(server)` in
+[#12814](https://github.com/tuist/tuist/pull/12814), `release:check`
+found nothing releasable, the release job was skipped by
+`if: needs.check.outputs.should-release == 'true'`, and the mgmt
+cluster kept running `0.1.0` with a filler that installs a four-disk
+box across two of its disks. Nothing reported it: CI was green and
+`main` carried the fix, so the drift was visible only by comparing
+the pin against the code.
 
 ## Future work
 

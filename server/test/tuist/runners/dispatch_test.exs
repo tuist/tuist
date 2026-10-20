@@ -13,8 +13,10 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.WorkflowJob
@@ -146,6 +148,19 @@ defmodule Tuist.Runners.DispatchTest do
     :ok = Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
 
     claim
+  end
+
+  defp queue_job!(account, workflow_job_id) do
+    :ok =
+      WorkflowJobs.upsert_queued(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-pool",
+        platform: "macos",
+        vcpus: 6,
+        memory_gb: 14,
+        repository: "tuist/tuist"
+      })
   end
 
   defp maybe_put(map, _key, nil), do: map
@@ -569,6 +584,62 @@ defmodule Tuist.Runners.DispatchTest do
       assert Claims.by_pod_name(claim.pod_name) == :error
     end
 
+    # The other half of the shuffle. The job GitHub actually placed on the
+    # runner was never claimed by this Pod, so nothing in the claim path
+    # moves it: `transition_running/3` only CASes the Pod's own
+    # `claimed → running`. Left alone it reads `queued` for its entire
+    # runtime — the dashboard says Queued while the build burns CPU, and
+    # the queue gauges the autoscaler reads count it as work still to
+    # provision for.
+    test "moves the job GitHub actually ran to running", %{account: account} do
+      claimed_job_id = 4420
+      executed_job_id = 4421
+      claim_running!(account, claimed_job_id, "pod-shuffle", "runner-shuffle")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-shuffle", 4421, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-shuffle"), 1)
+
+      executed = Repo.get!(WorkflowJob, executed_job_id)
+      assert executed.status == "running"
+      assert executed.runner_name == "runner-shuffle"
+      assert executed.pod_name == "pod-shuffle"
+      assert executed.executed_workflow_job_id == executed_job_id
+      assert %DateTime{} = executed.started_at
+      assert %DateTime{} = executed.claimed_at
+
+      assert Repo.get!(WorkflowJob, claimed_job_id).status == "queued"
+    end
+
+    # A job the shuffle displaced onto this runner is no longer a dispatch
+    # candidate, so the only way back to `queued` is a stale claim naming
+    # it — the ClickHouse-lag double-claim shape. Releasing that claim must
+    # not re-queue a job that is executing on someone else's Pod.
+    test "keeps an executing job out of the queue when a stale claim is released", %{account: account} do
+      claimed_job_id = 4430
+      executed_job_id = 4431
+      claim_running!(account, claimed_job_id, "pod-stale", "runner-stale")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-stale", 4431, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-stale"), 1)
+
+      {:ok, stale_claim} =
+        Claims.attempt(executed_job_id, account.id, "macos-pool", "pod-late", %{
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14
+        })
+
+      assert :ok = Claims.release(executed_job_id, stale_claim.claimed_at)
+
+      assert Repo.get!(WorkflowJob, executed_job_id).status == "running"
+    end
+
     test "a mismatch on either store wins over a matched on the other" do
       stub(Claims, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
       stub(RunnerSessions, :record_execution, fn _runner, _job, _acct -> :mismatch end)
@@ -840,6 +911,94 @@ defmodule Tuist.Runners.DispatchTest do
       # which trumps the profile-side miss.
       assert {:error, :no_pools} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-unknown"])
+    end
+  end
+
+  describe "resolve_dispatch_target/2 — site routing" do
+    setup do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "macos",
+        platform: :macos,
+        xcode_version: "26.6",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "old-xcode",
+        platform: :macos,
+        xcode_version: "26.5",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos}}
+      end)
+
+      %{account: account, prefix: prefix}
+    end
+
+    test "an account on the site flag runs at the site that racks its profile while it is up", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+      expect(Sites, :available?, fn site_pool -> site_pool == "#{prefix}-ber1-26-6" end)
+
+      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos", platform: :macos}} =
+               Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+
+      assert pool_name == "#{prefix}-ber1-26-6"
+    end
+
+    test "an account on the site flag runs on the rented fleet while the site is down", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      expect(Sites, :available?, fn _site_pool -> false end)
+
+      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos"}} =
+               Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+
+      assert pool_name == "#{prefix}-26-6"
+    end
+
+    test "an account on the site flag stays on the rented fleet for a profile no site racks", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-old-xcode"])
+      assert pool_name == "#{prefix}-26-5"
+    end
+
+    test "an account off the site flag stays on the rented fleet", %{account: account, prefix: prefix} do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-26-6"
+    end
+
+    test "an account on the site flag waits at a site that is down when the env rents no macOS fleet", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-ber1-26-6"
     end
   end
 

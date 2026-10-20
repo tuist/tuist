@@ -9,7 +9,9 @@ defmodule TuistOpsWeb.PolicyControllerTest do
     → 200 OK
       Impersonate-User: <user>
       Impersonate-Group: <base tier>
-      Impersonate-Group: <env write group>   (only if active elevation)
+      Impersonate-Group: <env write group>   (staging always; canary
+                                              and production only on
+                                              an active elevation)
 
     OR
 
@@ -135,10 +137,10 @@ defmodule TuistOpsWeb.PolicyControllerTest do
   end
 
   describe "tier resolution — no active elevation" do
-    test "Owner → tuist-admins on every env", %{conn: conn} do
+    test "Owner → tuist-admins on the elevation-gated envs", %{conn: conn} do
       stub_role(@owner, :owner)
 
-      for host <- ~w(kube-staging.tuist.dev kube-canary.tuist.dev kube-prod.tuist.dev) do
+      for host <- ~w(kube-canary.tuist.dev kube-prod.tuist.dev) do
         c = policy_get(conn, host, [{"x-pomerium-claim-email", @owner}])
         assert c.status == 200
         assert impersonate_user(c) == @owner
@@ -146,7 +148,7 @@ defmodule TuistOpsWeb.PolicyControllerTest do
       end
     end
 
-    test "Admin → tuist-admins on every env", %{conn: conn} do
+    test "Admin → tuist-admins on production", %{conn: conn} do
       stub_role(@admin, :admin)
 
       c = policy_get(conn, "kube-prod.tuist.dev", [{"x-pomerium-claim-email", @admin}])
@@ -155,10 +157,10 @@ defmodule TuistOpsWeb.PolicyControllerTest do
       assert impersonate_groups(c) == ["tuist-admins"]
     end
 
-    test "Member → tuist-eng on every env", %{conn: conn} do
+    test "Member → tuist-eng on the elevation-gated envs", %{conn: conn} do
       stub_role(@member, :member)
 
-      for host <- ~w(kube-staging.tuist.dev kube-canary.tuist.dev kube-prod.tuist.dev) do
+      for host <- ~w(kube-canary.tuist.dev kube-prod.tuist.dev) do
         c = policy_get(conn, host, [{"x-pomerium-claim-email", @member}])
         assert c.status == 200
         assert impersonate_user(c) == @member
@@ -193,15 +195,15 @@ defmodule TuistOpsWeb.PolicyControllerTest do
   end
 
   describe "tier resolution — active elevation" do
-    test "Owner + active staging elevation → tuist-admins + tuist-staging-write",
+    test "Owner + active canary elevation → tuist-admins + tuist-canary-write",
          %{conn: conn} do
       stub_role(@owner, :owner)
-      insert_active_elevation!(@owner, "group:tuist-staging-write")
+      insert_active_elevation!(@owner, "group:tuist-canary-write")
 
-      c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", @owner}])
+      c = policy_get(conn, "kube-canary.tuist.dev", [{"x-pomerium-claim-email", @owner}])
       assert c.status == 200
       assert impersonate_user(c) == @owner
-      assert impersonate_groups(c) == ["tuist-admins", "tuist-staging-write"]
+      assert impersonate_groups(c) == ["tuist-admins", "tuist-canary-write"]
     end
 
     test "Member + active canary elevation → tuist-eng + tuist-canary-write",
@@ -236,22 +238,68 @@ defmodule TuistOpsWeb.PolicyControllerTest do
     test "expired elevation row is ignored even if status is still active", %{conn: conn} do
       stub_role(@owner, :owner)
 
-      insert_active_elevation!(@owner, "group:tuist-staging-write",
+      insert_active_elevation!(@owner, "group:tuist-canary-write",
         expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
       )
 
-      c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", @owner}])
+      c = policy_get(conn, "kube-canary.tuist.dev", [{"x-pomerium-claim-email", @owner}])
       assert c.status == 200
       assert impersonate_groups(c) == ["tuist-admins"]
     end
 
     test "elevation for a different user is ignored", %{conn: conn} do
       stub_role(@owner, :owner)
-      insert_active_elevation!(@admin, "group:tuist-staging-write")
+      insert_active_elevation!(@admin, "group:tuist-canary-write")
+
+      c = policy_get(conn, "kube-canary.tuist.dev", [{"x-pomerium-claim-email", @owner}])
+      assert c.status == 200
+      assert impersonate_groups(c) == ["tuist-admins"]
+    end
+  end
+
+  describe "staging — standing write access" do
+    test "Owner gets tuist-staging-write with no elevation row", %{conn: conn} do
+      stub_role(@owner, :owner)
 
       c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", @owner}])
       assert c.status == 200
-      assert impersonate_groups(c) == ["tuist-admins"]
+      assert impersonate_user(c) == @owner
+      assert impersonate_groups(c) == ["tuist-admins", "tuist-staging-write"]
+    end
+
+    test "Member gets tuist-staging-write with no elevation row", %{conn: conn} do
+      stub_role(@member, :member)
+
+      c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", @member}])
+      assert c.status == 200
+      assert impersonate_user(c) == @member
+      assert impersonate_groups(c) == ["tuist-eng", "tuist-staging-write"]
+    end
+
+    test "standing staging write does not leak into canary or production", %{conn: conn} do
+      stub_role(@member, :member)
+
+      for host <- ~w(kube-canary.tuist.dev kube-prod.tuist.dev) do
+        c = policy_get(conn, host, [{"x-pomerium-claim-email", @member}])
+        assert c.status == 200
+        assert impersonate_groups(c) == ["tuist-eng"]
+      end
+    end
+
+    test "a non-engineering role still gets nothing on staging", %{conn: conn} do
+      stub_role(@member, :auditor)
+
+      c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", @member}])
+      assert c.status == 403
+      assert c.resp_body =~ "no cluster access tier"
+    end
+
+    test "an off-tailnet subject still gets nothing on staging", %{conn: conn} do
+      stub(TailscaleClient, :user_role, fn _ -> {:error, :not_found} end)
+
+      c = policy_get(conn, "kube-staging.tuist.dev", [{"x-pomerium-claim-email", "x@y.com"}])
+      assert c.status == 403
+      assert c.resp_body =~ "not on tailnet"
     end
   end
 

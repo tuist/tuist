@@ -1,8 +1,9 @@
 /* Animated icon transitions (see `Noora.Icon.icon/1` with `active_name`). */
 
-/* crossfade_rotate: the two icons are stacked; the inactive one is faded and
-   rotated out while the active one fades and rotates in. The `data-active`
-   attribute is toggled by the NooraIconTransition hook. */
+/* The two icons are stacked and the inactive one fades out while the active
+   one fades in; the crossfade_rotate variant additionally rotates them
+   through the swap. The `data-active` attribute is toggled by the
+   NooraIconTransition hook. */
 .noora-icon-transition {
   display: inline-grid;
   place-items: center;
@@ -27,16 +28,28 @@
 
 .noora-icon-transition > [data-part="icon-to"] {
   opacity: 0;
+}
+
+.noora-icon-transition[data-transition="crossfade_rotate"]
+  > [data-part="icon-to"] {
   transform: rotate(-90deg);
 }
 
 .noora-icon-transition[data-active] > [data-part="icon-from"] {
   opacity: 0;
+}
+
+.noora-icon-transition[data-transition="crossfade_rotate"][data-active]
+  > [data-part="icon-from"] {
   transform: rotate(90deg);
 }
 
 .noora-icon-transition[data-active] > [data-part="icon-to"] {
   opacity: 1;
+}
+
+.noora-icon-transition[data-transition="crossfade_rotate"][data-active]
+  > [data-part="icon-to"] {
   transform: rotate(0);
 }
 

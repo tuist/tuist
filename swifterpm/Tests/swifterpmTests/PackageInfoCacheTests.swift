@@ -15,6 +15,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -51,13 +52,18 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
                 to: cacheDir.appendingPathComponent("root.json"))
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: rootPath),
+                    at: rootPath.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -99,13 +105,18 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
                 to: packageInfoPath)
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: packageInfoAbsolute),
+                    at: packageInfoAbsolute.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: checkout, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [pin], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -138,6 +149,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -177,13 +189,20 @@ struct PackageInfoCacheTests {
             ]
 
             try await writeCachedManifest(manifest, packageDir: package)
-            try await writeCachedManifest(emptyManifest(name: "LocalOne"), packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalOne"), packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -241,13 +260,20 @@ struct PackageInfoCacheTests {
             ]
 
             try await writeCachedManifest(rootManifest, packageDir: package)
-            try await writeCachedManifest(localOneManifest, packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                localOneManifest, packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -279,22 +305,18 @@ struct PackageInfoCacheTests {
             // refill the destination without invoking `swift`.
             try await writeCachedManifest(emptyManifest(name: "FreshFromManifestLoader"), packageDir: package)
 
-            // The package-info destination is newer than `Package.swift`, so the mtime
-            // check alone would consider it fresh, but its env sidecar records a
-            // different environment and must force a refresh.
-            try await Task.sleep(nanoseconds: 10_000_000)
-            try await fileSystem.atomicWrite(
-                try JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")),
-                to: rootPath)
-            let rootAbsolutePath = try rootPath.absolutePath
-            try await fileSystem.write(
-                Data("a-fingerprint-produced-under-a-different-environment".utf8),
-                to: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
+            try await Environment.withManifestEnvironment(["FEATURE": "different"]) {
+                try await ManifestCache.write(
+                    JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")), at: rootPath,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
+            }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -302,13 +324,14 @@ struct PackageInfoCacheTests {
 
             let rootInfo = try #require(
                 JSONSerialization.jsonObject(
-                    with: try await fileSystem.readFile(at: rootAbsolutePath))
+                    with: try await fileSystem.readFile(at: rootPath.absolutePath))
                     as? [String: Any])
             #expect(rootInfo["name"] as? String == "FreshFromManifestLoader")
 
-            let sidecar = try await fileSystem.readFile(
-                at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
-            #expect(String(data: sidecar, encoding: .utf8) == ManifestEnvironmentFingerprint.current())
+            let inputs = try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
+            #expect(
+                await ManifestCache.read(at: rootPath, inputs: inputs) != nil
+            )
         }
     }
 
@@ -320,7 +343,8 @@ struct PackageInfoCacheTests {
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

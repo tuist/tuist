@@ -11,6 +11,15 @@ self-serve (reason only); **admin** access ("sign in as admins") goes through th
 **same Slack JIT approval** as a kubectl write. A valid grant also bypasses the
 customer's SSO enforcement, which is how SSO-enforced orgs become reachable.
 
+Grants apply to the dashboard only. Over MCP, an operator reads customer
+accounts through Atlas' proxy without a grant: Atlas sends its ServiceAccount
+token in `x-tuist-atlas-identity`, and the server allows reads for a confirmed
+operator when it verifies (`TuistWeb.OperatorGrant.accept_atlas_identity_header/2`).
+Those reads are reconstructed from Atlas' `mcp.tool_called` audit rows (operator,
+tool, arguments) and from server logs carrying `atlas_operator_email` and
+`atlas_operator_read_account_id`; see `infra/log-review.md`. MCP never accepts
+a grant, and writes are not available through Atlas.
+
 ## What you need upfront
 
 - **Grant ID** (`jti` on the token) = the integer PK of the `project_access_grants`
@@ -183,6 +192,6 @@ a separate follow-up.)
    app origin(s) (defaults to `https://tuist.dev`) so a signed token can't be
    redirected to an attacker host. Now set from the chart
    (`projectAccess.returnToAllowlist` in `infra/helm/tuist-ops/values.yaml`),
-   listing `https://tuist.dev` and `https://atlas.tuist.dev`. Add an origin here
+   listing `https://tuist.dev`. Add an origin here
    only when we run it and it has a route that consumes the grant — every entry
    is somewhere a minted token may legitimately be sent.

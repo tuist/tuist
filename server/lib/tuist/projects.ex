@@ -10,16 +10,46 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
 
+  require Logger
+
   def get_projects_count do
     Repo.aggregate(Project, :count, :id)
+  end
+
+  def public_projects_count do
+    Repo.aggregate(public_projects_query(), :count, :id)
+  end
+
+  def public_project_handles(page, page_size) when page > 0 and page_size > 0 and page_size <= 1000 do
+    Repo.all(
+      from([p, a] in public_projects_query(),
+        order_by: p.id,
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size),
+        select: %{account: a.name, project: p.name}
+      )
+    )
+  end
+
+  defp public_projects_query do
+    from(p in Project,
+      join: a in assoc(p, :account),
+      left_join: o in assoc(a, :organization),
+      where: p.visibility == :public,
+      where:
+        a.visibility == :public or is_nil(o.id) or not o.sso_enforced or
+          is_nil(o.sso_provider)
+    )
   end
 
   def get_project_count_for_account(%Account{id: account_id}, opts \\ []) do
@@ -75,6 +105,17 @@ defmodule Tuist.Projects do
     end
   end
 
+  @doc """
+  Tells the pages waiting for a project's first sign of life that the user
+  reached it from their machine. A report sent with a project token has no
+  user, and tells nobody.
+  """
+  def notify_connected(_project, nil), do: :ok
+
+  def notify_connected(%Project{id: id}, user) do
+    Tuist.PubSub.broadcast(%{user: user}, "projects.#{id}", :show)
+  end
+
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [:account])
     extra_preloads = Enum.reject(preloads, &(&1 == :account))
@@ -116,8 +157,35 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Gets projects by their full handles (account_handle/project_handle) in a single query.
-  Returns a map of full_handle => project.
+  The ids of the projects named by `{account_id, project_handle}` pairs, in a
+  single query, keyed by the pairs as given. Handles match regardless of casing.
+  """
+  def project_ids_by_account_and_handle([]), do: %{}
+
+  def project_ids_by_account_and_handle(pairs) when is_list(pairs) do
+    pairs = Enum.uniq(pairs)
+    account_ids = pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    handles = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    ids =
+      from(p in Project,
+        where: p.account_id in ^account_ids and p.name in ^handles,
+        select: {p.account_id, p.name, p.id}
+      )
+      |> Repo.all()
+      |> Map.new(fn {account_id, name, id} -> {{account_id, String.downcase(name)}, id} end)
+
+    for {account_id, handle} = pair <- pairs,
+        {:ok, id} <- [Map.fetch(ids, {account_id, String.downcase(handle)})],
+        into: %{},
+        do: {pair, id}
+  end
+
+  @doc """
+  Resolves analytics project handles (account_handle/project_handle) in a single query.
+  Current and retained account handles resolve through their permanent reservations,
+  including events queued before a rename. Returns a map keyed by the supplied handles.
+  This lookup does not authorize access to a project.
   """
   def projects_by_full_handles(full_handles) when is_list(full_handles) do
     handle_pairs =
@@ -135,22 +203,22 @@ defmodule Tuist.Projects do
 
     projects =
       from(p in Project,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where: a.name in ^account_handles,
+        join: reservation in "account_handle_reservations",
+        on: p.account_id == reservation.account_id,
+        where: reservation.name in ^account_handles,
         where: p.name in ^project_handles,
-        select: %{project: p, account_name: a.name}
+        select: %{project: p, account_name: reservation.name}
       )
       |> Repo.all()
       |> Map.new(fn %{project: project, account_name: account_name} ->
-        full_handle = "#{account_name}/#{project.name}"
+        full_handle = "#{String.downcase(account_name)}/#{project.name}"
         {full_handle, project}
       end)
 
     handle_pairs
     |> Enum.map(fn {account_handle, project_handle} ->
       full_handle = "#{account_handle}/#{project_handle}"
-      {full_handle, Map.get(projects, full_handle)}
+      {full_handle, Map.get(projects, "#{String.downcase(account_handle)}/#{project_handle}")}
     end)
     |> Enum.reject(fn {_full_handle, project} -> is_nil(project) end)
     |> Map.new()
@@ -306,8 +374,12 @@ defmodule Tuist.Projects do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{project: project}} -> {:ok, project}
-      {:error, _step, changeset, _changes} -> {:error, changeset}
+      {:ok, %{project: project}} ->
+        seed_kura_cache_demand(project, Keyword.get(opts, :origin))
+        {:ok, project}
+
+      {:error, _step, changeset, _changes} ->
+        {:error, changeset}
     end
   end
 
@@ -337,6 +409,29 @@ defmodule Tuist.Projects do
 
   defp seed_default_alert(%Project{id: project_id}) do
     Automations.create_alert(Automations.default_alert_attrs(project_id), source: "system")
+  end
+
+  # Creating a project is the earliest signal that builds are coming, so it is
+  # where an account with no Kura instance gets one
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`), placed nearest
+  # `origin`, where the request creating the project came from. Out of band,
+  # because the cache decision reads the cluster and resolves a region, and that
+  # wait does not belong to a person naming a project.
+  #
+  # A rejected enqueue is logged rather than raised: the project is already
+  # committed, and an account this misses is provisioned the ordinary way on
+  # its first cache request. Anything that raises here is schema drift or a
+  # dead connection rather than a cache decision, so it is left to surface.
+  defp seed_kura_cache_demand(%Project{account_id: account_id}, origin) do
+    case %{account_id: account_id, origin: origin} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Projects] could not seed Kura cache demand for account #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
   end
 
   def delete_project(%Project{} = project) do
@@ -376,32 +471,21 @@ defmodule Tuist.Projects do
   end
 
   def get_project_token(full_token) do
-    full_token_components = String.split(full_token, "_")
-
-    if length(full_token_components) == 3 do
-      [_audience, token_id, token_hash] = full_token_components
-
-      token = Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
-
-      cond do
-        is_nil(token) ->
-          {:error, :not_found}
-
-        verify_pass(token, token_hash) ->
-          {:ok, token}
-
-        true ->
-          {:error, :invalid_token}
-      end
+    with [_audience, token_id, token_hash] <- String.split(full_token, "_"),
+         {:ok, _} <- UUIDv7.cast(token_id),
+         token when not is_nil(token) <- Repo.one(from(t in ProjectToken, where: t.id == ^token_id)),
+         true <- verify_pass(token, token_hash) do
+      {:ok, token}
     else
-      {:error, :invalid_token}
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_token}
     end
   end
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   def verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Tuist.Environment.secret_key_password(),
       token.encrypted_token_hash
     )
@@ -417,12 +501,158 @@ defmodule Tuist.Projects do
     |> Repo.update()
   end
 
+  @logo_storage_prefix "project-logos"
+  @logo_storage_actor :project_logos
+  @logo_allowed_content_types %{
+    "image/png" => "png",
+    "image/jpeg" => "jpg",
+    "image/webp" => "webp"
+  }
+  @logo_upload_salt "project_logo_upload"
+  @logo_upload_ttl_seconds 3_600
+
+  def logo_allowed_content_types, do: Map.keys(@logo_allowed_content_types)
+
+  # Two-step presigned upload used by clients that cannot POST a multipart
+  # form to a LiveView (the MCP surface, mainly). The client PUTs the binary
+  # straight at object storage using the URL below, then calls
+  # `finalize_project_logo_upload/2` with the returned token to commit the
+  # key on the project. The token binds the storage key to the project so a
+  # caller cannot swap one in for another project's logo at commit time.
+  def prepare_project_logo_upload(%Project{id: project_id}, content_type) do
+    with {:ok, extension} <- logo_extension_for(content_type) do
+      storage_key =
+        Path.join([
+          @logo_storage_prefix,
+          Integer.to_string(project_id),
+          "#{Ecto.UUID.generate()}.#{extension}"
+        ])
+
+      upload_url =
+        Tuist.Storage.generate_upload_url(storage_key, @logo_storage_actor, expires_in: @logo_upload_ttl_seconds)
+
+      payload = %{
+        project_id: project_id,
+        storage_key: storage_key,
+        content_type: content_type
+      }
+
+      upload_token = Phoenix.Token.sign(TuistWeb.Endpoint, @logo_upload_salt, payload)
+
+      expires_at = DateTime.add(DateTime.utc_now(), @logo_upload_ttl_seconds, :second)
+
+      {:ok,
+       %{
+         upload_url: upload_url,
+         upload_token: upload_token,
+         storage_key: storage_key,
+         method: "PUT",
+         content_type: content_type,
+         expires_at: expires_at,
+         expires_in_seconds: @logo_upload_ttl_seconds
+       }}
+    end
+  end
+
+  def finalize_project_logo_upload(%Project{id: project_id} = project, upload_token) when is_binary(upload_token) do
+    with {:ok, payload} <- verify_logo_upload_token(upload_token),
+         :ok <- ensure_token_matches_project(payload, project_id),
+         true <- Tuist.Storage.object_exists?(payload.storage_key, @logo_storage_actor),
+         {:ok, updated} <- persist_project_logo(project, payload.storage_key) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    else
+      false -> {:error, :logo_object_not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp verify_logo_upload_token(token) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
+      {:ok, %{project_id: _, storage_key: _, content_type: _} = payload} -> {:ok, payload}
+      {:ok, _} -> {:error, :invalid_logo_upload_token}
+      {:error, _reason} -> {:error, :invalid_logo_upload_token}
+    end
+  end
+
+  defp ensure_token_matches_project(%{project_id: project_id}, project_id), do: :ok
+  defp ensure_token_matches_project(_payload, _project_id), do: {:error, :logo_upload_token_project_mismatch}
+
+  # Content-address the object so replacements land at a new key and CDN
+  # caches on the public serving URL invalidate as soon as the DB row flips.
+  def set_project_logo(%Project{} = project, binary, content_type) when is_binary(binary) do
+    with {:ok, extension} <- logo_extension_for(content_type),
+         {:ok, storage_key} <- upload_project_logo(project, binary, extension),
+         {:ok, updated} <- persist_project_logo(project, storage_key) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    end
+  end
+
+  def clear_project_logo(%Project{logo_storage_key: nil} = project), do: {:ok, project}
+
+  def clear_project_logo(%Project{} = project) do
+    with {:ok, updated} <- persist_project_logo(project, nil) do
+      delete_stored_logo(project.logo_storage_key)
+      {:ok, updated}
+    end
+  end
+
+  def read_project_logo(%Project{logo_storage_key: nil}), do: {:error, :not_found}
+
+  def read_project_logo(%Project{logo_storage_key: storage_key}) do
+    Tuist.Storage.get_object(storage_key, @logo_storage_actor)
+  end
+
+  def project_logo_content_type(%Project{logo_storage_key: nil}), do: nil
+
+  def project_logo_content_type(%Project{logo_storage_key: storage_key}) do
+    extension = storage_key |> Path.extname() |> String.trim_leading(".") |> String.downcase()
+
+    Enum.find_value(@logo_allowed_content_types, fn {mime, ext} ->
+      if ext == extension, do: mime
+    end)
+  end
+
+  defp logo_extension_for(content_type) do
+    case Map.get(@logo_allowed_content_types, content_type) do
+      nil -> {:error, :unsupported_logo_content_type}
+      extension -> {:ok, extension}
+    end
+  end
+
+  defp upload_project_logo(%Project{id: project_id}, binary, extension) do
+    hash = :sha256 |> :crypto.hash(binary) |> Base.encode16(case: :lower)
+    storage_key = Path.join([@logo_storage_prefix, Integer.to_string(project_id), "#{hash}.#{extension}"])
+
+    case Tuist.Storage.put_object(storage_key, binary, @logo_storage_actor) do
+      :ok -> {:ok, storage_key}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp persist_project_logo(%Project{} = project, storage_key) do
+    project
+    |> Project.logo_changeset(%{logo_storage_key: storage_key})
+    |> Repo.update()
+  end
+
+  defp delete_stored_logo(nil), do: :ok
+
+  defp delete_stored_logo(storage_key) do
+    _ = Tuist.Storage.delete_object(storage_key, @logo_storage_actor)
+    :ok
+  end
+
   def get_repository_url(%Project{} = project) do
     project = Repo.preload(project, :vcs_connection)
 
     case project.vcs_connection do
       %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
         "https://github.com/#{repository_full_handle}"
+
+      %VCSConnection{provider: :origin, repository_full_handle: repository_full_handle} ->
+        "https://cursor.com/codebase/#{repository_full_handle}"
 
       nil ->
         nil
@@ -548,16 +778,21 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository.
+  Get all projects connected to a VCS repository, scoped to a provider
+  (GitHub by default). Never let a same-named repository on another forge
+  authorize CI tokens. The handle is matched case-insensitively.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     Repo.all(
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
-        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        where: pc.provider == ^provider,
+        where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
+        order_by: [asc: p.id],
         preload: ^preload
     )
   end
@@ -567,12 +802,14 @@ defmodule Tuist.Projects do
   """
   def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     project =
       Repo.one(
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
+          where: pc.provider == ^provider,
           where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )

@@ -7,9 +7,12 @@ release could not produce a DMG at all. dmgbuild writes the same layout
 straight into the image's .DS_Store, so the styling survives without a GUI
 session.
 
-The values below mirror the create-dmg invocation this replaces, including
-the defaults it did not spell out: a 10x60 window origin, 16pt labels, and
-an unarranged icon view with no toolbar or status bar.
+The window is sized to the 660x400 point background, shipped as a HiDPI TIFF
+holding 1x and 2x so Retina Finder windows draw it sharp. The icons sit on
+either side of the arrow drawn in the background. The remaining values mirror
+the create-dmg invocation this replaces, including the defaults it did not
+spell out: a 10x60 window origin, 16pt labels, and an unarranged icon view
+with no toolbar or status bar.
 """
 
 import os
@@ -22,8 +25,8 @@ symlinks = {"Applications": "/Applications"}
 hide_extensions = [app_name]
 
 icon_locations = {
-    app_name: (139, 161),
-    "Applications": (467, 161),
+    app_name: (150, 200),
+    "Applications": (510, 200),
 }
 
 background = defines["background"]  # noqa: F821 - injected by dmgbuild
@@ -34,7 +37,7 @@ arrange_by = None
 icon_size = 95
 text_size = 16
 label_pos = "bottom"
-window_rect = ((10, 60), (605, 363))
+window_rect = ((10, 60), (660, 400))
 
 show_status_bar = False
 show_tab_view = False

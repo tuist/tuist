@@ -17,7 +17,27 @@ per-env kubectl gateway. One Helm release per workload env
   `tuist-<env>-write` → `view` / `view` / `edit` respectively
   (`templates/access-tiers.yaml`).
 
+## Staging: the gateway is no longer the primary door
+
+Staging's write tier is standing access rather than a per-request
+elevation, so nothing there needs the per-request PolicyController
+lookup this gateway exists to carry. Human kubectl for staging goes
+over the tailnet instead, to `tuist-k8s-staging.taild6d7bb.ts.net`
+(Tailscale's in-process API server proxy, enabled in
+`infra/helm/tailscale-operator/values-staging.yaml`), with the tier
+coming from `tailscale.com/cap/kubernetes` grants in
+`infra/tailscale/acls.json`.
+
+The release still deploys to staging, for two reasons:
+`templates/access-tiers.yaml` binds the groups BOTH doors
+impersonate, and `kube-staging.tuist.dev` stays a working way in
+from off the tailnet. Canary and production are unchanged — the
+gateway is their only door.
+
 ## Identity flow
+
+Canary and production always; staging only when someone uses the
+gateway fallback above.
 
 1. `kubectl --context kube-<env>.tuist.dev get pods`
 2. `pomerium-cli` injects the cached Pomerium session JWT as a Bearer.
@@ -31,9 +51,11 @@ per-env kubectl gateway. One Helm release per workload env
    over the tailnet (the egress Service is operator-managed,
    proxying to `ops.<tailnet>.ts.net`).
 6. tuist-ops reads `host` to derive the env + the claim header
-   to identify the user, checks `(subject, env)` against the
-   active elevation row, returns HTTP 200 + `Impersonate-User`
-   + one-or-more `Impersonate-Group` response headers.
+   to identify the user, adds the env write group (staging:
+   always; canary / production: only against an active elevation
+   row for `(subject, env)`), returns HTTP 200 +
+   `Impersonate-User` + one-or-more `Impersonate-Group` response
+   headers.
 7. Sidecar strips the inbound bearer, attaches the pod
    ServiceAccount token, copies the policy headers onto the
    request, forwards to `https://kubernetes.default.svc:443`.

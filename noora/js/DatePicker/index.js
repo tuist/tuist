@@ -49,48 +49,40 @@ export class DatePicker extends Component {
   setupNavigationHandlers() {
     const signal = this.abortController.signal;
 
-    // Use event delegation on month elements
-    const months = this.el.querySelectorAll(
-      "[data-part='months'] > [data-part='month']",
-    );
+    // Delegate from the hook root so navigation survives LiveView DOM patches.
+    this.el.addEventListener(
+      "click",
+      (e) => {
+        const navigationTrigger = e.target.closest(
+          "[data-part='prev-trigger'], [data-part='next-trigger']",
+        );
+        if (navigationTrigger) {
+          if (navigationTrigger.disabled) return;
 
-    months.forEach((monthEl, monthIndex) => {
-      const prevTrigger = monthEl.querySelector("[data-part='prev-trigger']");
-      const nextTrigger = monthEl.querySelector("[data-part='next-trigger']");
+          const months = Array.from(
+            this.el.querySelectorAll(
+              "[data-part='months'] > [data-part='month']",
+            ),
+          );
+          const monthIndex = months.indexOf(
+            navigationTrigger.closest("[data-part='month']"),
+          );
+          if (monthIndex < 0) return;
 
-      if (prevTrigger) {
-        prevTrigger.addEventListener(
-          "click",
-          () => {
+          if (navigationTrigger.dataset.part === "prev-trigger") {
             if (monthIndex === 0) {
               this.calendarNav.navigatePrevStart();
             } else {
               this.calendarNav.navigatePrevEnd();
             }
-          },
-          { signal },
-        );
-      }
+          } else if (monthIndex === 0) {
+            this.calendarNav.navigateNextStart();
+          } else {
+            this.calendarNav.navigateNextEnd();
+          }
+          return;
+        }
 
-      if (nextTrigger) {
-        nextTrigger.addEventListener(
-          "click",
-          () => {
-            if (monthIndex === 0) {
-              this.calendarNav.navigateNextStart();
-            } else {
-              this.calendarNav.navigateNextEnd();
-            }
-          },
-          { signal },
-        );
-      }
-    });
-
-    // Event delegation for preset buttons
-    this.el.addEventListener(
-      "click",
-      (e) => {
         const presetItem = e.target.closest("[data-part='preset-item']");
         if (presetItem) {
           const presetId = presetItem.dataset.presetId;

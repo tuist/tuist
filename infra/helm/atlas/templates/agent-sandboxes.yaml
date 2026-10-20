@@ -1,0 +1,21 @@
+{{- /* Legacy namespace retention only. Atlas agents execute in-process. */}}
+{{- if .Values.agentSandboxes.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.agentSandboxes.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+    atlas.tuist.dev/workload: coding-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: false
+metadata:
+  name: {{ .Values.agentSandboxes.serviceAccountName }}
+  namespace: {{ .Values.agentSandboxes.namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+{{- end }}

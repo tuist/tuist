@@ -17,19 +17,11 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
 
 > [!TIP]
-> **If you clean, keep `CompilationCache.noindex`**
+> **On developer machines, keep `CompilationCache.noindex` when you clean**
 >
-> The compilation cache lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. Prefer deleting only the build products: the rebuild then replays from the cache on disk, without fetching anything.
-
+> By default, the compilation cache store lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. On a developer machine, prefer deleting only the build products: the rebuild then replays from the store on disk, without fetching anything.
 
 ## Setup {#setup}
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - Xcode 26.0 or later
-
 
 If you don't already have a Tuist account and project, you can create one by running:
 
@@ -43,43 +35,100 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. Run it initially on your developer machine and as part of each CI job's setup.
 
 To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
+### Updating the cache components {#updating-the-cache-components}
+
+The cache proxy uses a stable launcher rather than a path pinned to the Tuist installation that last ran setup. Once installed, `tuist setup cache` and cache-enabled `tuist generate` advance a usable target to newer Tuist releases. Projects pinned to an older Tuist therefore do not downgrade the shared proxy. Generation only updates an existing launcher target: it does not install a service, authenticate, replace the plugin, or restart the proxy. Custom plugin, proxy, socket, or registry overrides skip automatic advancement.
+
+The running proxy adopts the new target only after at least 30 seconds without cache requests, with no requests or background work in flight and its publication spools drained. It then exits and launchd starts the selected CLI, preserving the service's arguments and credential environment. Only the proxy that actually adopts the target atomically refreshes the on-disk plugin from its bundle; setup does not install a newer plugin while the older proxy is still draining. If the installed plugin is missing, explicit idle setup restarts the selected proxy to retry its refresh. There is still only one proxy owning the registry and spools. An unavailable target or undrained uploads defer the switch rather than interrupting active requests. Credential refresh follows the selected CLI even before the switch, so removing an older CLI installation does not strand uploads waiting to drain.
+
+An existing installation created before the stable launcher needs one explicit migration. Run the following when no builds are running:
+
+```bash
+tuist setup cache
+```
+
+After that migration, updating Tuist and running your usual `tuist generate` is enough to advance the proxy and installed plugin; you do not need to rerun setup for each CLI release. Explicit setup is still needed to select a different Xcode, including an Xcode updated at the same path. Setup can replace the shared service when its configuration changes, so wait for all builds on the machine to finish first. The proxy supports the previous plugin protocol as well as the current one, so a compatible plugin already loaded in Xcode keeps working across a proxy upgrade. Fully quit and reopen Xcode to load the newest plugin, but a compatible loaded plugin does not require an immediate restart. Regenerate projects when a release changes generated build settings.
+
+Keep the selected Tuist installation available: the launcher uses it for startup, configuration, and credential refresh. Older installations can be removed once the launcher has advanced. If the selected executable was deleted or is no longer executable, `tuist setup cache` can repair the target using an available installation, even an older release, without first tearing down the cache. Stable executable aliases are preserved across package-manager upgrades; symlinks are resolved only when comparing installation identity. At startup the proxy records the version actually launched, including in-place updates or deliberate rollbacks, while retaining the highest version used to prevent unrelated older checkouts from switching a usable installation.
+
+Source-built CLIs without a release version and explicit `TUIST_CAS_PLUGIN_PATH` or `TUIST_CAS_PROXY_PATH` setups use an explicit launch configuration instead of automatic version selection. Rerun setup after rebuilding those components. Setup checks their freshness and disables managed target advancement only after its replacement is ready.
+
+`tuist teardown cache` stops the service before removing the launcher target, while retaining the stable plugin for existing projects. If stopping the service fails, its launcher remains available for restart and another teardown attempt. Generation cannot recreate the service after successful teardown.
+
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 
-Add the following build settings to your Xcode project:
+For an existing Xcode project, copy the build settings printed by `tuist setup cache` into your project's Build Settings or an existing `.xcconfig` file. The command prints the configuration for your account; it does not generate a configuration file or edit your Xcode project. Keep `$(inherited)` when extending `OTHER_SWIFT_FLAGS` so other compiler options are preserved.
+
+The settings include:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
-COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/your_org_your_project.sock
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
+COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
+COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
+COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
+OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
+Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
 > [!NOTE]
-> **Socket Path**
+> **Plugin Path**
 >
-> The socket path will be displayed when you run `tuist setup cache`. Copy it from there rather than assembling it by hand, since it differs depending on how your account's cache is served.
+> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Setup and the newly launched proxy refresh the copy from the selected Tuist bundle; running setup from an older checkout does not downgrade a newer plugin.
+
+> [!NOTE]
+> **One socket for every project**
+>
+> `tuist setup cache` installs a single cache proxy per machine, so every project uses the same `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. The `tuist-instance` plugin option is what identifies the project.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**
 >
 > It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
+> [!NOTE]
+> **Concurrent cache lookups**
+>
+> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` runs the remote cache lookups the build system makes for each compilation alongside the rest of the build, instead of a few at a time on the build's execution lanes. Builds that miss or restore many compilations from a distant cache finish sooner.
 
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
-    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/your_org_your_project.sock \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+    COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
+    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
+    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+    'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
 ```
+
+> [!NOTE]
+> **Prefix mapping on Xcode 27 and later**
+>
+> On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
+>
+> The compiler also writes the mapped paths into the code coverage data, and Xcode can't resolve them, so a coverage report would leave out every source compiled with prefix mapping. The printed settings, along with the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` ones, turn prefix mapping off in builds that gather code coverage. `tuist generate` does the same. Those builds still use the compilation cache, but their cache keys depend on the project and `DerivedData` paths.
+>
+> When you pass these settings to `xcodebuild` on the command line, single-quote the values that contain `$(...)`, as with `OTHER_SWIFT_FLAGS` above. Otherwise the shell expands them to empty strings and prefix mapping is turned off:
+>
+> ```
+> xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
+>     'SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     'CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
+> ```
 
 > [!NOTE]
 > **Generated Projects**
@@ -100,6 +149,43 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > )
 > ```
 
+### Coverage with prefix mapping {#coverage-with-prefix-mapping}
+
+By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. If your team reads coverage with `llvm-cov` and remaps source paths itself, you can keep coverage compilations shareable across checkouts:
+
+```swift
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true,
+            enableCoveragePrefixMapping: true
+        )
+    )
+)
+```
+
+This option applies on Xcode 27 and later and requires `enableCaching`. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+
+The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
+
+### Debugging generated projects {#debugging-generated-projects}
+
+With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
+
+On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.
+
+Paths outside the Tuist root aren't mapped. The cache keys of a project outside the root depend on where it's checked out, so other checkouts and machines miss the cache for it. To keep its keys independent of the checkout location, turn the per-project mappings on in that project's manifest:
+
+```swift
+let checkoutIndependentSettings = Settings.settings(base: [
+    "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+    "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+])
+```
+
+Pass these settings to that `Project`. When you debug a target from another project, LLDB then can't find that project's sources. Manifest project-base settings take precedence over project-level xcconfig values, so set them in the manifest itself.
+
+Changing these settings changes compilation-cache keys, binary-cache hashes, and selective-testing hashes, so those caches need warming again. Keep the choice consistent across your team.
 
 ### Cache upload policy {#cache-upload-policy}
 
@@ -141,6 +227,51 @@ let tuist = Tuist(
 
 With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
 
+The upload policy is recorded per project on the machine that runs `tuist setup cache`. To change it, update `upload` and run `tuist setup cache` again, and `tuist generate` too if Tuist generates your project. Uploads after that follow the new policy without restarting the cache on that machine. Jobs for the same project that run on one machine at the same time share its policy, so the most recent `tuist setup cache` decides it for all of them.
+
+### Store size limit {#store-size-limit}
+
+A compilation cache store grows with every build. To bound the project's stores, set `storeSizeLimit` in your `Tuist.swift` file:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "your-org/your-project",
+    xcodeCache: .xcodeCache(
+        storeSizeLimit: .gigabytes(20)
+    ),
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true
+        )
+    )
+)
+```
+
+While no build is running, Tuist checks each of the project's stores every 10 minutes. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+
+### Module cache hashes {#module-cache-hashes}
+
+Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
+
+> [!NOTE]
+> **Prefix mapping settings are hashed**
+>
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+
+### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
+
+The Xcode cache can reduce transfers with content-defined chunking. Instead of treating each large output as unrelated to earlier versions, it splits the compressed output at boundaries determined by its contents. After an edit, matching chunks can be reused even when their offsets have changed.
+
+Uploads send only chunks that the server is missing. Downloads first obtain the exact cached action and the output's chunk recipe, then reuse verified chunks stored on the local machine and fetch the missing pieces. The complete reconstructed output is verified before it is restored to the compiler cache.
+
+The transfer-chunk cache is separate from `DerivedData`, so its chunks can survive cleaning the compilation cache or restarting the local cache service. It is disposable and bounded to at most one gibibyte of chunk payload, with an additional temporary staging file of at most two mebibytes. Evicted or damaged chunks are downloaded again when needed. Keeping the compilation cache itself is still faster than reconstructing its contents.
+
+The client uses chunked transfers only when the server advertises compatible support. Older clients can still read complete outputs, and clients connected to older or unsupported servers retain ordinary transfers. Small outputs stay on the existing whole-output path.
+
+This reduces transferred bytes, not compiler invalidation. Changing a source file can still require compilation; chunking helps publish or restore the resulting output. Savings depend on the output and the edit, and a cold machine with no matching chunks must download all of the output.
+
 ### Continuous integration {#continuous-integration}
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
@@ -168,63 +299,58 @@ jobs:
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for more examples, including token-based authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and Codemagic.
 
+### Compilation cache store on CI {#compilation-cache-store-on-ci}
+
+The compilation cache store is the local directory where Xcode keeps compilation outputs. The `COMPILATION_CACHE_CAS_PATH` build setting sets its location, which defaults to `CompilationCache.noindex` inside `DerivedData`.
+
+#### Stateful store {#stateful-store}
+
+To keep a store between builds, point `COMPILATION_CACHE_CAS_PATH` (and `TUIST_COMPILATION_CACHE_CAS_PATH` for `tuist cache`) at one durable path, and bound its size with a [store size limit](#store-size-limit).
+
 ## Troubleshooting {#troubleshooting}
+
+### Builds warn that the Xcode cache proxy failed {#cas-proxy-failed}
+
+If a build shows a warning like the following, which Xcode prefixes with `CAS error:` or `CAS operation failed:` depending on which compilation hit the failure first:
+
+```
+warning: CAS error: The Tuist Xcode cache proxy at /Users/you/.local/state/tuist/cas-proxy.sock failed (proxy connect: No such file or directory (os error 2)). Compilations that needed it used the local cache only, without remote cache hits. Their uploads are kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the proxy is not running.
+```
+
+then the compilation cache could not reach the local cache proxy that `tuist setup cache` installs. The build still succeeds, but the affected compilations get no remote cache hits, so it runs like a build with an empty cache. Their uploads are kept on disk and sent once the proxy handles requests again: later in the same build if it comes back in time, otherwise during the next build on the same machine. A CI machine that is discarded after the job loses them. The warning appears once per build, in Xcode's Issue navigator and in `xcodebuild` output.
+
+To check whether the proxy is running, look for a process listening on the socket named in the warning:
+
+```bash
+lsof ~/.local/state/tuist/cas-proxy.sock
+```
+
+If the command prints nothing, run `tuist setup cache` to start the proxy again. On CI, run `tuist setup cache` before any `xcodebuild` invocation in every job.
 
 ### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
 
 If your builds take much longer than expected and the Xcode build log is full of warnings like:
 
 ```
-Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): Connection refused (errno: 61)))
+Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): No such file or directory (errno: 2)))
 note: cache key query failed
 ```
 
 or:
 
 ```
-Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): No such file or directory (errno: 2)))
+Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): Connection refused (errno: 61)))
 ```
 
-then the Xcode cache daemon (the local socket started by `tuist setup cache`) is not reachable. When the daemon is down, Xcode retries the connection on every compilation cache request rather than failing fast, which can make a build take an hour or more. This retry behavior is implemented inside Xcode and cannot be configured by Tuist, so the only fix is to make sure the daemon is running.
+then `COMPILATION_CACHE_REMOTE_SERVICE_PATH` points at a socket nothing listens on, usually the per-project socket (`~/.local/state/tuist/<org>_<project>.sock`) that earlier versions of Tuist configured. Tuist no longer serves that socket. Xcode retries the connection on every compilation cache request rather than failing fast, which can make a build take an hour or more, and Tuist cannot change that behavior.
 
-> [!WARNING]
-> **Xcode cannot be told to fail fast**
->
-> Tuist only provides the local socket Xcode communicates with. When the socket is unreachable, Xcode decides to keep retrying with a deadline per task, and that behavior is not something we can override. If you are not actively using the Xcode cache, disable it rather than leaving the build settings enabled without a running daemon.
+To fix it:
 
-**If you are not using the Xcode cache**, remove the `COMPILATION_CACHE_*` build settings and set `enableCaching: false` (or leave it unset) in your `Tuist.swift` so Xcode does not attempt CAS queries at all. You can also run `tuist teardown cache` to unload the LaunchAgent and remove the socket file so no daemon is kept alive in the background.
+- **Generated projects**: run `tuist generate` again.
+- **Other projects**: replace the `COMPILATION_CACHE_*` build settings with the ones `tuist setup cache` prints, as described in [Configure Xcode Build Settings](#configure-xcode-build-settings).
 
-**If you are using the Xcode cache**, verify the daemon:
-
-1. Check that the socket file exists and has a listener. The socket path is printed by `tuist setup cache` on success and is usually `~/.local/state/tuist/<org>_<project>.sock`:
-
-   ```bash
-   lsof ~/.local/state/tuist/<org>_<project>.sock
-   ```
-
-   If the command prints nothing and exits with status `1`, no process is listening on the socket.
-
-2. Stream the daemon's logs and run your build in another terminal. If nothing is logged while `xcodebuild` runs, the requests are not reaching the daemon:
-
-   ```bash
-   log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
-   ```
-
-3. Tear down and re-run setup. The safest way to recover from a stale socket or a LaunchAgent that refuses to come back up is to run `tuist teardown cache` (which unloads the LaunchAgent, removes its plist, and deletes the socket file) followed by a fresh `tuist setup cache`:
-
-   ```bash
-   tuist teardown cache
-   tuist setup cache
-   ```
-
-   If `launchctl` itself is failing, run `tuist setup cache --verbose` to see the bootstrap step and the path of the generated LaunchAgent plist (for example `~/Library/LaunchAgents/tuist.cache.<org>_<project>.plist`).
-
-On CI, run `tuist setup cache` on every job before any `xcodebuild` or `tuist cache warm` invocation. On developer machines, `tuist setup cache` only needs to run once per machine, but wiring it into a `post-checkout` Git hook (or an equivalent bootstrap script) is a reliable way to make sure the daemon is running after a reboot or a fresh clone.
-
-### Some artifacts upload successfully while others fail with `deadlineExceeded` in the same build {#intermittent-cas-errors}
-
-A build log that mixes successful `uploaded CAS output` notes with `deadlineExceeded` warnings usually means the daemon was running when the build started but became unreachable partway through (for example it was killed, the socket file was removed, or a wrapper script restarted it). Follow the steps above to confirm the daemon is still running after the failing build, and make sure nothing in your CI or local tooling removes the socket file or kills the `tuist cache-start` process during the build.
+If you are not using the Xcode cache, remove the `COMPILATION_CACHE_*` build settings instead and run `tuist teardown cache`.
 
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
-When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so Tuist still receives them, but it does not publish anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.

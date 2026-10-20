@@ -18,8 +18,72 @@ BUILD_DIRECTORY=$MISE_PROJECT_ROOT/build
 TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
 TUIST_DIR=$MISE_PROJECT_ROOT
-APPLE_ID=$(op read "op://tuist/App Specific Password/username")
-APPLE_PASSWORD=$(op read "op://tuist/App Specific Password/password")
+# Every 1Password read happens here, before a keychain is created or anything
+# is built, so a credentials problem fails in about a second with the full list
+# of what is unreadable. `set -e` aborts on the first failing read, which used
+# to surface as a bare `op` 401 forty lines in and read like a build failure.
+CERTIFICATE_P12_PATH=$TMP_DIR/certificate.p12
+OP_UNREADABLE=""
+OP_READABLE=""
+op_record() {
+    if [ "$1" -eq 0 ]; then
+        OP_READABLE="${OP_READABLE}${OP_READABLE:+
+}  - $2"
+    else
+        OP_UNREADABLE="${OP_UNREADABLE}${OP_UNREADABLE:+
+}  - $2"
+    fi
+}
+
+# Redirected rather than captured in a subshell: the helpers have to record
+# their outcome in this shell so one pass collects every failure.
+op_read_field() {
+    local rc=0
+    op read "$1" >"$2" 2>/dev/null || rc=$?
+    op_record "$rc" "$1"
+}
+
+op_read_file() {
+    local rc=0
+    op read "$1" --out-file "$2" >/dev/null 2>&1 || rc=$?
+    op_record "$rc" "$1"
+}
+
+print_status "Checking access to signing credentials in 1Password..."
+op_read_field "op://tuist/App Specific Password/username" "$TMP_DIR/apple_id"
+op_read_field "op://tuist/App Specific Password/password" "$TMP_DIR/apple_password"
+op_read_field "op://tuist/Developer ID Application Certificate/password" "$TMP_DIR/certificate_password"
+op_read_file "op://tuist/Developer ID Application Certificate/certificate.p12" "$CERTIFICATE_P12_PATH"
+
+if [ -n "$OP_UNREADABLE" ]; then
+    {
+        echo -e "${RED}[ERROR] Could not read the code-signing credentials from 1Password.${NC}"
+        echo "This is a credentials failure, not a build failure. Nothing was built."
+        echo
+        echo "Unreadable:"
+        echo "$OP_UNREADABLE"
+        if [ -n "$OP_READABLE" ]; then
+            echo "Readable:"
+            echo "$OP_READABLE"
+        fi
+        echo
+        if [ "${CI:-}" = "true" ]; then
+            echo "CI authenticates with the OP_SERVICE_ACCOUNT_TOKEN secret. If some of"
+            echo "the references above were readable and others were not, the token itself"
+            echo "is valid and unexpired, so look at the refused items rather than rotating"
+            echo "it. That pattern has two known causes: a transient 1Password-side error"
+            echo "(re-run the job once before escalating), or the service account losing"
+            echo "access to those items under 1Password > Developer > Service Accounts."
+        else
+            echo "Run 'op signin' and make sure your account can read the references above."
+        fi
+    } >&2
+    exit 1
+fi
+
+APPLE_ID=$(cat "$TMP_DIR/apple_id")
+APPLE_PASSWORD=$(cat "$TMP_DIR/apple_password")
+CERTIFICATE_PASSWORD=$(cat "$TMP_DIR/certificate_password")
 TEAM_ID='U6LC622NKF'
 ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
@@ -42,9 +106,8 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
 print_status "Importing certificate to keychain..."
-security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+security import $CERTIFICATE_P12_PATH -P "$CERTIFICATE_PASSWORD" -A
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 

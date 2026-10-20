@@ -99,6 +99,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
         sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false),
+        sso_default_role: Keyword.get(opts, :sso_default_role, "user"),
         sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
         oauth2_client_id: oauth2_client_id,
         oauth2_client_secret: oauth2_client_secret,

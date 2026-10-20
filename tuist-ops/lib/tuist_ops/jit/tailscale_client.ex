@@ -3,8 +3,16 @@ defmodule TuistOps.JIT.TailscaleClient do
   Tailscale API client. The bot reads tailnet user metadata (role +
   identity) to make policy decisions; this app never writes to the
   tailnet ACL. The ACL is a static document edited through code
-  review in `infra/tailscale/acls.json`, and runtime elevation is
-  handled per-request by Pomerium against this app's DB.
+  review in `infra/tailscale/acls.json` and applied by hand in the
+  admin console, and elevation for canary/production is handled
+  per-request by Pomerium against this app's DB.
+
+  Note the ACL is no longer purely descriptive: its
+  `tailscale.com/cap/kubernetes` grants are the authoritative tier
+  decision for staging kubectl, which reaches its apiserver over
+  the tailnet rather than through Pomerium. This client still holds
+  `users:read` only and cannot write that file — see the header of
+  `infra/tailscale/acls.json` for what applying it would take.
 
   Two surfaces:
 

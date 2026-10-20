@@ -4,7 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  alias EMCP.SessionStore.ETS, as: SessionStore
+  alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -20,8 +20,12 @@ defmodule Tuist.Application do
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Telemetry.QueryErrorContext
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -30,6 +34,9 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunError
+  alias Tuist.Tests.TestRunStressCandidate
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
@@ -44,11 +51,9 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
-    start_posthog()
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -60,29 +65,24 @@ defmodule Tuist.Application do
     application
   end
 
+  @impl true
+  def prep_stop(state) do
+    EndpointDrainer.drain(TuistWeb.Endpoint)
+    state
+  end
+
   defp load_secrets_in_application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
   end
 
-  defp start_posthog do
-    if Environment.analytics_enabled?() do
-      case Application.start(:posthog) do
-        :ok ->
-          Logger.info("PostHog analytics started")
-
-        {:error, {:already_started, _}} ->
-          Logger.info("PostHog analytics already started")
-
-        {:error, reason} ->
-          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
-      end
-    end
-  end
-
   defp start_telemetry do
-    Oban.Telemetry.attach_default_logger()
+    Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
+    TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
+    QueryErrorContext.attach()
+    Tuist.Repo.PromExPlugin.attach()
+    Tuist.ClickHouseRepo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -95,6 +95,8 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_ingest_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -232,6 +234,10 @@ defmodule Tuist.Application do
         :auth_account_handle,
         :selected_account_handle,
         :selected_project_handle,
+        :operator_grant_jti,
+        :operator_grant_sub,
+        :atlas_operator_email,
+        :atlas_operator_read_account_id,
         :method,
         :route,
         :request_path,
@@ -297,62 +303,92 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
+    # Workers need endpoint configuration during startup and shutdown. prep_stop/1
+    # drains incoming traffic before Oban stops, without removing that configuration.
+    # Before the buffers, because children stop in reverse. Each buffer's
+    # final flush on shutdown writes to Cloud and mirrors the same rows,
+    # so the mirror's repository, task supervisor and drainer have to
+    # outlive every buffer. Started after them, they stopped first, and
+    # each deploy lost the flushes of the pods it replaced:
+    #
+    #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
+    #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+    # Last, so it starts once Oban is up and stops first on shutdown.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
-        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
-        Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
-        Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
-        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
-        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
-        Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
-        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
-        Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
-        Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
-        Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
-        Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
-        Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
-        Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
-        Supervisor.child_spec(Buffer, id: Buffer),
-        Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
-        Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
-        Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
-        Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
-        Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
-        Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
-        Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
-        Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
-        Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
-        Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
-        Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
-        Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
-        Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
-        {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Cachex, [:tuist, []]},
-        Cache,
-        {Phoenix.PubSub, name: Tuist.PubSub},
-        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-        {Tuist.API.Pipeline, []},
-        Tuist.Kura.Demand,
-        TuistCommon.GitHub.RateLimit,
-        TuistWeb.Telemetry
+        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
       ] ++
+        shadow_ingest_children() ++
+        [
+          Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
+          Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+          Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
+          Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+          Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+          Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
+          Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
+          Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+          Supervisor.child_spec(Tuist.BuildEntities.Observation.Buffer, id: Tuist.BuildEntities.Observation.Buffer),
+          Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
+          Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
+          Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
+          Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
+          Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
+          Supervisor.child_spec(Buffer, id: Buffer),
+          Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Build.Buffer, id: Tuist.Cargo.Build.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Compilation.Buffer, id: Tuist.Cargo.Compilation.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
+          Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Step.Buffer, id: Tuist.Mix.Step.Buffer),
+          Supervisor.child_spec(Tuist.Mix.CacheEvent.Buffer, id: Tuist.Mix.CacheEvent.Buffer),
+          Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+          Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
+          Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
+          Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
+          Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+          Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
+          Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+          Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
+          Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
+          Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
+          Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
+          Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+          Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
+          Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
+          Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
+          Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
+          Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
+          Tuist.Vault,
+          {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
+          {Task.Supervisor, name: Tuist.MCP.Events.DeliverySupervisor, max_children: 20},
+          {Finch, name: Tuist.Finch, pools: finch_pools()},
+          {Cachex, [:tuist, []]},
+          Tuist.Authentication.TokenVerificationCache,
+          Tuist.Authentication.SubjectCache,
+          Tuist.OpenGraphImages,
+          TuistWeb.PublicOverviewCache,
+          Cache,
+          {Phoenix.PubSub, name: Tuist.PubSub},
+          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.API.Pipeline, []},
+          Tuist.Kura.Demand,
+          Tuist.Kura.Origins,
+          TuistCommon.GitHub.RateLimit,
+          TuistWeb.Telemetry
+        ] ++
         ops_clickhouse_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
+        redis_children() ++
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        once_events_grpc_children() ++
+        RuntimeChildren.readiness_server(Environment.mode())
 
     children
     |> Kernel.++(
@@ -389,15 +425,6 @@ defmodule Tuist.Application do
         []
       end
     )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -407,6 +434,43 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  defp redis_children do
+    if Environment.redis_url() do
+      [
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+      ]
+    else
+      []
+    end
+  end
+
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp shadow_ingest_children do
+    if Environment.clickhouse_bare_metal_url() do
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # After the task supervisor, so it stops first and holds that
+        # supervisor's shutdown until the mirrors in it have finished.
+        Tuist.IngestRepo.ShadowWrite.Drainer,
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp ops_clickhouse_children do
@@ -482,7 +546,7 @@ defmodule Tuist.Application do
     if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
-          {Task, &Kura.reconcile_orphaned_deployments/0},
+          {Task, &Kura.enqueue_reconcile_orphaned_deployments/0},
           id: Kura.Reconciler
         )
       ]
@@ -507,8 +571,15 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
+          # Accounts with custom S3 storage talk to origins without a named
+          # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
-            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            size:
+              max(
+                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+                Environment.s3_pool_size()
+              ),
+            count: Environment.s3_pool_count(),
             start_pool_metrics?: true
           ],
           "https://api.github.com" => [
@@ -538,21 +609,6 @@ defmodule Tuist.Application do
               ]
             ],
             size: 10,
-            count: 1,
-            protocols: [:http2, :http1],
-            start_pool_metrics?: true
-          ],
-          Environment.posthog_url() => [
-            conn_opts: [
-              log: true,
-              protocols: [:http2, :http1],
-              transport_opts: [
-                inet6: Environment.use_ipv6?() in ~w(true 1),
-                cacertfile: CAStore.file_path(),
-                verify: :verify_peer
-              ]
-            ],
-            size: 5,
             count: 1,
             protocols: [:http2, :http1],
             start_pool_metrics?: true
@@ -619,6 +675,32 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
+  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
+  # not collide with the Phoenix endpoint on 4000.
+  defp once_events_grpc_children do
+    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
+      port =
+        "TUIST_ONCE_EVENTS_GRPC_PORT"
+        |> System.get_env()
+        |> case do
+          nil -> 4001
+          "" -> 4001
+          value -> String.to_integer(value)
+        end
+
+      [
+        {GRPC.Server.Supervisor,
+         endpoint: Tuist.OnceEvents.GRPCEndpoint,
+         port: port,
+         start_server: true,
+         exception_log_filter: {Tuist.OnceEvents.GRPCExceptionFilter, :log?}}
+      ]
+    else
+      []
+    end
   end
 
   def redis_opts do

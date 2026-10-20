@@ -1,0 +1,22 @@
+{
+  "name": "atlas-inbox-worker",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "vitest": "^4.1.6",
+    "wrangler": "^4.0.0"
+  },
+  "scripts": {
+    "check": "node --check src/index.js",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "vitest run"
+  },
+  "aube": {
+    "allowBuilds": {
+      "esbuild": true,
+      "sharp": true,
+      "workerd": true
+    }
+  }
+}

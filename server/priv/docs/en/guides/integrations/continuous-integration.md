@@ -339,7 +339,9 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
       "totalTests": 42,
       "skippedTests": 0,
       "ranTests": 42,
-      "failedTestNames": []
+      "failedTestNames": [],
+      "ranTestModules": 3,
+      "skippedTestModules": 5
     }
   ],
   "buildRuns": [
@@ -355,7 +357,7 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
 | `runURL` | string | The dashboard URL for the run. Always present. |
 | `testRunURL` | string? | The dashboard URL for the test run, present when the command ran tests. |
 | `buildRunURL` | string? | The dashboard URL for the build run, present when the command built. |
-| `testRuns` | array | Per-scheme test results: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`. |
+| `testRuns` | array | Per-scheme test results: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules`, and `skippedTestModules`. The test counts are test cases, and `skippedTests` counts the ones the result bundle reports as skipped. `skippedTestModules` counts the test modules <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link> skipped, and is omitted when selective testing didn't apply or the run is a test shard. |
 | `buildRuns` | array | Per-scheme build results: `scheme`, `succeeded`, `durationInSeconds`. |
 
 `testRunURL` and `buildRunURL` are independent: a command that both builds and tests writes both, which the logs can't do — they only print one URL per run.

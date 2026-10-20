@@ -2,16 +2,10 @@
 {
   "title": "Previews",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn how to generate and share Tuist Previews (app previews) with anyone."
+  "description": "Share iOS and Android app builds instantly with Tuist Previews. Give teammates and stakeholders a link, no TestFlight or Play Console setup required."
 }
 ---
 # Previews {#previews}
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-
 
 Tuist Previews let you generate and share app previews so teammates can test builds without rebuilding locally.
 
@@ -25,7 +19,6 @@ To make this process more streamlined, Tuist provides a way to generate and shar
 > **Device Builds Need To Be Signed**
 >
 > When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
-
 
 ::: code-group
 ```bash [Tuist Project (Debug)]
@@ -80,7 +73,6 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 >
 > Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
 
-
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.
@@ -102,6 +94,25 @@ This is useful for:
 >
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
+## Release notes {#release-notes}
+
+Use tracks for environment groups and release notes for the purpose of an individual build:
+
+```bash
+tuist share App --track QA --release-notes "Fix sign-in and improve the checkout flow"
+```
+
+Release notes are optional plain text, up to 10,000 characters. The first nonblank line appears as a single-line snippet in web and iOS preview lists, so build numbers and other identifying information are visible at a glance. Long lines are truncated; full notes appear on the detail pages. Search in both lists matches display names and full release notes, including lines not shown in the snippet. Multiline notes are supported, for example `--release-notes "$(< release-notes.txt)"`. They do not change the app's display name or its track.
+
+### Compatibility {#preview-metadata-compatibility}
+
+Release notes are additive metadata, not part of a preview's identity. Uploads from old and new clients still group into the same preview across platforms. The first nonblank notes are retained: a later upload can fill notes that were previously absent, but cannot overwrite existing notes. Omitting `release_notes`, sending `null`, or sending an empty or whitespace-only string never clears notes. Existing previews are not backfilled and remain valid without notes.
+
+The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. The iOS app's **All Tracks** selection omits the filter. The iOS app's track pills load the complete project summary from `GET /api/projects/:account_handle/:project_handle/previews/tracks`, under the same preview-read authorization as listing builds. That endpoint returns `{total_count, tracks: [{name, count}]}` with sorted, case-insensitively grouped named tracks. Counts cover the whole project independently of pagination, search, and the selected track; the total includes untracked previews. Only listable previews with a bundle identifier are counted. The list API also accepts optional `search` for a literal, case-insensitive substring of the display name or full release notes, combined with the track before pagination. Existing `display_name` filtering remains exact.
+
+Old clients can continue uploading and listing previews without sending either field. New clients accept older responses that omit track or notes, and ignore unknown response properties added by future servers. API integrations should likewise ignore unknown response properties so additive metadata remains compatible.
+
+Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated CLI and app, to use these features. Older servers may ignore notes or unknown query parameters. If track discovery is unavailable, the iOS app keeps unfiltered browsing available and explains that selecting a track requires an updated server. If a server returns previews from another track despite an active filter, the iOS app reports that filtering is unsupported rather than presenting misleading results. The macOS app first requests the latest compatible preview per app; on older servers that select distinct apps before applying platform filters, it falls back to paginated history without imposing a cutoff that could hide an available build.
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -116,12 +127,6 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 
 When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
-> [!WARNING]
-> **Requirements**
->
-> You need to have Xcode locally installed and be on macOS 14 or later.
-
-
 ## Tuist iOS app {#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
@@ -133,7 +138,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews.
+Similarly to the macOS app, the Tuist iOS app streamlines accessing and running your previews. Each preview shows its track. Use the native search field to find previews by app name, then select a pill under **Tracks** to filter by environment. The selected pill is purple; choose **All** to remove the track filter. Each pill shows its project-wide preview count, and All includes builds without a track. Search and track filtering apply across pages, not just to previews already loaded. Each build's track tag sits beside its commit hash.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
@@ -142,12 +147,10 @@ Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
 >
 > To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">remote project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
 
-
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <.localized_link href="/cli/share">`tuist share MyApp`</.localized_link> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
-
 
 ## In-app update notifications {#in-app-update-notifications}
 
@@ -216,7 +219,6 @@ task.cancel()
 
 > [!NOTE]
 > Update checking is automatically disabled on simulators and App Store builds.
-
 
 ## README badge {#readme-badge}
 

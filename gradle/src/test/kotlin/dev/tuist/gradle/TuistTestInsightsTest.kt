@@ -1,8 +1,10 @@
 package dev.tuist.gradle
 
+import com.google.gson.Gson
 import org.gradle.api.tasks.testing.TestResult
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -34,6 +36,89 @@ class TuistTestInsightsTest {
         assertEquals("https://github.com/tuist/tuist.git", report.gitRemoteUrlOrigin)
         assertNull(report.gradleBuildId)
         assertTrue(report.testModules.isEmpty())
+    }
+
+    @Test
+    fun `buildReport serializes the run's Git history`() {
+        val collector = TestReportCollector()
+        val history = TestRunGitHistory(
+            baseBranch = "main",
+            mergeBaseSha = "base",
+            isPullRequest = true,
+            pullRequestNumber = 7,
+            objectFormat = "sha1",
+            source = "client",
+            fallbackReason = null
+        )
+
+        val withHistory = Gson().toJsonTree(
+            collector.buildReport(10, true, "app", "feature", "head", "refs/pull/7/merge", null, null, gitHistory = history)
+        ).asJsonObject
+        val withoutHistory = Gson().toJsonTree(
+            collector.buildReport(10, true, "app", "feature", "head", null, null, null)
+        ).asJsonObject
+
+        assertEquals("main", withHistory.get("base_branch").asString)
+        assertEquals("base", withHistory.get("merge_base_sha").asString)
+        assertEquals(true, withHistory.get("is_pull_request").asBoolean)
+        assertEquals(7, withHistory.get("pull_request_number").asInt)
+        assertEquals("sha1", withHistory.get("git_object_format").asString)
+        assertEquals("client", withHistory.get("history_source").asString)
+        assertFalse(withHistory.has("history_fallback_reason"))
+        for (key in listOf("base_branch", "merge_base_sha", "is_pull_request", "pull_request_number", "git_object_format", "history_source")) {
+            assertFalse(withoutHistory.has(key), key)
+        }
+    }
+
+    @Test
+    fun `repetitionResults keeps a skipped rerun skipped`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testNew", "com.example.NewTest", TestResult.ResultType.SKIPPED, 0, 5, null)
+
+        assertEquals(listOf("skipped"), collector.repetitionResults().map { it.status })
+    }
+
+    @Test
+    fun `buildReport reports the stress gate's reruns with the test case they belong to`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testNew", "com.example.NewTest", TestResult.ResultType.SUCCESS, 0, 10, null)
+        collector.collectTestResult(":app", "testNew", "com.example.OtherTest", TestResult.ResultType.SUCCESS, 10, 20, null)
+
+        val stress = StressNewTestsReport(
+            mode = "report",
+            outcome = "disagreed",
+            newCount = 1,
+            stressedCount = 1,
+            excludedCount = 0,
+            knownCount = 40,
+            testCases = listOf(
+                StressNewTestsCandidateReport(
+                    name = "testNew",
+                    suiteName = "com.example.NewTest",
+                    moduleName = ":app",
+                    repetitions = 2,
+                    failedRepetitions = 1,
+                    outcome = "disagreed",
+                    isQuarantined = false,
+                    repetitionResults = listOf(
+                        StressRepetitionReport(1, "success", 4, null),
+                        StressRepetitionReport(2, "failure", 5, StressRepetitionFailure("boom", "assertion_failure"))
+                    )
+                )
+            )
+        )
+
+        val report = collector.buildReport(30, true, "my-app", "feature", "abc", null, null, null, stressNewTests = stress)
+
+        val cases = report.testModules.single().testCases.associateBy { it.testSuiteName }
+        val stressed = cases.getValue("com.example.NewTest")
+        assertEquals(listOf("Stress 1", "Stress 2"), stressed.repetitions!!.map { it.name })
+        assertEquals(listOf("stress", "stress"), stressed.repetitions!!.map { it.source })
+        assertEquals(listOf(1, 2), stressed.repetitions!!.map { it.repetitionNumber })
+        assertEquals(listOf("boom"), stressed.failures.map { it.message })
+
+        // The same method name in another suite is another test case.
+        assertNull(cases.getValue("com.example.OtherTest").repetitions)
     }
 
     @Test

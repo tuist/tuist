@@ -46,11 +46,14 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -128,7 +131,28 @@ defmodule Tuist.Runners.Jobs do
     |> Map.new()
   end
 
-  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+  def projects_for_runner_job(account, job, buildkite_job \\ nil)
+
+  # Buildkite never tells us the repository: its scheduled-jobs payload
+  # carries the pipeline, build and step and nothing else, and
+  # `repository` on the job row therefore holds a pipeline slug. The
+  # account's projects are the candidates instead, and `ci_project_handle`
+  # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %GitLabJob{}) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(%{id: account_id}, _job, %{organization_slug: _} = _buildkite_job) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}, nil) when is_binary(repository) do
     projects =
       repository
       |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
@@ -140,34 +164,58 @@ defmodule Tuist.Runners.Jobs do
     end
   end
 
-  def projects_for_runner_job(_, _), do: {:error, :not_found}
+  def projects_for_runner_job(_, _, _), do: {:error, :not_found}
 
-  def list_runner_build_runs(projects, workflow_run_id) do
+  def list_runner_build_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     BuildRun
     |> where([build], build.project_id in ^project_ids)
-    |> where([build], build.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([build], build.ci_run_id == ^workflow_run_id)
     |> order_by([build], desc: build.inserted_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
   end
 
-  def list_runner_test_runs(projects, workflow_run_id) do
+  def list_runner_test_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     TestRun
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
-    |> where([test], test.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([test], test.ci_run_id == ^workflow_run_id)
     |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  # The CLI reports the project path and instance host separately. Older
+  # uploads omit the host, so retain those matches without accepting a known
+  # different instance.
+  defp ci_scope(query, %GitLabJob{url: url, project_path: path}) do
+    host = URI.parse(url).host
+
+    where(
+      query,
+      [run],
+      run.ci_provider == "gitlab" and run.ci_project_handle == ^path and
+        run.ci_host in ["", ^host]
+    )
+  end
+
+  defp ci_scope(query, nil), do: where(query, [run], run.ci_provider == "github")
+
+  # A Buildkite build number is unique only within its pipeline, so the
+  # pipeline handle is part of the match; without it two pipelines in the
+  # same account would cross-link at the same build number.
+  defp ci_scope(query, %{organization_slug: org, pipeline_slug: pipeline}) do
+    handle = "#{org}/#{pipeline}"
+    where(query, [run], run.ci_provider == "buildkite" and run.ci_project_handle == ^handle)
   end
 
   def command_events_for_runs([], _kind), do: []
@@ -464,9 +512,12 @@ defmodule Tuist.Runners.Jobs do
   The outbox makes divergence transient by construction, so this reads
   zero in steady state and any non-zero value means a replica row that
   will not converge on its own: a terminal job emits no further events,
-  so nothing lands to correct it. `settled_before` excludes rows young
-  enough to be mid-flush, which is also what keeps genuinely in-flight
-  jobs out of the count — those are non-terminal in both stores.
+  so nothing lands to correct it. `settled_before` bounds both stores: the
+  replica row must not have changed since, and the Postgres completion
+  must predate it. The second keeps a long-running job out of the count
+  in the minute between its completion and the flush that carries it,
+  when its replica row is old but the completion is still in the outbox.
+  Jobs still in flight are non-terminal in both stores and never count.
 
   Scans at most `limit` candidates so a systemic divergence can't hand
   Postgres an unbounded id list; a truncated scan is logged rather than
@@ -479,14 +530,19 @@ defmodule Tuist.Runners.Jobs do
       Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
     end
 
-    terminal =
-      candidates
-      |> Enum.map(& &1.workflow_job_id)
-      |> WorkflowJobs.terminal_completions()
+    settled = settled_terminal_ids(candidates, settled_before)
 
     candidates
-    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.filter(&MapSet.member?(settled, &1.workflow_job_id))
     |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  defp settled_terminal_ids(candidates, settled_before) do
+    candidates
+    |> Enum.map(& &1.workflow_job_id)
+    |> WorkflowJobs.terminal_completions()
+    |> Enum.filter(fn {_workflow_job_id, completed_at} -> DateTime.before?(completed_at, settled_before) end)
+    |> MapSet.new(fn {workflow_job_id, _completed_at} -> workflow_job_id end)
   end
 
   # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
@@ -730,6 +786,9 @@ defmodule Tuist.Runners.Jobs do
       workflow_job_id: j.workflow_job_id,
       account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+      vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+      memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
       repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -743,8 +802,10 @@ defmodule Tuist.Runners.Jobs do
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
       pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
       runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
       updated_at: max(j.updated_at)
     })
   end
@@ -1284,6 +1345,19 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.RunnerSessions.workflow_job_id_for_runner/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    with {:ok, workflow_job_id} <- RunnerSessions.workflow_job_id_for_runner(runner_name, account_id),
+         %WorkflowJob{} = job <- Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
@@ -1319,7 +1393,8 @@ defmodule Tuist.Runners.Jobs do
 
   # ----- internal -----
 
-  defp queued_lookback_floor do
+  @doc false
+  def queued_lookback_floor do
     DateTime.add(DateTime.utc_now(), -@queued_lookback_seconds, :second)
   end
 
@@ -1366,11 +1441,24 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(row.account_id, "completed")
 
+    if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => row.account_id,
+          "workflow_run_id" => row.workflow_run_id,
+          "workflow_job_id" => row.workflow_job_id
+        },
+        row.workflow_job_id
+      )
+    end
+
     {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
+    previous = if conclusion == "failure", do: Repo.get(WorkflowJob, Map.fetch!(attrs, :workflow_job_id))
 
     persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
     :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
@@ -1382,6 +1470,19 @@ defmodule Tuist.Runners.Jobs do
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
+
+    if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => Map.fetch!(attrs, :account_id),
+          "workflow_run_id" => Map.fetch!(attrs, :workflow_run_id),
+          "workflow_job_id" => Map.fetch!(attrs, :workflow_job_id)
+        },
+        Map.fetch!(attrs, :workflow_job_id)
+      )
+    end
+
     :ok
   end
 

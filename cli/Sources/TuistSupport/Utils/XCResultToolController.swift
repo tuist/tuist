@@ -1,6 +1,6 @@
-import Command
 import Mockable
 import Path
+import TuistProcess
 
 import struct TSCUtility.Version
 

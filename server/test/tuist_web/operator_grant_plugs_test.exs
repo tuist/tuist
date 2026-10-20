@@ -426,145 +426,66 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     assert get_session(conn, "operator_grants") == nil
   end
 
-  describe "accept_operator_grant_header/2" do
+  describe "on_mount(:load, ...)" do
     setup do
-      jwk = JOSE.JWK.generate_key({:okp, :Ed25519})
-      pub_pem = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem() |> unwrap()
+      # The test logger level is :warning; the page view is an :info line.
+      Logger.put_module_level(OperatorGrant, :info)
+      on_exit(fn -> Logger.delete_module_level(OperatorGrant) end)
 
-      stub(Tuist.Environment, :operator_grant_public_key, fn -> pub_pem end)
-      stub(Tuist.Environment, :operator_grant_audience, fn -> "tuist-server" end)
-      stub(Tuist.Environment, :operator_grant_max_ttl_seconds, fn -> 3600 end)
-      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
-
-      {:ok, signer: jwk}
-    end
-
-    test "attaches a grant for the operator it was minted for", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      operator = operator_user()
-      token = mint(signer, claims(project.account.name, operator.email))
-
-      conn =
-        conn
-        |> assign(:current_user, operator)
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      refute conn.halted
-      grant = conn.assigns.operator_grant_user.operator_grant
-      assert grant.tier == :read
-      assert grant.account_id == project.account.id
-      assert grant.sub == operator.email
-    end
-
-    # The grant is what lets a non-member operator read the account at all.
-    test "the attached grant authorizes that account and no other", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      other_project = ProjectsFixtures.project_fixture(preload: [:account])
-      operator = operator_user()
-      token = mint(signer, claims(project.account.name, operator.email))
-
-      conn =
-        conn
-        |> assign(:current_user, operator)
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      granted = conn.assigns.operator_grant_user
-
-      assert Tuist.Authorization.authorize(:run_read, granted, project) == :ok
-      refute Tuist.Authorization.authorize(:run_read, granted, other_project) == :ok
-    end
-
-    test "without the header the operator gets no grant", %{conn: conn} do
       operator = operator_user()
 
-      conn =
-        conn
-        |> assign(:current_user, operator)
-        |> OperatorGrant.accept_operator_grant_header([])
+      grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "acme",
+        sub: operator.email,
+        jti: "grant-9",
+        exp: System.system_time(:second) + 600
+      }
 
-      refute conn.halted
-      refute Map.has_key?(conn.assigns, :operator_grant_user)
+      {:ok, operator: operator, session: %{"operator_grants" => %{"acme" => grant}}}
     end
 
-    # The grant is a bearer token, so a leaked one must not become usable just
-    # because whoever holds it is also an operator.
+    defp live_socket(operator, transport_pid) do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, current_user: operator},
+        transport_pid: transport_pid,
+        view: TuistWeb.ProjectsLive
+      }
+    end
 
-    test "rejects a grant minted for a different operator", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      operator = operator_user()
-      token = mint(signer, claims(project.account.name, "someone-else@tuist.dev"))
+    test "logs a page view when a connected LiveView mounts under a grant", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          assert {:cont, socket} =
+                   OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, self()))
 
-      {conn, log} =
-        with_log(fn ->
-          conn
-          |> assign(:current_user, operator)
-          |> put_req_header("x-tuist-operator-grant", token)
-          |> OperatorGrant.accept_operator_grant_header([])
+          assert socket.assigns.current_user.operator_grant.jti == "grant-9"
         end)
 
-      assert conn.halted
-      assert conn.status == 401
-      assert log =~ "operator grant rejected"
+      assert log =~ "Operator grant page view"
+      assert log =~ "TuistWeb.ProjectsLive"
     end
 
-    test "rejects a grant presented by a non-operator", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      customer = AccountsFixtures.user_fixture(preload: [:account])
-      token = mint(signer, claims(project.account.name, customer.email))
+    test "logs nothing on the disconnected mount, which is the logged HTTP request", %{
+      operator: operator,
+      session: session
+    } do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, nil))
+        end)
 
-      conn =
-        conn
-        |> assign(:current_user, customer)
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      assert conn.halted
-      assert conn.status == 401
+      refute log =~ "Operator grant page view"
     end
 
-    test "rejects a token signed by a different key", %{conn: conn} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      operator = operator_user()
-      other = JOSE.JWK.generate_key({:okp, :Ed25519})
-      token = mint(other, claims(project.account.name, operator.email))
+    test "logs nothing without a grant for the account", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "other"}, session, live_socket(operator, self()))
+        end)
 
-      conn =
-        conn
-        |> assign(:current_user, operator)
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      assert conn.halted
-      assert conn.status == 401
-    end
-
-    test "rejects a grant for an account that does not exist", %{conn: conn, signer: signer} do
-      operator = operator_user()
-      token = mint(signer, claims("no-such-account", operator.email))
-
-      conn =
-        conn
-        |> assign(:current_user, operator)
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      assert conn.halted
-      assert conn.status == 401
-    end
-
-    test "rejects a grant with no authenticated user", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      token = mint(signer, claims(project.account.name, "operator@tuist.dev"))
-
-      conn =
-        conn
-        |> put_req_header("x-tuist-operator-grant", token)
-        |> OperatorGrant.accept_operator_grant_header([])
-
-      assert conn.halted
-      assert conn.status == 401
+      refute log =~ "Operator grant page view"
     end
   end
 
@@ -611,4 +532,8 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
   defp unwrap({_kty, pem}), do: pem
   defp unwrap(pem) when is_binary(pem), do: pem
+
+  test "credential_headers lists every header that carries a credential" do
+    assert Enum.sort(OperatorGrant.credential_headers()) == ["x-tuist-atlas-identity", "x-tuist-operator-grant"]
+  end
 end

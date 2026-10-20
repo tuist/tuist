@@ -8,12 +8,15 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
-| `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
+| `grpc-ingress-nginx` | Ingress controller (`nginx-grpc` class) for in-cluster gRPC backends, such as the Once events listener. Keeps upstream keepalive on, which the main controller turns off for its HTTP backends, so no `Connection` header reaches strict HTTP/2 servers |
+| `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
+| `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
+| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp), the kubelet (10250/tcp), the Cilium agent, Hubble, operator and Envoy metrics (9962-9965/tcp) and node-exporter (9100/tcp) from sources outside the cluster |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
@@ -35,27 +38,59 @@ mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-<environment>
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
 sets the provider-specific LoadBalancer annotations + any LB-specific
 ingress-nginx config. The production `values-tuist.yaml` overlay also enables
-three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
+three Kura-specific ingress-nginx aliases (`kura-eu-west`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
+
+Those gateways are host-network DaemonSets, one nginx per cache box. A region
+running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
+gateway can only serve the Kura pods that happen to share its box and answers
+504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
+
+A rack's gateway (`kura-ber1-runners`) is configured in this chart's values but
+deployed by `infra/helm/rack-cache-gateways`, which `k8s:install-platform`
+installs after this release, from the same values, without waiting on it. This
+release is waited on, and a DaemonSet with a pod on a dark rack node never
+reads as ready.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.
+
+## REAPI request metadata
+
+Kura's regional and runner ingress controllers, and the dedicated gRPC controller
+used by cold activation, set `ignore-invalid-headers: "false"`. Nginx's default
+otherwise strips the standard dotted header
+`build.bazel.remote.execution.v2.requestmetadata-bin`: cache RPCs still succeed,
+but Kura cannot attribute them to Mix/Bazel builds and skips their signed cache
+analytics. The shared Kura configuration keeps this consistent across regions
+and runner gateways. The unrelated main web ingress retains its existing header
+handling; cache authorization and webhook signature checks are unchanged.
+
+The fix takes effect through the normal platform Helm deployment and nginx
+configuration reload, not a Kura runtime restart. After deployment, use fresh
+cache traffic with a known project and invocation ID to verify signed
+`reapi_cache_events` reach ClickHouse with the expected client kind. The
+`kura_analytics_events_total_total` counter's `skipped_no_bazel_metadata` result
+is shared by missing/unsupported REAPI metadata, including Mix; it must not be
+interpreted as a Mix-only counter. Forwarding success alone does not prove that
+the producer retained request attribution. Previously skipped events are not
+backfilled, and missing observations must not be replaced by fabricated zeros.
+
+`infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks every
+platform values overlay and reproduces the failure through a real HTTP/2 nginx
+`grpc_pass` proxy. Set `TUIST_TEST_NGINX` to a local nginx binary to include the
+transport regression; the values checks do not require nginx.
 
 ## Preview Janitor
 
 The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that
 deletes expired preview namespaces inside the preview cluster. It reads
 namespaces labeled `tuist.dev/preview=true`, deletes the matching
-`KuraInstance` from the `kura` namespace, and deletes the preview namespace as
-the backstop.
-
-The janitor intentionally does not run `helm uninstall`, because that would
-require read access to Helm release Secrets in every dynamic preview namespace.
-The external `preview-sweep.yml` workflow keeps that Helm-aware cleanup path
-with its explicit preview-cluster kubeconfig. The workflow runs at the top of
-the hour, and the janitor follows at minute 20 as the in-cluster backstop.
+`KuraInstance` from the `kura` namespace, and deletes the preview namespace.
+The namespace delete cascades through every chart-created resource, including
+the Helm release Secret, so no `helm uninstall` step is required.
 
 The janitor is disabled by default because it needs cluster-wide delete access
 to dynamic preview namespaces. Keep it enabled only for the managed preview
@@ -189,3 +224,21 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 - Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager custom resource definitions are reconciled by `k8s:install-platform` before the Helm release. A direct Helm install is supported only after another tool has applied those definitions.
+
+## Runner Kura gateway
+
+`kura-runners-ingress-nginx` is enabled in staging, canary and production on the
+`kura-scw-fr-par` pool. It reuses the shared Kura streaming configuration and
+terminates TLS for per-account private hostnames. Its listeners bind the host
+interfaces; HTTP and gRPC access is restricted by each Ingress's source allowlist.
+It does not trust forwarded headers, PROXY protocol or real-IP rewriting.
+The controller publishes private A records through DNSEndpoint; ingress status
+publication stays disabled so external-dns cannot substitute public node IPs.
+The managed certificate issuer uses DNS-01, which works with private A records.
+
+See [runner migration and verification](../../kura-controller/private-runner-rollouts.md).
+
+The Tuist chart's managed gateway policy explicitly allows the backend hop from
+Cilium host and remote-node identities to TCP 4000 on private gateway-labelled Kura pods.
+The runner CIDR allowlist remains at nginx and on legacy NodePorts. A healthy DNS
+gateway remains selected across primary handoffs, including cross-host ones.

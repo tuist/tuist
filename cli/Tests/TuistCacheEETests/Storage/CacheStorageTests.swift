@@ -183,6 +183,24 @@ struct CacheStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func store_writes_the_local_cache_when_remote_uploads_fail() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testPath = temporaryDirectory.appending(component: "test.framework")
+        try await FileSystem().makeDirectory(at: testPath)
+        let item = CacheStorableItem(name: "target", hash: "hash")
+        let uploadError = CacheUploadError(failures: [CacheUploadFailure(item: item, reason: "request timed out")])
+        given(localStorage).store(.any, cacheCategory: .any).willReturn([item])
+        given(remoteStorage).store(.any, cacheCategory: .any).willThrow(uploadError)
+
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store([item: [testPath]], cacheCategory: .binaries)
+        }
+
+        #expect(error == uploadError)
+        verify(localStorage).store(.value([item: [testPath]]), cacheCategory: .value(.binaries)).called(1)
+    }
+
+    @Test(.inTemporaryDirectory)
     func fetch_when_item_present_in_the_local_cache() async throws {
         // Given
         let cacheStorableItem = CacheStorableItem(name: "targetName", hash: "1234")
@@ -197,15 +215,34 @@ struct CacheStorageTests {
         ).willReturn([
             cacheItem: path,
         ])
-        given(remoteStorage).fetch(.value(Set([])), cacheCategory: .value(.binaries)).willReturn(
-            [:]
-        )
+        given(remoteStorage).fetch(.value(Set([])), cacheCategory: .value(.binaries), preserving: .any)
+            .willReturn([:])
 
         // When
         let result = try await subject.fetch([cacheStorableItem], cacheCategory: .binaries)
 
         // Then
         #expect(result[cacheItem] == "/Absolute/Path")
+    }
+
+    @Test(.inTemporaryDirectory)
+    func fetch_asks_the_remote_storage_to_preserve_the_entries_resolved_locally() async throws {
+        // Given
+        let localHit = CacheStorableItem(name: "Local", hash: "local-hash")
+        let remoteMiss = CacheStorableItem(name: "Remote", hash: "remote-hash")
+        given(localStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn(
+            [.test(name: "Local", hash: "local-hash"): "/Absolute/Path"]
+        )
+        given(remoteStorage).fetch(.any, cacheCategory: .value(.binaries), preserving: .any).willReturn([:])
+
+        // When
+        _ = try await subject.fetch([localHit, remoteMiss], cacheCategory: .binaries)
+
+        // Then: the caller is already building against the local hit, so it must survive any
+        // eviction the download path performs to make room.
+        verify(remoteStorage)
+            .fetch(.any, cacheCategory: .value(.binaries), preserving: .value(Set(["local-hash"])))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory)
@@ -226,7 +263,7 @@ struct CacheStorageTests {
                 Set([
                     cacheStorableItem,
                 ])
-            ), cacheCategory: .value(.binaries)
+            ), cacheCategory: .value(.binaries), preserving: .any
         ).willReturn([
             cacheItem: path,
         ])
@@ -255,7 +292,7 @@ struct CacheStorageTests {
                 Set([
                     cacheStorableItem,
                 ])
-            ), cacheCategory: .value(.binaries)
+            ), cacheCategory: .value(.binaries), preserving: .any
         ).willReturn([:])
 
         // When

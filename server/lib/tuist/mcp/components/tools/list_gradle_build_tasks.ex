@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
         "outcome" => %{
           "type" => "string",
           "description" =>
-            "Filter by task outcome: local_hit, remote_hit, up_to_date, executed, failed, skipped, or no_source."
+            "Filter by task outcome: local_hit, remote_hit, cache_hit, up_to_date, executed, failed, skipped, or no_source."
         },
         "cacheable" => %{
           "type" => "boolean",
@@ -42,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
           "items" => %{
             "type" => "object",
             "properties" => %{
+              "execution" => Tuist.MCP.GradleSchemas.execution(),
               "id" => %{"type" => "string"},
               "task_path" => %{"type" => "string"},
               "task_type" => %{"type" => "string"},
@@ -53,6 +54,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
               "started_at" => %{"type" => ["string", "null"]}
             },
             "required" => [
+              "execution",
               "id",
               "task_path",
               "task_type",
@@ -84,7 +86,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
-    with {:ok, _build, _project} <-
+    with {:ok, build, _project} <-
            MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
@@ -97,13 +99,17 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
       page_size = MCPTool.page_size(args)
 
       {tasks, meta} =
-        Gradle.list_tasks(build_run_id, %{
-          filters: filters,
-          order_by: [:duration_ms],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        Gradle.list_tasks(
+          build_run_id,
+          %{
+            filters: filters,
+            order_by: [:duration_ms],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          },
+          build.project_id
+        )
 
       {:ok,
        %{
@@ -111,6 +117,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
            Enum.map(tasks, fn task ->
              %{
                id: task.id,
+               execution: Gradle.task_execution_data(task),
                task_path: task.task_path,
                task_type: task.task_type,
                outcome: task.outcome,

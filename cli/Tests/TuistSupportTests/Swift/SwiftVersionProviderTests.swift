@@ -1,7 +1,7 @@
-import Command
 import Mockable
 import Testing
 import TuistEnvironment
+import TuistProcess
 @testable import TuistSupport
 
 struct SwiftVersionProviderTests {

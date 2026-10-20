@@ -8,6 +8,8 @@ import TuistAlert
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer
@@ -62,6 +64,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(xcResultService)
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(nil)
@@ -131,7 +136,7 @@ struct XcodeBuildTestCommandServiceTests {
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
         // Then
-        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
+        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", "\(uniqueID).xcresult")
         verify(xcodeBuildController)
             .run(arguments: .value([
                 "test",
@@ -141,6 +146,39 @@ struct XcodeBuildTestCommandServiceTests {
             .called(1)
 
         await #expect(RunMetadataStorage.current.buildRunId == activityLogPath.basenameWithoutExt)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
+    func bumpsCoverageCountersAtomicallyWhenCoverageIsUploaded(uploadsCoverage: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        try await subject.run(passthroughXcodebuildArguments: ["test", "-scheme", "MyAppTests"])
+
+        let resultBundlePath = temporaryDirectory.appending(components: "cache", "unique-id.xcresult").pathString
+        let arguments = ["test", "-scheme", "MyAppTests", "-resultBundlePath", resultBundlePath]
+        verify(xcodeBuildController)
+            .run(arguments: .value(uploadsCoverage ? AtomicCoverageCounters.adding(to: arguments) : arguments))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -210,6 +248,9 @@ struct XcodeBuildTestCommandServiceTests {
 
             xcResultService.reset()
             given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
             given(xcResultService)
@@ -235,12 +276,14 @@ struct XcodeBuildTestCommandServiceTests {
             given(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
                     shardIndex: .any,
                     onlyTestIdentifiers: .any,
-                    skipTestIdentifiers: .any
+                    skipTestIdentifiers: .any,
+                    stressNewTests: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -251,12 +294,14 @@ struct XcodeBuildTestCommandServiceTests {
             verify(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
                     shardIndex: .any,
                     onlyTestIdentifiers: .any,
-                    skipTestIdentifiers: .any
+                    skipTestIdentifiers: .any,
+                    stressNewTests: .any
                 )
                 .called(1)
             let warnings = alertController.warnings()
@@ -289,6 +334,9 @@ struct XcodeBuildTestCommandServiceTests {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
         given(xcResultService)
@@ -310,12 +358,14 @@ struct XcodeBuildTestCommandServiceTests {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -336,12 +386,14 @@ struct XcodeBuildTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .value(["AppTests/SmokeSuite"]),
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -389,18 +441,23 @@ struct XcodeBuildTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
             )
             .called(0)
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(0)
     }

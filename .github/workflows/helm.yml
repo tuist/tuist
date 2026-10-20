@@ -30,6 +30,7 @@ on:
       - main
     paths:
       - infra/helm/**
+      - infra/grafana-dashboards/**
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
@@ -41,6 +42,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - infra/grafana-dashboards/**
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
@@ -58,7 +60,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   # Helm is pinned here for the generic lint and render jobs. The K3s
   # smoke job uses the infra mise tool pins instead.
@@ -70,12 +71,11 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -86,6 +86,7 @@ jobs:
             "kura/ops/helm/kura|"
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
+            "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
@@ -93,6 +94,9 @@ jobs:
             "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
+            "infra/helm/rack-nodes|"
+            "infra/helm/xcresult-processor|"
+            "infra/helm/rack-cache-gateways|"
           )
           failed=()
           for entry in "${configs[@]}"; do
@@ -117,16 +121,26 @@ jobs:
             exit 1
           fi
 
+      - name: Start production Alloy log pipeline
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test mixed-version Kura latency query
+        run: |
+          mise use -g aqua:prometheus/prometheus@3.5.0
+          bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
+      - name: Test production metric write rules with Alloy
+        run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+
   render:
     name: Render
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -155,6 +169,7 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
+            "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
@@ -217,17 +232,58 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+      # A release a deploy waits on must not run pods on a rack node, or a dark
+      # rack fails every deploy. See "Deploys and the rack's health" in
+      # infra/rack-nodes/AGENTS.md.
+      - name: Rack workloads stay out of waited releases
+        run: infra/mise/tasks/helm/rack-independence.sh
+      # The xcresult processor chart renders the tuist chart's processor
+      # templates for the tuist release it names, which the loop above cannot
+      # express either.
+      - name: kubeconform the xcresult processor chart
+        run: |
+          set -euo pipefail
+          for env in staging canary production; do
+            helm template tuist-xcresult-processor infra/helm/xcresult-processor --namespace tuist \
+              --set tuistRelease=tuist \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              -f infra/helm/tuist/values-ci.yaml > xcresult-processor.yaml
+            if ! grep -q "^kind: Deployment$" xcresult-processor.yaml; then
+              echo "::error::The $env render of infra/helm/xcresult-processor has no Deployment."
+              exit 1
+            fi
+            kubeconform -strict -summary xcresult-processor.yaml
+          done
+      # The rack charts render with another chart's values, which the loop
+      # above cannot express.
+      - name: kubeconform the rack charts
+        run: |
+          set -euo pipefail
+          for env in staging production; do
+            helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
+              -f infra/helm/tuist/values.yaml \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+            kubeconform -strict -summary rack-nodes.yaml
+          done
+          for overlay in values-tuist-staging.yaml values-tuist.yaml; do
+            helm template rack-cache-gateways infra/helm/rack-cache-gateways --namespace platform \
+              -f infra/helm/platform/values.yaml \
+              -f infra/helm/platform/values-hetzner.yaml \
+              -f "infra/helm/platform/$overlay" > rack-cache-gateways.yaml
+            kubeconform -strict -summary rack-cache-gateways.yaml
+          done
 
   k3s:
     name: K3s Smoke Install
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install smoke test tools
         run: mise -C infra install helm kubectl k3d

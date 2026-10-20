@@ -154,5 +154,80 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
+
+    test "titles the modal for the mode it was opened in", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*New profile\s*</
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*Edit profile\s*</
+
+      html = render_hook(lv, "dismiss_modal", %{})
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*New profile\s*</
+    end
+
+    test "edits the branches that save cache in a collapsed section", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      assert html =~ ~s(aria-expanded="false")
+      assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
+      assert html =~ ~s(id="runner-profile-cache-default-branch-true")
+      refute html =~ ~s(class="noora-tag")
+
+      html = render_hook(lv, "toggle_cache_saving_section", %{})
+      assert html =~ ~s(aria-expanded="true")
+      refute html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
+
+      render_hook(lv, "add_cache_writer_branch", %{"branch" => " release/* "})
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
+      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">release\/\*</
+      assert html =~ "Jobs and pull requests from these branches also save their changes. Use * as a wildcard."
+      refute html =~ ~s(data-part="summary")
+      html = render_hook(lv, "toggle_cache_saving_section", %{})
+      assert html =~ ~r/data-part="summary">\s*Default branch, release\/\* \+ 1 more\s*</
+      html = render_hook(lv, "toggle_cache_writer_default_branch", %{})
+      assert html =~ ~s(id="runner-profile-cache-default-branch-false")
+      assert html =~ ~r/data-part="summary">\s*release\/\*, feature\s*</
+      render_hook(lv, "save_profile", %{})
+
+      assert %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "feature"]} =
+               Profiles.get_by_name(account, "ci")
+
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
+      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "feature"})
+      assert html =~ ~r/data-part="summary">\s*No branches\s*</
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "*"})
+      assert html =~ ~r/data-part="summary">\s*Any branch\s*</
+      render_hook(lv, "remove_cache_writer_branch", %{"data" => "*"})
+      html = render_hook(lv, "toggle_cache_writer_default_branch", %{})
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      render_hook(lv, "save_profile", %{})
+      assert %{cache_writer_default_branch: true, cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+    end
+
+    test "rejects invalid cache writer branches before adding them", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature branch"})
+
+      assert html =~ ~r/data-variant="destructive">.*Use a branch name, optionally with \* to match any characters\./s
+      refute html =~ ~s(class="noora-alert")
+      refute html =~ "Jobs and pull requests from these branches also save their changes."
+      refute html =~ ~s(<span data-part="label">feature branch<)
+      assert html =~ ~s(value="feature branch")
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
+      refute html =~ "Use a branch name, optionally with * to match any characters."
+      render_hook(lv, "save_profile", %{})
+
+      assert %{cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
+               Profiles.get_by_name(account, "ci")
+    end
   end
 end

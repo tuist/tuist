@@ -1,0 +1,169 @@
+# Exempts CLI, webhook, MCP, and other machine-facing paths from Super
+# Bot Fight Mode so re-enabling `sbfm_definitely_automated:
+# managed_challenge` in bot-management.yaml does not serve a Cloudflare
+# JavaScript challenge to CI runners that call
+# `POST /api/auth/oidc/token` and friends. Without the exemption the CLI
+# reports:
+#
+#   Client encountered an error invoking the operation
+#   "exchangeOIDCToken", caused by "Unexpected content type, expected:
+#   application/json, received: text/html; charset=UTF-8"
+#
+# because the OpenAPI client is decoding the challenge interstitial
+# instead of the API response — a customer CI run reproduced this
+# within minutes of the first SBFM flip. See infra/flux/cloudflare-config/
+# bot-management.yaml, whose spec.dependsOn pins the SBFM change to
+# this rule being Ready first.
+#
+# Skip semantics: the rule short-circuits the `http_request_sbfm`
+# phase for matched requests. Every other phase — rate limits, custom
+# firewall rules, leaked-credentials detection — still runs, so
+# `/api/*` traffic is still bounded by Cloudflare Advanced Rate
+# Limiting and any custom rule that matches its path.
+# https://developers.cloudflare.com/waf/custom-rules/skip/options/
+#
+# Public project roots also skip SBFM so search and social crawlers
+# (including unverified unfurlers) can fetch their initial HTML. The
+# positive and negative wildcards require exactly two non-empty segments;
+# exclude sockets, authentication, operator paths and scanner-shaped URLs.
+# Other two-segment application routes retain their origin authorization
+# or Turnstile gate. Filtered roots are still challenged by the origin.
+# This does not exempt any deeper project dashboard path or rate limit.
+# Deploy the cached public overview before rolling out this root exemption.
+#
+# Public docs and the Markdown discovery/content routes also skip SBFM
+# for GET/HEAD. They serve published content, not uncached dashboard
+# queries. Match locale prefixes explicitly: a wildcard locale could
+# otherwise exempt a project named `docs` (e.g. /tuist/docs/builds).
+# Keep this locale list aligned with Tuist.Locale.
+#
+# Path list justification (see server/lib/tuist_web/router.ex):
+#   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
+#                      previews, runners) — every managed-CI call.
+#   /open-graph-images/* Signed social-preview images; crawlers cannot
+#                      solve JavaScript challenges. The application
+#                      verifies signatures and current project visibility.
+#   /webhooks/*        Third-party webhook receivers (GitHub, Stripe,
+#                      Slack event webhooks).
+#   /scim/v2/*         System for Cross-domain Identity Management
+#                      (https://scim.cloud/) — programmatic identity
+#                      sync from IdPs.
+#   /oauth2/*          OAuth 2.0 token, introspection, revocation, and
+#                      client registration endpoints.
+#   /agent/*           Programmatic agent-auth endpoints (identity
+#                      claim, event notify).
+#   /_internal/*       Internal endpoints reached through Cloudflare in
+#                      a subset of deployments.
+#   /.well-known/*     Protocol discovery (Apple app-site-association
+#                      fetched by Apple's CDN, MCP server card,
+#                      OAuth authorization-server metadata).
+#   /mcp (exact)       Model Context Protocol
+#                      (https://modelcontextprotocol.io/) server
+#                      endpoint reached by AI-assistant clients.
+#   /docs[/...]        Legacy documentation redirects.
+#   /:locale/docs[/...] and /:locale/docs-markdown[/...]
+#                      Public documentation in HTML and Markdown.
+#   /marketing-markdown[/...]  Published agent guides and policy sources.
+#   /robots.txt, /llms.txt, /llms-full.txt, /sitemap.xml
+#                      Crawler discovery and full documentation export.
+#   /auth.md (exact)   Agent-auth protocol discovery document.
+#   /ready (exact)     Kubernetes readiness probe.
+#   POST /-/faro/collect  Browser telemetry XHR from real users; if a
+#                      real user's browser is classified as automated,
+#                      an interstitial challenge on a background XHR is
+#                      an invisible failure.
+#   ends_with(...)     Preview manifests and native downloads mobile
+#                      devices fetch (.ipa, .apk, manifest.plist,
+#                      qr-code.svg/png, icon.png) plus
+#                      /download exemptions. Cloudflare's own docs
+#                      warn about mobile-app traffic hitting bot
+#                      challenges:
+#                      https://developers.cloudflare.com/bots/get-started/super-bot-fight-mode/
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: skip-sbfm-api-paths
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Skip SBFM on machine paths, public content and cached project roots"
+  # Super Bot Fight Mode applies to every hostname proxied through the
+  # tuist.dev zone, not just the browser dashboard host. The path list
+  # below is derived from `tuist.dev`'s Phoenix router and does not
+  # cover the machine-facing subdomains (`search.tuist.dev`, and any
+  # future server-to-server API subdomain we add). Skipping SBFM on
+  # every host that is not `tuist.dev` keeps the browser dashboard
+  # gated while leaving datacenter traffic (Typesense multi-search
+  # calls from the server pods, agents that talk to sibling APIs,
+  # cache CDN endpoints, and so on) alone. If we later decide any
+  # non-tuist.dev subdomain should be behind SBFM, we tighten the
+  # host clause; today none of them are browser-facing anonymous
+  # dashboards.
+  expression: |-
+    (http.host ne "tuist.dev") or
+    starts_with(http.request.uri.path, "/api/") or
+    starts_with(http.request.uri.path, "/open-graph-images/") or
+    (
+      http.request.method in {"GET" "HEAD"} and
+      http.request.uri.path wildcard "/*/*" and
+      not http.request.uri.path wildcard "/*/*/*" and
+      not ends_with(http.request.uri.path, "/") and
+      not starts_with(http.request.uri.path, "//") and
+      not http.request.uri.path contains "." and
+      not http.request.uri.path contains "%" and
+      not starts_with(http.request.uri.path, "/live/") and
+      not starts_with(http.request.uri.path, "/socket/") and
+      not starts_with(http.request.uri.path, "/users/") and
+      not starts_with(http.request.uri.path, "/auth/") and
+      not starts_with(http.request.uri.path, "/ops/")
+    ) or
+    (
+      http.request.method in {"GET" "HEAD"} and
+      (
+        http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml"} or
+        starts_with(http.request.uri.path, "/docs/") or
+        starts_with(http.request.uri.path, "/marketing-markdown/") or
+        starts_with(http.request.uri.path, "/en/docs/") or
+        starts_with(http.request.uri.path, "/en/docs-markdown/") or
+        starts_with(http.request.uri.path, "/es/docs/") or
+        starts_with(http.request.uri.path, "/es/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ja/docs/") or
+        starts_with(http.request.uri.path, "/ja/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ka/docs/") or
+        starts_with(http.request.uri.path, "/ka/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ko/docs/") or
+        starts_with(http.request.uri.path, "/ko/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ru/docs/") or
+        starts_with(http.request.uri.path, "/ru/docs-markdown/") or
+        starts_with(http.request.uri.path, "/yue_Hant/docs/") or
+        starts_with(http.request.uri.path, "/yue_Hant/docs-markdown/") or
+        starts_with(http.request.uri.path, "/zh_Hans/docs/") or
+        starts_with(http.request.uri.path, "/zh_Hans/docs-markdown/") or
+        starts_with(http.request.uri.path, "/zh_Hant/docs/") or
+        starts_with(http.request.uri.path, "/zh_Hant/docs-markdown/")
+      )
+    ) or
+    starts_with(http.request.uri.path, "/webhooks/") or
+    starts_with(http.request.uri.path, "/scim/v2/") or
+    starts_with(http.request.uri.path, "/oauth2/") or
+    starts_with(http.request.uri.path, "/agent/") or
+    starts_with(http.request.uri.path, "/_internal/") or
+    starts_with(http.request.uri.path, "/.well-known/") or
+    http.request.uri.path eq "/mcp" or
+    http.request.uri.path eq "/auth.md" or
+    http.request.uri.path eq "/ready" or
+    (http.request.method eq "POST" and http.request.uri.path eq "/-/faro/collect") or
+    ends_with(http.request.uri.path, "/manifest.plist") or
+    ends_with(http.request.uri.path, "/app.ipa") or
+    ends_with(http.request.uri.path, "/app.apk") or
+    ends_with(http.request.uri.path, "/qr-code.svg") or
+    ends_with(http.request.uri.path, "/qr-code.png") or
+    ends_with(http.request.uri.path, "/icon.png") or
+    (ends_with(http.request.uri.path, "/download") and not starts_with(http.request.uri.path, "/tuist/runners/"))
+  action: skip
+  actionParameters:
+    phases:
+      - http_request_sbfm
+  enabled: true
+  mode: active
+  createNewRule: true
+  retainOnDelete: false

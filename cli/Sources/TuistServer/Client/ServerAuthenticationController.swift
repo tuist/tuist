@@ -64,8 +64,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// in CI environments where limited scopes are desired for security reasons.
     case project(String)
 
-    /// The token represents an account session, typically obtained via OIDC from a CI provider.
-    /// These tokens cannot be refreshed and are valid until expiry.
+    /// The token represents an account session without a refresh token, typically obtained via OIDC
+    /// from a CI provider. These tokens cannot be refreshed and are valid until expiry.
     case account(JWT)
 
     /// It returns the value of the token
@@ -197,6 +197,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
 // swiftlint:disable:next type_body_length
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
+    private let refreshOAuthTokenService: RefreshOAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
@@ -213,11 +214,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #if canImport(TuistProcess)
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -225,10 +228,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #else
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -272,7 +277,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
-                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: true
             ) else {
                 // An absent result is not memoized, so a fresh login is picked up
@@ -297,7 +302,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    private func deletingCredentialsOnUnauthorizedError<T>(
+    private func preservingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
         // Snapshot the refresh token before the action so we can detect a peer
@@ -325,10 +330,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         )
                     #endif
                 } else {
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Deleting the credentials for \(serverURL)")
-                    #endif
-                    try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                    if let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+                       credentials.refreshToken == refreshTokenBeforeAction
+                    {
+                        try await ServerCredentialsStore.current.store(credentials: ServerCredentials(
+                            accessToken: credentials.accessToken, refreshToken: credentials.refreshToken,
+                            oauthClientID: credentials.oauthClientID, rejected: true
+                        ), serverURL: serverURL)
+                    }
+                    Logger.current.debug("Marked rejected credentials for \(serverURL); sign in again or sign out explicitly")
                 }
             }
             throw error
@@ -353,7 +363,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
-            inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+            inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
             locking: true
         )
     }
@@ -408,10 +418,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         let token = try await fileSystemLocked(
                             serverURL: serverURL,
                             action: { deleteLockfile in
-                                _ = try await executeRefresh(
-                                    serverURL: serverURL, forceRefresh: forceRefresh
-                                )
-                                try await deleteLockfile()
+                                do {
+                                    _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                                    try await deleteLockfile()
+                                } catch {
+                                    try await deleteLockfile()
+                                    throw error
+                                }
                             }, fetchActionResult: fetchActionResult
                         )
                         switch token {
@@ -599,7 +612,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
-        return try await deletingCredentialsOnUnauthorizedError(serverURL: serverURL) {
+        return try await preservingCredentialsOnUnauthorizedError(serverURL: serverURL) {
             guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
                 return nil
             }
@@ -693,13 +706,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             serverURL: serverURL
         )
         return try credentials.map {
+            guard $0.rejected != true else { throw ServerReportPublishingError.invalidCredentials }
             let accessToken = try JWT.parse($0.accessToken)
             if accessToken.type == "account" {
-                return .account(accessToken)
+                // Account tokens issued by the OAuth authorization server, such as the ones the Tuist app
+                // signs in with, carry an account refresh token and go through the same refresh flow as user tokens.
+                guard let refreshToken = $0.refreshToken.flatMap({ try? JWT.parse($0) }),
+                      refreshToken.type == "account"
+                else { return .account(accessToken) }
+                return .user(accessToken: accessToken, refreshToken: refreshToken)
             } else {
+                guard let refreshToken = $0.refreshToken else {
+                    throw ServerReportPublishingError.invalidCredentials
+                }
                 return .user(
                     accessToken: accessToken,
-                    refreshToken: try JWT.parse($0.refreshToken!)
+                    refreshToken: try JWT.parse(refreshToken)
                 )
             }
         }
@@ -760,15 +782,24 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
-            let newTokens = try await refreshAuthTokenService.refreshTokens(
-                serverURL: serverURL,
-                refreshToken: refreshToken.token
-            )
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
+            let newTokens = if refreshToken.type == "account" {
+                try await refreshOAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            } else {
+                try await refreshAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            }
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(
                         accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
+                        refreshToken: newTokens.refreshToken,
+                        oauthClientID: credentials?.oauthClientID
                     ),
                     serverURL: serverURL
                 )
@@ -792,6 +823,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         } catch let error as RefreshAuthTokenServiceError {
             Logger.current.error(
                 "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
+            throw error
+        } catch where ServerErrorClassifier.isTransient(error) {
+            Logger.current.debug(
+                "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error)))"
             )
             throw error
         } catch {

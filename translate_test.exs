@@ -316,7 +316,7 @@ defmodule L10n.IncrementalTranslationTest do
 
   defp run(root, opts) do
     L10n.Translator.translate_all(
-      @pot,
+      Keyword.get(opts, :pot_content, @pot),
       @targets,
       "context",
       "test:model",
@@ -413,5 +413,213 @@ defmodule L10n.IncrementalTranslationTest do
     assert [{:skipped, "es"}] = run(root, batch_fn: recorder(self()))
 
     refute_received {:batch, _}
+  end
+
+  test "each successful batch survives an interruption before the next batch finishes", %{
+    root: root
+  } do
+    pot = Enum.map_join(1..41, "\n", &~s|msgid "Entry #{&1}"\nmsgstr ""\n|)
+    recorder = recorder(self())
+
+    interrupted = fn batch, l, lang, c, o, m, t ->
+      if length(batch) == 1, do: raise("interrupted")
+      recorder.(batch, l, lang, c, o, m, t)
+    end
+
+    assert [{:error, "es", "interrupted"}] = run(root, pot_content: pot, batch_fn: interrupted)
+    assert_received {:batch, first_batch}
+    assert length(first_batch) == 40
+    refute File.exists?(lock_path(root))
+
+    assert [{:translated, "es"}] = run(root, pot_content: pot, batch_fn: recorder)
+    assert_received {:batch, ["Entry 41"]}
+    refute_received {:batch, _}
+  end
+
+  test "a provider-wide failure stops later batches and later catalogs", %{root: root} do
+    pot = Enum.map_join(1..81, "\n", &~s|msgid "Entry #{&1}"\nmsgstr ""\n|)
+    test_pid = self()
+
+    failing = fn _, _, _, _, _, _, _ ->
+      send(test_pid, :provider_request)
+      {:error, {:provider_unavailable, 402}}
+    end
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert [{:error, "es", _}] =
+               run(root, pot_content: pot, batch_fn: failing, provider_gate: gate)
+
+      assert_received :provider_request
+      refute_received :provider_request
+      assert [{:error, "es", _}] = run(root, batch_fn: failing, provider_gate: gate)
+      refute_received :provider_request
+    end)
+  end
+end
+
+defmodule L10n.ProviderGateTest do
+  use ExUnit.Case, async: true
+
+  test "a record-specific validation error does not block unrelated work" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, "Invalid translation"} =
+               L10n.ProviderGate.call(gate, fn -> {:error, "Invalid translation"} end)
+
+      assert {:ok, "translated"} = L10n.ProviderGate.call(gate, fn -> {:ok, "translated"} end)
+    end)
+  end
+
+  test "provider failures are shared with other tasks but not other runs" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 503}} =
+               L10n.ProviderGate.call(gate, fn -> {:error, %{status: 503}} end)
+
+      assert {:error, message} =
+               Task.async(fn ->
+                 L10n.ProviderGate.call(gate, fn -> flunk("must not call the provider") end)
+               end)
+               |> Task.await()
+
+      assert message == {:provider_unavailable, 503}
+    end)
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:ok, "recovered"} = L10n.ProviderGate.call(gate, fn -> {:ok, "recovered"} end)
+    end)
+  end
+
+  test "a raised provider error also stops queued work" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn ->
+                 raise ReqLLM.Error.API.Request.exception(reason: "Payment required", status: 402)
+               end)
+
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> flunk("must not call provider") end)
+    end)
+  end
+
+  test "a streaming payment error stops queued work" do
+    error =
+      ReqLLM.Error.API.Stream.exception(
+        cause: ReqLLM.Error.API.Request.exception(reason: "Payment required", status: 402)
+      )
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> {:error, error} end)
+
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> flunk("must not call provider") end)
+    end)
+  end
+
+  test "numbers in validation messages do not look like provider failures" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, "Invalid translation of entry 402"} =
+               L10n.ProviderGate.call(gate, fn -> {:error, "Invalid translation of entry 402"} end)
+
+      assert :ok = L10n.ProviderGate.call(gate, fn -> :ok end)
+    end)
+  end
+end
+
+defmodule L10n.RestoreTranslationsTest do
+  use ExUnit.Case, async: true
+
+  @script Path.join(__DIR__, ".github/scripts/restore-translations.sh")
+  @catalog "server/priv/gettext/es/LC_MESSAGES/default.po"
+
+  setup do
+    root = Path.join(System.tmp_dir!(), "l10n-recovery-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    remote = Path.join(root, "remote.git")
+    repo = Path.join(root, "repo")
+    git!(root, ["init", "--bare", remote])
+    git!(root, ["init", "-b", "main", repo])
+    git!(repo, ["config", "user.name", "Test"])
+    git!(repo, ["config", "user.email", "test@example.com"])
+    git!(repo, ["remote", "add", "origin", remote])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr ""\n|)
+    write!(repo, "source.txt", "original\n")
+    commit!(repo, "Initial state")
+    git!(repo, ["push", "origin", "main"])
+
+    {:ok, repo: repo}
+  end
+
+  test "the first run succeeds without a saved translation branch", %{repo: repo} do
+    assert {_output, 0} = restore(repo)
+    assert git!(repo, ["status", "--porcelain"]) == ""
+  end
+
+  test "restores unmerged translations while preserving newer source content", %{repo: repo} do
+    checkpoint!(repo)
+    write!(repo, "source.txt", "new main content\n")
+    commit!(repo, "New source")
+
+    assert {_output, 0} = restore(repo)
+    assert File.read!(Path.join(repo, @catalog)) =~ ~s|msgstr "Hola"|
+    assert File.exists?(Path.join(repo, ".l10n/default.lock"))
+    assert File.read!(Path.join(repo, "source.txt")) == "new main content\n"
+  end
+
+  test "conflicting translations on main stop recovery before spending", %{repo: repo} do
+    checkpoint!(repo)
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Buenos dias"\n|)
+    commit!(repo, "Reviewed main translation")
+
+    assert {_output, status} = restore(repo)
+    assert status != 0
+  end
+
+  test "a merged checkpoint does not revert a newer main translation", %{repo: repo} do
+    checkpoint!(repo)
+    git!(repo, ["merge", "--no-edit", "l10n/update-translations"])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Buenos dias"\n|)
+    commit!(repo, "Reviewed main translation")
+
+    assert {_output, 0} = restore(repo)
+    assert File.read!(Path.join(repo, @catalog)) =~ ~s|msgstr "Buenos dias"|
+  end
+
+  defp checkpoint!(repo) do
+    git!(repo, ["checkout", "-b", "l10n/update-translations"])
+    write!(repo, @catalog, ~s|msgid "Hello"\nmsgstr "Hola"\n|)
+    write!(repo, ".l10n/default.lock", "completed\n")
+    write!(repo, "source.txt", "must not be restored\n")
+    commit!(repo, "Partial translations")
+    git!(repo, ["push", "origin", "l10n/update-translations"])
+    git!(repo, ["checkout", "main"])
+  end
+
+  defp write!(repo, path, content) do
+    target = Path.join(repo, path)
+    File.mkdir_p!(Path.dirname(target))
+    File.write!(target, content)
+  end
+
+  defp commit!(repo, message) do
+    git!(repo, ["add", "."])
+    git!(repo, ["commit", "-m", message])
+  end
+
+  defp git!(repo, args) do
+    {output, status} = command(repo, "git", args)
+    assert status == 0, output
+    String.trim(output)
+  end
+
+  defp restore(repo), do: command(repo, "bash", [@script])
+
+  defp command(repo, executable, args) do
+    System.cmd(executable, args,
+      cd: repo,
+      env: [{"GIT_CONFIG_NOSYSTEM", "1"}, {"GIT_CONFIG_GLOBAL", "/dev/null"}],
+      stderr_to_stdout: true
+    )
   end
 end

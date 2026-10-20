@@ -2,7 +2,7 @@
 title: "Inside Atlas: the operations platform we built for ourselves"
 category: "vision"
 tags: ["vision", "business", "ai", "agents", "tooling"]
-excerpt: "We are a very small team, and from the beginning we have been obsessed with operating efficiently. Off-the-shelf tools made us bend our work to fit them and siloed our data. So we built Atlas, our own operations platform, leaning heavily on LLMs and agents. Here is a tour of what we have actually built into it: sales, finances, product operations, and the interfaces that tie them together."
+excerpt: "As a small team, we built Atlas, our AI-powered operations platform connecting sales, finances, and product operations in one place."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/05/29/inside-atlas/og.jpg
 ---

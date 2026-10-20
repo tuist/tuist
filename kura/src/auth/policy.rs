@@ -4,6 +4,7 @@
 //! Tuist's server only when it cannot. Either way it comes back as one access
 //! level for the credential and target, which is the shape the engine caches.
 
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
@@ -20,14 +21,14 @@ use crate::auth::{Access, DenyDecision, RequestContext};
 /// needs it. Resolving it per consumer is how the cache key and the policy came
 /// to disagree about which project a request named.
 #[derive(Clone, Debug)]
-pub struct ResolvedRequest {
-    pub target: RequestTarget,
+pub struct ResolvedRequest<'a> {
+    pub target: RequestTarget<'a>,
     pub action: Action,
 }
 
 /// The credential check comes first: a request carrying none is refused for
 /// that before its target matters.
-pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDecision> {
+pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest<'_>, DenyDecision> {
     if authorization_header(ctx).is_none() {
         return Err(DenyDecision {
             status: 401,
@@ -42,7 +43,7 @@ pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDeci
 }
 
 /// The 403 a target refusal answers with.
-pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
+pub fn refusal(request: &ResolvedRequest<'_>) -> DenyDecision {
     DenyDecision {
         status: 403,
         message: format!(
@@ -56,13 +57,34 @@ pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
 
 /// The 402 an account whose free tier is exhausted answers with. Distinct from
 /// `refusal` because the caller can act on this one.
-pub fn payment_required(request: &ResolvedRequest) -> DenyDecision {
+pub fn payment_required(request: &ResolvedRequest<'_>) -> DenyDecision {
     DenyDecision {
         status: 402,
         message: format!(
             "The account '{}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'.",
             request.target.account
         ),
+    }
+}
+
+/// The 402 an account answers with when it lost its paid plan to a failed
+/// subscription payment. Upgrading does not fix that, settling the payment does.
+pub fn payment_failed(request: &ResolvedRequest<'_>) -> DenyDecision {
+    DenyDecision {
+        status: 402,
+        message: format!(
+            "A payment for the subscription of the account '{}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice on the account's billing page to restore access.",
+            request.target.account
+        ),
+    }
+}
+
+/// The 402 for whichever billing refusal `access` is.
+pub fn payment_refusal(access: Access, request: &ResolvedRequest<'_>) -> DenyDecision {
+    if access == Access::PaymentFailed {
+        payment_failed(request)
+    } else {
+        payment_required(request)
     }
 }
 
@@ -91,7 +113,11 @@ pub enum Authentication {
 
 impl Authentication {
     fn unavailable(reason: &str) -> Self {
-        warn!("authentication backend unavailable: {reason}");
+        warn!(
+            event.name = "kura.auth.backend_unavailable",
+            error.reason = reason,
+            "authentication backend unavailable"
+        );
         Self::Unavailable(DenyDecision {
             status: 503,
             message: "Authentication backend unavailable".into(),
@@ -122,22 +148,57 @@ fn credential_expired(ctx: &RequestContext) -> bool {
 /// The `exp` the credential carries and the time to judge it against, both in
 /// seconds since the epoch. `None` when the credential names no deadline.
 fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
-    let token = bearer_token(authorization_header(ctx)?);
-    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
-    let expires_at = serde_json::from_slice::<Value>(&claims)
-        .ok()?
-        .get("exp")?
-        .as_u64()?;
+    let expires_at = unverified_claims(ctx)?.get("exp")?.as_u64()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
 
     Some((expires_at, now))
 }
 
-fn authorization_header(ctx: &RequestContext) -> Option<&str> {
-    ctx.headers
-        .get("authorization")
-        .or_else(|| ctx.headers.get("Authorization"))
-        .map(String::as_str)
+/// Where the credential was issued, read from an unverified `cache_origin`
+/// claim: an ISO 3166-1 country, narrowed to an ISO 3166-2 subdivision in the
+/// countries holding more than one cache region.
+///
+/// Read on the same terms as `credential_expiry`, only off a credential the
+/// backend has just confirmed. Coarse placement context, never authorization
+/// evidence, and anything not shaped like that label is dropped rather than
+/// carried into usage.
+pub fn credential_origin(ctx: &RequestContext) -> Option<Arc<str>> {
+    let claims = unverified_claims(ctx)?;
+    let origin = claims.get("cache_origin")?.as_str()?;
+    valid_origin(origin).then(|| Arc::from(origin))
+}
+
+fn valid_origin(origin: &str) -> bool {
+    let (country, subdivision) = match origin.split_once('-') {
+        Some((country, subdivision)) => (country, Some(subdivision)),
+        None => (origin, None),
+    };
+
+    country.len() == 2
+        && country.bytes().all(|byte| byte.is_ascii_uppercase())
+        && subdivision.is_none_or(|code| {
+            (1..=3).contains(&code.len())
+                && code
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        })
+}
+
+fn unverified_claims(ctx: &RequestContext) -> Option<Value> {
+    let token = bearer_token(authorization_header(ctx)?);
+    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
+    serde_json::from_slice::<Value>(&claims).ok()
+}
+
+pub(super) fn authorization_header(ctx: &RequestContext) -> Option<&str> {
+    ctx.authorization
+        .as_deref()
+        .or_else(|| {
+            ctx.headers
+                .get("authorization")
+                .or_else(|| ctx.headers.get("Authorization"))
+                .map(String::as_str)
+        })
         .filter(|header| !header.is_empty())
 }
 
@@ -182,7 +243,7 @@ fn project_handles(body: &Value) -> Vec<String> {
 pub async fn authenticate(
     backend: &TuistBackend,
     ctx: &RequestContext,
-    request: &ResolvedRequest,
+    request: &ResolvedRequest<'_>,
 ) -> Authentication {
     let Some(authorization) = authorization_header(ctx) else {
         return Authentication::Access(Access::Invalid);
@@ -233,7 +294,7 @@ pub async fn authenticate(
 /// server for.
 fn from_verified_claims(
     claims: &Value,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Option<Access> {
     let level = CacheGrants::from_body(claims).level(target);
@@ -246,7 +307,7 @@ fn from_verified_claims(
     // rejects a credential the grants do not cover. Falling through would send
     // the caller to introspection, and a cache token is not an API credential
     // there, so the answer would come back 401 and the reason would be lost.
-    if level == Access::PaymentRequired {
+    if level.is_payment_refusal() {
         return Some(level);
     }
 
@@ -268,7 +329,7 @@ async fn via_introspection(
     backend: &TuistBackend,
     token: &str,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     required: Access,
 ) -> Authentication {
     let response = match backend.introspect(token).await {
@@ -293,7 +354,7 @@ async fn via_introspection(
         // Terminal here for the same reason it is terminal on locally verified
         // claims: it sits below `Read`, so it would otherwise read as a level
         // that simply did not reach far enough and send the caller on again.
-        if level == Access::PaymentRequired {
+        if level.is_payment_refusal() {
             return Authentication::Access(level);
         }
 
@@ -316,7 +377,7 @@ async fn via_introspection(
 async fn via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
-    target: &RequestTarget,
+    target: &RequestTarget<'_>,
     floor: Access,
 ) -> Authentication {
     let response = match backend.cache_access(authorization).await {
@@ -333,10 +394,10 @@ async fn via_cache_access(
             // it authorized on its own.
             let level = if covered {
                 Access::ReadWrite
-            } else if CacheGrants::from_body(&response.body).payment_required_for(target) {
-                Access::PaymentRequired
             } else {
-                floor
+                CacheGrants::from_body(&response.body)
+                    .payment_refusal_for(target)
+                    .unwrap_or(floor)
             };
             Authentication::Access(level)
         }
@@ -406,22 +467,17 @@ mod tests {
     fn ctx() -> RequestContext {
         RequestContext {
             transport: "http".into(),
-            route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),
             operation: "artifact.read".into(),
             server_tenant_id: "acme".into(),
             tenant_id: Some("acme".into()),
             namespace_id: Some("ios".into()),
-            producer: None,
-            artifact_key: None,
-            artifact_hash: None,
+            authorization: None,
             headers: BTreeMap::new(),
-            query: BTreeMap::new(),
-            status_code: None,
         }
     }
 
-    fn target_of(ctx: &RequestContext) -> RequestTarget {
+    fn target_of(ctx: &RequestContext) -> RequestTarget<'_> {
         request_target(ctx).expect("a resolvable target")
     }
 
@@ -493,7 +549,8 @@ mod tests {
     fn falls_back_to_bare_handles_only_for_tokens_that_predate_scopes() {
         let legacy = json!({ "sub": "user", "projects": ["ACME/iOS"] });
         let scoped = json!({ "sub": "user", "scopes": [], "projects": ["ACME/iOS"] });
-        let target = target_of(&ctx());
+        let context = ctx();
+        let target = target_of(&context);
 
         assert_eq!(
             from_verified_claims(&legacy, &target, Access::Read),
@@ -559,5 +616,42 @@ mod tests {
 
         assert_eq!(deny.status, 401);
         assert!(deny.message.contains("Missing Authorization"));
+    }
+    fn bearer_with_claims(claims: serde_json::Value) -> String {
+        format!(
+            "Bearer header.{}.signature",
+            URL_SAFE_NO_PAD.encode(claims.to_string())
+        )
+    }
+
+    #[test]
+    fn reads_the_origin_the_credential_was_issued_from() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "US-IL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("US-IL"));
+
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "NL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("NL"));
+    }
+
+    // Usage keys on the label, so anything a caller could inflate it with is
+    // dropped rather than carried.
+    #[test]
+    fn drops_an_origin_that_is_not_a_country_or_subdivision_label() {
+        let mut context = ctx();
+        for origin in ["", "us", "USA", "US-", "US-ILLI", "US-il", "U1", "US IL"] {
+            context.authorization = Some(bearer_with_claims(json!({ "cache_origin": origin })));
+            assert_eq!(credential_origin(&context), None, "{origin:?}");
+        }
+    }
+
+    #[test]
+    fn has_no_origin_for_a_credential_that_carries_none() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "sub": "user" })));
+        assert_eq!(credential_origin(&context), None);
+
+        context.authorization = Some("Bearer opaque-project-token".into());
+        assert_eq!(credential_origin(&context), None);
     }
 }

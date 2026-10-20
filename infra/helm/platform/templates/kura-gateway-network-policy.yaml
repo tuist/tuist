@@ -1,0 +1,64 @@
+{{- /*
+Admits the regional Kura gateways to the cache port on Kura pods they do not
+share a node with.
+
+The gateways run host-network (`kind: DaemonSet`, `hostNetwork: true` in the
+per-environment values) so serving traffic hits the box NIC directly. What they
+proxy therefore leaves the node's host namespace rather than a pod namespace,
+and Cilium gives it the `host` identity on the node itself and `remote-node`
+from every other node. The per-instance NetworkPolicy that kura-controller
+writes admits the cache port with an empty `namespaceSelector`, which selects
+pod identities only, so neither identity matches. An `ipBlock` would not close
+the gap either: CIDR selectors skip in-cluster node addresses unless
+`policy-cidr-match-mode` is set, and it is not.
+
+A one-box region never saw this, because Cilium always admits `host` and the
+only gateway was the local one. A region running two or more boxes drops every
+request a gateway proxies to a pod on another box, and answers 504 once nginx
+exhausts its upstream retries.
+
+The regional peer demux (kura-controller's PeerDemuxReconciler) is host-network
+too, and the public peer host's DNS targets the primary's box while the peer
+Service pins the gateway pod, which is the other replica. Once an account's
+replicas straddle boxes, every connection to its public peer host crosses them,
+and the per-instance policy's `ipBlock` for the peer port does not match
+`remote-node` for the reason above. It timed out for every straddled account in
+eu-west on 2026-10-16, which is how self-hosted nodes pull from the region.
+
+Kura policy stays additive: this grants the cache and peer ports and nothing
+else. The runtime's JWT check remains the auth boundary on the cache ports, the
+same one the per-instance policy already relies on when it opens them to every
+pod in the cluster, and mTLS against the account's peer CA on the peer port,
+which the per-instance policy already opens to every address.
+*/ -}}
+{{- if .Values.kuraGatewayNetworkPolicy.enabled }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kura-gateway-ingress
+  namespace: {{ .Values.kuraGatewayNetworkPolicy.namespace | quote }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kura
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            # kura-controller's `httpPort`, the cache port the regional
+            # Ingress routes to. Numeric rather than the `http` port name so
+            # the rule does not depend on named-port resolution.
+            - port: {{ .Values.kuraGatewayNetworkPolicy.port | quote }}
+              protocol: TCP
+            # kura-controller's `gatewayGRPCPort`, where the gRPC Ingress
+            # routes gRPC so it never shares pooled upstream connections with
+            # HTTP to the cache port.
+            - port: {{ .Values.kuraGatewayNetworkPolicy.grpcPort | quote }}
+              protocol: TCP
+            # kura-controller's `peerPort`, where the regional peer demux
+            # forwards the public peer hosts.
+            - port: {{ .Values.kuraGatewayNetworkPolicy.peerPort | quote }}
+              protocol: TCP
+{{- end }}

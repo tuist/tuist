@@ -31,12 +31,33 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
+capi:
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2023588
+    cidr: 172.30.241.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-staging-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
+  privateGateway:
+    enabled: true
   telemetry:
     deploymentEnvironment: staging
 
-# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
-# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# Shared per-node egress HTB tree on the surviving OVH ca-east pool. Its
+# box advertises tuist.dev/egress-mbps (1000), and the staging region sets
 # egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
 # annotation the agent consumes. The image tag is resolved at deploy time
 # from the highest reachable egress-tree-agent@<semver> tag; pin an in-flight
@@ -44,25 +65,63 @@ kuraController:
 # input.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
   deployEnv: staging
-  sentryEnv: stag
+  sentryEnv: staging
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-staging` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
-  replicaCount: 1
+  kuraCapacityAdmission:
+    enabled: true
 
-  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
-  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-staging` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
   config:
-    posthog:
-      enabled: false
+    originAppKey:
+      enabled: true
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
+    enabled: true
+
+  # Mirrors production so staging exercises the public-dashboard challenge
+  # in the earliest cascade rung. See values-managed-production.yaml and
+  # PR #13205 for context.
+  publicPageChallenge:
+    enabled: true
+
+  replicaCount: 1
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
@@ -90,18 +149,10 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `eu-central` is the public region, now on the Dedibox bare-metal
-      # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
-      # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
-      # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
-      # the Macs' cache traffic never crosses the WAN. Linux runners have no
-      # private cache region: the former `hetzner-staging-runners` lived on the
-      # Hetzner ccx13 `kura` pool the cutover deleted, no customers used the
-      # staging Linux runner cache, and the region spec is gone with the pool.
-      # `ca-east` (Canada East / OVHcloud BHS) is
-      # the OVH bare-metal validation region — a geographic id; OVH is an
-      # implementation detail behind it (ovhFleet below, replicas 1).
-      value: eu-central,scw-fr-par-runners,ca-east
+      # Public validation uses the existing OVH ca-east fleet. Retire the
+      # Dedibox EU-West instances before the later fleet-retirement change.
+      # Preserve the Scaleway private cache beside the Mac mini fleet.
+      value: scw-fr-par-runners,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -113,14 +164,6 @@ server:
     # done.
     - name: TUIST_KURA_ROLLOUT_PACING
       value: progressive
-    - name: TUIST_KURA_AIR_REGION
-      # Staging has no `us-east` pool, so every Air account would resolve to a
-      # region whose instances could never schedule, and the Air-only 60-day
-      # pressure rule could not be exercised at all. Run the free tier on the
-      # `ca-east` OVH validation box instead. Production omits this and serves
-      # us-east. Only Air moves: a paid account restricted to Europe or the
-      # USA chose that, and no deployment setting may relocate it.
-      value: ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against
@@ -132,12 +175,13 @@ server:
       value: "1"
     - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
       value: "1"
+    - name: TUIST_KURA_UNUSED_DAYS
+      value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
     - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # Matches the one-day window above. The production default is @daily,
-      # which suits a 90-day window but would leave a staging instance
-      # eligible for up to another day before the sweep looked at it.
+      # Faster than the hourly production default so staging lifecycle drills
+      # move into drain promptly after the one-day eligibility window.
       value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
@@ -222,6 +266,20 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in this environment's own Stripe account (test mode) by
+      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
+      # them once its account is switched, which the flag still gates.
+      usage_meters:
+        cache_egress_megabytes: "price_1UIT1jLlKoN51eczc3MgZRX0"
+        cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
+        passing_test_cases: "price_1UIT1nLlKoN51eczZGPDCDJ1"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEIyLlKoN51ecz7e39epNp"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -245,6 +303,17 @@ server:
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  events:
+    enabled: true
+    host: events-staging.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events-staging.tuist.dev as GRPC end-to-end, so
+  # Once CLIs that discover the host via `/.well-known/once` can stream
+  # live run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   autoscaling:
     enabled: false
@@ -300,6 +369,57 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
+  # The in-cluster ClickHouse is staging's system of record (spec #73).
+  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
+  # ClickHouse Cloud receives nothing.
+  #
+  # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
+  # data on that node's XFS `/data`, and one Keeper on the general pool.
+  # Deliberately not a highly-available shape: what staging proves is the
+  # replicated engines, the Keeper dependency, the schema path and the
+  # storage layout. Two replicas and a three-member quorum belong to canary.
+  #
+  # The volume is sized well under the 441 GB `/data` offers, because the
+  # staging dataset is a few GiB and the headroom is more useful as page
+  # cache than as a reservation nothing fills.
+  #
+  # Going back to `external` does not copy anything back: rows written since
+  # the switch exist only on the in-cluster server.
+  mode: managed
+  managed:
+    enabled: true
+    persistence:
+      size: 60Gi
+      localVolume:
+        # Staging's pool is one node, so this changes nothing here today. It is
+        # required rather than optional because the pool-label binding it
+        # replaces is safe only at one node, and an environment that grew a
+        # second one would otherwise regress silently.
+        nodeNames:
+          - bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM on
+    # the macOS fleet, so the Service name every other writer resolves does
+    # not resolve for it. Without this it cannot write at all once this
+    # server is the system of record.
+    #
+    # `tag:tuist-k8s-staging` rather than the fleet's own tag: the proxy node
+    # is created by this cluster's operator, and the wrong tag makes the
+    # operator refuse with `requested tags are invalid or not permitted`,
+    # leaving no proxy and a hostname that never resolves.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-staging
+      tags: tag:tuist-k8s-staging
+      # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
+      # the xcresult VMs reach it directly instead of through a DERP relay.
+      # Switching needs the standalone proxy's device deleted by hand; see
+      # the runbook in #14235.
+      proxyGroup: tailnet-ingress
+    # On here so the backup path itself is exercised before production depends
+    # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
+    backup:
+      enabled: true
 
 cache:
   extraEnv:
@@ -466,10 +586,8 @@ xcresultProcessor:
   # Deployment controller create the new Pod in Pending before the
   # old Pod releases hostPort 9091, generating a FailedScheduling
   # warning every rollout. Recreate waits for full termination first
-  # so no Pending pod is created against an occupied port, and
-  # `helm upgrade --wait` blocks until the new Pod is actually Ready
-  # before declaring the rollout done. Same effective downtime -
-  # Tart VM cold-boot dominates either way.
+  # so no Pending pod is created against an occupied port. Same
+  # effective downtime - Tart VM cold-boot dominates either way.
   strategy:
     type: Recreate
     rollingUpdate: null
@@ -494,40 +612,6 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
-# adopts a pre-ordered Dedibox carrying the tuist-staging tag (the env boundary,
-# since all Dedibox share the org's default project) and self-joins it. The tag
-# is the env pool marker, not a workload one — the node is dedicated to Kura by
-# its taint + pool label, not by this name. Prereqs met: the DEDIBOX_SCW_API
-# 1Password item exists, and Start-9-M sd-188785 (DC5) is delivered and tagged.
-dediboxFleet:
-  enabled: true
-  machine:
-    # Exact tag match (not a prefix), so this is the shared pool tag every
-    # staging Dedibox carries; per-box identity is the server id, not the tag.
-    # Dedibox tags are console-only (the API tag-set 500s on these legacy boxes),
-    # so this stays kura-scoped to match what's set on sd-188785 — the generic
-    # tuist-staging rename waits on either a console retag or a working tag API.
-    adoptTag: tuist-kura-staging
-    # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
-    # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
-    offer: Start-9-M
-    datacenter: DC5
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
-    egressBudgetMbps: 1000
-  scaleway:
-    externalSecrets:
-      # 1Password item with the default-project Dedibox IAM key (secret-key +
-      # project-id), readable by the staging ClusterSecretStore.
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (the live key was extracted into this
-  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
@@ -545,8 +629,7 @@ ovhFleet:
   # pre-orders + installs the box and names it with the adoptDisplayNamePrefix;
   # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
   # /dedicated/server/*/reinstall (the release path reinstalls a released box).
-  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-central
-  # Dedibox path is the validated twin.
+  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-west
   enabled: true
   replicas: 1
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
@@ -558,9 +641,8 @@ ovhFleet:
   machine:
     # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
     # boundary — one OVH account holds every env's boxes). Prefix match (case-
-    # sensitive). The pre-ordered BHS box is named `tuist-kura-ovh-staging`, the
-    # kura-scoped per-env marker (mirrors the Dedibox fleet's `tuist-kura-staging`
-    # tag); canary/prod boxes use `tuist-kura-ovh-<env>`. The operator orders a
+    # sensitive). The BHS box uses the `tuist-kura-ovh-staging` prefix;
+    # canary/prod boxes use their own per-env prefixes. The operator orders a
     # SYS-1 in BHS, names it accordingly, and scales the fleet; the controller
     # claims a free match, installs the OS, and joins it.
     adoptDisplayNamePrefix: tuist-kura-ovh-staging
@@ -568,7 +650,8 @@ ovhFleet:
     datacenter: bhs
     os: ubuntu_24.04
     # Node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
-    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    # tuist.dev/egress-mbps so ca-east's 25-Mbps-floor pods bin-pack
+    # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   externalSecrets:
     item: OVH_API
@@ -578,11 +661,97 @@ ovhFleet:
     enabled: true
     item: OVH_FLEET_SSH
 
+# Additional OVH fleets (ovh-fleets.yaml), sharing this env's OVH_API +
+# OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
+# fleet.
+ovhFleets:
+  # Staging capacity for physical vRack/Cilium validation. The public ca-east
+  # cache and existing runner fleet retain their placement.
+  #
+  # At 0 until its box is prepped: ns3220989 carries the adoption marker but
+  # refuses OVH_FLEET_SSH, so its Machine never became available and every
+  # staging deploy failed Helm's wait from 2026-10-05. Releasing the Machine
+  # reinstalls the box with the fleet key; once it is up (or after
+  # `PREP_NAMESPACE=tuist-staging mise run baremetal:prep-ovh
+  # ns3220989.ip-162-19-86.eu tuist-tuist-ovh-fleet-gra-runners-cache`), set
+  # this back to 1.
+  gra-runners-cache:
+    enabled: true
+    replicas: 0
+    endpoint: ovh-us
+    nodePool: kura-ovh-gra-runners
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-staging-gra-runners
+      offer: rise-1
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
+  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
+  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
+  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
+  # does not need production throughput, it needs to exercise the production
+  # integration.
+  #
+  # The one thing this shape cannot rehearse is the private link: RISE-S has no
+  # vRack option, where RISE-L carries 1 Gbit/s.
+  runners-linux:
+    enabled: true
+    # MUST equal the number of boxes prepped and marked for this env. Too high
+    # parks the MachineDeployment at 0/N and wedges `helm --wait` into an
+    # --atomic rollback; too low leaves an ordered box billing with nothing
+    # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
+    # then this number.
+    replicas: 1
+    # The OVHcloud entity holding the account, not the box's geography: the RISE
+    # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
+    # fleet must share one value, because the reconciler resolves a single
+    # OVH_ENDPOINT for all of them.
+    endpoint: ovh-us
+    # The pool the Linux Runner Profiles select on.
+    nodePool: runners-linux
+    machine:
+      adoptDisplayNamePrefix: tuist-runners-ovh-staging
+      # Case-insensitive substring of the box's commercialRange, which the
+      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
+      # matches without depending on how the CPU suffix is spelled on the server
+      # object. A value matching nothing adopts nothing, silently.
+      offer: rise-s
+      # Prefix-matched, so any gra* datacenter.
+      datacenter: gra
+      os: ubuntu_24.04
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. This makes the self-join
+      # install kata and apply that label. Without it the box joins Ready and
+      # every runner Pod stays unschedulable.
+      kataRuntime: true
+      # Runner Pods tolerate this taint; nothing else does.
+      nodeTaints:
+        - key: tuist.dev/runner-tier
+          value: bare-metal
+          effect: NoSchedule
+      # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
+      # pod bin-packing, and no cache pod runs here.
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-staging
   enabled: true
   replicas: 1
   # The minis drop inbound :22 from everything except the tailnet, loopback
@@ -612,19 +781,18 @@ macosFleet:
   runnerCacheVolume:
     gib: 40
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
-    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
-    # unusable store falls back to a VM-local cold compilation cache, never
-    # fails the job), so a bad budget costs warmth, not the build.
+    # masterCapGib 28 is the sparse per-master ceiling. The two caches share
+    # 22.4 GiB of it (the cap less a 20% reserve), divided by use in the
+    # guest. casGib turns the CAS on and sets the fixed split older runner
+    # images apply: 16 GiB for the CAS, 6.4 GiB for the binary cache. The
+    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # compilation cache, never fails the job), so a bad budget costs warmth,
+    # not the build.
     masterCapGib: 28
     casGib: 16
-  # Share the pre-ordered pool with runnersFleet (same prefix
-  # below). Both MachineDeployments draw from one Scaleway-side
-  # pool of `tuist-pool-*` hosts; the controller claims the first
-  # match per Machine. Avoids fragmenting capacity between the
-  # macos and runners fleets in staging where total hostCount
-  # (1 + 2) easily fits within one operator-managed pool.
+  # Same pre-ordered pool as runnersFleet, which rents no hosts in
+  # staging. The pool keeps no spare, so replacing this host means
+  # ordering a `tuist-pool-` Mac mini in the staging project first.
   adoptPoolPrefix: "tuist-pool-"
   # Enable Tailscale for the staging fleet — every Mac mini joins
   # the staging tailnet, tart-kubelet advertises the tailnet IPv4
@@ -676,19 +844,16 @@ macosFleet:
     hostCPU: 8
     hostMemoryMB: 14336
 
-# Customer-runner Mac mini fleet. Sized to tuist/tuist's
-# concurrency tier (2 in staging; production keeps 5).
-# Workloads that target this fleet schedule via
-# `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
-#
-# Image digest pinned to the artifact built by the most recent
-# successful run of .github/workflows/runner-image.yml. Bumped
-# manually for now (one digest per runner-image release);
-# automation lands when the image flow gets its own
-# release-bump workflow.
+# Staging rents no Scaleway hosts for its macOS runners: they run on the
+# BER1 rack host production lends it (`rackFleet`), and every staging account
+# runs there (`runner_site`). `enabled` stays on, since it also renders the
+# runners controller, the runner namespace and the rack's RunnerPools. With
+# `hostCount: 0` the chart renders no rented macOS pools, and the
+# MachineDeployment stays at zero, so a host released from it goes back to
+# the `tuist-pool-` pool.
 runnersFleet:
   enabled: true
-  hostCount: 1
+  hostCount: 0
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
   # Scaleway console with names starting with `tuist-pool-`
   # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
@@ -728,61 +893,9 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
-  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
-  # template merges each catalog entry with its override at render
-  # time. Pod sizing inherits the catalog's default shape
-  # (6 vCPU / 14 GB on M2-L) — only declare `pod` here if a profile
-  # needs to deviate from it.
-  #
-  # Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's guest-slot budget
-  # across all macOS pools in this fleet using the same three-tier
-  # (floor / load / headroom) policy that backs the Linux pools.
-  # `minWarmPoolFloor` is the always-on warm guarantee; sum across
-  # overrides must stay ≤ `hostCount` or the excess goes Pending.
-  # `maxReplicas` is per-pool and can be the full host budget — the
-  # allocator caps the joint sum so two pools both asking for 9
-  # don't double-book the cluster.
-  xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.6":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 1
-        maxReplicas: 1
-    "26.5":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.4.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.3":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.0.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag
-  # (server-deployment.yml passes it via --set). The chart template
-  # constructs each pool's image as
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # (server-deployment.yml passes it, and each profile's digest in
+  # `runnerImageDigests`, via --set).
   runnerImageSemver: ""
   pools: []
 
@@ -844,6 +957,10 @@ runnersController:
 # virtio-fs.
 runnersFleetLinux:
   enabled: true
+  # Follow the controller's matching agent release, as production does.
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
@@ -853,7 +970,9 @@ runnersFleetLinux:
   # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
-  # renders the pools; the server validates + addresses them).
+  # renders the pools; the server validates + addresses them) — minus
+  # the 64 GB ceiling shape, which needs production's AX162-R hosts and
+  # would render a pool no 64 GB AX42-U can ever place a Pod on.
   # Resolved at deploy time from the latest `linux-runner-image@` git tag
   # (server-deployment.yml passes `tuist-linux-runner:<version>` via --set).
   shapeRunnerImage: ""
@@ -882,3 +1001,49 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
+
+# BER1 rack hosts production lends staging: production keeps them in its
+# inventory (rackFleet.hosts there, with `lendTo: staging`), and staging's
+# operator runs their runtime and registers their Nodes here, so staging jobs
+# run on rack hardware. They are staging's only macOS runners: every staging
+# account runs its macOS profiles on the rack catalog's pools (`runner_site`
+# is on for everyone here), and a job waits while the host is down or
+# cordoned. Staging has no ber1-runners cache region, so their jobs use the
+# public cache.
+rackFleet:
+  enabled: false
+  name: tuist-staging-rack-fleet
+  site: ber1
+  env: staging
+  # Rack hosts production lends staging with `lendTo: staging` (see "A host
+  # lent to another env" in infra/cluster-api-provider-tuist/AGENTS.md).
+  # Staging's operator runs their runtime and rolls it with staging's deploys,
+  # so a rack runtime change reaches a rack host here first.
+  borrow:
+    enabled: true
+    hosts:
+      - ber1-runner-b01
+  # Until staging takes ber1-runner-b01 over, it runs under the identity
+  # staging's operator minted for it while the rack was here
+  # (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01), which is not this
+  # chart's. Delete that identity once the lease is Active.
+  joiningNodes: []
+  runners:
+    enabled: true
+    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
+    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # One host, two guest slots.
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 2
+    # `tuist-staging-macos` resolves to 26.6, which the staging smoke runs
+    # on, so one guest stays warm for it.
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2

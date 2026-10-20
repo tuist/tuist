@@ -4,7 +4,9 @@ defmodule TuistWeb.OverviewLive do
   use Noora
 
   alias Tuist.Projects.Project
+  alias TuistWeb.Authorization
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -14,13 +16,18 @@ defmodule TuistWeb.OverviewLive do
         :head_title,
         "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_projects", "Overview"),
+          subtitle: dgettext("dashboard_projects", "Project dashboard")
+        )
+      )
 
     socket =
-      if Project.gradle_project?(project) do
-        socket
-      else
+      if Project.xcode_project?(project) do
         TuistWeb.XcodeOverviewLive.assign_mount(socket)
+      else
+        socket
       end
 
     {:ok, socket}
@@ -84,13 +91,51 @@ defmodule TuistWeb.OverviewLive do
     params = Query.query_params(request_uri)
     full_uri = URI.parse(request_uri)
 
-    socket =
-      if Project.gradle_project?(project) do
-        TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
+    project =
+      if connected?(socket) do
+        Authorization.require_user_can_read_project(%{
+          user: socket.assigns.current_user,
+          account_handle: project.account.name,
+          project_handle: project.name
+        })
       else
-        TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, full_uri.path)
+        project
       end
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:selected_project, project)
+      |> assign(
+        :cached_public_overview,
+        is_nil(socket.assigns[:current_user]) and PublicOverviewCache.public_root?(project, request_uri)
+      )
+
+    socket = assign_overview(socket, project, params, full_uri.path)
+    {:noreply, PublicOverviewCache.resolve_pending(socket)}
+  end
+
+  defp assign_overview(socket, project, params, path) do
+    cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.once_project?(project) ->
+        TuistWeb.OnceOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.gradle_project?(project) ->
+        TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.xcode_project?(project) ->
+        TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.bazel_project?(project) ->
+        TuistWeb.BazelOverviewLive.assign_handle_params(socket, params, path)
+
+      Project.mix_project?(project) ->
+        TuistWeb.MixOverviewLive.assign_handle_params(socket, params, path)
+
+      true ->
+        socket
+    end
   end
 end

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Graph gallery · Tuist (dev)</title>
+    <style nonce={TuistWeb.CSP.get_csp_nonce()}>
+      body { margin: 0; padding: 32px; background: #111; color: #eee; font: 14px/1.5 -apple-system, "Inter Variable", sans-serif; }
+      h1 { margin: 0 0 8px; font-size: 24px; font-weight: 500; }
+      h2 { margin: 48px 0 4px; font-size: 18px; font-weight: 500; }
+      p.note { margin: 0 0 16px; color: #999; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 24px; }
+      figure { margin: 0; }
+      figure img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border: 1px solid #333; }
+      figcaption { margin-top: 6px; color: #bbb; word-break: break-all; }
+      figcaption a { color: #a48cff; }
+    </style>
+  </head>
+  <body>
+    <h1>Open Graph gallery</h1>
+    <p class="note">
+      Every social card the site can serve, static and generated. Development only.
+    </p>
+    <%= for section <- @sections do %>
+      <h2>{section.title}</h2>
+      <p class="note">{section.note}</p>
+      <div class="grid">
+        <figure :for={image <- section.images}>
+          <a href={image.src} target="_blank" rel="noopener"><img
+            src={image.src}
+            alt=""
+            loading="lazy"
+          /></a>
+          <figcaption>{image.label}</figcaption>
+        </figure>
+      </div>
+    <% end %>
+  </body>
+</html>

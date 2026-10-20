@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
@@ -14,22 +15,16 @@ public protocol RemoteCacheProbing: Sendable {
 }
 
 public struct RemoteCacheProbeService: RemoteCacheProbing {
-    /// Upper bound for the probe so `tuist bazel setup` fails fast instead of hanging when a
-    /// cache endpoint is unreachable. It bounds the whole RPC, including connection set-up.
-    private static let probeTimeout: Duration = .seconds(10)
+    private let fileSystem: FileSysteming
 
-    public init() {}
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func probe(endpoint: GRPCEndpoint, accountHandle: String, instanceName: String, token: String) async throws {
         Logger.current.debug("Probing remote cache availability at \(endpoint.authority) (GetCapabilities)")
 
-        let transport: HTTP2ClientTransport.Posix = try .http2NIOPosix(
-            target: .dns(host: endpoint.host, port: endpoint.port),
-            transportSecurity: endpoint.isTLS ? .tls : .plaintext
-        )
-
-        var options = CallOptions.defaults
-        options.timeout = Self.probeTimeout
+        let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
 
         var metadata = Metadata()
         metadata.addString("Bearer \(token)", forKey: "authorization")
@@ -42,7 +37,9 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         do {
             try await withGRPCClient(transport: transport) { client in
                 let capabilities = Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client)
-                _ = try await capabilities.getCapabilities(request, metadata: metadata, options: options)
+                _ = try await REAPICapabilityNegotiation.run { options in
+                    try await capabilities.getCapabilities(request, metadata: metadata, options: options)
+                }
             }
         } catch let error as RPCError {
             throw RemoteCacheProbeError.unavailable(

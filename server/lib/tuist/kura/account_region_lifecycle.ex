@@ -7,6 +7,12 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   latest qualifying cache request across those projects, not a per-project
   clock.
 
+  `last_cache_traffic_at` is the latest of those requests that moved bytes:
+  a managed node's usage report, or a request the activation gateway admitted.
+  Endpoint resolution and runner dispatch advance the demand clock only, so an
+  account whose clients look up the cache without using it keeps a fresh
+  demand clock and a stale traffic clock.
+
   The row outlives the `kura_servers` row it describes. That is the point:
   an archived account has no server, and its demand timestamp is what the
   next cache request compares against to decide whether to cold-provision.
@@ -16,6 +22,13 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   and never counted as archival-eligible. The full versioned override record
   (ownership, review date, expiry, capacity preflight, rollback) is separate
   work.
+
+  `drain_reason` is why the current or last drain started. It is cleared when
+  the drain is cancelled or the instance returns from archive, so an `:unused`
+  reason on a row without a serving instance means the instance was reclaimed
+  for never storing anything and has not been asked for since. `:idle` is the
+  Air counterpart for traffic: the instance moved no bytes in the service
+  period that ended, so resolution alone does not bring it back for a while.
   """
   use Ecto.Schema
 
@@ -27,6 +40,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   schema "kura_account_region_lifecycles" do
     field :service_region, :string
     field :last_cache_demand_at, :utc_datetime
+    field :last_cache_traffic_at, :utc_datetime
     field :keep_warm, :boolean, default: false
     field :drain_started_at, :utc_datetime
     field :teardown_started_at, :utc_datetime
@@ -34,6 +48,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
     field :last_reclaimed_bytes, :integer
     field :last_drain_duration_ms, :integer
     field :last_returned_at, :utc_datetime
+    field :drain_reason, Ecto.Enum, values: [:inactive, :idle, :capacity_pressure, :unused, :placement_retirement]
 
     belongs_to :account, Account
 
@@ -52,7 +67,8 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
       :archived_at,
       :last_reclaimed_bytes,
       :last_drain_duration_ms,
-      :last_returned_at
+      :last_returned_at,
+      :drain_reason
     ])
   end
 

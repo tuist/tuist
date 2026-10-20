@@ -730,24 +730,81 @@ defmodule Tuist.Ops.Database do
     Enum.join([header, body], "\n")
   end
 
-  # JSON has no native datetime — coerce to ISO 8601 so the export is
-  # round-trippable in any consumer that expects strings for dates.
-  defp json_safe(nil), do: nil
-  defp json_safe(%NaiveDateTime{} = v), do: NaiveDateTime.to_iso8601(v)
-  defp json_safe(%DateTime{} = v), do: DateTime.to_iso8601(v)
-  defp json_safe(%Date{} = v), do: Date.to_iso8601(v)
-  defp json_safe(%Time{} = v), do: Time.to_iso8601(v)
-  defp json_safe(v) when is_binary(v) or is_number(v) or is_boolean(v), do: v
-  defp json_safe(v), do: inspect(v)
+  defp json_safe(v), do: display_value(v)
 
   defp csv_value(nil), do: ""
-  defp csv_value(v) when is_binary(v), do: v
-  defp csv_value(v) when is_number(v) or is_boolean(v), do: to_string(v)
-  defp csv_value(%NaiveDateTime{} = v), do: NaiveDateTime.to_iso8601(v)
-  defp csv_value(%DateTime{} = v), do: DateTime.to_iso8601(v)
-  defp csv_value(%Date{} = v), do: Date.to_iso8601(v)
-  defp csv_value(%Time{} = v), do: Time.to_iso8601(v)
-  defp csv_value(v), do: inspect(v)
+
+  defp csv_value(v) do
+    case display_value(v) do
+      s when is_binary(s) -> s
+      n when is_number(n) or is_boolean(n) -> to_string(n)
+      other -> inspect(other)
+    end
+  end
+
+  @doc """
+  Render a raw `Repo.query/1` value as a display string.
+
+  Because `execute/2` uses raw `Repo.query/1` with no schema casting, a Postgres
+  `uuid` arrives as a 16-byte binary and a `bytea` as arbitrary bytes; Jason and
+  every text serializer downstream (CSV, markdown, the LiveView table cell)
+  require valid UTF-8. The rules:
+
+    * `nil` → `"NULL"` for display, or `nil` when the caller wants JSON null
+      (handled by the callers that special-case `nil`).
+    * datetimes → their ISO 8601 string.
+    * a binary that is already valid UTF-8 → itself.
+    * a 16-byte non-UTF-8 binary → canonical UUID text (this is a heuristic:
+      a 16-byte `bytea` — an MD5, an AES IV — will also match, and we cannot
+      tell them apart from a `uuid` without column-type metadata).
+    * any other non-UTF-8 binary → `\\x`-prefixed lowercase hex, matching how
+      `psql` prints `bytea` payloads.
+    * a `%Decimal{}` → the number as a string (Postgres `numeric`, which is
+      what every aggregate returns, arrives as `%Decimal{}`; emitting it as
+      text preserves scale and keeps money-shaped values lossless in JSON).
+    * a plain map → itself; Postgrex returns `jsonb` as a map, and Jason
+      encodes maps natively. The `not is_struct(v)` guard prevents this
+      clause from swallowing structs like `%Postgrex.Interval{}`.
+    * a list → each element rendered the same way (Postgres array columns
+      arrive as an Elixir list; without this, a `uuid[]` would crash Jason
+      and a `jsonb[]` would render as strings-of-Elixir-source).
+    * anything else → `inspect/1`, so a Postgrex range or an unknown driver
+      struct still shows up somewhere.
+  """
+  def display_value(nil), do: nil
+  def display_value(%NaiveDateTime{} = v), do: NaiveDateTime.to_iso8601(v)
+  def display_value(%DateTime{} = v), do: DateTime.to_iso8601(v)
+  def display_value(%Date{} = v), do: Date.to_iso8601(v)
+  def display_value(%Time{} = v), do: Time.to_iso8601(v)
+  def display_value(%Decimal{} = v), do: Decimal.to_string(v)
+  def display_value(v) when is_number(v) or is_boolean(v), do: v
+  def display_value(v) when is_binary(v), do: binary_display(v)
+  def display_value(v) when is_list(v), do: Enum.map(v, &display_value/1)
+  def display_value(v) when is_map(v) and not is_struct(v), do: v
+  def display_value(v), do: inspect(v)
+
+  defp binary_display(binary) do
+    cond do
+      # Postgres text columns reject NUL bytes on the wire, so a binary
+      # that is both valid UTF-8 and NUL-free came from a text-shaped
+      # column and passes through as-is. Requiring NUL-free reclassifies
+      # the all-zero UUID (`<<0::128>>`, which is technically valid
+      # UTF-8) as a UUID rather than a text value.
+      String.valid?(binary) and not String.contains?(binary, <<0>>) ->
+        binary
+
+      byte_size(binary) == 16 ->
+        case Ecto.UUID.cast(binary) do
+          {:ok, uuid} -> uuid
+          :error -> hex_blob(binary)
+        end
+
+      true ->
+        hex_blob(binary)
+    end
+  end
+
+  defp hex_blob(binary), do: "\\x" <> Base.encode16(binary, case: :lower)
 
   defp csv_escape(value) do
     s = to_string(value)
@@ -771,9 +828,7 @@ defmodule Tuist.Ops.Database do
       %DateTime{} = d -> DateTime.to_string(d)
       %Date{} = d -> Date.to_string(d)
       %Time{} = d -> Time.to_string(d)
-      bin when is_binary(bin) -> bin
-      other when is_number(other) or is_boolean(other) -> to_string(other)
-      other -> inspect(other)
+      other -> csv_value(other)
     end
     |> String.replace("|", "\\|")
     |> String.replace(~r/\r?\n/, " · ")

@@ -5,19 +5,27 @@ defmodule Tuist.Xcode do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.ClickHouseRepo
   alias Tuist.Xcode.XcodeGraph.Buffer, as: XcodeGraphBuffer
   alias Tuist.Xcode.XcodeProject.Buffer, as: XcodeProjectBuffer
   alias Tuist.Xcode.XcodeTarget
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
-  def create_xcode_graph(%{command_event: %{id: command_event_id}, xcode_graph: %{name: name} = xcode_graph}) do
+  def create_xcode_graph(%{
+        command_event: %{id: command_event_id, project_id: project_id} = command_event,
+        xcode_graph: %{name: name} = xcode_graph
+      }) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
-      prepare_xcode_graph(xcode_graph, command_event_id)
+      prepare_xcode_graph(xcode_graph, command_event_id, project_id)
 
     XcodeGraphBuffer.insert(xcode_graph_data)
     XcodeProjectBuffer.insert_all(projects_data)
     XcodeTargetBuffer.insert_all(targets_data)
+
+    if BuildEntities.enabled?(command_event.project_id) do
+      BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
+    end
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
@@ -32,6 +40,11 @@ defmodule Tuist.Xcode do
         where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
+          hashed_destinations: xt.hashed_destinations,
+          embedded_product_references_hash: xt.embedded_product_references_hash,
+          foreign_build_hash: xt.foreign_build_hash,
+          test_device: xt.test_device,
+          test_runtime: xt.test_runtime,
           id: xt.id,
           name: xt.name,
           selective_testing_hit: xt.selective_testing_hit,
@@ -51,6 +64,7 @@ defmodule Tuist.Xcode do
           info_plist_hash: xt.info_plist_hash,
           entitlements_hash: xt.entitlements_hash,
           dependencies_hash: xt.dependencies_hash,
+          dependencies: xt.dependencies,
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
@@ -66,6 +80,11 @@ defmodule Tuist.Xcode do
     test_modules =
       Enum.map(targets, fn target ->
         %{
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
+          embedded_product_references_hash: target.embedded_product_references_hash,
+          foreign_build_hash: target.foreign_build_hash,
+          test_device: target.test_device,
+          test_runtime: target.test_runtime,
           name: target.name,
           selective_testing_hit: String.to_existing_atom(target.selective_testing_hit),
           selective_testing_hash: target.selective_testing_hash,
@@ -84,6 +103,7 @@ defmodule Tuist.Xcode do
           info_plist_hash: target.info_plist_hash,
           entitlements_hash: target.entitlements_hash,
           dependencies_hash: target.dependencies_hash,
+          dependencies: target.dependencies,
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
@@ -106,6 +126,11 @@ defmodule Tuist.Xcode do
         where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
+          hashed_destinations: xt.hashed_destinations,
+          embedded_product_references_hash: xt.embedded_product_references_hash,
+          foreign_build_hash: xt.foreign_build_hash,
+          test_device: xt.test_device,
+          test_runtime: xt.test_runtime,
           id: xt.id,
           name: xt.name,
           binary_cache_hit: xt.binary_cache_hit,
@@ -125,6 +150,7 @@ defmodule Tuist.Xcode do
           info_plist_hash: xt.info_plist_hash,
           entitlements_hash: xt.entitlements_hash,
           dependencies_hash: xt.dependencies_hash,
+          dependencies: xt.dependencies,
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
@@ -140,6 +166,11 @@ defmodule Tuist.Xcode do
     cacheable_targets =
       Enum.map(targets, fn target ->
         %{
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
+          embedded_product_references_hash: target.embedded_product_references_hash,
+          foreign_build_hash: target.foreign_build_hash,
+          test_device: target.test_device,
+          test_runtime: target.test_runtime,
           name: target.name,
           binary_cache_hit: String.to_existing_atom(target.binary_cache_hit),
           binary_cache_hash: target.binary_cache_hash,
@@ -158,6 +189,7 @@ defmodule Tuist.Xcode do
           info_plist_hash: target.info_plist_hash,
           entitlements_hash: target.entitlements_hash,
           dependencies_hash: target.dependencies_hash,
+          dependencies: target.dependencies,
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
@@ -292,7 +324,7 @@ defmodule Tuist.Xcode do
     {start_dt, end_dt}
   end
 
-  defp prepare_xcode_graph(xcode_graph, command_event_id) do
+  defp prepare_xcode_graph(xcode_graph, command_event_id, project_id) do
     xcode_graph_id = UUIDv7.generate()
     inserted_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
@@ -329,6 +361,7 @@ defmodule Tuist.Xcode do
           xcode_project.targets,
           &XcodeTarget.changeset(
             xcode_project.project.command_event_id,
+            project_id,
             xcode_project.project.id,
             &1,
             inserted_at

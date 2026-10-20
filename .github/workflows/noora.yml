@@ -24,7 +24,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MIX_ENV: test
   MISE_GITHUB_ATTESTATIONS: 0
@@ -38,14 +37,13 @@ jobs:
     name: Build
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     env:
       MIX_ENV: prod
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "erlang elixir node aube"
           cache: "true"
           working-directory: noora
@@ -62,14 +60,13 @@ jobs:
     name: Lint
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     env:
       MIX_ENV: dev
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "erlang elixir node aube"
           cache: "true"
           working-directory: noora
@@ -89,12 +86,11 @@ jobs:
     name: Test
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "erlang elixir node aube"
           cache: "true"
           working-directory: noora
@@ -111,7 +107,7 @@ jobs:
     name: Docker Build (Storybook)
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Build storybook Docker image

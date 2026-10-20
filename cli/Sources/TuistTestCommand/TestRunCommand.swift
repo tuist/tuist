@@ -52,7 +52,7 @@
 
     // swiftlint:disable:next type_body_length
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
-        RunReportingCommand
+        RunReportingCommand, ProjectPathProviding
     {
         public init() {}
 
@@ -100,7 +100,7 @@
             completion: .directory,
             envKey: .testPath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,
@@ -341,6 +341,13 @@
 
         @Option(
             name: .long,
+            help: "Rerun the test cases this branch adds, priced by duration, and flag any that prove flaky. 'report' warns; 'enforce' fails the run on a flaky test case. Off when omitted.",
+            envKey: .testStressNewTests
+        )
+        var stressNewTests: StressNewTestsMode?
+
+        @Option(
+            name: .long,
             help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
@@ -462,7 +469,8 @@
                     }
                     return nil
                 }(),
-                mode: inspectMode
+                mode: inspectMode,
+                stressNewTests: stressNewTests
             )
         }
     }

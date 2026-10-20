@@ -885,6 +885,14 @@ defmodule Tuist.Runners.InteractiveSessions do
     where(query, [session], session.pod_name == ^pod_name)
   end
 
+  # A claim is keyed by Pod and outlives the job it was minted for, so its
+  # `workflow_job_id` is NULL between a displaced job being detached and the
+  # next one binding. The Pod still holds the session, so it matches on
+  # `pod_name` alone. An `== nil` comparison raises instead.
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, %{workflow_job_id: nil}) do
+    where(query, [session], session.pod_name == ^pod_name)
+  end
+
   defp where_session_belongs_to_pod_or_binding(query, pod_name, binding) do
     where(
       query,

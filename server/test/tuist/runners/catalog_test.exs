@@ -83,6 +83,9 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.3"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-3"
 
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.1.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-1-1"
+
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end
@@ -111,6 +114,61 @@ defmodule Tuist.Runners.CatalogTest do
                memory_gb: shape.memory_gb
              }) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+    end
+  end
+
+  describe "site_pool_name/1" do
+    setup do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      shape = non_default_macos_shape()
+      shape_key = "#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{
+          "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-26-6-#{shape_key}" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ams1-26-6" => %{site: "ams1", platform: :macos}
+        }
+      end)
+
+      %{prefix: prefix, shape: shape, shape_key: shape_key}
+    end
+
+    test "names the same Xcode racked at a site, the first site by name of several", %{prefix: prefix} do
+      assert Catalog.site_pool_name(%{platform: :macos, xcode_version: "26.6"}) == "#{prefix}-ams1-26-6"
+    end
+
+    test "keeps the shape suffix last, so the site pool resolves to its shape", %{
+      prefix: prefix,
+      shape: shape,
+      shape_key: shape_key
+    } do
+      profile = %{platform: :macos, xcode_version: "26.6", vcpus: shape.vcpus, memory_gb: shape.memory_gb}
+      site_pool = Catalog.site_pool_name(profile)
+
+      assert site_pool == "#{prefix}-ber1-26-6-#{shape_key}"
+
+      assert Catalog.resources_for_fleet(site_pool) ==
+               {:ok, %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+
+    test "answers nil for an Xcode no site racks" do
+      assert Catalog.site_pool_name(%{platform: :macos, xcode_version: "26.5"}) == nil
+    end
+
+    test "answers nil for a Linux profile" do
+      assert Catalog.site_pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}) == nil
+    end
+
+    test "rented_pool_name/1 drops the site from a site's catalog pool and nothing else", %{
+      prefix: prefix,
+      shape_key: shape_key
+    } do
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6") == "#{prefix}-26-6"
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6-#{shape_key}") == "#{prefix}-26-6-#{shape_key}"
+      assert Catalog.rented_pool_name("tuist-runner-pool-ber1") == nil
+      assert Catalog.rented_pool_name("#{prefix}-26-6") == nil
     end
   end
 
@@ -248,6 +306,35 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "xcode_versions/0" do
+    test "lists a stable release ahead of its prerelease channel" do
+      stub_xcode_versions(["26.0.1", "27.0-beta", "26.5", "27.0", "26.4.1", "26.6", "26.3"])
+
+      assert xcode_version_names() == ["27.0", "27.0-beta", "26.6", "26.5", "26.4.1", "26.3", "26.0.1"]
+    end
+
+    test "compares version segments numerically" do
+      stub_xcode_versions(["26.9", "26.10", "26.2"])
+
+      assert xcode_version_names() == ["26.10", "26.9", "26.2"]
+    end
+
+    test "lists a patch release ahead of its minor release" do
+      stub_xcode_versions(["26.4", "26.3", "26.4.1"])
+
+      assert xcode_version_names() == ["26.4.1", "26.4", "26.3"]
+    end
+
+    test "sorts unparseable versions last" do
+      stub_xcode_versions(["nightly", "26.5", "26.x", "26.10"])
+
+      names = xcode_version_names()
+
+      assert Enum.take(names, 2) == ["26.10", "26.5"]
+      assert names |> Enum.drop(2) |> Enum.sort() == ["26.x", "nightly"]
+    end
+  end
+
   describe "fleet_on_cluster_network?/1" do
     test "linux fleets are on the cluster network by default" do
       # The unset default is `linux`: kata Pods always ride the CNI,
@@ -277,6 +364,33 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "site pools" do
+    setup do
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos}}
+      end)
+
+      :ok
+    end
+
+    test "a pool racked at a site takes its declared platform, whatever its name" do
+      assert Catalog.fleet_platform("tuist-runner-pool-ber1") == :macos
+      assert Catalog.fleet_site("tuist-runner-pool-ber1") == "ber1"
+    end
+
+    test "other fleets keep their prefix platform and sit at no site" do
+      assert Catalog.fleet_platform("macos-26-5") == :macos
+      assert Catalog.fleet_site("macos-26-5") == nil
+      assert Catalog.fleet_site(nil) == nil
+    end
+
+    test "a site pool passes the cluster network gate like its platform" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [:linux, :macos] end)
+
+      assert Catalog.fleet_on_cluster_network?("tuist-runner-pool-ber1")
+    end
+  end
+
   # The catalog ships more than one macOS shape (see
   # `config/config.exs`); the tests above assert on whichever entry is
   # not the default rather than pinning a specific one.
@@ -286,5 +400,15 @@ defmodule Tuist.Runners.CatalogTest do
     refute is_nil(shape), "the macOS shape catalog needs a non-default shape for this test"
 
     shape
+  end
+
+  defp stub_xcode_versions(versions) do
+    stub(Tuist.Environment, :runner_macos_xcode_versions, fn ->
+      Enum.map(versions, &%{xcode_version: &1})
+    end)
+  end
+
+  defp xcode_version_names do
+    Enum.map(Catalog.xcode_versions(), & &1.xcode_version)
   end
 end

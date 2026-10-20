@@ -21,9 +21,9 @@ import (
 // no CCM reaps it, so a lingering NotReady Node keeps its DaemonSet slot and
 // wedges helm --wait gates (an orphaned kura-fleet Node blocked the
 // observability rollout, which gates every staging deploy). reconcileDelete
-// across the three Linux providers shares this path; the Dedibox controller
+// across the Linux providers shares this path; the OVH controller
 // stands in for all of them.
-func TestDediboxReconcileDeleteRemovesRegisteredNode(t *testing.T) {
+func TestOVHDedicatedReconcileDeleteRemovesRegisteredNode(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
@@ -35,18 +35,18 @@ func TestDediboxReconcileDeleteRemovesRegisteredNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const machineName = "tuist-tuist-kura-dedibox-abc12-xyz34"
-	machine := &infrav1.DediboxMachine{
+	const machineName = "tuist-tuist-ovh-fleet-abc12-xyz34"
+	machine := &infrav1.OVHDedicatedMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       machineName,
 			Namespace:  "tuist",
-			Finalizers: []string{DediboxMachineFinalizer},
+			Finalizers: []string{OVHDedicatedMachineFinalizer},
 		},
 	}
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machineName}}
 	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(machine, node).Build()
 
-	r := &DediboxMachineReconciler{
+	r := &OVHDedicatedMachineReconciler{
 		Client:             cl,
 		CredentialsManager: &credentials.Manager{Client: cl, Namespace: "tuist"},
 	}

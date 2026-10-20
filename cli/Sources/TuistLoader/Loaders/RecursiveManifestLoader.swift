@@ -81,7 +81,8 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                 directory: AbsolutePath.root,
                 include: [
                     String($0.appending(component: Manifest.project.fileName($0)).pathString.dropFirst()),
-                ]
+                ],
+                exclude: ManifestLookupExcludes.frameworkSearchPathLinks
             )
             .collect()
             .map(\.parentDirectory)
@@ -175,6 +176,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                     packageType: .local,
                     packageSettings: packageSettings,
                     packageModuleAliases: [:],
+                    packageProducts: [:],
                     enabledTraits: []
                 )
             }

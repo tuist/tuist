@@ -18,6 +18,32 @@ defmodule Tuist.Automations.Alerts.AlertTest do
   end
 
   describe "changeset/2" do
+    test "existing-match actions are opt-in and require a boolean on a metric monitor" do
+      project = ProjectsFixtures.project_fixture()
+      attrs = valid_attrs(project)
+      refute Alert.apply_actions_to_existing_matches?(%Alert{trigger_config: attrs["trigger_config"]})
+
+      for value <- [true, false] do
+        config = Map.put(attrs["trigger_config"], "apply_actions_to_existing_matches", value)
+        assert Alert.changeset(%Alert{}, Map.put(attrs, "trigger_config", config)).valid?
+      end
+
+      config = Map.put(attrs["trigger_config"], "apply_actions_to_existing_matches", "true")
+      changeset = Alert.changeset(%Alert{}, Map.put(attrs, "trigger_config", config))
+      assert "apply_actions_to_existing_matches must be a boolean" in errors_on(changeset).trigger_config
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky"], "apply_actions_to_existing_matches" => true}
+          })
+        )
+
+      assert "applying actions to existing matches requires a metric monitor" in errors_on(changeset).trigger_config
+    end
+
     test "is valid with valid attributes" do
       project = ProjectsFixtures.project_fixture()
       changeset = Alert.changeset(%Alert{}, valid_attrs(project))

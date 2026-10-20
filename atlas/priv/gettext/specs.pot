@@ -1,0 +1,174 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+msgid "Specs"
+msgstr ""
+
+msgid "Editable engineering proposals shaped by the team."
+msgstr ""
+
+msgid "New spec"
+msgstr ""
+
+msgid "Edit spec"
+msgstr ""
+
+msgid "Filter"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Draft"
+msgstr ""
+
+msgid "Proposed"
+msgstr ""
+
+msgid "Approved"
+msgstr ""
+
+msgid "Paused"
+msgstr ""
+
+msgid "Rejected"
+msgstr ""
+
+msgid "In progress"
+msgstr ""
+
+msgid "Shipped"
+msgstr ""
+
+msgid "Archived"
+msgstr ""
+
+msgid "Spec"
+msgstr ""
+
+msgid "No specs yet"
+msgstr ""
+
+msgid "Draft the first proposal to see it here."
+msgstr ""
+
+msgid "#%{number} %{title}"
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Summary"
+msgstr ""
+
+msgid "One line, no em dashes."
+msgstr ""
+
+msgid "Markdown body"
+msgstr ""
+
+msgid "Engineering project"
+msgstr ""
+
+msgid "Choose project"
+msgstr ""
+
+msgid "Choose status"
+msgstr ""
+
+msgid "Domains"
+msgstr ""
+
+msgid "Select domains"
+msgstr ""
+
+msgid "Visibility"
+msgstr ""
+
+msgid "Choose visibility"
+msgstr ""
+
+msgid "Public"
+msgstr ""
+
+msgid "Private"
+msgstr ""
+
+msgid "Create"
+msgstr ""
+
+msgid "Save changes"
+msgstr ""
+
+msgid "Spec saved."
+msgstr ""
+
+msgid "A spec write is in progress. Try again in a moment."
+msgstr ""
+
+msgid "Only organization members can edit specs."
+msgstr ""
+
+msgid "Write the spec body in Markdown. Bind it to an engineering project so reviewers know where it lives."
+msgstr ""
+
+msgid "Edit"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Delete this spec?"
+msgstr ""
+
+msgid "Spec deleted."
+msgstr ""
+
+msgid "Could not delete spec. Refresh and retry."
+msgstr ""
+
+msgid "You cannot delete this spec."
+msgstr ""
+
+msgid "Body"
+msgstr ""
+
+msgid "Comments"
+msgstr ""
+
+msgid "No comments yet."
+msgstr ""
+
+msgid "Add a comment"
+msgstr ""
+
+msgid "Post comment"
+msgstr ""
+
+msgid "Comment added."
+msgstr ""
+
+msgid "You cannot comment on this spec."
+msgstr ""
+
+msgid "Delete this comment?"
+msgstr ""
+
+msgid "Comment not found."
+msgstr ""
+
+msgid "Anonymous"
+msgstr ""

@@ -6,6 +6,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   use Noora
 
   alias Tuist.Xcode
+  alias Tuist.Xcode.XcodeTarget
   alias TuistWeb.Utilities.Query
 
   attr :binary_cache_analytics, :map, required: true
@@ -17,6 +18,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
   attr :run, :any, required: true
+  attr :project, :map, required: true
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
 
@@ -78,7 +80,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               dgettext(
                 "dashboard_builds",
                 "Total data downloaded from the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_metrics.download_count
+                count: format_number(@module_cache_metrics.download_count)
               )
             }
             value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.download_bytes)}
@@ -91,7 +93,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               dgettext(
                 "dashboard_builds",
                 "Total data uploaded to the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_metrics.upload_count
+                count: format_number(@module_cache_metrics.upload_count)
               )
             }
             value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.upload_bytes)}
@@ -131,9 +133,11 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
                 {dgettext("dashboard_builds", "Cacheable targets:")}
               </span>
               <span data-part="value">
-                {@binary_cache_analytics.binary_cache_local_hits_count +
-                  @binary_cache_analytics.binary_cache_remote_hits_count +
-                  @binary_cache_analytics.binary_cache_misses_count}
+                {format_number(
+                  @binary_cache_analytics.binary_cache_local_hits_count +
+                    @binary_cache_analytics.binary_cache_remote_hits_count +
+                    @binary_cache_analytics.binary_cache_misses_count
+                )}
               </span>
             </div>
             <.chart
@@ -219,7 +223,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             id="binary-cache-table"
             rows={@binary_cache_analytics.cacheable_targets}
             row_key={fn target -> target.name end}
-            row_expandable={fn target -> target.product_name != "" end}
+            row_expandable={fn _target -> true end}
             expanded_rows={MapSet.to_list(@expanded_target_names)}
           >
             <:col
@@ -263,7 +267,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               } />
             </:col>
             <:expanded_content :let={target}>
-              <.subhashes_list target={target} />
+              <.subhashes_list target={target} project={@project} />
             </:expanded_content>
             <:empty_state>
               <.table_empty_state
@@ -290,8 +294,12 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   end
 
   attr :target, :map, required: true
+  attr :project, :map, default: nil
+  attr :show_test_destination, :boolean, default: false
 
   def subhashes_list(assigns) do
+    assigns = assign(assigns, :dependencies, Enum.sort(Map.get(assigns.target, :dependencies, [])))
+
     ~H"""
     <div data-part="subhashes-list">
       <div :if={@target.product != ""} data-part="subhash-item">
@@ -310,15 +318,44 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.bundle_id}</span>
       </div>
-      <div :if={not Enum.empty?(@target.destinations || [])} data-part="subhash-item">
+      <div data-part="subhash-item">
         <span data-part="subhash-label">
           {dgettext("dashboard_builds", "Destinations")}:
         </span>
         <span data-part="subhash-value">
-          {@target.destinations
-          |> Enum.sort()
-          |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
-          |> Enum.join(", ")}
+          {hash_input_value(Map.get(@target, :hashed_destinations))}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Embedded product references")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :embedded_product_references_hash))}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Foreign build")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :foreign_build_hash))}
+        </span>
+      </div>
+      <div :if={@show_test_destination} data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Test device")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :test_device))}
+        </span>
+      </div>
+      <div :if={@show_test_destination} data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Test runtime")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :test_runtime))}
         </span>
       </div>
       <div :if={@target.external_hash != ""} data-part="subhash-item">
@@ -381,9 +418,31 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.entitlements_hash}</span>
       </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">{dgettext("dashboard_builds", "Dependencies")}:</span>
+        <span data-part="subhash-value">
+          <span :if={@dependencies == []}>
+            {dgettext("dashboard_builds", "No direct target dependencies recorded")}
+          </span>
+          <span :if={@dependencies != []} data-part="dependency-list">
+            <span :for={dependency <- @dependencies}>
+              <.link
+                :if={@project}
+                navigate={
+                  ~p"/#{@project.account.name}/#{@project.name}/module-cache/modules/#{dependency}"
+                }
+                data-part="dependency-link"
+              >
+                {dependency}
+              </.link>
+              <span :if={!@project}>{dependency}</span>
+            </span>
+          </span>
+        </span>
+      </div>
       <div :if={@target.dependencies_hash != ""} data-part="subhash-item">
         <span data-part="subhash-label">
-          {dgettext("dashboard_builds", "Dependencies")}:
+          {dgettext("dashboard_builds", "Dependencies hash")}:
         </span>
         <span data-part="subhash-value">{@target.dependencies_hash}</span>
       </div>
@@ -553,12 +612,15 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     run.xcode_targets
     |> Enum.filter(&(&1.binary_cache_hash != nil))
     |> Enum.sort_by(& &1.name)
-    |> Enum.map(&target_to_json_map/1)
-    |> :json.format()
+    |> Enum.map(&target_to_json_map(&1, run))
+    |> :json.format(fn
+      nil, _encoder, _state -> "null"
+      value, encoder, state -> :json.format_value(value, encoder, state)
+    end)
     |> IO.iodata_to_binary()
   end
 
-  defp target_to_json_map(target) do
+  defp target_to_json_map(target, run) do
     %{
       name: target.name,
       binary_cache_hit: target.binary_cache_hit,
@@ -578,16 +640,28 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       info_plist_hash: target.info_plist_hash,
       entitlements_hash: target.entitlements_hash,
       dependencies_hash: target.dependencies_hash,
+      dependencies: Enum.sort(target.dependencies),
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
       additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
-      destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
     |> Map.new()
+    |> Map.merge(%{
+      hashed_destinations: XcodeTarget.hashed_destinations(target, run),
+      embedded_product_references_hash: target.embedded_product_references_hash,
+      foreign_build_hash: target.foreign_build_hash,
+      test_device: target.test_device,
+      test_runtime: target.test_runtime
+    })
   end
+
+  defp hash_input_value(nil), do: dgettext("dashboard_builds", "Unavailable")
+  defp hash_input_value(value) when value in [[], ""], do: dgettext("dashboard_builds", "None")
+  defp hash_input_value(value) when is_list(value), do: Enum.join(value, ", ")
+  defp hash_input_value(value), do: value
 
   defp empty_value?(nil), do: true
   defp empty_value?(""), do: true

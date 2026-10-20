@@ -32,6 +32,235 @@ const GUARDIAN_SECRET: &str = "tuist-guardian-secret";
 
 use std::sync::Mutex;
 
+#[tokio::test]
+async fn renamed_account_authorizes_current_grants_without_changing_stored_artifacts() {
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    let base = spawn_tuist_auth_mock(
+        |_headers, payload| {
+            let project = if payload["token"] == "original-token" {
+                "original/ios"
+            } else {
+                "renamed/ios"
+            };
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[project], &[project])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_introspection_only(&base);
+    let context = crate::test_support::test_context_with_auth(
+        |config| config.tenant_id = "original".into(),
+        Some(engine.clone()),
+    )
+    .await;
+    let app = crate::http::router(context.state.clone());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/cache/gradle/rename-key?tenant_id=original&namespace_id=ios")
+                .header("authorization", "Bearer original-token")
+                .body(Body::from("cached bytes"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    context
+        .state
+        .update_account_identity(Some("renamed-again"), None, None);
+    // An old control plane omitting the additive field must not undo a learned rename.
+    context.state.update_account_identity(None, None, None);
+    assert_eq!(
+        context.state.account_identity.load().handle.as_str(),
+        "renamed-again"
+    );
+    // Return to the handle for which our credential has grants; no disk/key rewrite occurs.
+    context
+        .state
+        .update_account_identity(Some("renamed"), None, None);
+    for handle in ["renamed", "original", "renamed-again"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/cache/gradle/rename-key?tenant_id={handle}&namespace_id=ios"
+                    ))
+                    .header("authorization", "Bearer valid-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            crate::test_support::response_text(response).await,
+            "cached bytes"
+        );
+    }
+    assert_eq!(context.state.config.tenant_id, "original");
+    for (handle, namespace) in [("unrelated", "ios"), ("renamed", "other-project")] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/cache/gradle/rename-key?tenant_id={handle}&namespace_id={namespace}"
+                    ))
+                    .header("authorization", "Bearer valid-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    let mut grpc = ctx();
+    grpc.transport = "grpc".into();
+    grpc.tenant_id = Some("renamed".into());
+    grpc.namespace_id = Some("ios".into());
+    grpc.authorization = Some("Bearer valid-token".into());
+    context.state.canonicalize_auth_context(&mut grpc);
+    assert!(matches!(
+        engine.evaluate_access(&grpc).await,
+        AccessDecision::Allow
+    ));
+}
+
+#[tokio::test]
+async fn endpoint_redirects_preserve_requests_and_require_explicit_capability() {
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+    let context = crate::test_support::test_context_with_auth(
+        |config| config.tenant_id = "original".into(),
+        None,
+    )
+    .await;
+    context.state.update_account_identity(
+        Some("renamed"),
+        Some(&["original".into()]),
+        Some(&BTreeMap::from([
+            (
+                "original.example.com".into(),
+                "https://renamed.example.com".into(),
+            ),
+            (
+                "bad.example.com".into(),
+                "https://user:password@elsewhere.example.com/path".into(),
+            ),
+        ])),
+    );
+    let app = crate::http::router(context.state.clone());
+    let path = "/api/cache/gradle/redirect-key?tenant_id=original&namespace_id=ios&opaque=a%2Fb";
+    // Legacy clients can still upload to an alias without replaying the body.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(path)
+                .header("host", "original.example.com")
+                .body(Body::from("unchanged bytes"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    for method in ["GET", "HEAD", "PUT", "DELETE"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header("host", "original.example.com")
+                    .header("x-tuist-accept-endpoint-redirect", "1")
+                    .body(Body::from("must not be consumed"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(
+            response.headers()["location"],
+            format!("https://renamed.example.com{path}")
+        );
+        assert_eq!(response.headers()["cache-control"], "no-store");
+    }
+    // Redirected DELETE did not mutate the old artifact; ordinary reads keep working.
+    for (host, content_type) in [
+        ("original.example.com", "application/grpc"),
+        ("bad.example.com", ""),
+        ("unknown.example.com", ""),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .header("host", host)
+                    .header("content-type", content_type)
+                    .header("x-tuist-accept-endpoint-redirect", "1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            crate::test_support::response_text(response).await,
+            "unchanged bytes"
+        );
+    }
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/up")
+                .header("host", "original.example.com")
+                .header("x-tuist-accept-endpoint-redirect", "1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    context.state.update_account_identity(None, None, None);
+    assert_eq!(
+        context
+            .state
+            .account_identity
+            .load()
+            .endpoint_redirects
+            .len(),
+        1
+    );
+    context
+        .state
+        .update_account_identity(Some("original"), None, None);
+    assert!(
+        context
+            .state
+            .account_identity
+            .load()
+            .endpoint_redirects
+            .is_empty()
+    );
+    let mut grpc = ctx();
+    grpc.tenant_id = Some("renamed".into());
+    context.state.canonicalize_auth_context(&mut grpc);
+    assert_eq!(grpc.tenant_id.as_deref(), Some("original"));
+}
+
 async fn spawn_tuist_auth_mock<FIntrospect, FCache>(
     introspect_handler: FIntrospect,
     cache_access_handler: FCache,
@@ -130,18 +359,13 @@ fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
 fn ctx() -> RequestContext {
     RequestContext {
         transport: "http".into(),
-        route: "/api/cache/gradle/{cache_key}".into(),
         method: "GET".into(),
         operation: "artifact.read".into(),
         server_tenant_id: "acme".into(),
         tenant_id: None,
         namespace_id: None,
-        producer: Some("gradle".into()),
-        artifact_key: None,
-        artifact_hash: None,
+        authorization: None,
         headers: BTreeMap::new(),
-        query: BTreeMap::new(),
-        status_code: None,
     }
 }
 
@@ -314,8 +538,6 @@ async fn allows_namespace_only_grpc_requests_for_bazel() {
 
     let mut context = ctx();
     context.transport = "grpc".into();
-    context.route =
-        "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
     context.method = "RPC".into();
     context.tenant_id = None;
     context.namespace_id = Some("bazel".into());
@@ -857,8 +1079,8 @@ async fn authorizes_case_insensitively_like_current_cache_nodes() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context.query.insert("account_handle".into(), "ACME".into());
-    context.query.insert("project_handle".into(), "IOS".into());
+    context.tenant_id = Some("ACME".into());
+    context.namespace_id = Some("IOS".into());
 
     let decision = engine.evaluate_access(&context).await;
     assert!(matches!(decision, AccessDecision::Allow));
@@ -892,10 +1114,8 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
     context
         .headers
         .insert("authorization".into(), "Bearer opaque-token".into());
-    context
-        .query
-        .insert("account_handle".into(), "someone-else".into());
-    context.query.insert("project_handle".into(), "ios".into());
+    context.tenant_id = Some("someone-else".into());
+    context.namespace_id = Some("ios".into());
 
     let deny = expect_deny(engine.evaluate_access(&context).await);
     assert_eq!(deny.status, 403);
@@ -1277,13 +1497,60 @@ fn cache_token(signing_key: &str) -> String {
     .expect("a signed cache token")
 }
 
+fn cache_token_issued_in(signing_key: &str, origin: &str) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::ES256),
+        &json!({
+            "sub": "1",
+            "iss": "tuist",
+            "typ": "cache",
+            "exp": 4_000_000_000u64,
+            "scopes": ["account_cache_read"],
+            "cache_grants": { "project": { "write": ["acme/ios"] } },
+            "cache_origin": origin,
+        }),
+        &jsonwebtoken::EncodingKey::from_ec_pem(signing_key.as_bytes())
+            .expect("a readable cache-token signing key"),
+    )
+    .expect("a signed cache token")
+}
+
+// Usage attribution reads the origin back for a credential the engine allowed,
+// and never for one it refused: a request that reaches usage was authorized by
+// the credential its origin came from.
+#[tokio::test]
+async fn keeps_the_origin_of_a_confirmed_credential_only() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+    let allowed = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "US-IL"));
+
+    assert_eq!(engine.origin(&allowed), None);
+    let decision = engine.evaluate_access(&project_request(&allowed)).await;
+    assert!(matches!(decision, AccessDecision::Allow));
+    assert_eq!(engine.origin(&allowed).as_deref(), Some("US-IL"));
+
+    let refused = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "NL"));
+    let mut other_project = project_request(&refused);
+    other_project.namespace_id = Some("android".into());
+    let decision = engine.evaluate_access(&other_project).await;
+    assert!(matches!(decision, AccessDecision::Deny(_)));
+    assert_eq!(engine.origin(&refused), None);
+}
+
 fn project_request(authorization: &str) -> RequestContext {
     let mut context = ctx();
     context.tenant_id = Some("acme".into());
     context.namespace_id = Some("ios".into());
-    context
-        .headers
-        .insert("authorization".into(), authorization.to_owned());
+    context.authorization = Some(authorization.to_owned());
     context
 }
 
@@ -1782,12 +2049,8 @@ async fn a_credential_inside_the_verifier_leeway_still_reaches_the_backend() {
     }
 }
 
-// Some routes name their target in the query rather than the path, which is
-// the form the README documents. Both have to reach the same answer: keyed on
-// the raw context fields the query form left them unset, so two projects
-// looked identical and the first one's answer served the second.
 #[tokio::test]
-async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() {
+async fn resolved_targets_are_authorized_independently() {
     let base = spawn_tuist_auth_mock(
         |_headers, _payload| {
             (
@@ -1799,18 +2062,7 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
     )
     .await;
 
-    let query_form = |project: &str| {
-        let mut context = ctx();
-        context
-            .headers
-            .insert("authorization".into(), "Bearer opaque-token".into());
-        context.query.insert("account_handle".into(), "acme".into());
-        context
-            .query
-            .insert("project_handle".into(), project.into());
-        context
-    };
-    let path_form = |project: &str| {
+    let resolved_context = |project: &str| {
         let mut context = ctx();
         context
             .headers
@@ -1820,21 +2072,16 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
         context
     };
 
-    for form in [
-        &query_form as &dyn Fn(&str) -> RequestContext,
-        &path_form as &dyn Fn(&str) -> RequestContext,
-    ] {
-        let engine = engine_pointing_at(&base, false);
+    let engine = engine_pointing_at(&base, false);
 
-        assert!(matches!(
-            engine.evaluate_access(&form("ios")).await,
-            AccessDecision::Allow
-        ));
+    assert!(matches!(
+        engine.evaluate_access(&resolved_context("ios")).await,
+        AccessDecision::Allow
+    ));
 
-        let deny = expect_deny(engine.evaluate_access(&form("android")).await);
-        assert_eq!(deny.status, 403);
-        assert!(deny.message.contains("acme/android"));
-    }
+    let deny = expect_deny(engine.evaluate_access(&resolved_context("android")).await);
+    assert_eq!(deny.status, 403);
+    assert!(deny.message.contains("acme/android"));
 }
 
 // The fast path is one lookup: the entry is the answer, and nothing behind it

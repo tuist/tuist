@@ -1,6 +1,8 @@
 import FileSystem
 import Foundation
+import HTTPTypes
 import Mockable
+import OpenAPIRuntime
 import Testing
 import TuistAutomation
 import TuistCI
@@ -31,6 +33,8 @@ struct UploadBuildRunServiceTests {
     private let ciController = MockCIControlling()
     private let generationMetadataStore = MockGenerationMetadataStoring()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
+    private let xcActivityLogController = MockXCActivityLogControlling()
+    private let authentication = MockServerAuthenticationControlling()
 
     init() throws {
         given(generationMetadataStore)
@@ -52,7 +56,9 @@ struct UploadBuildRunServiceTests {
             gitController: gitController,
             ciController: ciController,
             generationMetadataStore: generationMetadataStore,
-            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
+            xcActivityLogController: xcActivityLogController,
+            serverAuthenticationController: authentication
         )
 
         given(serverEnvironmentService)
@@ -101,6 +107,70 @@ struct UploadBuildRunServiceTests {
         Matcher.register([XCActivityBuildFile].self)
         Matcher.register([XCActivityTarget].self)
         Matcher.register([MachineMetricSample].self)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func publishesLocallyParsedBuildWithoutUploadingAnArchive() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let path = directory.appending(component: "build.xcactivitylog")
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
+        serverEnvironmentService.reset()
+        given(serverEnvironmentService).url(configServerURL: .any)
+            .willReturn(try #require(URL(string: "https://tuist.example")))
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        given(xcActivityLogController).parse(.value(path)).willReturn(.test(
+            mainSection: .test(timeStartedRecording: 10, timeStoppedRecording: 12),
+            buildStep: .test(errorCount: 1)
+        ))
+        _ = try await subject.uploadBuildRun(
+            activityLogPath: path, projectPath: directory,
+            config: .test(fullHandle: "acme/widgets"), scheme: "App", configuration: "Debug"
+        )
+        verify(xcActivityLogController).parse(.value(path)).called(1)
+        verify(uploadBuildService).uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any).called(0)
+        verify(createBuildService).createBuild(
+            fullHandle: .any, serverURL: .any, id: .any, generationId: .value(nil), category: .any,
+            configuration: .any, customMetadata: .any, duration: .value(2000),
+            files: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+            gitRemoteURLOrigin: .value(nil), isCI: .any, issues: .any,
+            modelIdentifier: .any, macOSVersion: .any, scheme: .any,
+            targets: .any, xcodeCacheUploadEnabled: .value(false), xcodeVersion: .any,
+            status: .any, ciRunId: .any, ciProjectHandle: .any,
+            ciHost: .any, ciProvider: .any, cacheableTasks: .any,
+            casOutputs: .any, machineMetrics: .any
+        ).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func credentialBearingOriginsNeverReachSerializedNetworkBuilds() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let path = directory.appending(component: "build.xcactivitylog")
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
+        environment.variables["TUIST_XDG_CONFIG_HOME"] = directory.pathString
+        serverEnvironmentService.reset()
+        given(serverEnvironmentService).url(configServerURL: .any)
+            .willReturn(try #require(URL(string: "https://tuist.example")))
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        given(xcActivityLogController).parse(.value(path)).willReturn(.test())
+        gitController.reset()
+        given(gitController).gitInfo(workingDirectory: .any)
+            .willReturn(.test(remoteURLOrigin: "https://private-user:private-password@example.invalid/project.git"))
+        let service = UploadBuildRunService(
+            fileSystem: fileSystem, machineEnvironment: machineEnvironment,
+            xcodeBuildController: xcodeBuildController, createBuildService: CreateBuildService(),
+            uploadBuildService: uploadBuildService, serverEnvironmentService: serverEnvironmentService,
+            gitController: gitController, ciController: ciController, generationMetadataStore: generationMetadataStore,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
+            xcActivityLogController: xcActivityLogController, serverAuthenticationController: authentication
+        )
+        try await Client.$additionalMiddlewares.withValue([NetworkBuildWireInspector()]) {
+            let url = try await service.uploadBuildRun(
+                activityLogPath: path, projectPath: directory, config: .test(fullHandle: "acme/widgets")
+            )
+            #expect(url.absoluteString == "https://tuist.example/builds/server-id")
+        }
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -243,6 +313,50 @@ struct UploadBuildRunServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func includesTheXcodeCacheLogInTheArchive() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")
+        try await fileSystem.writeText("fake", at: activityLogPath)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let casLogPath = temporaryDirectory.appending(component: "cas.log")
+        try await fileSystem.writeText("proxy resolve failed: unavailable\n", at: casLogPath)
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_CAS_LOG"] = casLogPath.pathString
+
+        let uploadedArchive = temporaryDirectory.appending(component: "uploaded.zip")
+        uploadBuildService.reset()
+        given(uploadBuildService)
+            .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
+            .willProduce { _, _, _, filePath in
+                try? FileManager.default.copyItem(at: filePath.url, to: uploadedArchive.url)
+            }
+
+        try await subject.uploadBuildRun(
+            activityLogPath: activityLogPath,
+            projectPath: projectPath,
+            config: Tuist.test(fullHandle: "tuist/tuist")
+        )
+
+        let unzipped = try await FileArchivingFactory().makeFileUnarchiver(for: uploadedArchive).unzip()
+        #expect(
+            try await fileSystem.readTextFile(at: unzipped.appending(component: "cas.log"))
+                == "proxy resolve failed: unavailable\n"
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func copiesTheXcodeCacheLogTailFromALineBoundary() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let source = temporaryDirectory.appending(component: "cas.log")
+        let destination = temporaryDirectory.appending(component: "tail.log")
+        try await fileSystem.writeText("first line\nsecond line\nthird line\n", at: source)
+
+        try UploadBuildRunService.copyTail(of: source, maxBytes: 16, to: destination)
+
+        #expect(try await fileSystem.readTextFile(at: destination) == "third line\n")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func throwsWhenNoFullHandle() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")
@@ -301,5 +415,30 @@ struct UploadBuildRunServiceTests {
                 casOutputs: .any, machineMetrics: .any
             )
             .called(1)
+    }
+}
+
+private struct NetworkBuildWireInspector: ClientMiddleware {
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL _: URL,
+        operationID: String,
+        next _: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        #expect(operationID == "createBuild")
+        #expect(request.method == .post)
+        #expect(request.headerFields[.authorization] == nil)
+        let data = try await Data(collecting: #require(body), upTo: 1_000_000)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["git_remote_url_origin"] == nil)
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(!text.contains("private-user"))
+        #expect(!text.contains("private-password"))
+        var response = HTTPResponse(status: .ok)
+        response.headerFields[.contentType] = "application/json"
+        return (response, HTTPBody(
+            #"{"type":"build","id":"server-id","duration":1,"project_id":1,"url":"https://tuist.example/builds/server-id"}"#
+        ))
     }
 }

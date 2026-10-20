@@ -1,0 +1,107 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: racksites.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: RackSite
+    listKind: RackSiteList
+    plural: racksites
+    shortNames:
+      - rsite
+    singular: racksite
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.contractedPowerWatts
+          name: Contracted W
+          type: integer
+        - jsonPath: .status.contractedPowerSince
+          name: Since
+          type: string
+        - jsonPath: .status.nextContractedPowerChange
+          name: Next Change
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackSite is a rack site we operate, as a whole: what belongs to the site
+            rather than to one device in it.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackSiteSpec is one rack site, rendered from its site definition
+                (infra/rack-switch-fleet). The object's name is the site (e.g. `ber1`).
+              properties:
+                contractedPower:
+                  description: |-
+                    ContractedPower is the power the site's colocation contract allows, as
+                    steps. Each applies from its day until the next step's; the last one
+                    stays in effect.
+                  items:
+                    description: RackSiteContractedPower is one step of a site's contracted power.
+                    properties:
+                      from:
+                        description: From is the first day, in UTC, the step applies.
+                        format: date
+                        type: string
+                      watts:
+                        description: Watts is the contracted power from that day.
+                        format: int64
+                        minimum: 1
+                        type: integer
+                    required:
+                      - from
+                      - watts
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - from
+                  x-kubernetes-list-type: map
+              type: object
+            status:
+              description: RackSiteStatus is what the controller derived from the spec.
+              properties:
+                contractedPowerSince:
+                  description: ContractedPowerSince is the first day of the step in effect.
+                  type: string
+                contractedPowerWatts:
+                  description: ContractedPowerWatts is the step in effect, 0 when none is yet.
+                  format: int64
+                  type: integer
+                message:
+                  description: Message says why the spec could not be read, empty when it could.
+                  type: string
+                nextContractedPowerChange:
+                  description: NextContractedPowerChange is the first day of the next step.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

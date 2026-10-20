@@ -50,6 +50,10 @@ spec:
               type: object
               required: [image, fleetSelector, dispatchLabel, runnerLabels]
               properties:
+                cacheVolumeRoot:
+                  type: string
+                cacheVolumeURL:
+                  type: string
                 labels:
                   type: array
                   items:
@@ -136,15 +140,24 @@ spec:
                     one mismatched pool cannot weaken the fleet safety limit.
                     Ignored for macOS pools.
                   properties:
-                    maxConcurrentPerFleetSelector:
+                    maxConcurrentPerNode:
                       type: integer
-                      default: 4
+                      default: 6
                       minimum: 1
                       description: |
-                        Maximum Linux runner Pods across the shared fleet that
+                        Maximum Linux runner Pods per healthy fleet node that
                         may be waiting for their dispatch poller to start.
-                        Excess replica demand remains uncreated and is retried
-                        as existing sandboxes become ready.
+                        The controller multiplies it by the fleet's healthy
+                        node count to get the shared ceiling, so adding
+                        machines raises start throughput. Excess replica
+                        demand remains uncreated and is retried as existing
+                        sandboxes become ready.
+
+                        Replaces `maxConcurrentPerFleetSelector`, which was a
+                        single fleet-wide integer and so did not scale with
+                        the fleet. Structural-schema pruning drops the old
+                        field from any CR that still carries it, and the
+                        controller ignores it.
                     startTimeoutSeconds:
                       type: integer
                       default: 300
@@ -204,6 +217,15 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                    holdRecentPeak:
+                      type: boolean
+                      default: true
+                      description: |
+                        Keep the pool sized to the server's 95th percentile
+                        of concurrent runners over the last hour after load
+                        falls. False sizes it to current load plus
+                        minWarmPoolFloor, for pools whose jobs arrive in
+                        one-off bursts the last hour does not predict.
                 rollout:
                   type: object
                   description: |
@@ -243,3 +265,7 @@ spec:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                unplaceableSince:
+                  type: string
+                  format: date-time
+                  description: Timestamp this pool most recently began holding demand the scheduler could not place, and has held continuously since; absent when the pool is placing everything it wants. The node-reservation state machine reads it to decide when a pool has waited long enough to be worth draining a host for, and which of several starved pools on a fleet goes first. It lives here rather than being derived from Pod ages because the reaper recycles unplaced Pods every startTimeoutSeconds, which would restart a per-Pod clock before a drain could ever converge.

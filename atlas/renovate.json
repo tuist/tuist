@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "emcp is pinned to fix/streamable-http-inline-response-on-post, which is ahead of the upstream default branch. Renovate resolves git digests against the default branch, so its updates are downgrades that drop the fix. Re-enable once the fix is merged upstream and released to Hex.",
+      "matchDepNames": ["emcp"],
+      "enabled": false
+    }
+  ]
+}

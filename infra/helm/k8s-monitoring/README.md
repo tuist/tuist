@@ -98,18 +98,29 @@ http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/tra
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
-### The macOS fleet pushes logs to `alloy-receiver:3100`
+### The macOS fleet and rack edge nodes push logs to `alloy-receiver:3100`
 
-The same receiver serves a `loki.source.api` on 3100 for everything running on a Mac mini, because none of it can be tailed from the cluster:
+The same receiver serves a `loki.source.api` on 3100 for everything running on a Mac mini or a rack's edge node, because none of it can be tailed from the cluster:
 
 - The **Tart guests** (xcresult processor) — Alloy cannot read a VM's filesystem, and `kubectl logs` cannot resolve their tailnet-only kubelet hostnames.
 - The **Mac mini hosts themselves** — a Pod scheduled to a macOS Node *is* a Tart VM, so a DaemonSet-shaped collector lands inside a guest and never sees `/var/log/tart-kubelet.log`. The host runs [`infra/macos-log-shipper`](../../macos-log-shipper) instead, installed by the CAPI provider's bootstrap alongside `node_exporter`. Query it as `{job="tuist-macos-tart-kubelet"}`.
+- The **rack's Linux nodes** (its edges, with the `rack-edge` DaemonSet in `omada`, see [`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md), and its storage nodes, see [`infra/rack-nodes`](../../rack-nodes/AGENTS.md)) — the Cilium agent does not run on the edges, and a storage node on the cluster network (`publicAddress`) keeps its rack taint, so `alloy-logs` and `alloy-metrics` never land on either. `alloy-rack` runs on each node's host network instead: it reads `/var/log/pods` itself and labels lines from the file path, and scrapes the node's node-local Kura pods (`tuist.dev/node-local-network=true`, which `alloy-metrics` skips) under `job="kura"` and the host itself under `job="integrations/node_exporter"` (below). Query logs like any pod: `{namespace="omada", container="dhcp"}`. Enabled per env where a rack is joined (production today).
 
-Both reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini carries one and the tailnet ACL is the access control.
+All of them reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini or edge node carries one and the tailnet ACL is the access control. The receiver stamps each line with the time it arrives.
+
+### Rack Linux hosts export their own host metrics
+
+node-exporter does not run on a rack's nodes (`node.cluster.x-k8s.io/instance-type=rack`). This release is waited on before every deploy, and a node-exporter Pod on a dark rack node would keep the DaemonSet from reading as ready, so a rack that is down for transport, power or its uplink would fail every deploy. `alloy-rack`, an Alloy resource the wait reads as ready once the operator has applied it, collects a rack Linux host's metrics instead: its `prometheus.exporter.unix` reads the host's `/proc`, `/sys` and root filesystem, and the scrape keeps `job="integrations/node_exporter"`, sets `instance` to the node's name, and applies `hostMetrics.linuxHosts`' allow-list and processing rules, which it reads from the values, so a host reads as it would from node-exporter. It pushes to the receiver over the tailnet like its Kura scrape. The allow-list keeps `node_hwmon_temp_celsius` (with `node_hwmon_sensor_label` to name the inputs) and `node_thermal_zone_temp`, which is where the hosts' CPU and NVMe temperatures come from.
+
+The Mac minis' temperatures, fan speeds, system power and thermal pressure come from [`macos-host-sensors`](../../macos-host-sensors/AGENTS.md) through node_exporter's textfile collector, as `macos_*` in `tuist-macos-node-exporter`. That prefix is outside the families the destination drops outside production, so every mini keeps them in every environment; it is a few dozen series per host.
+
+A rack can live in a non-production env (BER1 was in staging while it was built at home), and the destination drops almost every `node_*` metric outside production. So rack hardware is marked `rack_host="true"` (Linux hosts by `alloy-rack`, minis by their egress Service belonging to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
+
+The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
 ## What gets deployed
 
-Six Alloy instances, split by role (managed by the upstream `alloy-operator`):
+Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
@@ -120,6 +131,10 @@ Six Alloy instances, split by role (managed by the upstream `alloy-operator`):
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine
+- `alloy-rack` — one host-networked Pod per rack Linux node, pushing that
+  node's pod logs and node-local Kura metrics to `alloy-receiver` over the
+  tailnet (`loki.source.api` on 3100, `prometheus.receive_http` on 9009).
+  Off unless the env enables it
 
 The management cluster runs only `alloy-metrics` and `alloy-control-plane`.
 It also runs a Hetzner load-balancer exporter and configures kube-state-metrics
@@ -130,31 +145,311 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+## Metrics aggregated downstream of this chart
+
+The Processor Service dashboard (`tuist-processor-service`) compares database
+pool pressure and query timings across `web`, `processor`, and
+`xcresult_processor`. Both the Linux pod scrape and the macOS guest scrape
+export the same `tuist_repo_*` metric families. Keep their `cluster`,
+`workload`, `repo`, and `result` labels, plus `le` for histogram buckets, in
+downstream aggregation rules. Repository counters and duration sums survive
+the non-production filter; histogram percentiles remain production-only.
+Workload aggregates can hide a saturated replica beside an idle one, so use
+the pool starvation samples as well as available-connection totals.
+
+What this chart keeps is not what Grafana Cloud stores. **Adaptive Metrics** sits
+in front of the tenant and rewrites series on ingest, so a metric can be
+allow-listed here, present in the collector's deployed config, and still be
+unqueryable in the shape a dashboard or alert needs. Check it before concluding
+the chart is at fault.
+
+Its rules are query-driven: it proposes aggregating away any label no query has
+touched in the lookback, and **auto-apply is enabled on this stack**, so a
+recommendation becomes a rule on its own. That means a metric nobody queries
+loses its labels, and a query is the only thing that keeps them.
+
+An aggregated metric does not disappear. It survives as a single series with the
+aggregated labels removed, which is why a matcher on one of them silently
+matches nothing:
+
+```
+{__name__="node_memory_Cached_bytes", cluster="tuist-production"}   # no data
+sum(node_memory_Cached_bytes)                                       # a number
+node_memory_Cached_bytes                                            # errors, and names every aggregated label
+```
+
+The bare query is the fastest audit: the error lists exactly which labels are
+gone.
+
+Read and edit the rules through the tenant's own endpoint, authenticated as the
+metrics tenant rather than as the Grafana instance. A Grafana stack
+service-account token is the wrong credential here; the env vault's `LOKI_TOKEN`
+is an access policy token that carries tenant read:
+
+```bash
+TOKEN=$(op read "op://tuist-k8s-production/LOKI_TOKEN/password")
+BASE=https://prometheus-prod-24-prod-eu-west-2.grafana.net
+
+# Current rules, and whether recommendations auto-apply
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/rules > rules.json
+curl -s -u "1774467:$TOKEN" $BASE/aggregations/recommendations/config
+```
+
+`POST /aggregations/rules` replaces the **entire** rule set, so edit the file
+rather than sending a fragment, and pass the `Etag` from the GET as `If-Match`
+so a concurrent change fails instead of being clobbered. Keep the GET response
+as the rollback. Ingest picks the change up within about fifteen minutes;
+already-stored samples stay aggregated, so verify on fresh data.
+
+Deleting a rule is not durable on its own while auto-apply is on. The
+recommendation that produced it stands until a query touches the metric again,
+and the next cycle reapplies it. Pair every deletion with the query that
+protects it, which for Kura page cache is the **Page cache by node** panel in
+`infra/grafana-dashboards/tuist-kura-region-scalability.json`.
+
+`recommendations/config` also carries a global `keep_labels` list: a label named
+there is never proposed for aggregation on any metric. It is empty today.
+Putting `cluster` in it would end this whole class of bug, at the cost of every
+future recommendation that would have dropped `cluster` for real savings.
+
+Restoring a label restores its cardinality. `node_memory_Cached_bytes` and
+`node_memory_MemFree_bytes` are 59 hosts each, so about 120 series and a dollar
+a month at the stack's measured rate.
+
+### API-server aggregation must happen before export
+
+The previous control-plane collector removed `component`, `dry_run`, `group`,
+`resource`, `scope`, `subresource`, and `version` without summing their samples.
+That produces colliding counters and histogram buckets. Restoring Adaptive
+Metrics rules on October 5 changed rejection patterns but did not establish
+correctness: on October 14, `sample_duplicate_timestamp` still ran near 2,000/s,
+while `new-value-for-timestamp` was only around 74/s. Downstream counter
+aggregation is not a repair for identities already destroyed in the collector.
+
+Removing the collector's labeldrop before fixing the source would restore up
+to roughly 61k series at two DPM, adding about $260/month in production alone
+and potentially $950/month fleet-wide. Keep the default-false
+`k8s-monitoring.global.apiServerMetricsAggregated` chart gate until the source
+is verified. `infra/k8s/clusters/clusterclass-tuist.yaml` adds the default-off
+`aggregateApiServerMetrics` variable to normalize excluded label values to
+`unexpected` **before** Kubernetes updates its metrics. The manifest covers
+`apiserver_request_total`, `apiserver_request_duration_seconds` (the histogram
+base name), and `apiserver_request_terminations_total`. `verb`, `code`, and `le`
+remain available. The management cluster is not covered by this ClusterClass.
+
+Ship the default-off chart gate, then enable the ClusterClass variable on
+staging, canary, pentest, and production one at a time, while keeping the legacy
+collector rule. Changing the variable rolls the control plane. Verify the mounted
+`/etc/kubernetes/metric-labels.yaml` is a flat `metric,label: "__none__"` map,
+and confirm each restarted API server exports `resource="unexpected"` and
+correct monotonic counters on **every** control-plane node. Kubernetes logs
+manifest read/parse failures but can start without applying it, so readiness
+alone is not sufficient. Only then set `apiServerMetricsAggregated: true` in
+that cluster's chart overlay to remove the legacy labeldrop. Until then, old
+sources still have the existing collision problem; this gate does not repair
+it by itself. Management needs an independently verified source configuration
+before its chart gate can be enabled.
+
+After the chart gate is enabled, disabling the ClusterClass variable preserves
+correct metric dimensions but increases billed series/DPM. Budget that emergency
+rollback explicitly; never reintroduce labeldrop on an unaggregated source.
+Before the chart gate is enabled, roll back only to a verified source-aggregated
+control-plane configuration. Do not delete existing Adaptive Metrics rules as
+part of this code rollout.
+
+During rollout, inspect both rejection reasons using the query below, but
+leave the live duplicate-sample paging rule unchanged. Adding the second reason
+at the existing 500/s threshold would page continuously on today's known
+~2,000/s backlog. Update the live rule only after the workload clusters are
+aggregated and the combined baseline is below the threshold (or explicitly use
+a separate rollout warning). Watch the `grafanacloud-usage` datasource:
+
+```promql
+sum by (reason) (grafanacloud_instance_samples_discarded_per_second{
+  id="1774467", reason=~"new-value-for-timestamp|sample_duplicate_timestamp"
+})
+```
+
+Use the duplicate-timestamp lines in `grafanacloud-tuist-usage-insights` to
+identify the actual colliding metric. Also verify API-server p99 and error-rate
+queries against fresh samples after the rollout.
+
+## Kura latency migration and log cost controls
+
+Kura exports a sibling `kura_public_request_latency_by_transport_seconds`
+histogram using exactly the route histogram's bucket boundaries. It observes
+all HTTP and gRPC requests once, including cached ByteStream/REAPI paths.
+Route counts and sums remain, as do SplitBlob/SpliceBlob latency buckets. No
+replication bucket thinning is added: previous thinning materially biased p99.
+
+The migration is intentionally default-off:
+
+1. Ship the Kura runtime and collector rules with
+   `destinations.grafana-cloud-metrics.extraLabels.kura_latency_aggregate_enabled`
+   set to the string `"false"`. The new family is discarded and the route
+   histogram's migration marker is removed before storage.
+2. Import the updated hosted dashboards and update the **live** “Kura - public
+   request latency high” alert using the expression in `alerts.md`. The per-pod
+   `or` selects the transport histogram when available and falls back to old
+   complete route distributions. Changing this file does not update that alert.
+3. Set the destination flag to `"true"`. New pods lose ordinary route buckets;
+   older or rolled-back pods keep them. Retained partial route distributions
+   carry `latency_aggregate="true"` so queries cannot mistake chunking-only
+   buckets for all traffic. Both distributions receive identical bucket thinning.
+   The temporary control label is never stored. Redundant transport counts/sums
+   and file-operation histogram counts are dropped; the latter's two dashboard
+   consumers now use the equivalent file-operation counter.
+4. Check fresh p50/p95/p99, request rates, chunking panels, and active series.
+   Disable the flag to restore complete route histograms if needed. Before
+   changing it again, allow at least a full query window of stable scraping.
+
+The server logger marks only genuine action-cache misses. Alloy retains 1% of
+those info-level GET 404 completions, without sampling unexpected 404s, warnings,
+errors, or operator-access audit records. Oban start messages are debug-level;
+stop/failure messages retain job identity and timings without copying `args` or
+`meta`. Non-job Oban diagnostics still use the default logger. Job exception
+banners and stacktraces are bounded separately before and after flattening,
+each with a 2,048-character budget. The combined line is capped at 4,096
+characters, so even a verbose multiline reason cannot crowd out every
+stack frame. Exception text itself may still contain sensitive worker details.
+
+Run `bash test-cost-controls.sh` from this directory after building Helm
+dependencies. It starts the rendered log-processing block with the deployed
+`grafana/alloy:v1.15.0` image, without network access. This catches invalid
+LogQL selectors that static Alloy validation misses and verifies sampling with
+real CRI records, including unexpected 404s, misleading status text in paths,
+copied completion text in error messages, and both operator-audit exemptions. Also run
+`bash test-kura-latency-query.sh` with promtool available to exercise the actual
+dashboard queries against old, new, mixed, same-region mixed, and rolled-back runtimes. Helm CI runs
+both checks, including all eight dashboard/alert expressions with different
+old/new latency distributions. `python3 test-metric-cost-controls.py` additionally
+feeds a static Kura exposition through the rendered production remote-write
+rules into a local Prometheus receiver. It verifies both migration flag values,
+marker cleanup, old-pod fallback, bucket thinning, and redundant-family drops.
+This test strips Cloud authentication and replaces the destination with the
+local receiver; it does not contact the production metrics endpoint.
+
 ## Metrics scrape cadence
 
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The
 local control-plane jobs use 30 seconds so a short control-plane interruption
 still produces enough samples to distinguish process, storage, and network
-pressure. The one-minute default
-matches Grafana Cloud's included rate of one data point per minute for each
-active series, while keeping enough resolution for the infrastructure
-dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
+pressure. Kura is the exception: annotation autodiscovery scrapes pods
+labelled `app.kubernetes.io/name=kura` every 65 seconds, because the fleet
+exports a large per-node metric surface and its observed 14-day DPM p95 was
+1.052. The interval lives in this chart's `extraDiscoveryRules` rather than in
+a pod annotation, so changing it does not restart the Kura fleet. This brings Kura below Grafana Cloud's included rate of one data
+point per minute per active series. The one-minute default remains in place for
+all other metrics, keeping enough resolution for the infrastructure dashboards
+and alerts. Keep other job-specific overrides at 60 seconds unless a
 documented operational requirement justifies the additional ingestion cost.
 See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
 
+## Metrics cost controls
+
+Grafana Cloud bills metrics per active series, so cardinality is the cost
+driver. The plan includes 10,000 series; everything above that is overage.
+
+Three layers trim what leaves the cluster, cheapest first:
+
+1. **Per-feature allow-lists** (`<feature>.metricsTuning`). `useDefaultAllowList`
+   plus explicit `includeMetrics` / `excludeMetrics`. This is where a metric
+   family that no dashboard or alert reads should be removed.
+2. **Per-feature relabeling** (`extraMetricProcessingRules`,
+   `extraDiscoveryRules`). Used to drop a namespace or a label value rather
+   than a whole metric, e.g. pod-scoped kube-state metrics for
+   `tuist-runners`.
+3. **Destination write relabeling** (`destinations.grafana-cloud-metrics.metricProcessingRules`).
+   Last stop, applied to every feature at once. Drops restart-scoped labels
+   and histogram buckets outside production.
+
+Histogram buckets are the single largest shape, around a third of all billable
+series, and their cardinality tracks route and worker coverage rather than
+traffic. They are dropped for `tuist-staging`, `tuist-canary` and
+`tuist-pentest`. Production Kura keeps its public request and multipart
+admission histograms, but drops alternating buckets so `histogram_quantile`
+continues to work with coarser boundaries.
+`kura_replication_request_duration_seconds` keeps every bucket: since pull
+replication it only times catch-up passes, is labelled by operation alone, and
+coarser buckets overstated its p99 by 50-75%. The server's
+`tuist_runs_duration_milliseconds` and `tuist_http_request_duration_nanoseconds`
+histograms grow each boundary by a factor of 2 and 2.15 respectively, so
+production keeps every other one (9 of 16, about 4 and 4.6 apart).
+The control-plane collector keeps 9 of the 24
+`apiserver_request_duration_seconds` boundaries, clustered around the
+one-second alert threshold, and drops WATCH and CONNECT buckets, which the
+alert excludes. `_count` and `_sum` survive every reduction, so request rates and
+mean latency remain intact. The production reduction targets the Kura fleet
+because it grew from 53 nodes / 17k series on September 1 to 344 nodes /
+roughly 120k series in the latest cardinality sample.
+
+At the current measured rate, roughly $0.008 per excess metrics series-month,
+the Kura-specific 65-second scrape interval should save up to about $75/month
+by removing the small DPM overage. The bucket reduction is expected to remove
+around 11,000 active series at the current fleet size, worth approximately
+$88/month. Together, the two changes are expected to save roughly
+$150-$175/month, before any further Kura fleet growth. The additional Kura
+ingress log sampling change should save another roughly $15-$30/month based
+on the current 40 MB/hour Kura log volume, bringing the expected total to
+approximately $165-$205/month. Reducing healthy trace sampling from 10% to
+5% adds a smaller, workload-dependent saving of up to roughly $20/month while
+retaining all errors and traces slower than two seconds. These are estimates;
+Grafana Cloud's next billing samples are the source of truth.
+
+Two cost levers are **not** chart values and have to be changed on the stack:
+
+| Lever | Where |
+|---|---|
+| `traces_service_graph_*` series (~3.4k) | Tempo → Metrics generator → service graphs. Generated from received spans inside Grafana Cloud, so they never pass through Alloy and no `write_relabel_config` here can drop them. |
+| Adaptive Metrics aggregation rules | Grafana Cloud → Adaptive Metrics. Recommendations need a Cloud access policy token; the stack API token used by dashboards cannot read them. |
+
+To see what is actually costing money, query the cardinality API rather than
+guessing:
+
+```bash
+curl -s -u "$GRAFANA_USER:$GRAFANA_TOKEN" \
+  "$PROM_URL/api/v1/cardinality/label_values?label_names\[\]=__name__&limit=100"
+```
+
+Swap `__name__` for `cluster` or `job` to attribute series to an environment or
+a scrape target, and add `selector={cluster="tuist-staging"}` to scope it.
+
 ## Log and trace sampling
 
-Routine request logs are sampled before they leave the cluster. The pipeline
-keeps 10 percent of the single structured completion entry emitted for Tuist
-requests with response codes from 200 through 399. It also keeps 10 percent of
-Kura ingress responses with codes from 200 through 299 or 404. The standalone
-cache hosts apply the same rate to completion entries with response codes from
-200 through 299 or 404. Every warning, error, and unusual response remains
-unsampled.
+Routine request logs are sampled before they leave the cluster. The pipeline keeps 10 percent of the single structured completion entry
+emitted for Tuist requests with response codes from 200 through 399. Kura is
+sampled more aggressively: only 1 percent of ingress responses with codes from
+200 through 299 or 404 are retained. The standalone cache hosts keep the 10
+percent rate for their completion entries. Kura's INFO `backfill pass started`
+lines are dropped and 1 percent of routine `backfill pass completed` lines are
+kept (completions that exhausted the capacity budget or found absent entries
+are all kept):
+every peer link logs both several times a second, and in October 2026 they were
+about 730 MB/hour, nearly all of Kura's log volume. Every warning, error, and unusual
+response remains unsampled, and so does every Tuist completion entry carrying
+`atlas_operator_read_account_id` or `operator_grant_jti`: those are the server's
+record of operator access to customer data (`infra/log-review.md`), so do not
+narrow that exemption to save cost.
 
 Application traces use [tail sampling](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
 The sampler keeps every trace marked as an error, every trace lasting more than
-two seconds, and 25 percent of the remaining healthy traces. Production runs
+two seconds, and 5 percent of the remaining healthy traces, with two
+exclusions:
+
+- Kura's pull-replication long-polls (`/_internal/sync/forward` and the region
+  listing on `/_internal/backfill/entries`) are held open for up to 25 seconds
+  by design, so they do not count as slow. They are still kept when they fail
+  and still take part in the 5 percent sample.
+- Probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and Kura's
+  peer `/_internal/status` health check) are neither sampled nor treated as
+  slow. They are kept only when they fail. The latency policy measures the
+  trace, not the span, and the kubelet propagates one trace context across a
+  pod's probes, so Kura's one-second `/ready` probe forms a trace that lasts
+  tens of minutes. Before probes were excluded from the slow policy too, those
+  sub-millisecond spans were about half of every span stored.
+
+Both exclusions match on the `http.route` span attribute, so they apply to any
+service that reports one of those routes. Production runs
 two sampler replicas; staging and canary run one. Trace collection and the
 sampler remain disabled in the management cluster.
 
@@ -204,12 +499,36 @@ In Grafana Cloud: **Observability → Kubernetes → Cluster navigation** and pi
 
 Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset names) are attached automatically by the upstream chart's k8s attribute processor from pod metadata.
 
+### Kura metric identity across rollouts
+
+For `job="kura"` with nonempty `namespace` and `pod` labels, the metrics
+destination rewrites `instance` to `<namespace>/<pod>`. The existing `cluster`
+label separates environments, and the StatefulSet pod name separates replicas
+while surviving pod replacement. Scraping still uses the pod IP; only the
+stored metric label changes.
+
+This applies to both Ready annotation-autodiscovery and the custom unready
+scrape, including `up` and `scrape_*`. Keep `ready="false"` on the unready path:
+it prevents those samples from colliding with Ready samples during discovery
+handoff. Targets without a complete pod identity and other jobs are unchanged.
+
+Using the IP as `instance` previously created a new set of series on every
+replacement. During the September 7, 2026 production rollout, repeated Kura
+replacements drove active series from roughly 142,000 to 216,000 while old
+series remained active for Grafana Cloud's 20-minute window. The first deploy
+of this rule also creates a one-time identity transition; later replacements
+reuse the stable identity. Counter resets remain visible to `rate`/`increase`.
+The Kura dashboard discovers instance values from metrics, so it picks up the
+new identities automatically. Queries pinned to an IP must use the pod identity
+instead.
+
 ## RBAC — what access does this chart get?
 
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
 - `alloy-control-plane` — one host-networked pod on each control-plane node, with read-only access to the Kubernetes `/metrics` endpoint. etcd metrics remain on the host loopback interface.
 - `alloy-logs` — node-local hostPath to `/var/log/pods` (pod logs) and `/var/log/journal` (host journald: `containerd` / `kubelet` / kernel). No extra Kubernetes API access; a compromised pod can still only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
+- `alloy-rack` — node-local read-only hostPath to `/var/log`, a hostPath for its read positions, and the chart's default read access for discovering the Kura pods on its node, which it reaches the API server for through the node's translation of the kubernetes Service. No Grafana Cloud credential.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).
 - `node-exporter` — hostPID, `/proc` / `/sys` hostPath (standard for node_exporter).

@@ -27,6 +27,9 @@ onepass = { type = "1password", vault = "Development" }
 # No license here: dev runs unhosted (TUIST_HOSTED=0), so the Keygen license
 # check is skipped and the decrypted dev blob never carried one.
 [secrets]
+# Development-only Origin app identity. Keep its private key out of source control.
+TUIST_ORIGIN_APP_ID = { provider = "onepass", value = "ORIGIN_APP/app_id" }
+TUIST_ORIGIN_APP_PRIVATE_KEY = { provider = "onepass", value = "ORIGIN_APP/private_key" }
 TUIST_SLACK_CLIENT_ID = { provider = "onepass", value = "SLACK/client_id" }
 TUIST_SLACK_CLIENT_SECRET = { provider = "onepass", value = "SLACK/client_secret" }
 TUIST_SLACK_TUIST_TOKEN = { provider = "onepass", value = "SLACK/tuist_token" }
@@ -34,7 +37,6 @@ TUIST_STRIPE_SECRET_KEY = { provider = "onepass", value = "STRIPE/secret_key" }
 TUIST_STRIPE_PUBLISHABLE_KEY = { provider = "onepass", value = "STRIPE/publishable_key" }
 TUIST_STRIPE_ENDPOINT_SECRET = { provider = "onepass", value = "STRIPE/endpoint_secret" }
 TUIST_MAILGUN_API_KEY = { provider = "onepass", value = "MAILGUN/api_key" }
-TUIST_LOOPS_API_KEY = { provider = "onepass", value = "LOOPS/api_key" }
 TUIST_CACHE_API_KEY = { provider = "onepass", value = "CACHE_API_KEY/password" }
 # Tuist OIDC provider (CLI/agent login). Only the three fields the code reads
 # from the blob structure — client_name + private_key aren't synced (the

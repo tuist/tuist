@@ -6,6 +6,7 @@ import Path
 import Testing
 import struct TSCUtility.Version
 import TuistAlert
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -22,7 +23,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct SetupCacheCommandServiceTests {
-    private let subject: SetupCacheCommandService
+    private var subject: SetupCacheCommandService { makeService() }
     private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
@@ -31,9 +32,14 @@ struct SetupCacheCommandServiceTests {
     private let getProjectService = MockGetProjectServicing()
     private let gitController = MockGitControlling()
     private let cacheSocketService = MockCacheSocketServicing()
+    private let xcodeController = MockXcodeControlling()
+    private let installationStore = MockXcodeCacheInstallationStoring()
 
-    init() {
-        subject = SetupCacheCommandService(
+    private func makeService(
+        tuistVersion: String = "4.213.0",
+        resourceLocator: ResourceLocating = ResourceLocator()
+    ) -> SetupCacheCommandService {
+        SetupCacheCommandService(
             launchAgentService: launchAgentService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
@@ -42,10 +48,31 @@ struct SetupCacheCommandServiceTests {
             getProjectService: getProjectService,
             gitController: gitController,
             cacheSocketService: cacheSocketService,
-            cacheDaemonStartupTimeout: .zero
+            resourceLocator: resourceLocator,
+            xcodeController: xcodeController,
+            cacheDaemonStartupTimeout: .zero,
+            installationStore: installationStore,
+            tuistVersion: tuistVersion
         )
+    }
 
-        // Every kura-path setup resolves the project's default branch to record the
+    init() {
+        given(installationStore).invalidate().willReturn()
+        given(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).willReturn(true)
+
+        // The real answers come from `xcode-select`, and the developer directory
+        // lands in the agent's environment, which these tests pin exactly.
+        given(xcodeController)
+            .developerDirectory()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willThrow(TestError("no Xcode"))
+
+        // Every setup resolves the project's default branch to record the
         // trunk. Left to the real service these tests would reach the production
         // server: `trunkBranch` swallows the error, so the only symptom would be a
         // network round trip per test and a silently missing trunk column.
@@ -73,14 +100,10 @@ struct SetupCacheCommandServiceTests {
             .hasRootManifest(at: .any)
             .willReturn(false)
 
+        resetLaunchAgentStubs()
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
-            .willReturn()
-
-        given(launchAgentService)
-            .teardownLaunchAgent(label: .any, plistFileName: .any)
-            .willReturn()
-
+            .willReturn(nil)
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
             .willReturn(true)
@@ -90,7 +113,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: true))),
@@ -135,7 +157,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "plugin").pathString
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -151,8 +173,285 @@ struct SetupCacheCommandServiceTests {
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .called(1)
 
+        #expect(try await FileSystem().readTextFile(at: environment.casPluginInstallPath()) == "plugin")
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
-        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=")
+        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib\n")
+        TuistTest.doesntExpectLogs("<path to libtuist_cas_plugin.dylib>")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func setupCache_withNonTuistProject_withoutThePlugin() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = temporaryDirectory
+            .appending(component: "libtuist_cas_plugin.dylib").pathString
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await !FileSystem().exists(environment.casPluginInstallPath()))
+        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>")
+        TuistTest.expectLogs(
+            "The CAS plugin (libtuist_cas_plugin.dylib) was not found next to `tuist`, so the path above is a placeholder."
+        )
+        verify(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .value(false)).called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_replacesAnInstalledPluginFromAnotherTuist() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let fileSystem = FileSystem()
+        let installPath = environment.casPluginInstallPath()
+        try await fileSystem.makeDirectory(at: installPath.parentDirectory)
+        try await fileSystem.writeText("old plugin", at: installPath)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: installPath) == "new plugin")
+        let leftovers = try await fileSystem.glob(directory: installPath.parentDirectory, include: ["\(installPath.basename).*"])
+            .collect()
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_locksTheSharedInstallationWhileStartingTheProxy() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let lockPath = environment.casPluginInstallPath().parentDirectory.appending(component: "cas-setup.lock")
+        resetLaunchAgentStubs()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willProduce { _, _, _, _ in
+                let descriptor = open(lockPath.pathString, O_RDWR)
+                #expect(descriptor >= 0)
+                defer { close(descriptor) }
+                let result = flock(descriptor, LOCK_EX | LOCK_NB)
+                let lockError = errno
+                #expect(result == -1)
+                #expect(lockError == EWOULDBLOCK)
+                return nil
+            }
+
+        try await subject.run(path: nil)
+
+        let descriptor = open(lockPath.pathString, O_RDWR)
+        defer { close(descriptor) }
+        #expect(descriptor >= 0)
+        #expect(flock(descriptor, LOCK_EX | LOCK_NB) == 0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_selectsLauncherBeforeStartingProxy() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        cacheSocketService.reset()
+        given(cacheSocketService).waitUntilListening(at: .any, timeout: .any).willProduce { _, _ in
+            verify(installationStore).update(
+                executable: .value("/usr/local/bin/tuist"),
+                tuistVersion: .any,
+                onlyIfInstalled: .value(false)
+            ).called(1)
+            return true
+        }
+        try await subject.run(path: nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_leavesManagedPluginRefreshToTheAdoptingProxy() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/usr/local/bin/tuist"
+        let plugin = environment.casPluginInstallPath()
+        try await FileSystem().makeDirectory(at: plugin.parentDirectory)
+        try await FileSystem().writeText("old proxy's plugin", at: plugin)
+        let locator = MockResourceLocator()
+        let bundled = try await shipCASPlugin(containing: "new bundled plugin")
+        locator.casPluginStub = { bundled }
+
+        try await makeService(resourceLocator: locator).run(path: nil)
+
+        #expect(try await FileSystem().readTextFile(at: plugin) == "old proxy's plugin")
+        verify(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .value(false)).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_missingManagedPluginParticipatesInLaunchFreshness() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/usr/local/bin/tuist"
+        #expect(try await !FileSystem().exists(environment.casPluginInstallPath()))
+
+        try await subject.run(path: nil)
+
+        verify(launchAgentService).isLaunchAgentCurrent(
+            label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any,
+            launchInputs: .matching { $0.contains(environment.casPluginInstallPath()) }
+        ).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func setupCache_sourceBuildDoesNotRequireASemanticReleaseVersion(customComponents: Bool) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/usr/local/bin/tuist"
+        let plugin = try await shipCASPlugin(containing: "development plugin")
+        if customComponents { environment.variables["TUIST_CAS_PLUGIN_PATH"] = plugin.pathString }
+        let locator = MockResourceLocator()
+        locator.casPluginStub = { plugin }
+
+        try await makeService(tuistVersion: "x.y.z", resourceLocator: locator).run(path: nil)
+
+        #expect(try await FileSystem().readTextFile(at: environment.casPluginInstallPath()) == "development plugin")
+        verify(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).called(0)
+        verify(installationStore).invalidate().called(1)
+        verify(launchAgentService).setupLaunchAgent(
+            label: .any, plistFileName: .any,
+            programArguments: .matching { $0.prefix(4) == ["-c", "exec \"$@\"", "tuist-cas-launcher", "/usr/local/bin/tuist"] },
+            environmentVariables: .any
+        ).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_customProxyRebuildParticipatesInLaunchFreshness() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/usr/local/bin/tuist"
+        let proxy = try #require(FileSystem.temporaryTestDirectory).appending(component: "custom-proxy")
+        try await FileSystem().writeText("rebuilt proxy", at: proxy)
+        environment.variables["TUIST_CAS_PROXY_PATH"] = proxy.pathString
+
+        try await subject.run(path: nil)
+
+        verify(launchAgentService).isLaunchAgentCurrent(
+            label: .any, plistFileName: .any, programArguments: .any,
+            environmentVariables: .matching { $0["TUIST_CAS_PROXY_PATH"] == proxy.pathString },
+            launchInputs: .matching { $0.contains(proxy) }
+        ).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotDowngradeTheStablePlugin() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let plugin = environment.casPluginInstallPath()
+        try await FileSystem().makeDirectory(at: plugin.parentDirectory)
+        try await FileSystem().writeText("newer plugin", at: plugin)
+        installationStore.reset()
+        given(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).willReturn(false)
+
+        try await subject.run(path: nil)
+
+        #expect(try await FileSystem().readTextFile(at: plugin) == "newer plugin")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotDowngradeIfGenerationAdvancedTheTargetDuringReadiness() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let plugin = environment.casPluginInstallPath()
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+        try await fileSystem.writeText("newer plugin", at: plugin)
+        try await fileSystem.writeAsJSON(
+            ["tuistVersion": "4.214.0", "executable": "/newer/tuist"],
+            at: plugin.parentDirectory.appending(component: "cas-launch-target.json")
+        )
+
+        try await Constants.$version.withValue("4.213.0") {
+            try await subject.run(path: nil)
+        }
+
+        #expect(try await fileSystem.readTextFile(at: plugin) == "newer plugin")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotStartProxyIfSelectingLauncherFails() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let error = NSError(domain: "test", code: 1)
+        installationStore.reset()
+        given(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).willThrow(error)
+
+        await #expect(throws: error) { try await subject.run(path: nil) }
+
+        verify(launchAgentService).setupLaunchAgent(
+            label: .any,
+            plistFileName: .any,
+            programArguments: .any,
+            environmentVariables: .any
+        ).called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_canBeCancelledWhileWaitingForTheSharedInstallationLock() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let directory = environment.casPluginInstallPath().parentDirectory
+        try await FileSystem().makeDirectory(at: directory)
+        let lock = directory.appending(component: "cas-setup.lock")
+        let descriptor = open(lock.pathString, O_CREAT | O_RDWR, 0o644)
+        #expect(descriptor >= 0)
+        defer { close(descriptor) }
+        #expect(flock(descriptor, LOCK_EX | LOCK_NB) == 0)
+        defer { flock(descriptor, LOCK_UN) }
+        // Bound a regression to blocking flock rather than hanging the test process.
+        let release = Task {
+            try await Task.sleep(for: .seconds(2))
+            flock(descriptor, LOCK_UN)
+        }
+        let setup = Task { try await subject.run(path: nil) }
+        try await Task.sleep(for: .milliseconds(100))
+        setup.cancel()
+
+        await #expect(throws: CancellationError.self) { try await setup.value }
+        release.cancel()
+        _ = try? await release.value
+        let probe = open(lock.pathString, O_RDWR)
+        #expect(probe >= 0)
+        defer { close(probe) }
+        // Cancellation must finish before the watchdog releases the original lock.
+        let result = flock(probe, LOCK_EX | LOCK_NB)
+        let lockError = errno
+        #expect(result == -1)
+        #expect(lockError == EWOULDBLOCK)
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+    }
+
+    /// Replacing the plugin on every setup would swap the file compilers load for an
+    /// identical one on every CI job.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_leavesAnUpToDateInstalledPluginInPlace() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "plugin").pathString
+        let fileSystem = FileSystem()
+        let installPath = environment.casPluginInstallPath()
+        try await fileSystem.makeDirectory(at: installPath.parentDirectory)
+        try await fileSystem.writeText("plugin", at: installPath)
+        let originalDate = Date(timeIntervalSince1970: 0)
+        try await fileSystem.setFileTimes(of: installPath, lastAccessDate: nil, lastModificationDate: originalDate)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await fileSystem.fileMetadata(at: installPath)?.lastModificationDate == originalDate)
     }
 
     /// On Xcode 27+ the manual instructions must also mention the prefix-mapping
@@ -162,34 +461,40 @@ struct SetupCacheCommandServiceTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(),
-        .withMockedLogger(),
-        .withMockedXcodeController
+        .withMockedLogger()
     ) func setupCache_withNonTuistProject_onXcode27_mentionsPrefixMapping() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
-        let xcodeControllerMock = try #require(XcodeController.mocked)
-        given(xcodeControllerMock)
+        xcodeController.reset()
+        given(xcodeController)
+            .developerDirectory()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
             .selectedVersion()
             .willReturn(Version(27, 0, 0))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willReturn("18A100")
 
         // When
         try await subject.run(path: nil)
 
         // Then
-        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES")
-        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let customURL = URL(string: "https://custom.tuist.dev")!
         let config = Tuist.test(
@@ -224,7 +529,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -250,7 +554,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: nil)
         configLoader.reset()
@@ -268,7 +571,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         serverAuthenticationController.reset()
         given(serverAuthenticationController)
@@ -290,7 +592,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
 
@@ -312,7 +613,6 @@ struct SetupCacheCommandServiceTests {
                 environmentVariables: .value([
                     "TUIST_CAS_TOKEN": token,
                     "TUIST_TOKEN": token,
-                    "TUIST_FEATURE_FLAG_KURA": "1",
                 ])
             )
             .called(1)
@@ -322,7 +622,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
 
@@ -346,7 +645,6 @@ struct SetupCacheCommandServiceTests {
                 environmentVariables: .value([
                     "TUIST_CAS_TOKEN": token,
                     "TUIST_TOKEN": token,
-                    "TUIST_FEATURE_FLAG_KURA": "1",
                 ])
             )
             .called(1)
@@ -356,7 +654,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
         environment.variables["TUIST_CACHE_ENDPOINT"] = "http://172.16.0.2:30815"
@@ -381,8 +678,134 @@ struct SetupCacheCommandServiceTests {
                 environmentVariables: .value([
                     "TUIST_CAS_TOKEN": token,
                     "TUIST_TOKEN": token,
-                    "TUIST_FEATURE_FLAG_KURA": "1",
                     "TUIST_CACHE_ENDPOINT": "http://172.16.0.2:30815",
+                ])
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsCASLogPath() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the proxy writes its diagnostics only to the file this variable
+        // names, so without forwarding them they cannot be turned on for a proxy
+        // running under launchd.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_CAS_LOG": "/tmp/cas.log",
+                ])
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_defaultsTheCASLogPathOnCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["CI"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the counters that tell the CAS failure shapes apart are written
+        // only to this file, so a diagnostic nobody knew to switch on is off during
+        // every incident that needs it.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_LOG": environment.casLogPath().pathString,
+                    "TUIST_CAS_PREFETCH": "keys",
+                ])
+            )
+            .called(1)
+    }
+
+    /// The proxy on a developer machine is a long-lived LaunchAgent, so even a
+    /// bounded file is state `tuist setup cache` would be creating for a reader who
+    /// never asked for it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotDefaultTheCASLogPathOffCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([:])
+            )
+            .called(1)
+    }
+
+    /// The #12733 forwarding stays in front of the default: a value the caller set
+    /// is where they expect to read the diagnostics back from.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_prefersAnExplicitCASLogPathOverTheCIDefault() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["CI"] = "1"
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/explicit-cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_LOG": "/tmp/explicit-cas.log",
+                    "TUIST_CAS_PREFETCH": "keys",
                 ])
             )
             .called(1)
@@ -395,7 +818,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         environment.variables[Constants.EnvironmentVariables.token] = nil
 
         let config = Tuist.test(fullHandle: "organization/project")
@@ -413,7 +835,7 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"])
+                environmentVariables: .value([:])
             )
             .called(1)
     }
@@ -426,7 +848,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: false))),
@@ -464,7 +885,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -490,19 +910,13 @@ struct SetupCacheCommandServiceTests {
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
-    ) func setupCache_withoutKuraFlag_installsLegacyDaemon() async throws {
-        // Given: no TUIST_FEATURE_FLAG_KURA, so setup takes the legacy per-project
-        // daemon path that every not-yet-migrated account still runs. The kura
-        // backwards-compat promise rests on this branch, so pin its behaviour.
+    ) func setupCache_withKuraFeatureFlagDisabled_stillInstallsTheProxy() async throws {
+        // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        let token = "test-auth-token-123"
-        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
 
-        let config = Tuist.test(
-            fullHandle: "organization/project",
-            xcodeCache: Tuist.XcodeCache(upload: false)
-        )
+        let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)
@@ -511,35 +925,81 @@ struct SetupCacheCommandServiceTests {
         // When
         try await subject.run(path: nil)
 
-        // Then: the per-project agent label, `cache-start` args (with --no-upload),
-        // and TUIST_TOKEN seeding are all pinned.
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
+                programArguments: .matching { $0.first?.hasSuffix("cas-launcher.sh") == true && $0.contains("cache-proxy") },
+                environmentVariables: .any
+            )
+            .called(1)
         verify(launchAgentService)
             .setupLaunchAgent(
                 label: .value("tuist.cache.organization_project"),
-                plistFileName: .value("tuist.cache.organization_project.plist"),
-                programArguments: .value([
-                    "cache-start",
-                    "organization/project",
-                    "--url",
-                    Constants.URLs.production.absoluteString,
-                    "--no-upload",
-                ]),
-                environmentVariables: .value(["TUIST_TOKEN": token])
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any
             )
-            .called(1)
-        verify(cacheSocketService)
-            .waitUntilListening(
-                at: .value(environment.cacheSocketPath(for: "organization/project")),
-                timeout: .value(.zero)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_startsTheProxyWithoutResolvingRemoteCapacity() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        var events: [String] = []
+        launchAgentService.reset()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willProduce { _, _, _, _ in
+                events.append("install")
+                return nil
+            }
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
             )
-            .called(1)
+            .willReturn(false)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(events == ["install"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_doesNotWarnWhenTheRemoteCacheIsServing() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
+
+        // Then
+        #expect(alertController.warnings().isEmpty)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupCache_restartsTheAgentWhenTheSocketDoesNotStartListening() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         var checks = 0
         cacheSocketService.reset()
         given(cacheSocketService)
@@ -566,10 +1026,58 @@ struct SetupCacheCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_restartsTheAgentWhenTheSocketIsAnsweredByTheDisplacedDaemon() async throws {
+        // Given: the socket answers on the first check, but from the very process
+        // this setup displaced. On the socket alone that is indistinguishable from
+        // a healthy new daemon, and setup used to report success for it moments
+        // before the process exited leaving nothing bootstrapped.
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        launchAgentService.reset()
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(false)
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .willReturn()
+        var identityChecks = 0
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .value("tuist.cas-proxy"))
+            .willProduce { _ in
+                identityChecks += 1
+                return identityChecks == 1 ? 4242 : 5555
+            }
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the restart the socket check alone would have skipped.
+        verify(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupCache_failsWhenTheSocketDoesNotListenAfterRestart() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let installedPlugin = environment.casPluginInstallPath()
+        try await FileSystem().makeDirectory(at: installedPlugin.parentDirectory)
+        try await FileSystem().writeText("old plugin", at: installedPlugin)
         cacheSocketService.reset()
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
@@ -590,6 +1098,9 @@ struct SetupCacheCommandServiceTests {
             try await subject.run(path: nil)
         }
 
+        #expect(try await FileSystem().readTextFile(at: installedPlugin) == "old plugin")
+        verify(installationStore).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .value(false)).called(0)
+        verify(installationStore).invalidate().called(0)
         verify(launchAgentService)
             .restartLaunchAgent(label: .value("tuist.cas-proxy"))
             .called(1)
@@ -608,7 +1119,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
         environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
@@ -631,6 +1141,61 @@ struct SetupCacheCommandServiceTests {
         """)
     }
 
+    /// The proxy prunes a project's stores back to its `xcodeCache.storeSizeLimit`,
+    /// and this record is the only way the limit reaches it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheStoreSizeLimit() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(storeSizeLimit: 21_474_836_480)))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "storeSizeLimit" : 21474836480,
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
+    }
+
+    /// The proxy reads the limit as an unsigned integer, and a value it cannot parse
+    /// makes it reject the whole registry.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotRecordANonPositiveStoreSizeLimit() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(storeSizeLimit: -1)))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(!sources.contains("storeSizeLimit"))
+    }
+
     /// The registry is machine-wide, and setting one project up rewrites the whole
     /// file, so every other project's row has to survive being read and written back
     /// untouched. A row carrying a branch but no trunk is the case that a positional
@@ -640,7 +1205,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
         environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
@@ -672,7 +1236,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         environment.variables["CI"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
@@ -703,7 +1266,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         environment.variables["CI"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
@@ -731,6 +1293,31 @@ struct SetupCacheCommandServiceTests {
         """)
     }
 
+    /// The proxy is the only writer of its path registry and of the uses recorded
+    /// beside it, and it rewrites both from memory without the sources lock.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_leavesTheProxysPathRegistryAlone() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let uses = registry.parentDirectory.appending(component: "cas-proxy.registry.used")
+        let fileSystem = FileSystem()
+        let routing = "/DerivedData/CompilationCache.noindex/plugin\ttuist/tuist\n"
+        let recordedUses = "/DerivedData/CompilationCache.noindex/plugin\t1789000000\n"
+        try await fileSystem.writeText(routing, at: registry)
+        try await fileSystem.writeText(recordedUses, at: uses)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(try await fileSystem.readTextFile(at: registry) == routing)
+        #expect(try await fileSystem.readTextFile(at: uses) == recordedUses)
+    }
+
     /// Setting up a second project must not clobber the first, and a row that carries
     /// nothing but its instance (a setup that could not reach the server) has to
     /// survive the rewrite intact.
@@ -738,7 +1325,6 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
         environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
@@ -763,6 +1349,207 @@ struct SetupCacheCommandServiceTests {
         }
         """)
     }
+
+    /// A job that changes only what the registry records, its upload policy
+    /// included, leaves a proxy already running this configuration in place: the
+    /// proxy reads the registry by itself, and reinstalling it puts the job
+    /// through a bootout for nothing.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_changesTheUploadPolicyWithoutReinstallingARunningProxy() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let proxyBinary = temporaryDirectory.appending(component: "tuist-cas-proxy")
+        environment.variables["TUIST_CAS_PROXY_PATH"] = proxyBinary.pathString
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText("proxy", at: proxyBinary)
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        try await fileSystem.writeText(#"{"tuist/tuist":{"trunk":"main","upload":true}}"#, at: sourcesPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(upload: false)))
+        launchAgentService.reset()
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(nil)
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(true)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+        verify(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
+                programArguments: .value([
+                    "-c", "exec \"$@\"", "tuist-cas-launcher", "/usr/local/bin/tuist",
+                    "cache-proxy",
+                    "--url",
+                    Constants.URLs.production.absoluteString,
+                    "--account",
+                    "tuist",
+                ]),
+                environmentVariables: .value([
+                    "TUIST_CAS_PROXY_REGISTRY": registry.pathString,
+                    "TUIST_CAS_PROXY_PATH": proxyBinary.pathString,
+                ]),
+                launchInputs: .value(["/usr/local/bin/tuist", proxyBinary])
+            )
+            .called(1)
+        verify(cacheSocketService)
+            .waitUntilListening(at: .value(environment.casProxySocketPath()), timeout: .any)
+            .called(1)
+        let sources = try await fileSystem.readTextFile(at: sourcesPath)
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : false
+          }
+        }
+        """)
+    }
+
+    /// A proxy that looks current but does not answer is not left in place.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_reinstallsACurrentProxyThatIsNotListening() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        launchAgentService.reset()
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(nil)
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any,
+                launchInputs: .any
+            )
+            .willReturn(true)
+        var checks = 0
+        cacheSocketService.reset()
+        given(cacheSocketService)
+            .waitUntilListening(at: .any, timeout: .any)
+            .willProduce { _, _ in
+                checks += 1
+                return checks > 1
+            }
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
+                programArguments: .any,
+                environmentVariables: .any
+            )
+            .called(1)
+    }
+
+    /// Xcode selection remains explicit setup configuration. Its upstream plugin
+    /// remains a launch input so an in-place Xcode update is noticed by setup.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_recordsTheXcodeTheProxyLoadsItsPluginFrom() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let developerDirectory = temporaryDirectory.appending(components: "Xcode.app", "Contents", "Developer")
+        let plugin = developerDirectory.appending(components: "usr", "lib", "libToolchainCASPlugin.dylib")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+        try await fileSystem.writeText("plugin", at: plugin)
+        xcodeController.reset()
+        given(xcodeController)
+            .developerDirectory()
+            .willReturn(developerDirectory)
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willThrow(TestError("no Xcode"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .matching { $0["DEVELOPER_DIR"] == developerDirectory.pathString },
+                launchInputs: .matching { $0.contains(plugin) && $0.contains(where: { $0.basename == "cas-launcher.sh" }) }
+            )
+            .called(1)
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "DEVELOPER_DIR": developerDirectory.pathString,
+                ])
+            )
+            .called(1)
+    }
+
+    private func resetLaunchAgentStubs() {
+        launchAgentService.reset()
+        given(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).willReturn()
+        given(launchAgentService).runningProcessIdentifier(label: .any).willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any, launchInputs: .any
+            )
+            .willReturn(false)
+    }
+}
+
+/// A plugin shipped with Tuist, somewhere other than where setup installs it.
+private func shipCASPlugin(containing contents: String) async throws -> AbsolutePath {
+    let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+    let plugin = temporaryDirectory.appending(components: "tuist", "libtuist_cas_plugin.dylib")
+    let fileSystem = FileSystem()
+    try await fileSystem.makeDirectory(at: plugin.parentDirectory)
+    try await fileSystem.writeText(contents, at: plugin)
+    return plugin
 }
 
 private struct TestError: Error {

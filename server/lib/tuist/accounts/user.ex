@@ -10,6 +10,7 @@ defmodule Tuist.Accounts.User do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.UserRole
   alias Tuist.Projects.Project
 
@@ -35,6 +36,8 @@ defmodule Tuist.Accounts.User do
     # there. Never persisted or cast; nil = not resolved = read it per check.
     field :organization_roles, :map, virtual: true
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
+    # The organization whose SCIM provisioning created the account, if any.
+    belongs_to :provisioned_by_organization, Organization, foreign_key: :provisioned_by_organization_id
 
     has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:oauth2_identities, Oauth2Identity, foreign_key: :user_id, on_delete: :delete_all)
@@ -46,7 +49,15 @@ defmodule Tuist.Accounts.User do
 
   def create_user_changeset(user, attrs) do
     user
-    |> cast(attrs, [:token, :email, :password, :encrypted_password, :confirmed_at, :created_at])
+    |> cast(attrs, [
+      :token,
+      :email,
+      :password,
+      :encrypted_password,
+      :confirmed_at,
+      :created_at,
+      :provisioned_by_organization_id
+    ])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
     |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")

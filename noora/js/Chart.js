@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 /**
  * Formats elapsed time into a human readable string
@@ -41,6 +41,16 @@ function formatMilliseconds(milliseconds) {
   return formatSeconds(milliseconds / 1000);
 }
 
+function formatTooltipTemplate(template, value) {
+  const formatted =
+    template === "{value}%"
+      ? Math.round(value * 10) / 10
+      : template === "{value}"
+        ? formatNumber(value)
+        : value;
+  return template.replace("{value}", formatted);
+}
+
 function formatBytes(bytes) {
   if (bytes >= 1_000_000_000) {
     return `${(bytes / 1_000_000_000).toFixed(0)} GB`;
@@ -66,6 +76,7 @@ function formatMbps(bytesPerSecond) {
 }
 
 const formatters = {
+  formatNumber: () => (value) => formatNumber(value),
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(navigator.language, {
@@ -109,9 +120,41 @@ const formatters = {
   formatHours: (el) => (value, _) => {
     return formatHours(value);
   },
+  firstAndLastDate: (el) => {
+    let lastIndex = null;
+    return (value, index) => {
+      if (lastIndex === null) {
+        const chart = echarts.getInstanceByDom(
+          el.querySelector("[data-part='chart']"),
+        );
+        const option = chart?.getOption();
+        const axis =
+          option?.xAxis?.[0] ??
+          option?.xAxis ??
+          option?.yAxis?.[0] ??
+          option?.yAxis;
+        const data = axis?.data;
+        if (Array.isArray(data) && data.length > 0) {
+          lastIndex = data.length - 1;
+        }
+      }
+      if (index !== 0 && index !== lastIndex) {
+        return "";
+      }
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+      return date.toLocaleDateString(navigator.language, {
+        day: "numeric",
+        month: "short",
+      });
+    };
+  },
 };
 
 const tooltipFormatters = {
+  formatNumber,
   formatBytes,
   formatCurrency,
   formatMbps,
@@ -122,12 +165,39 @@ const tooltipFormatters = {
 
 export default {
   mounted() {
-    this.render();
-    this.colorSchemeListener = () => this.render();
+    this.renderReady =
+      this.el.dataset.lazy !== "true" ||
+      typeof IntersectionObserver === "undefined";
+    this.colorSchemeListener = () => {
+      if (this.renderReady) this.render();
+    };
+    this.resizeListener = () => this.chart?.resize();
     window.addEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
     );
+    window.addEventListener("resize", this.resizeListener);
+    window.addEventListener("phx:resize", this.resizeListener);
+
+    if (this.renderReady) {
+      this.render();
+    } else {
+      this.visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          if (
+            this.visibilityObserver &&
+            entries.some((entry) => entry.isIntersecting)
+          ) {
+            this.visibilityObserver.disconnect();
+            this.visibilityObserver = null;
+            this.renderReady = true;
+            this.render();
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      this.visibilityObserver.observe(this.el);
+    }
   },
   render({ animate = true } = {}) {
     if (this.chart) this.chart.dispose();
@@ -154,11 +224,19 @@ export default {
       );
 
     if (hasClickableData) {
+      // A line's points are a few pixels wide, so a click anywhere over the
+      // plot opens the point nearest it along the x axis, the one the axis
+      // tooltip shows; bars keep opening only when clicked themselves.
       this.chart.on("click", (params) => {
-        const dataItem = params.data;
-        if (dataItem && dataItem.url) {
-          window.location.href = dataItem.url;
+        if (params.seriesType !== "line" && params.data && params.data.url) {
+          this.navigate(params.data.url);
         }
+      });
+
+      const zr = this.chart.getZr();
+      zr.on("click", (event) => {
+        const url = this.nearestLineUrl([event.offsetX, event.offsetY]);
+        if (url) this.navigate(url);
       });
 
       this.chart.on("mouseover", (params) => {
@@ -169,23 +247,51 @@ export default {
       this.chart.on("mouseout", () => {
         chartDom.style.cursor = "default";
       });
+      zr.on("mousemove", (event) => {
+        if (this.nearestLineUrl([event.offsetX, event.offsetY])) {
+          zr.setCursorStyle("pointer");
+        }
+      });
     }
+  },
+  nearestLineUrl(pixel) {
+    if (!this.chart.containPixel("grid", pixel)) return null;
 
-    this.resizeListener = () => {
-      this.chart.resize();
-    };
-    window.addEventListener("resize", this.resizeListener);
-    window.addEventListener("phx:resize", this.resizeListener);
+    let nearest = null;
+    this.chart.getOption().series.forEach((series, seriesIndex) => {
+      if (series.type !== "line" || !series.data) return;
+      series.data.forEach((item) => {
+        if (!item || typeof item !== "object" || !item.url) return;
+        const [x] = this.chart.convertToPixel({ seriesIndex }, item.value);
+        const distance = Math.abs(x - pixel[0]);
+        if (!nearest || distance < nearest.distance) {
+          nearest = { distance, url: item.url };
+        }
+      });
+    });
+    return nearest && nearest.url;
+  },
+  // Through LiveView, so a page in the same live session opens without a
+  // full reload; LiveView falls back to one for any other page.
+  navigate(url) {
+    if (typeof this.js === "function") {
+      this.js().navigate(url);
+    } else {
+      window.location.href = url;
+    }
   },
   updated() {
     // Re-render fully to update theme (including tooltip formatter), but skip
     // the entry animation so LiveView patches don't visibly re-animate charts.
-    this.render({ animate: false });
+    if (this.renderReady) this.render({ animate: false });
   },
   destroyed() {
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = null;
+    this.renderReady = false;
     const chartDom = this.el.querySelector("[data-part='chart']");
     if (chartDom) chartDom.__nooraChart = null;
-    this.chart.dispose();
+    this.chart?.dispose();
     window.removeEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
@@ -261,6 +367,22 @@ export function prepareChartOptions(input, element) {
     }
   }
 
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axes = [option[axisName]].flat().filter(Boolean);
+    for (const axis of axes) {
+      const isValueAxis = axis.type === "value" || (!axis.type && !axis.data);
+      if (
+        isValueAxis &&
+        (!axis.axisLabel?.formatter || axis.axisLabel.formatter === "{value}")
+      ) {
+        axis.axisLabel = {
+          ...axis.axisLabel,
+          formatter: (value) => formatNumber(value),
+        };
+      }
+    }
+  }
+
   for (const path of ["xAxis.axisLabel", "yAxis.axisLabel"]) {
     const parent = path
       .split(".")
@@ -279,6 +401,46 @@ export function prepareChartOptions(input, element) {
       ) {
         parent.formatter = window.nooraChartFormatters[functionName](element);
       }
+    }
+  }
+
+  if (option.tooltip?.formatter === "fn:rangeBarTooltip") {
+    option.tooltip.formatter = rangeBarTooltipFormatter;
+    option.tooltip.trigger ??= "item";
+  }
+
+  if (Array.isArray(option.series)) {
+    let hasRangeBarSeries = false;
+
+    option.series.forEach((series) => {
+      if (series.renderItem === "fn:rangeBar") {
+        series.renderItem = rangeBarRenderItem;
+        series.encode ??= { x: [1, 2], y: 0 };
+        hasRangeBarSeries = true;
+      }
+    });
+
+    if (hasRangeBarSeries) {
+      const hasMultipleXAxes = Array.isArray(option.xAxis);
+      const hasMultipleYAxes = Array.isArray(option.yAxis);
+      const xAxes = hasMultipleXAxes ? option.xAxis : [option.xAxis];
+      const yAxes = hasMultipleYAxes ? option.yAxis : [option.yAxis];
+      const xAxis = { ...(xAxes[0] ?? {}) };
+      const yAxis = { ...(yAxes[0] ?? {}) };
+
+      if (yAxis.data === undefined && Array.isArray(xAxis.data)) {
+        yAxis.data = xAxis.data;
+        delete xAxis.data;
+      }
+
+      const rangeXAxis = { ...xAxis, type: "value" };
+      const rangeYAxis = { ...yAxis, type: "category" };
+      option.xAxis = hasMultipleXAxes
+        ? [rangeXAxis, ...xAxes.slice(1)]
+        : rangeXAxis;
+      option.yAxis = hasMultipleYAxes
+        ? [rangeYAxis, ...yAxes.slice(1)]
+        : rangeYAxis;
     }
   }
 
@@ -403,6 +565,86 @@ function processItemColor(dataItem) {
   }
 }
 
+function rangeBarRenderItem(params, api) {
+  const lane = api.value(0);
+  const start = api.value(1);
+  const end = api.value(2);
+
+  if (
+    !Number.isFinite(lane) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end < start
+  ) {
+    return null;
+  }
+
+  const startCoordinate = api.coord([start, lane]);
+  const endCoordinate = api.coord([end, lane]);
+  const height = api.size([0, 1])[1] * 0.62;
+  const shape = echarts.graphic.clipRectByRect(
+    {
+      x: startCoordinate[0],
+      y: startCoordinate[1] - height / 2,
+      width: Math.max(endCoordinate[0] - startCoordinate[0], 1),
+      height,
+    },
+    {
+      x: params.coordSys.x,
+      y: params.coordSys.y,
+      width: params.coordSys.width,
+      height: params.coordSys.height,
+    },
+  );
+
+  if (!shape) return null;
+
+  return {
+    type: "rect",
+    shape,
+    style: api.style(),
+  };
+}
+
+export function rangeBarTooltipFormatter(params) {
+  const param = Array.isArray(params) ? params[0] : params;
+  if (!param) return "";
+
+  const [, start, end] = Array.isArray(param.value) ? param.value : [];
+  const duration =
+    Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? end - start
+      : null;
+  const data = param.data && typeof param.data === "object" ? param.data : {};
+  const description = data.name || param.name;
+  const rows = [
+    rangeBarTooltipRow(data.durationLabel, duration),
+    rangeBarTooltipRow(data.startLabel, start),
+  ].filter(Boolean);
+  const title = description
+    ? `<span data-part="title">${escapeHtml(description)}</span>`
+    : "";
+  const divider =
+    description && rows.length > 0
+      ? '<div class="noora-line-divider"><div data-part="line"></div></div>'
+      : "";
+
+  if (!title && rows.length === 0) return "";
+
+  return `<div class="noora-chart-tooltip">${title}${divider}${rows.join("")}</div>`;
+}
+
+function rangeBarTooltipRow(label, value) {
+  if (!label) return "";
+
+  const formattedValue = Number.isFinite(value)
+    ? formatMilliseconds(value)
+    : "\u2014";
+  const labelElement = `<span data-part="label">${escapeHtml(label)}</span>`;
+
+  return `<div data-part="series-item">${labelElement}<span data-part="value">${escapeHtml(formattedValue)}</span></div>`;
+}
+
 function transformColorProperty(colorProp) {
   if (!colorProp) return colorProp;
 
@@ -424,6 +666,32 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// A point that stands for a calendar day, week or month is titled by that
+// period. Its date is the period's start, truncated in UTC, so it is
+// formatted in UTC too: a local time zone would move it to the day before.
+function formatPeriod(date, period) {
+  if (period === "month") {
+    return date.toLocaleDateString(navigator.language, {
+      timeZone: "UTC",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  const day = new Intl.DateTimeFormat(navigator.language, {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (period === "week") {
+    return day.formatRange(date, new Date(date.getTime() + 6 * 86_400_000));
+  }
+
+  return day.format(date);
 }
 
 // Tooltip
@@ -468,6 +736,8 @@ function tooltipFormatter(options = {}) {
         });
         const hour = String(date.getHours()).padStart(2, "0");
         title = `${dateStr}, ${hour}:00`;
+      } else if (["day", "week", "month"].includes(options.dateFormat)) {
+        title = formatPeriod(date, options.dateFormat);
       } else {
         title = date.toLocaleDateString(navigator.language, {
           day: "numeric",
@@ -496,7 +766,7 @@ function tooltipFormatter(options = {}) {
           if (fn in tooltipFormatters)
             formatted = tooltipFormatters[fn](rawValue);
         } else {
-          formatted = options.valueFormat.replace("{value}", rawValue);
+          formatted = formatTooltipTemplate(options.valueFormat, rawValue);
         }
       }
       if (formatted) title = `${title} · ${formatted}`;
@@ -543,10 +813,10 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace("{value}", value);
+      formattedValue = formatTooltipTemplate(options.valueFormat, value);
     }
   } else {
-    formattedValue = value;
+    formattedValue = formatNumber(value);
   }
 
   const hasExtra = data && typeof data === "object" && data.tooltipExtra;

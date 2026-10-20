@@ -21,6 +21,7 @@ defmodule Tuist.Kura.Provisioner do
   """
 
   alias Tuist.Accounts.Account
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
@@ -90,14 +91,11 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision currently applied to the backing resource.
-
-  Provisioners that render declarative resources should use this to let
-  the control plane re-apply config-only changes independently from Kura
-  runtime image changes.
+  Returns the observed private gateway URL and the controller's check time.
+  Consumers persist that check time so rereading status cannot renew readiness.
   """
   @callback external_endpoint(ref :: String.t(), Regions.t()) ::
-              {:ok, String.t()} | {:error, term()}
+              {:ok, %{url: String.t(), observed_at: DateTime.t()}} | {:error, term()}
 
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
@@ -135,6 +133,18 @@ defmodule Tuist.Kura.Provisioner do
   @callback rollout_health(ref :: String.t(), Regions.t()) ::
               {:ok, map() | nil} | {:error, term()}
 
+  @doc """
+  The replication roles the backing platform publishes for the server's
+  pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
+  URL — or `{:ok, []}` when the resource exists but has not published any
+  yet. Read by `Tuist.Kura.Reconciler` on the loop that already observes the
+  instance and persisted on `kura_servers.peer_roles`, which is what the mesh
+  view publishes; never called from a request. Implementations must still
+  bound it — one tick observes every mesh server in turn.
+  """
+  @callback peer_roles(ref :: String.t(), Regions.t()) ::
+              {:ok, [map()]} | {:error, term()}
+
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's provisioner."
@@ -152,23 +162,36 @@ defmodule Tuist.Kura.Provisioner do
   end
 
   @doc "Calls `public_url/3` on the region's provisioner."
-  def public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
+  def public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.public_url(handle, region, ref)
+      if Identity.endpoint_migration_paused?(account) and is_binary(server.url) do
+        server.url
+      else
+        region.provisioner.public_url(Identity.endpoint_handle(account), region, ref)
+      end
     end
   end
 
   @doc "Calls `grpc_public_url/3` on the region's provisioner."
-  def grpc_public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
+  def grpc_public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
+      handle =
+        if Identity.endpoint_migration_paused?(account) do
+          Enum.find(Identity.handles(account), Identity.tenant_id(account), fn handle ->
+            region.provisioner.public_url(handle, region, ref) == server.url
+          end)
+        else
+          Identity.endpoint_handle(account)
+        end
+
       region.provisioner.grpc_public_url(handle, region, ref)
     end
   end
 
   @doc "Calls `internal_url/3` on the region's provisioner."
-  def internal_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) when is_binary(ref) do
+  def internal_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) when is_binary(ref) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.internal_url(handle, region, ref)
+      region.provisioner.internal_url(Identity.tenant_id(account), region, ref)
     end
   end
 
@@ -213,6 +236,13 @@ defmodule Tuist.Kura.Provisioner do
   def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `peer_roles/2` on the region's provisioner."
+  def peer_roles(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.peer_roles(ref, region)
     end
   end
 end

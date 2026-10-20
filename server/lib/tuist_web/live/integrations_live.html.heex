@@ -5,10 +5,263 @@
     current_path={@current_path}
     current_user={@current_user}
   />
+  <.card_section
+    :if={@origin_configured? or @origin_installations != [] or Tuist.Environment.dev?()}
+    data-part="origin-card-section"
+  >
+    <div data-part="header">
+      <span data-part="title">Origin</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Connect your Origin account and link repositories to your Tuist projects."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <.alert
+        :if={not @origin_configured?}
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_integrations", "Origin app not configured")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "Register an Origin app, then configure TUIST_ORIGIN_APP_ID and TUIST_ORIGIN_APP_PRIVATE_KEY on this Tuist server to enable installation."
+          )
+        }
+      />
+      <.origin_repository_status :if={@origin_installations != []} result={@origin_details} />
+      <div data-part="actions">
+        <.button
+          :if={@origin_installations == []}
+          href={
+            if @origin_configured?,
+              do: ~p"/integrations/origin/start?#{[account_id: @selected_account.id]}"
+          }
+          label={dgettext("dashboard_integrations", "Connect")}
+          variant="primary"
+          disabled={not @origin_configured?}
+        />
+        <.button
+          :if={@origin_installations != []}
+          href={
+            if @origin_configured?,
+              do: ~p"/integrations/origin/start?#{[account_id: @selected_account.id]}"
+          }
+          label={dgettext("dashboard_integrations", "Manage integration")}
+          variant="secondary"
+          target="_blank"
+          rel="noopener noreferrer"
+          disabled={not @origin_configured?}
+        >
+          <:icon_right><.external_link /></:icon_right>
+        </.button>
+        <.modal
+          :if={@origin_installations != []}
+          id="add-origin-connection-modal"
+          title={dgettext("dashboard_integrations", "Choose repository to connect to")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Choose a native Origin repository available to your connected account. GitHub mirrors use the GitHub integration."
+            )
+          }
+          header_type="icon"
+          header_size="large"
+          on_dismiss="close-add-origin-connection-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_integrations", "Add new project connection")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <:header_icon><.folder /></:header_icon>
+          <.line_divider />
+          <.origin_repository_status result={@origin_details} />
+          <.alert
+            :if={@origin_error}
+            id="add-origin-connection-error"
+            status="error"
+            type="secondary"
+            size="small"
+            title={@origin_error}
+          />
+          <.alert
+            :if={@origin_details.ok? and get_available_origin_repositories(assigns) == []}
+            status="information"
+            type="secondary"
+            size="large"
+            title={dgettext("dashboard_integrations", "No native Origin repositories available")}
+            description={
+              dgettext(
+                "dashboard_integrations",
+                "Manage the integration to grant access to a native repository, then retry loading repositories."
+              )
+            }
+          >
+            <:action>
+              <.button
+                label={dgettext("dashboard_integrations", "Retry")}
+                variant="secondary"
+                phx-click="retry-origin-details"
+              />
+            </:action>
+          </.alert>
+          <div data-part="create-connection">
+            <.dropdown
+              :if={length(@origin_installations) > 1}
+              id="origin-installation-dropdown"
+              label={origin_namespace_label(assigns, @selected_origin_installation_id)}
+            >
+              <:icon><.git_branch /></:icon>
+              <.dropdown_item
+                :for={installation <- @origin_installations}
+                value={installation.id}
+                label={origin_namespace_label(assigns, installation.id)}
+                phx-click="select-origin-installation"
+                phx-value-installation_id={installation.id}
+              />
+            </.dropdown>
+            <.dropdown
+              id="origin-project-dropdown"
+              label={
+                if project = get_selected_origin_project(assigns),
+                  do: project.name,
+                  else: dgettext("dashboard_integrations", "Choose Tuist project")
+              }
+            >
+              <:icon><.brand_tuist /></:icon>
+              <.dropdown_item
+                :for={project <- get_available_projects(assigns)}
+                value={Integer.to_string(project.id)}
+                label={project.name}
+                phx-click="select-origin-project"
+                phx-value-project_id={Integer.to_string(project.id)}
+              />
+            </.dropdown>
+            <div data-part="connection">
+              <div data-part="icon-container">
+                <div data-part="icon"><.s_turn_down /></div>
+              </div>
+            </div>
+            <.dropdown
+              id="origin-repository-dropdown"
+              label={
+                @selected_origin_repository_full_handle ||
+                  dgettext("dashboard_integrations", "Choose a repository")
+              }
+            >
+              <:icon><.git_branch /></:icon>
+              <.dropdown_item
+                :for={repository <- get_available_origin_repositories(assigns)}
+                value={repository.full_name}
+                label={repository.full_name}
+                phx-click="select-origin-repository"
+                phx-value-repository={repository.full_name}
+              />
+            </.dropdown>
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label={dgettext("dashboard_integrations", "Cancel")}
+                  variant="secondary"
+                  phx-click="close-add-origin-connection-modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  label={dgettext("dashboard_integrations", "Create Connection")}
+                  variant="primary"
+                  phx-click="connect-origin-project"
+                  disabled={
+                    is_nil(get_selected_origin_project(assigns)) or
+                      is_nil(@selected_origin_repository_full_handle)
+                  }
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <.card_section
+        :for={installation <- @origin_installations}
+        data-part="installation-card-section"
+        data-value={installation.id}
+      >
+        <div data-part="header">
+          <div data-part="item">
+            <div data-part="icon"><.git_branch /></div>
+            <span data-part="label">{origin_namespace_label(assigns, installation.id)}</span>
+          </div>
+        </div>
+        <div data-part="footer">
+          <span data-part="subtitle">
+            {dgettext("dashboard_integrations", "Connected %{time_ago}",
+              time_ago: DateFormatter.from_now(installation.inserted_at)
+            )}
+          </span>
+          <.button
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="disconnect-origin"
+            phx-value-id={installation.id}
+            data-confirm={
+              dgettext(
+                "dashboard_integrations",
+                "Disconnect this Origin account and remove its project connections?"
+              )
+            }
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :for={connection <- Enum.filter(@vcs_connections, &(&1.provider == :origin))}
+        data-part="connection-card-section"
+        data-value={connection.id}
+      >
+        <div data-part="header">
+          <div data-part="item">
+            <div data-part="icon"><.brand_tuist /></div>
+            <span data-part="label">{connection.project.name}</span>
+          </div>
+          <div data-part="icon"><.arrows_exchange /></div>
+          <div data-part="item">
+            <div data-part="icon"><.git_branch /></div>
+            <span data-part="label">{connection.repository_full_handle}</span>
+          </div>
+        </div>
+        <div data-part="footer">
+          <span data-part="subtitle">{get_connection_info(connection)}</span>
+          <.inline_dropdown
+            id={"origin-connection-actions-#{connection.id}"}
+            label={dgettext("dashboard_integrations", "Manage")}
+          >
+            <.dropdown_item
+              label={dgettext("dashboard_integrations", "Remove connection")}
+              value="remove"
+              phx-click="delete-connection"
+              phx-value-connection_id={connection.id}
+            >
+              <:left_icon><.trash /></:left_icon>
+            </.dropdown_item>
+          </.inline_dropdown>
+        </div>
+      </.card_section>
+    </div>
+  </.card_section>
   <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
-        {dgettext("dashboard_integrations", "GitHub")}
+        {if GitHubAppInstallation.enterprise?(@github_app_installation),
+          do: dgettext("dashboard_integrations", "GitHub Enterprise Server"),
+          else: dgettext("dashboard_integrations", "GitHub")}
       </span>
       <span data-part="subtitle">
         {dgettext(
@@ -36,6 +289,7 @@
         </.button_group>
         <form
           :if={@show_github_enterprise_input}
+          id="github-enterprise-registration-form"
           phx-change="update-github-client-url"
           data-part="github-enterprise-form"
         >
@@ -45,8 +299,27 @@
             type="basic"
             value={@github_client_url}
             label={dgettext("dashboard_integrations", "Server URL")}
+            required
+            show_required
             placeholder="https://github.company.com"
+            hint={dgettext("dashboard_integrations", "The GitHub URL your browser can access.")}
             error={@github_client_url_error}
+            phx-debounce="300"
+          />
+          <.text_input
+            id="github-api-url"
+            name="github_api_url"
+            type="basic"
+            value={@github_api_url}
+            label={dgettext("dashboard_integrations", "API URL")}
+            placeholder="https://github-proxy.company.com/api/v3"
+            suffix_hint={
+              dgettext(
+                "dashboard_integrations",
+                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
+              )
+            }
+            error={@github_api_url_error}
             phx-debounce="300"
           />
           <.text_input
@@ -58,6 +331,48 @@
             placeholder="my-organization"
             error={@github_app_owner_error}
             phx-debounce="300"
+          />
+        </form>
+      </div>
+      <div
+        :if={GitHubAppInstallation.enterprise?(@github_app_installation)}
+        data-part="github-host-config"
+      >
+        <form
+          id="github-api-url-form"
+          phx-change="validate-github-api-url"
+          phx-submit="save-github-api-url"
+          data-part="github-enterprise-form"
+        >
+          <.text_input
+            id="github-client-url"
+            name="github_client_url"
+            type="basic"
+            value={@github_app_installation.client_url}
+            label={dgettext("dashboard_integrations", "Server URL")}
+            readonly
+          />
+          <.text_input
+            id="github-api-url"
+            name="github_api_url"
+            type="basic"
+            value={@github_api_url}
+            label={dgettext("dashboard_integrations", "API URL")}
+            placeholder="https://github-proxy.company.com/api/v3"
+            suffix_hint={
+              dgettext(
+                "dashboard_integrations",
+                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
+              )
+            }
+            error={@github_api_url_error}
+            phx-debounce="300"
+          />
+          <.button
+            type="submit"
+            label={dgettext("dashboard_integrations", "Save API URL")}
+            variant="secondary"
+            disabled={not is_nil(@github_api_url_error)}
           />
         </form>
       </div>
@@ -97,6 +412,7 @@
           href={
             VCS.get_github_app_installation_url(@selected_account,
               client_url: @github_client_url,
+              api_url: @github_api_url,
               github_app_owner: @github_app_owner
             )
           }
@@ -138,6 +454,14 @@
             <.folder />
           </:header_icon>
           <.line_divider />
+          <.alert
+            :if={Phoenix.Flash.get(@flash, :error)}
+            id="add-connection-error"
+            status="error"
+            type="secondary"
+            size="small"
+            title={Phoenix.Flash.get(@flash, :error)}
+          />
           <div data-part="create-connection">
             <.dropdown
               id="project-dropdown"
@@ -213,7 +537,7 @@
         </.modal>
       </div>
       <.card_section
-        :for={vcs_connection <- @vcs_connections}
+        :for={vcs_connection <- Enum.filter(@vcs_connections, &(&1.provider == :github))}
         data-part="connection-card-section"
         data-value={vcs_connection.id}
       >
@@ -251,6 +575,295 @@
           </.inline_dropdown>
         </div>
       </.card_section>
+    </div>
+  </.card_section>
+  <.card_section :if={@runner_integrations_visible?} data-part="gitlab-card-section">
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_integrations", "GitLab CI")}</span>
+        <span data-part="subtitle">{dgettext(
+          "dashboard_integrations",
+          "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
+        )}</span>
+      </div>
+      <div :if={@gitlab_connections != []} data-part="actions">
+        <.button
+          :for={connection <- @gitlab_connections}
+          type="button"
+          label={dgettext("dashboard_integrations", "Disconnect")}
+          variant="secondary"
+          phx-click="disconnect-gitlab"
+          disabled={not connection.enabled}
+          phx-value-id={connection.id}
+        />
+      </div>
+      <form :if={@gitlab_connections == []} id="connect-gitlab-form" phx-submit="save-gitlab">
+        <.modal
+          id="connect-gitlab-modal"
+          title={dgettext("dashboard_integrations", "Connect GitLab CI")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
+            )
+          }
+          header_size="large"
+          on_dismiss="close-connect-gitlab-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_integrations", "Connect")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="connect-gitlab">
+            <.alert
+              :if={@gitlab_error}
+              status="error"
+              type="secondary"
+              size="small"
+              title={@gitlab_error}
+            />
+            <.text_input
+              id="gitlab-url"
+              name="url"
+              type="basic"
+              label={dgettext("dashboard_integrations", "GitLab URL")}
+              value="https://gitlab.com"
+              required
+            />
+            <.text_input
+              id="gitlab-token"
+              name="runner_token"
+              type="password"
+              input_type="password"
+              label={dgettext("dashboard_integrations", "Runner authentication token")}
+              placeholder="glrt-…"
+              value=""
+              required
+            />
+            <div data-part="actions">
+              <.button
+                type="submit"
+                label={dgettext("dashboard_integrations", "Connect")}
+                variant="primary"
+              />
+            </div>
+          </div>
+        </.modal>
+      </form>
+    </div>
+    <.alert
+      :if={@gitlab_error && @gitlab_connections != []}
+      status="error"
+      type="secondary"
+      size="small"
+      title={@gitlab_error}
+    />
+    <form
+      :for={connection <- @gitlab_connections}
+      id={"gitlab-connection-#{connection.id}"}
+      phx-submit="save-gitlab"
+    >
+      <.alert
+        :if={connection.last_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={connection.last_error}
+      />
+      <.alert
+        :if={not connection.enabled}
+        status="information"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_integrations",
+            "Disconnecting: waiting for GitLab to settle queued assignments."
+          )
+        }
+      />
+      <input type="hidden" name="_id" value={connection.id} />
+      <div data-part="fields">
+        <.text_input
+          id={"gitlab-url-#{connection.id}"}
+          name="url"
+          type="basic"
+          label={dgettext("dashboard_integrations", "GitLab URL")}
+          value={connection.url}
+          required
+        />
+        <.text_input
+          id={"gitlab-token-#{connection.id}"}
+          name="runner_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Runner authentication token")}
+          value=""
+          placeholder="••••••••••••"
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+        />
+      </div>
+    </form>
+  </.card_section>
+
+  <.card_section :if={@runner_integrations_visible?} data-part="buildkite-card-section">
+    <%!-- Connected: the whole card is the save form, with the actions on
+          the header line and the fields below. A blank token keeps the
+          current one, which is never shown again. --%>
+    <form
+      :if={@buildkite_installation}
+      id="buildkite-form"
+      phx-change="validate-buildkite"
+      phx-submit="save-buildkite"
+    >
+      <div data-part="header-row">
+        <.buildkite_header />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="disconnect-buildkite"
+          />
+        </div>
+      </div>
+      <.alert
+        :if={@buildkite_flash}
+        status={elem(@buildkite_flash, 0)}
+        type="secondary"
+        size="small"
+        title={elem(@buildkite_flash, 1)}
+      />
+      <.alert
+        :if={@buildkite_installation.last_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@buildkite_installation.last_error}
+      />
+      <div data-part="fields">
+        <.text_input
+          id="buildkite-organization"
+          name="organization_slug"
+          type="basic"
+          label={dgettext("dashboard_integrations", "Organization")}
+          value={@buildkite_form_values["organization_slug"]}
+          error={@buildkite_field_errors["organization_slug"]}
+          required
+        />
+        <.text_input
+          id="buildkite-token"
+          name="agent_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Cluster agent token")}
+          value={@buildkite_form_values["agent_token"]}
+          placeholder="••••••••••••"
+          error={@buildkite_field_errors["agent_token"]}
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+          disabled={not @buildkite_has_changes}
+        />
+      </div>
+    </form>
+    <%!-- Not connected: the header line and one button, with the fields in
+          a modal, so an account that does not use Buildkite gives up no
+          space to it. --%>
+    <div :if={is_nil(@buildkite_installation)} data-part="header-row">
+      <.buildkite_header />
+      <div data-part="actions">
+        <form id="connect-buildkite-form" phx-submit="connect-buildkite">
+          <.modal
+            id="connect-buildkite-modal"
+            title={dgettext("dashboard_integrations", "Connect Buildkite")}
+            description={
+              dgettext(
+                "dashboard_integrations",
+                "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+              )
+            }
+            header_size="large"
+            on_dismiss="close-connect-buildkite-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_integrations", "Connect")}
+                variant="primary"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <div data-part="connect-buildkite">
+              <.alert
+                :if={@buildkite_form_error}
+                status="error"
+                type="secondary"
+                size="small"
+                title={@buildkite_form_error}
+              />
+              <.text_input
+                id="buildkite-organization-slug"
+                name="organization_slug"
+                type="basic"
+                label={dgettext("dashboard_integrations", "Organization slug")}
+                placeholder="acme"
+                error={@buildkite_field_errors["organization_slug"]}
+                required
+                show_required
+              />
+              <.text_input
+                id="buildkite-agent-token"
+                name="agent_token"
+                type="password"
+                input_type="password"
+                label={dgettext("dashboard_integrations", "Cluster agent token")}
+                placeholder="bkct_..."
+                hint={
+                  dgettext("dashboard_integrations", "Stored encrypted and never shown again.")
+                }
+                error={@buildkite_field_errors["agent_token"]}
+                required
+                show_required
+              />
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_integrations", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-connect-buildkite-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_integrations", "Connect")}
+                    variant="primary"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </form>
+      </div>
     </div>
   </.card_section>
 </div>

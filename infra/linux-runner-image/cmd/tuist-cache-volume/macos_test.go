@@ -1,0 +1,266 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestMacCommandKeepsImageHelperOutsideJobCleanup(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\n" +
+		"test -z \"${RUNNER_TRACKING_ID+x}\" || exit 42\n" +
+		"test \"$TUIST_TEST_HDIUTIL\" = preserved || exit 43\n" +
+		"test \"$1\" = attach || exit 44\n"
+	if err := os.WriteFile(filepath.Join(bin, "hdiutil"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("RUNNER_TRACKING_ID", "job-owned-processes")
+	t.Setenv("TUIST_TEST_HDIUTIL", "preserved")
+	if err := macCommandContext(context.Background(), "attach", "cache.sparseimage"); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("RUNNER_TRACKING_ID") != "job-owned-processes" {
+		t.Fatal("changed job process tracking outside hdiutil")
+	}
+}
+
+func TestMacAttachAndDetach(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}
+	data, _ := json.Marshal(response)
+	respondMac(t, share, data)
+	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
+	calls := 0
+	command := func(args ...string) error {
+		calls++
+		if args[0] != "attach" && args[0] != "detach" {
+			t.Fatal(args)
+		}
+		return nil
+	}
+	dir, id, warm, err := acquireMacAt(context.Background(), "key", share, mount, command)
+	if err != nil || dir != response.Directory || id != "lease" || !warm {
+		t.Fatal(dir, id, warm, err)
+	}
+	if err = detachMacAt(share, mount, command, fakeMacMeasure, func(string, bool) {}, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	marker, _ := os.ReadFile(filepath.Join(share, dir, ".detached"))
+	if string(marker) != "lease" || calls != 2 {
+		t.Fatal(string(marker), calls)
+	}
+}
+func TestMacFailedDetachWithholdsPublication(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	if err := detachMacAt(share, mount, func(...string) error { return errors.New("busy") }, fakeMacMeasure, func(string, bool) {}, func() {}); err == nil {
+		t.Fatal("detach should fail")
+	}
+	if _, err := os.Stat(filepath.Join(share, scope, ".detached")); !os.IsNotExist(err) {
+		t.Fatal("failed detach permitted publication")
+	}
+}
+
+func TestMacCancelledAcquisitionNeverMountsLateResponse(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	data, _ := json.Marshal(macResponse{Directory: digest("volume"), ID: "lease"})
+	_ = os.WriteFile(filepath.Join(share, digest("key")+".request.response"), data, 0600)
+	_, _, _, err := acquireMacAt(ctx, "key", share, mount, func(...string) error {
+		t.Fatal("mounted after cancellation")
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
+
+func TestMacRejectsReplaceableNodeModulesTarget(t *testing.T) {
+	if !errors.Is(validateMacTargets([]string{"project/node_modules"}), errInvalidPath) {
+		t.Fatal("accepted node_modules")
+	}
+	if err := validateMacTargets([]string{".npm", ".gradle/caches"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fakeMacMeasure(string) (int64, int64, error) { return 3, 20_000_000_000, nil }
+func respondMac(t *testing.T, share string, data []byte) {
+	t.Helper()
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+	go func() {
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+			}
+			paths, _ := filepath.Glob(filepath.Join(share, "*.request"))
+			for _, path := range paths {
+				if _, err := os.Stat(path + ".response"); os.IsNotExist(err) {
+					_ = os.WriteFile(path+".response", data, 0600)
+				}
+			}
+		}
+	}()
+}
+
+func TestMacRetryIgnoresStaleResponseAndCleansMailbox(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	stale := filepath.Join(share, digest("key")+".request.response")
+	_ = os.WriteFile(stale, []byte(`{"error":"unavailable"}`), 0600)
+	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}
+	data, _ := json.Marshal(response)
+	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
+	respondMac(t, share, data)
+	for range 2 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, _, warm, err := acquireMacAt(ctx, "key", share, mount, func(...string) error { return nil })
+		cancel()
+		if err != nil || !warm {
+			t.Fatal(warm, err)
+		}
+	}
+	files, _ := os.ReadDir(share)
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".request") {
+			t.Fatal("request retained", f.Name())
+		}
+	}
+}
+
+func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	calls, measurements := 0, 0
+	err := detachMacAt(share, mount, func(args ...string) error {
+		calls++
+		if strings.Contains(strings.Join(args, " "), "force") {
+			t.Fatal("force detach allowed")
+		}
+		if calls < 3 {
+			return errors.New("busy")
+		}
+		return nil
+	}, func(string) (int64, int64, error) { measurements++; return int64(measurements), 20, nil }, func(string, bool) {}, func() {})
+	if err != nil || calls != 3 || measurements != 3 {
+		t.Fatal(calls, measurements, err)
+	}
+	data, _ := os.ReadFile(filepath.Join(share, scope, ".usage"))
+	var usage map[string]any
+	_ = json.Unmarshal(data, &usage)
+	if usage["used_bytes"] != float64(3) || usage["id"] != "lease" {
+		t.Fatal(string(data))
+	}
+	marker, _ := os.ReadFile(filepath.Join(share, scope, ".detached"))
+	if string(marker) != "lease" {
+		t.Fatal(string(marker))
+	}
+}
+
+func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
+	for reason, want := range map[string]string{
+		"timeout":           "still downloading",
+		"capacity":          "no room",
+		"denied":            "did not authorize",
+		"execution_pending": "not yet reported which job",
+		"":                  "cache unavailable",
+	} {
+		share, mount := t.TempDir(), t.TempDir()
+		data, _ := json.Marshal(macResponse{Error: "unavailable", Reason: reason})
+		respondMac(t, share, data)
+		_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error {
+			t.Fatal("mounted an unavailable volume")
+			return nil
+		})
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatal(reason, err)
+		}
+	}
+}
+
+func TestMacBusyDetachReleasesHoldersBeforePublishing(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	held := true
+	var releases []bool
+	err := detachMacAt(share, mount, func(args ...string) error {
+		if strings.Contains(strings.Join(args, " "), "force") {
+			t.Fatal("force detach allowed")
+		}
+		if held {
+			return errors.New("hdiutil: exit status 16 ()")
+		}
+		return nil
+	}, fakeMacMeasure, func(base string, kill bool) {
+		if base != filepath.Join(mount, scope) {
+			t.Fatal(base)
+		}
+		releases = append(releases, kill)
+		held = false
+	}, func() {})
+	if err != nil || fmt.Sprint(releases) != "[false]" {
+		t.Fatal(releases, err)
+	}
+	marker, _ := os.ReadFile(filepath.Join(share, scope, ".detached"))
+	if string(marker) != "lease" {
+		t.Fatal(string(marker))
+	}
+}
+
+func TestMacKillsHoldersThatOutliveTermination(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	held := true
+	var releases []bool
+	err := detachMacAt(share, mount, func(...string) error {
+		if held {
+			return errors.New("hdiutil: exit status 16 ()")
+		}
+		return nil
+	}, fakeMacMeasure, func(_ string, kill bool) {
+		releases = append(releases, kill)
+		held = held && !kill
+	}, func() {})
+	if err != nil || fmt.Sprint(releases) != "[false true]" {
+		t.Fatal(releases, err)
+	}
+	if _, err := os.Stat(filepath.Join(share, scope, ".detached")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMacHoldersParsesLsofFields(t *testing.T) {
+	out := "p812\nctuist\nf4\nftxt\np901\ncmise\nfcwd\n"
+	got := parseMacHolders([]byte(out))
+	if fmt.Sprint(got) != "[{812 tuist} {901 mise}]" {
+		t.Fatal(got)
+	}
+	if got := parseMacHolders(nil); len(got) != 0 {
+		t.Fatal(got)
+	}
+}

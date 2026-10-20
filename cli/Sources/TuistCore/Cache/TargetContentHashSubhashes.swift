@@ -43,6 +43,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
     /// per-dependency content hashes, so it's tracked separately.
     public let embeddedProductReferences: String?
 
+    /// Sorted raw destinations used by the hasher, absent in historical reports.
+    public let destinations: [String]?
+    /// Hash of the foreign build script and its inputs, when present.
+    public let foreignBuild: String?
+    /// Device name and runtime included when hashing UI tests.
+    public let testDevice: String?
+    public let testRuntime: String?
+
     public init(
         sources: String? = nil,
         resources: String? = nil,
@@ -61,7 +69,11 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         additionalHashingInputs: String? = nil,
         additionalStrings: [String] = [],
         external: String? = nil,
-        embeddedProductReferences: String? = nil
+        embeddedProductReferences: String? = nil,
+        destinations: [String]? = nil,
+        foreignBuild: String? = nil,
+        testDevice: String? = nil,
+        testRuntime: String? = nil
     ) {
         self.sources = sources
         self.resources = resources
@@ -81,6 +93,10 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.additionalStrings = additionalStrings
         self.external = external
         self.embeddedProductReferences = embeddedProductReferences
+        self.destinations = destinations
+        self.foreignBuild = foreignBuild
+        self.testDevice = testDevice
+        self.testRuntime = testRuntime
     }
 
     #if DEBUG
@@ -102,7 +118,11 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
             additionalHashingInputs: String? = nil,
             additionalStrings: [String] = [],
             external: String? = nil,
-            embeddedProductReferences: String? = nil
+            embeddedProductReferences: String? = nil,
+            destinations: [String]? = nil,
+            foreignBuild: String? = nil,
+            testDevice: String? = nil,
+            testRuntime: String? = nil
         ) -> TargetContentHashSubhashes {
             TargetContentHashSubhashes(
                 sources: sources,
@@ -122,7 +142,11 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 additionalHashingInputs: additionalHashingInputs,
                 additionalStrings: additionalStrings,
                 external: external,
-                embeddedProductReferences: embeddedProductReferences
+                embeddedProductReferences: embeddedProductReferences,
+                destinations: destinations,
+                foreignBuild: foreignBuild,
+                testDevice: testDevice,
+                testRuntime: testRuntime
             )
         }
     #endif

@@ -1,9 +1,16 @@
 #if os(macOS)
     import ArgumentParser
     import TuistEnvKey
+    import TuistNooraExtension
     import TuistSupport
 
-    struct InspectDependenciesCommand: AsyncParsableCommand {
+    enum DependencyInspectionOutputFormat: String, CaseIterable, ExpressibleByArgument {
+        case text
+        case summary
+        case json
+    }
+
+    struct InspectDependenciesCommand: AsyncParsableCommand, NooraReadyCommand {
         static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "dependencies",
@@ -26,8 +33,24 @@
         )
         var only: [DependencyInspectionType] = []
 
+        @Option(
+            name: .long,
+            help: "The output format. Available options: \(DependencyInspectionOutputFormat.allCases.map(\.rawValue).joined(separator: ", "))."
+        )
+        var output: DependencyInspectionOutputFormat = .text
+
+        @Flag(
+            name: .long,
+            help: "Output the result as JSON. Alias for '--output json'."
+        )
+        var json: Bool = false
+
         @OptionGroup
         var loggingOptions: LoggingOptions
+
+        var jsonThroughNoora: Bool {
+            true
+        }
 
         func run() async throws {
             let inspectionTypes: Set<DependencyInspectionType> = if only.isEmpty {
@@ -37,7 +60,11 @@
             }
 
             try await InspectDependenciesCommandService()
-                .run(path: path, inspectionTypes: inspectionTypes)
+                .run(
+                    path: path,
+                    inspectionTypes: inspectionTypes,
+                    output: json ? .json : output
+                )
         }
     }
 #endif

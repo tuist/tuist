@@ -188,12 +188,15 @@ defmodule Tuist.Runners.Catalog do
   @doc """
   All Xcode versions supported on the macOS fleet, deduped and
   sorted descending (newest first — the default preselect renders
-  at the top of the form dropdown). Xcode is macOS-only, so this
+  at the top of the form dropdown). Versions compare numerically
+  (`26.10` above `26.9`), a stable release lists ahead of its
+  prerelease channels (`27.0` above `27.0-beta`), and entries that
+  don't parse as a version sort last. Xcode is macOS-only, so this
   function takes no platform argument.
   """
   def xcode_versions do
     raw =
-      case Application.get_env(:tuist, :runner_macos_xcode_versions, []) do
+      case Tuist.Environment.runner_macos_xcode_versions() do
         list when is_list(list) -> list
         _ -> []
       end
@@ -202,7 +205,7 @@ defmodule Tuist.Runners.Catalog do
     |> Enum.map(&normalize_xcode_version/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.xcode_version)
-    |> Enum.sort_by(& &1.xcode_version, :desc)
+    |> Enum.sort_by(&xcode_version_sort_key(&1.xcode_version), :desc)
   end
 
   @doc """
@@ -271,6 +274,56 @@ defmodule Tuist.Runners.Catalog do
   defp macos_shape_suffix(_), do: nil
 
   @doc """
+  Name of the `RunnerPool` CR that runs a macOS profile at a site: the pool
+  `pool_name/1` names, racked at the site, which `templates/runner-pool.yaml`
+  renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
+  `tuist-runner-pool-macos-ber1-26-6`). The site comes before the Xcode so the
+  shape suffix stays last, which `resources_for_fleet/1` matches on.
+
+  Only pools the environment declares at a site (`TUIST_RUNNERS_SITE_POOLS`)
+  count, so a profile whose Xcode or shape no site racks answers `nil`, and so
+  does a Linux profile. With several sites racking it, the first by name wins.
+  """
+  def site_pool_name(%{platform: :macos} = profile) do
+    site_pools = Tuist.Environment.runners_site_pools()
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+    name = pool_name(profile)
+
+    if String.starts_with?(name, prefix) do
+      rest = String.replace_prefix(name, prefix, "")
+
+      site_pools
+      |> Map.values()
+      |> Enum.map(& &1.site)
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&"#{prefix}#{&1}-#{rest}")
+      |> Enum.find(&match?(%{platform: :macos}, Map.get(site_pools, &1)))
+    end
+  end
+
+  def site_pool_name(_profile), do: nil
+
+  @doc """
+  The rented pool a site's catalog pool backs onto: the same Xcode and shape
+  without the site (`tuist-runner-pool-macos-ber1-26-6` →
+  `tuist-runner-pool-macos-26-6`). `nil` for a fleet that is not a site's
+  catalog pool, such as an explicit pool racked at a site.
+  """
+  def rented_pool_name(fleet_name) when is_binary(fleet_name) do
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+
+    with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
+         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
+      String.replace_prefix(fleet_name, "#{prefix}#{site}-", prefix)
+    else
+      _ -> nil
+    end
+  end
+
+  def rented_pool_name(_fleet_name), do: nil
+
+  @doc """
   `fleet_name` prefixes that identify `platform` jobs in
   `runner_jobs.fleet_name`. Used by the platform filter + the
   per-platform analytics grouping so profile-dispatched jobs surface
@@ -298,16 +351,36 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  Platform a fleet name belongs to, by the same prefixes
-  `fleet_name_prefixes/1` documents. `nil` for unrecognized names.
+  Platform a fleet name belongs to: a site pool's declared platform
+  (`fleet_site/1`), else by the same prefixes `fleet_name_prefixes/1`
+  documents. `nil` for unrecognized names.
   """
   def fleet_platform(fleet_name) when is_binary(fleet_name) do
-    Enum.find(@platforms, fn platform ->
-      Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
-    end)
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{platform: platform}} ->
+        platform
+
+      :error ->
+        Enum.find(@platforms, fn platform ->
+          Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
+        end)
+    end
   end
 
   def fleet_platform(_), do: nil
+
+  @doc """
+  The site a fleet is racked at (`TUIST_RUNNERS_SITE_POOLS`), or `nil` for a
+  fleet that is not at one. A site's fleets take its runner-cache region.
+  """
+  def fleet_site(fleet_name) when is_binary(fleet_name) do
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{site: site}} -> site
+      :error -> nil
+    end
+  end
+
+  def fleet_site(_), do: nil
 
   @doc """
   Resolves the resources represented by a fleet name.
@@ -511,5 +584,32 @@ defmodule Tuist.Runners.Catalog do
   # runner-image release publishes.
   defp xcode_version_tag(version) when is_binary(version) do
     String.replace(version, ".", "-")
+  end
+
+  # `{parseable, [major, minor, patch], stable, prerelease segments}`,
+  # compared descending: `26.10` above `26.9`, `27.0` above `27.0-beta`,
+  # `27.0-beta-10` above `27.0-beta-6`, and unparseable versions last.
+  defp xcode_version_sort_key(version) do
+    case Regex.run(~r/^(\d+(?:\.\d+)*)(?:-(.+))?$/, version) do
+      [_, release] -> {1, release_segments(release), 1, []}
+      [_, release, prerelease] -> {1, release_segments(release), 0, prerelease_segments(prerelease)}
+      nil -> {0, [], 0, [version]}
+    end
+  end
+
+  defp release_segments(release) do
+    segments = release |> String.split(".") |> Enum.map(&String.to_integer/1)
+    segments ++ List.duplicate(0, max(3 - length(segments), 0))
+  end
+
+  defp prerelease_segments(prerelease) do
+    prerelease
+    |> String.split([".", "-"])
+    |> Enum.map(fn segment ->
+      case Integer.parse(segment) do
+        {integer, ""} -> integer
+        _ -> segment
+      end
+    end)
   end
 end

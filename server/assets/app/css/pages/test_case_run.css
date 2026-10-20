@@ -215,16 +215,28 @@
       gap: var(--noora-spacing-9);
 
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--noora-spacing-7);
+
+        @media (max-width: 768px) {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        @media (max-width: 480px) {
+          grid-template-columns: 1fr;
+        }
+
+        & > [data-part="metadata"]:only-child {
+          grid-column: 1 / -1;
+        }
 
         & > [data-part="metadata"] {
           display: flex;
-          flex: 1;
           flex-direction: column;
           align-items: flex-start;
           gap: var(--noora-spacing-4);
+          min-width: 0;
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
@@ -653,6 +665,69 @@
             word-break: break-word;
           }
         }
+      }
+    }
+  }
+
+  & [data-part="repetitions-card"] {
+    & [data-part="repetitions-card-section"] {
+      & [data-part="repetitions"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+      }
+
+      & [data-part="repetition-wrapper"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+      }
+
+      /* A repetition that failed carries a message block, so it needs room from
+         the plain rows either side of it. */
+      & [data-part="repetition-wrapper"]:has([data-part="repetition-failure"]) {
+        gap: var(--noora-spacing-4);
+        margin-block: var(--noora-spacing-4);
+      }
+
+      & [data-part="repetition-item"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+
+        & [data-part="repetition-name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+
+        & [data-part="repetition-duration"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-1);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+          & svg {
+            width: var(--noora-icon-size-small);
+            height: var(--noora-icon-size-small);
+          }
+        }
+      }
+
+      & [data-part="repetition-failure"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        box-shadow: var(--noora-border-section);
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-tertiary);
+        padding: var(--noora-spacing-5);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        white-space: pre-wrap;
+        word-break: break-word;
       }
     }
   }

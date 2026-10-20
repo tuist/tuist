@@ -359,8 +359,13 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           secrets: |
             github_token=${{ secrets.GITHUB_TOKEN }}
+          # The image URL (ghcr.io/tuist/tuist:sha-<12chars>) is shared with the
+          # managed pipeline, so this build can replace a hosted image whose
+          # `release` is a real tag. Keep TUIST_VERSION aligned with the image
+          # tag instead of falling back to the Dockerfile default `0.0.0`.
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
 
@@ -502,7 +507,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.platform_ref }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl jq"
           cache: "false"
@@ -570,7 +575,11 @@ jobs:
               [ -n "$version" ] || continue
               runtime_candidates+=("$version")
             done < <(
-              git tag --merged HEAD --list 'kura@*' \
+              # No --merged filter: the promoted kura@ tag now lives on
+              # releases/kura-X.Y.x, which is not ancestor of the platform
+              # ref. resolve_published_tag still gates on the image being
+              # on GHCR, so a phantom tag can't be selected.
+              git tag --list 'kura@*' \
                 | sed 's/^kura@//' \
                 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
                 | sort -rV
@@ -1112,7 +1121,10 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
-      - uses: jdx/mise-action@v3.2.0
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl"
           cache: "false"

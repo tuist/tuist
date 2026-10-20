@@ -12,6 +12,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -96,7 +97,7 @@ defmodule Tuist.VCSTest do
         ci_project_handle: "tuist/tuist"
       }
 
-      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/jobs/github/tuist/tuist/12345"
     end
 
     test "returns Buildkite builds URL for buildkite provider" do
@@ -134,6 +135,103 @@ defmodule Tuist.VCSTest do
     @git_ref "refs/pull/1/merge"
     @git_remote_url_origin "https://github.com/tuist/tuist"
     @git_commit_sha "1234567890"
+
+    test "unsigned reports cannot replace authenticated schemes or latest commits in PR comments" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "TrustedApp",
+          duration: 1000,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "TrustedApp",
+          duration: 9_000_000,
+          status: "failure",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          submission_auth: "network_trusted"
+        )
+
+      gradle_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          root_project_name: "TrustedGradle",
+          status: "success",
+          duration_ms: 1000,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second) |> NaiveDateTime.add(-60)
+        )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        root_project_name: "TrustedGradle",
+        status: "failure",
+        duration_ms: 9_000_000,
+        git_ref: @git_ref,
+        git_commit_sha: "unsigned-commit",
+        submission_auth: "network_trusted"
+      )
+
+      for system <- ["xcode", "gradle", "bazel", "mix"] do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "Trusted-#{system}",
+          build_system: system,
+          status: "success",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha
+        )
+
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "Forged-#{system}",
+          build_system: system,
+          status: "failure",
+          git_ref: @git_ref,
+          git_commit_sha: "unsigned-commit",
+          submission_auth: "network_trusted"
+        )
+      end
+
+      Tuist.Tests.Test.Buffer.flush()
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json].body
+        assert body =~ "builds/#{build.id}"
+        assert body =~ "builds/#{gradle_id}"
+        assert body =~ "Trusted-xcode"
+        refute body =~ "Forged-"
+        refute body =~ "unsigned-commit"
+        refute body =~ "9000.0s"
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test} -> "tests/#{test.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "builds/#{build.id}" end
+      })
+    end
 
     setup do
       stub(Environment, :github_app_client_id, fn -> "client_id" end)
@@ -232,11 +330,20 @@ defmodule Tuist.VCSTest do
           test_run_id: test_run_one.id
         )
 
+      {:ok, test_run_two_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 10,
+          cacheable_task_local_hits_count: 6,
+          cacheable_task_remote_hits_count: 2
+        )
+
       {:ok, test_run_two} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
+          build_run_id: test_run_two_build.id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           status: "failure",
@@ -294,7 +401,7 @@ defmodule Tuist.VCSTest do
           remote_cache_target_hits: ["C"],
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
-          remote_test_target_hits: ["CTests"],
+          remote_test_target_hits: [],
           status: "failure",
           test_run_id: test_run_two.id
         )
@@ -336,10 +443,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | - | - | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 80 % | 1/3 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -472,6 +579,135 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "creates a comment when a preview has no commit SHA" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: @git_ref,
+          git_commit_sha: nil,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) |  |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment when a bundle has no commit SHA" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_branch: "feat/my-feature",
+          git_ref: @git_ref,
+          git_commit_sha: nil,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) |  | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
     test "creates a comment when full handle and provider is the same but url is different" do
       # Given
       project =
@@ -502,7 +738,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -557,7 +793,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -724,7 +960,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: body
                                          } ->
         assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
@@ -1326,9 +1562,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -1337,6 +1573,110 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "rolls up the mix test runs of the latest commit" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      mix_test_run = fn attrs, test_cases ->
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            [
+              project_id: project.id,
+              account_id: project.account_id,
+              git_ref: @git_ref,
+              git_commit_sha: @git_commit_sha,
+              build_system: "mix",
+              test_modules: [
+                %{
+                  name: "Tuist.AccountsTest",
+                  status: if(Enum.any?(test_cases, &(&1.status == "failure")), do: "failure", else: "success"),
+                  duration: 1000,
+                  test_cases: Enum.map(test_cases, &Map.put(&1, :duration, 100))
+                }
+              ]
+            ] ++ attrs
+          )
+
+        test_run
+      end
+
+      _previous_commit_test_run =
+        mix_test_run.(
+          [git_commit_sha: "abcdef0123", scheme: "clickhouse-current", status: "failure"],
+          [%{name: "deletes an account", status: "failure"}]
+        )
+
+      current_test_run =
+        mix_test_run.([scheme: "clickhouse-current"], [
+          %{name: "creates an account", status: "success"},
+          %{name: "deletes an account", status: "success"}
+        ])
+
+      _replaced_floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "failure"}
+        ])
+
+      floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "success"}
+        ])
+
+      unlabelled_test_run = mix_test_run.([], [%{name: "lists accounts", status: "skipped"}])
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      test_runs_cell =
+        Enum.map_join(
+          [
+            {"Unknown", unlabelled_test_run},
+            {"clickhouse-current", current_test_run},
+            {"clickhouse-floor", floor_test_run}
+          ],
+          "<br/>",
+          fn {name, test_run} -> "[#{name}](https://tuist.dev/test_runs/#{test_run.id})" end
+        )
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~
+                 """
+                 #### Tests 🧪
+
+                 | Test runs | Status | Passed | Failed | Skipped | Commit |
+                 |:-:|:-:|:-:|:-:|:-:|:-:|
+                 | #{test_runs_cell} | ❌ | 2 | 1 | 1 | #{commit_link} |
+                 """
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1423,15 +1763,15 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 1 | #{commit_link} |
 
         ##### Gradle
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -1494,9 +1834,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 | #{commit_link} |
 
         """
 
@@ -1617,9 +1957,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 | #{commit_link} |
 
 
         #### Builds 🔨
@@ -1855,9 +2195,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -1964,9 +2304,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2226,9 +2566,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 2 | 0 | 2 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2245,6 +2585,115 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "renders a multi-line failure message as a code block that keeps its lines" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      message =
+        Enum.join(
+          [
+            ~s{ui().contains("0190a5c4")},
+            ~s{ui() → "╭────┬─────────╮},
+            ~s{│ ID │ Command │},
+            ~s{╰────┴─────────╯"}
+          ],
+          "\n"
+        )
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          status: "failure",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "failure",
+              duration: 1000,
+              test_suites: [%{name: "MySuite", status: "failure", duration: 1000}],
+              test_cases: [
+                %{
+                  name: "test_failing",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: message,
+                      path: "Tests/MyModule/MyTests.swift",
+                      line_number: 10,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      expected_failed_test =
+        """
+        - [**test_failing**](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_run.test_case_id}) · MyModule · MySuite\\
+        [`Tests/MyModule/MyTests.swift:10`](https://github.com/tuist/tuist/blob/#{@git_commit_sha}/Tests/MyModule/MyTests.swift#L10)
+
+          ```
+          ui().contains("0190a5c4")
+          ui() → "╭────┬─────────╮
+          │ ID │ Command │
+          ╰────┴─────────╯"
+          ```
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ expected_failed_test
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2370,9 +2819,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Ran test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2548,6 +2997,24 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "pull_request_number_from_git_ref/1" do
+    test "returns the pull request number of a pull request ref" do
+      assert VCS.pull_request_number_from_git_ref("refs/pull/23958/merge") == 23_958
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7/head") == 7
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7") == 7
+    end
+
+    test "returns nil for refs that are not pull request refs" do
+      assert VCS.pull_request_number_from_git_ref("refs/heads/main") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/tags/v1.0.0") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/12abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/0/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("") == nil
+      assert VCS.pull_request_number_from_git_ref(nil) == nil
+    end
+  end
+
   describe "create_comment/1" do
     setup do
       stub(Environment, :github_app_configured?, fn -> true end)
@@ -2566,7 +3033,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:ok, %Comment{id: 1, client_id: "client_id"}}
@@ -2699,7 +3166,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:error, :forbidden}
@@ -2898,7 +3365,7 @@ defmodule Tuist.VCSTest do
       assert {:ok, %Oban.Job{}} = result
 
       assert_enqueued(
-        worker: VCS.Workers.CommentWorker,
+        worker: CommentWorker,
         args: %{
           "build_id" => build.id,
           "git_commit_sha" => "abc123",
@@ -2906,6 +3373,34 @@ defmodule Tuist.VCSTest do
           "git_remote_url_origin" => "https://github.com/tuist/tuist",
           "project_id" => project.id
         }
+      )
+    end
+
+    test "strips credentials from the remote URL before enqueuing" do
+      project = ProjectsFixtures.project_fixture()
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        project_id: project.id
+      })
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        "git_commit_sha" => "def456",
+        "git_ref" => "refs/pull/124/head",
+        "git_remote_url_origin" => "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        "project_id" => project.id
+      })
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "abc123", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+      )
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "def456", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
       )
     end
 
@@ -3182,7 +3677,7 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -3220,7 +3715,7 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -3246,6 +3741,29 @@ defmodule Tuist.VCSTest do
       assert repositories == page1_repos ++ page2_repos
     end
 
+    test "isolates repository caches by installation row even when endpoint and upstream ID overlap" do
+      first = %GitHubAppInstallation{
+        id: "first",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3",
+        installation_id: "123"
+      }
+
+      second = %{first | id: "second"}
+
+      expect(KeyValueStore, :get_or_update, 2, fn key, _opts, fetch ->
+        send(self(), {:repository_key, key})
+        fetch.()
+      end)
+
+      stub(Client, :list_installation_repositories, fn _, _ -> {:ok, %{meta: %{next_url: nil}, repositories: []}} end)
+      assert {:ok, []} = VCS.get_github_app_installation_repositories(first)
+      assert {:ok, []} = VCS.get_github_app_installation_repositories(second)
+      assert_received {:repository_key, first_key}
+      assert_received {:repository_key, second_key}
+      refute first_key == second_key
+    end
+
     test "returns error when GitHub client fails on first page" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -3261,7 +3779,7 @@ defmodule Tuist.VCSTest do
       error_message = "GitHub API error"
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -3651,6 +4169,43 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "get_user_by_username/1" do
+    setup do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      :ok
+    end
+
+    test "looks the user up through the project's connected repository" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "acme/app", provider: :github])
+
+      expect(Client, :get_repository_user_by_username, fn %{
+                                                            repository_full_handle: repository_full_handle,
+                                                            username: username
+                                                          } ->
+        assert repository_full_handle == "acme/app"
+        assert username == "jane-doe_acme"
+        {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+      end)
+
+      # When
+      user = VCS.get_user_by_username(%{username: "jane-doe_acme", project: project})
+
+      # Then
+      assert user == {:ok, %VCS.User{id: "197617637", username: "jane-doe_acme"}}
+    end
+
+    test "returns no_vcs_connection for a project without a connected repository" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&Client.get_repository_user_by_username/1)
+
+      # When / Then
+      assert VCS.get_user_by_username(%{username: "jane-doe_acme", project: project}) == {:error, :no_vcs_connection}
+    end
+  end
+
   describe "api_url/2" do
     test "returns api.github.com for the default github.com client URL" do
       assert VCS.api_url(:github, "https://github.com") == "https://api.github.com"
@@ -3822,6 +4377,7 @@ defmodule Tuist.VCSTest do
           account_id: account_one.id,
           installation_id: "1001",
           client_url: "https://ghes.example.com",
+          api_url: "https://proxy.example.com/api/v3",
           app_id: "ghes-app-1",
           client_id: "cid-1",
           client_secret: "cs-1",
@@ -3855,7 +4411,8 @@ defmodule Tuist.VCSTest do
 
       api_urls = Enum.map(apps, & &1.api_url)
       assert "https://api.github.com" in api_urls
-      assert "https://ghes.example.com/api/v3" in api_urls
+      assert "https://proxy.example.com/api/v3" in api_urls
+      refute "https://ghes.example.com/api/v3" in api_urls
       assert "https://other-ghes.example.com/api/v3" in api_urls
     end
 

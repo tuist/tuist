@@ -1,8 +1,13 @@
+import FileSystem
 import Foundation
 import Noora
+import Path
+import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
+import TuistREAPI
 import TuistServer
+import TuistSupport
 
 public protocol BazelCredentialHelperCommandServicing {
     func run(
@@ -15,26 +20,34 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let configLoader: ConfigLoading
+    private let getCacheTokenService: GetCacheTokenServicing
+    private let cacheURLStore: CacheURLStoring
+    private let fileSystem: FileSysteming
     private let date: () -> Date
 
     /// How far before a token's real expiry Bazel is asked to come back for a fresh
     /// credential. Bazel caches the credential we return until `expires` and only
     /// re-invokes this helper lazily, on the first request issued after that
-    /// timestamp. Bringing the reported expiry forward — and refreshing proactively
-    /// once the token is within this window — guarantees Bazel always rotates to a
-    /// fresh token before the current one is rejected by the server, covering
-    /// in-flight requests and clock skew between the developer machine and the cache.
+    /// timestamp. Each invocation exchanges a fresh cache token; bringing its reported
+    /// expiry forward leaves a margin for in-flight requests and clock skew.
     private static let expirySafetyMargin: TimeInterval = 60
+    private static let endpointResolutionTimeout: Duration = .seconds(2)
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         configLoader: ConfigLoading = ConfigLoader(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
+        fileSystem: FileSysteming = FileSystem(),
         date: @escaping () -> Date = { Date() }
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.configLoader = configLoader
+        self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
+        self.fileSystem = fileSystem
         self.date = date
     }
 
@@ -42,8 +55,65 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         helperCommand: String,
         directory: String?
     ) async throws {
+        try await run(
+            helperCommand: helperCommand,
+            directory: directory,
+            bazelrcDirectory: nil
+        )
+    }
+
+    public func run(
+        helperCommand: String,
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async throws {
         let response = try await credentials(helperCommand: helperCommand, directory: directory)
         try Noora.current.json(response)
+        await refreshBazelrcEndpoint(
+            directory: directory,
+            bazelrcDirectory: bazelrcDirectory
+        )
+    }
+
+    /// Refreshes managed or custom routing configuration without activating capacity.
+    /// The first cache request activates cold managed capacity.
+    /// Bazel reads this file at startup, so changes take effect on the next build.
+    private func refreshBazelrcEndpoint(
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async {
+        do {
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let bazelrcDirectoryPath = try await Environment.current.pathRelativeToWorkingDirectory(
+                bazelrcDirectory ?? directory
+            )
+            let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
+            guard try await fileSystem.exists(bazelrcPath) else { return }
+
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let accountHandle = String(fullHandle.split(separator: "/")[0])
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            var resolved: URL?
+            try? await withTimeout(Self.endpointResolutionTimeout, onTimeout: {}, action: {
+                resolved = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            })
+            guard let cacheURL = resolved, let host = cacheURL.host else { return }
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+
+            let contents = try await fileSystem.readTextFile(at: bazelrcPath)
+            guard let rewritten = BazelrcFile.replacingRemoteCache(in: contents, with: endpoint) else { return }
+
+            try await fileSystem.writeText(
+                rewritten,
+                at: bazelrcPath,
+                encoding: .utf8,
+                options: Set([.overwrite])
+            )
+        } catch {
+            // Best-effort by design; see above.
+        }
     }
 
     func credentials(
@@ -58,44 +128,16 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        guard var token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
-        else {
+        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw BazelCredentialHelperCommandServiceError.notAuthenticated
         }
 
-        // If a refreshable user token is already within the safety margin of expiring,
-        // refresh it now so Bazel caches a token with a full lifetime ahead of it
-        // rather than one about to be rejected mid-build. Project tokens never expire
-        // and account tokens cannot be refreshed, so they are returned as-is.
-        if case let .user(accessToken, _) = token,
-           accessToken.expiryDate.timeIntervalSince(date()) <= Self.expirySafetyMargin
-        {
-            do {
-                try await serverAuthenticationController.refreshToken(serverURL: serverURL)
-                if let refreshedToken = try await serverAuthenticationController
-                    .authenticationToken(serverURL: serverURL)
-                {
-                    token = refreshedToken
-                }
-            } catch {
-                // Best effort: if the proactive refresh fails (e.g. a transient network
-                // error) fall back to the token we already have, which remains valid for
-                // up to the safety margin.
-            }
-        }
-
-        let expiryDate: Date? = switch token {
-        case let .user(accessToken: accessToken, refreshToken: _):
-            accessToken.expiryDate.addingTimeInterval(-Self.expirySafetyMargin)
-        case let .account(accessToken):
-            accessToken.expiryDate
-        case .project:
-            nil
-        }
-
+        let cacheToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: config.fullHandle)
         return BazelCredentialHelperResponse(
-            headers: ["Authorization": ["Bearer \(token.value)"]],
-            expires: expiryDate.map { ISO8601DateFormatter().string(from: $0) }
+            headers: ["Authorization": ["Bearer \(cacheToken.token)"]],
+            expires: ISO8601DateFormatter().string(from: date().addingTimeInterval(
+                max(0, TimeInterval(cacheToken.expiresIn) - Self.expirySafetyMargin)
+            ))
         )
     }
 }

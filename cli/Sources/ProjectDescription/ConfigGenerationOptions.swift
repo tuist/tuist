@@ -39,6 +39,15 @@ extension Tuist {
             case fail
         }
 
+        /// The on-disk format used to serialize each generated `.xcodeproj`.
+        public enum ProjectFormat: String, Codable, Equatable, Sendable {
+            /// The classic OpenStep property list format stored in `project.pbxproj`.
+            case pbxproj
+            /// The experimental JSON5 format introduced in Xcode 27.2, stored in `project.xcproj`.
+            /// Requires Xcode 27.2 or later to open the generated projects.
+            case xcproj
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -108,8 +117,19 @@ extension Tuist {
         /// When true, it includes a scheme to run "tuist generate"
         public var includeGenerateScheme: Bool
 
-        /// When enabled, adds Xcode cache compilation settings to the project
+        /// When enabled, adds Xcode compilation-cache settings and configures LLDB source mappings
+        /// for the workspace's Run and Test actions, including automatically generated schemes.
+        /// Sources are mapped to workspace-wide prefixes such as `/^root`. Xcode's per-project mappings
+        /// (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, which map to `/^src`)
+        /// stay off unless a project sets them, because a single debugger source map cannot resolve a prefix
+        /// that names a different directory in every project.
         public var enableCaching: Bool
+
+        /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
+        /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
+        /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
+        /// each binary's target-specific `compilation-prefix-map.json`. Requires `enableCaching`.
+        public var enableCoveragePrefixMapping: Bool
 
         /// When enabled, generates the Swift Package Registry configuration file during project generation.
         /// This eliminates the need to run `tuist registry setup` separately.
@@ -138,6 +158,10 @@ extension Tuist {
         /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
         public var onOutdatedDependencies: OutdatedDependenciesAction
 
+        /// The on-disk format used to serialize each generated `.xcodeproj`. Defaults to `.pbxproj`.
+        /// Set to `.xcproj` to opt into Xcode 27.2's experimental JSON5 project format.
+        public var projectFormat: ProjectFormat
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -148,12 +172,14 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
+            enableCoveragePrefixMapping: Bool = false,
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = "5",
             manifestEnvironment: [String] = [],
-            onOutdatedDependencies: OutdatedDependenciesAction = .warn
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -169,11 +195,13 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCoveragePrefixMapping: enableCoveragePrefixMapping,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
                 manifestEnvironment: manifestEnvironment,
-                onOutdatedDependencies: onOutdatedDependencies
+                onOutdatedDependencies: onOutdatedDependencies,
+                projectFormat: projectFormat
             )
         }
 
@@ -210,11 +238,13 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
                 manifestEnvironment: [],
-                onOutdatedDependencies: .warn
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
 
@@ -246,11 +276,13 @@ extension Tuist {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
+                enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
                 manifestEnvironment: [],
-                onOutdatedDependencies: .warn
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
     }

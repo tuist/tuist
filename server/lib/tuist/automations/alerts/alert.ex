@@ -76,6 +76,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
   def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
 
+  # Attempt revisions invalidate stale publishers without hiding active recovery events.
+  def event_generation(alert), do: alert.event_generation || alert.baseline_generation
+
+  def apply_actions_to_existing_matches?(alert) do
+    recovery_ledger?(alert) and alert.trigger_config["apply_actions_to_existing_matches"] == true
+  end
+
   @doc """
   Established rolling metric alerts are evaluated from recently changed test
   cases. Calendar-window alerts and rolling alerts without a baseline stay on
@@ -105,6 +112,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_actions, {:array, :map}, default: []
     field :baseline_established_at, :utc_datetime
     field :baseline_generation, :integer, default: 0
+    field :event_generation, :integer
     field :last_scoped_evaluation_inserted_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
@@ -258,8 +266,18 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
+    |> validate_existing_matches(trigger_config, monitor_type)
     |> validate_state_filter(trigger_config, :trigger_config)
     |> validate_recovery_config()
+  end
+
+  defp validate_existing_matches(changeset, config, monitor_type) do
+    case Map.get(config, "apply_actions_to_existing_matches", false) do
+      false -> changeset
+      true when monitor_type in @recovery_ledger_monitor_types -> changeset
+      true -> add_error(changeset, :trigger_config, "applying actions to existing matches requires a metric monitor")
+      _ -> add_error(changeset, :trigger_config, "apply_actions_to_existing_matches must be a boolean")
+    end
   end
 
   defp validate_test_updated_config(changeset, trigger_config) do
@@ -364,7 +382,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp validate_window_shape(config, max_rolling_window_size) do
     case window_type(config) do
       "last_days" ->
-        if valid_window?(config["window"]),
+        if valid_day_window?(config["window"]),
           do: :ok,
           else: {:error, "window must be a string like '30d' (day-level only)"}
 
@@ -390,10 +408,15 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp window_type(%{"window_type" => type}) when type in @window_types, do: type
   defp window_type(_), do: :invalid
 
-  # The flaky-test monitor evaluates against a per-day-aggregated MV, so
-  # sub-day windows would silently round to a full day and look broken.
-  # Constrain `trigger_config.window` to day-level (`Nd`) up front so users
-  # don't think `1h` / `5m` are honored.
-  defp valid_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
-  defp valid_window?(_), do: false
+  @doc """
+  Whether a `last_days` window string is day-level (`Nd`).
+
+  The flaky-test monitor evaluates against a per-day-aggregated MV, so sub-day
+  windows would silently round to a full day and look broken. Constrain
+  `trigger_config.window` to day-level up front so users don't think `1h` /
+  `5m` are honored. Public so the dashboard form can gate Save on the same
+  rule instead of letting an invalid window reach a silent no-op.
+  """
+  def valid_day_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
+  def valid_day_window?(_window), do: false
 end

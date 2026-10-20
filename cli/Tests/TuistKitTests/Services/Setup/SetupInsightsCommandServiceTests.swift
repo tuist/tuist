@@ -24,7 +24,7 @@ struct SetupInsightsCommandServiceTests {
                 programArguments: .any,
                 environmentVariables: .any
             )
-            .willReturn()
+            .willReturn(nil)
     }
 
     @Test(.withMockedEnvironment(), .withMockedLogger()) func setupInsights() async throws {

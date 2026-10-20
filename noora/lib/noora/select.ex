@@ -45,10 +45,15 @@ defmodule Noora.Select do
   end
 
   def select(%{field: %FormField{} = field} = assigns) do
+    # `value` is a declared attribute with a default, so it is always present in
+    # assigns and `assign_new/3` would never reach the field. Without this the
+    # control takes its name from the field but not its value, so it renders the
+    # placeholder and submits nothing until the user picks an option by hand.
+    # An explicitly passed value still wins over the field's.
     assigns
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)
-    |> assign_new(:value, fn -> field.value end)
+    |> assign(:value, assigns[:value] || field.value)
     |> select()
   end
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,59 @@ func TestVMUnmarshalSizeAcceptsListAndGetEncodings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression for the same warm-path miss from the other direction: Tart
+// reports an absent VM as `the specified VM "x" does not exist`, which the
+// not-found matcher did not recognize. Get surfaced that as an error rather
+// than (nil, nil), so ensureGolden logged every first materialization of a
+// digest as a warm-path probe failure — erasing the distinction those lines
+// exist to draw, between a golden that was never here and one that should
+// have been.
+func TestGetReportsMissingVMAsNotFound(t *testing.T) {
+	cases := map[string]string{
+		"tart 2.x":          `the specified VM "tuist-golden-abc" does not exist`,
+		"older phrasing":    `VM not found`,
+		"bare not found":    `tuist-golden-abc: not found`,
+		"trailing newline":  "the specified VM \"tuist-golden-abc\" does not exist\n",
+		"capitalized start": `The specified VM "tuist-golden-abc" does not exist`,
+	}
+	for name, stderr := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := &Client{Binary: fakeTart(t, stderr, 2)}
+
+			vm, err := c.Get(context.Background(), "tuist-golden-abc")
+			if err != nil {
+				t.Fatalf("Get(%q) returned error %v, want nil", stderr, err)
+			}
+			if vm != nil {
+				t.Fatalf("Get(%q) returned %+v, want nil", stderr, vm)
+			}
+		})
+	}
+}
+
+// The cold path re-pulls a multi-GB image, so a probe that failed for any
+// other reason must stay an error: reading it as "absent" would turn a
+// transient `tart get` failure into a needless pull on a host that already
+// holds the golden.
+func TestGetSurfacesProbeFailuresOtherThanNotFound(t *testing.T) {
+	c := &Client{Binary: fakeTart(t, "tart: could not acquire lock", 1)}
+
+	if _, err := c.Get(context.Background(), "tuist-golden-abc"); err == nil {
+		t.Fatal("Get returned nil error for a failed probe, want the failure surfaced")
+	}
+}
+
+// fakeTart writes a stub `tart` that prints stderr and exits with code.
+func fakeTart(t *testing.T, stderr string, code int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "faketart")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' %s >&2\nexit %d\n", shellEscape(stderr), code)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 // TestCloneTimeoutKillsHungProcess verifies the per-op watchdog: a
@@ -481,5 +535,115 @@ func TestParseDFCapacityPercent(t *testing.T) {
 				t.Fatalf("capacity = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+// scriptedTart writes a stub `tart` from body, which can append its argv to
+// $CALLS, and returns the stub's path and the calls file.
+func scriptedTart(t *testing.T, body string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	path := filepath.Join(dir, "faketart")
+	script := "#!/bin/sh\nCALLS='" + calls + "'\necho \"$*\" >> \"$CALLS\"\n" + body
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path, calls
+}
+
+func recordedCalls(t *testing.T, calls string) []string {
+	t.Helper()
+	out, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// Tart 2.40.1 refuses to clone over an existing directory, including a
+// leftover too incomplete for `tart delete` to remove. Without the retry such
+// a name could never be cloned again, and for a runner clone the reconciler
+// would also drop the golden and re-pull it on every attempt.
+func TestCloneFromReplacesALeftoverOnTartThatRefusesOverwrites(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) exit 0 ;;
+esac
+echo 'Error: VM "dst" already exists, use --overwrite to replace it' >&2
+exit 64
+`)
+	c := &Client{Binary: bin}
+	if err := c.CloneFrom(context.Background(), "ghcr.io/tuist/runner@sha256:abc", "dst", true); err != nil {
+		t.Fatalf("clone over a leftover: %v", err)
+	}
+	want := []string{
+		"clone --insecure ghcr.io/tuist/runner@sha256:abc dst",
+		"clone --overwrite --insecure ghcr.io/tuist/runner@sha256:abc dst",
+	}
+	if got := recordedCalls(t, calls); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("tart calls = %q, want %q", got, want)
+	}
+}
+
+// Tart before 2.40.1 rejects `--overwrite` outright, so it must only ever be
+// passed after a refusal that names it.
+func TestCloneFromNeverPassesOverwriteToTartThatLacksIt(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) echo "Error: Unknown option '--overwrite'" >&2; exit 64 ;;
+esac
+exit 0
+`)
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err != nil {
+		t.Fatalf("clone: %v", err)
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 || got[0] != "clone golden dst" {
+		t.Fatalf("tart calls = %q, want one plain clone", got)
+	}
+}
+
+func TestCloneFromSurfacesOtherFailuresWithoutRetrying(t *testing.T) {
+	bin, calls := scriptedTart(t, "echo 'Error: no space left on device' >&2\nexit 1\n")
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err == nil {
+		t.Fatal("clone succeeded")
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 {
+		t.Fatalf("tart calls = %q, want no retry", got)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	bin, _ := scriptedTart(t, "echo 2.41.1\n")
+	c := &Client{Binary: bin}
+	got, err := c.Version(context.Background())
+	if err != nil || got != "2.41.1" {
+		t.Fatalf("Version() = %q, %v; want 2.41.1", got, err)
+	}
+}
+
+// Output captured from `tart list --format json` and `tart get --format json`
+// on 2.32.1 and 2.41.1. 2.39.0 also reports Disk as null while a running VM
+// holds an ASIF disk open; nothing here reads Disk, but the documents must
+// still decode.
+func TestVMUnmarshalAcrossTartVersions(t *testing.T) {
+	for name, payload := range map[string]string{
+		"list 2.32.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Accessed":"2026-10-19T15:27:11Z","Running":false,"State":"stopped"}]`,
+		"list 2.41.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Running":false,"State":"stopped","Accessed":"2026-10-19T15:27:13Z"}]`,
+		"list ASIF busy": `[{"Disk":null,"Name":"base","Source":"local","Size":0,"Running":true,"State":"running","Accessed":"2026-10-19T15:27:13Z"}]`,
+	} {
+		var vms []VM
+		if err := json.Unmarshal([]byte(payload), &vms); err != nil || len(vms) != 1 || vms[0].Name != "base" || vms[0].Source != "local" {
+			t.Errorf("%s: decoded %+v, %v", name, vms, err)
+		}
+	}
+	for name, payload := range map[string]string{
+		"get 2.32.1": `{"Running":false,"CPU":4,"OS":"linux","Size":"0.000","Memory":4096,"DiskFormat":"raw","Disk":1,"State":"stopped","Display":"1024x768"}`,
+		"get 2.41.1": `{"MACAddress":"ee:60:8f:30:86:76","Memory":4096,"Running":false,"DiskFormat":"raw","OS":"linux","Disk":null,"Display":"1024x768","CPU":4,"Size":"0.000","State":"stopped"}`,
+	} {
+		var vm VM
+		if err := json.Unmarshal([]byte(payload), &vm); err != nil || vm.CPU != 4 {
+			t.Errorf("%s: decoded %+v, %v", name, vm, err)
+		}
 	}
 }

@@ -1,6 +1,9 @@
 package linux
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,7 +87,7 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
 		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
 	}
-	// The SSH form (Dedibox/OVH/Elastic Metal — the boxes with a separate /data)
+	// The SSH form (OVH/Elastic Metal — the boxes with a separate /data)
 	// must carry the local-path-provisioner bind-mount so cache PVCs land on /data.
 	if !strings.Contains(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner") {
 		t.Fatalf("expected the SSH form to bind-mount the local-path provisioner root onto /data, got:\n%s", script)
@@ -104,7 +107,7 @@ func TestRenderLinux_SelfSignedServingCertAndClientCA(t *testing.T) {
 	ca := "-----BEGIN CERTIFICATE-----\nMIIBdummyCAbytes\n-----END CERTIFICATE-----\n"
 
 	withCA := renderLinuxBootstrapScript(linuxCloudInitOptions{
-		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		NodeName:       "tuist-tuist-ovh-fleet-abc",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
 		ClusterCAPEM:   []byte(ca),
 		K8sMinor:       "v1.34",
@@ -226,7 +229,7 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 
 func TestRenderLinuxBootstrapScript_NoPasswdSudo(t *testing.T) {
 	opts := linuxCloudInitOptions{
-		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		NodeName:       "tuist-tuist-ovh-fleet-abc",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
 		K8sMinor:       "v1.34",
 		BootstrapUser:  "tuist",
@@ -361,6 +364,36 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 	}
 }
 
+// cacheFleetTaints is what every cache fleet template stamps on its boxes, and
+// what tells the self-join that tenant volumes will land on this /data.
+func cacheFleetTaints() []corev1.Taint {
+	return []corev1.Taint{{Key: kuraCacheTaintKey, Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+}
+
+// A runner box has no tenant volumes on /data, so the image-store quota bounds
+// nothing there and only adds a ceiling that nothing can clear: XFS reports a
+// blown project quota as ENOSPC, and the kubelet's image GC keys on the
+// FILESYSTEM's free space, which on an 828 GiB /data is nowhere near a
+// threshold. A runner Pod's whole writable layer lives in that store, so the
+// quota is reached by ordinary CI and the box then fails every job it accepts
+// until it is drained.
+func TestContainerdQuotaSkippedOnFleetsWithoutCacheVolumes(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "runner-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", KataRuntime: true,
+		Taints: []corev1.Taint{{Key: "tuist.dev/runner-tier", Value: "bare-metal", Effect: corev1.TaintEffectNoSchedule}},
+	})
+
+	if strings.Contains(script, containerdQuotaPath) {
+		t.Fatalf("expected no image-store quota on a fleet with no cache volumes, got:\n%s", script)
+	}
+	// The relocation itself must stay: the image store still belongs on the big
+	// disk rather than the ~20G root, quota or not.
+	if !strings.Contains(script, "mkdir -p /data/containerd") {
+		t.Fatalf("expected the image-store relocation to survive, got:\n%s", script)
+	}
+}
+
 // The image store is the one consumer of /data that is not a tenant, and it is
 // otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
 // nearly full, so on a box whose tenants are light containerd can grow into the
@@ -371,7 +404,7 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
-		BootstrapUser: "ubuntu", InstanceType: "ovh",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", Taints: cacheFleetTaints(),
 	})
 
 	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
@@ -393,7 +426,7 @@ func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) 
 // join. Every tenant on the box is bounded either way; what is lost is defence
 // in depth on the shared pool, which is the state the box was in before.
 func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
-	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34", Taints: cacheFleetTaints()})
 	line := "bash " + containerdQuotaPath + " || echo"
 	if !strings.Contains(script, line) {
 		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)
@@ -410,5 +443,153 @@ func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
 	}
 	if !strings.Contains(containerdQuotaScript, "bhard=$bytes") || strings.Contains(containerdQuotaScript, "ihard=") {
 		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
+	}
+}
+
+// TestRenderLinux_KataRuntime pins both halves of the runner-fleet opt-in: a box
+// that asked for kata gets the runtime AND the label the kata-qemu RuntimeClass
+// selects on, and a box that did not gets neither. The negative half is the one
+// that matters operationally — the four Kura cache fleets share this renderer,
+// and silently handing them a kata download plus a containerd runtime block is a
+// change to a live cache node's runtime for no reason.
+func TestRenderLinux_KataRuntime(t *testing.T) {
+	opts := linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-ovh-fleet-runners-linux-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	}
+
+	optsKata := opts
+	optsKata.KataRuntime = true
+	withKata := renderLinuxBootstrapScript(optsKata)
+
+	for _, want := range []string{
+		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
+		"katacontainers.io/kata-runtime=true",
+		"tuist.dev/kata-runtime=true",
+		kataSharedMemoryScript,
+		kataSharedMemoryUnit,
+		// Set on the handler itself: the earlier rewrite only touches what the
+		// generated default emitted, and this block is appended after it.
+		"SystemdCgroup = true",
+	} {
+		if !strings.Contains(withKata, want) {
+			t.Errorf("kata-enabled render is missing %q", want)
+		}
+	}
+
+	// The handler is registered under containerd's v3 config syntax, so a box
+	// whose containerd still emits v2 would accept the join and then fail every
+	// kata Pod. The guard has to abort the join instead.
+	if !strings.Contains(withKata, "grep -q '^version = 3' /etc/containerd/config.toml") {
+		t.Errorf("kata-enabled render must refuse to join a box whose containerd config is not version 3")
+	}
+
+	// Appending twice on a re-bootstrap would give containerd a duplicate
+	// runtime table, so the append is guarded.
+	if !strings.Contains(withKata, `grep -q "runtimes.kata-qemu" /etc/containerd/config.toml ||`) {
+		t.Errorf("the kata containerd block must be appended idempotently")
+	}
+
+	// Ordering: the handler has to be registered before containerd restarts,
+	// or kubelet talks to a containerd that has never seen it.
+	kataIdx := strings.Index(withKata, "runtimes.kata-qemu")
+	restartIdx := strings.Index(withKata, "systemctl restart containerd")
+	if kataIdx < 0 || restartIdx < 0 || kataIdx > restartIdx {
+		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
+	}
+
+	shmIdx := strings.Index(withKata, "systemctl restart tuist-kata-shared-memory.service")
+	if shmIdx < 0 || shmIdx > restartIdx {
+		t.Fatal("shared memory must be sized before containerd restarts")
+	}
+
+	// Cache fleets: nothing kata anywhere, including the node labels.
+	withoutKata := renderLinuxBootstrapScript(opts)
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory"} {
+		if strings.Contains(withoutKata, unwanted) {
+			t.Errorf("cache-fleet render must not contain %q", unwanted)
+		}
+	}
+}
+
+// A manager restart between the SSH self-join and the status patch that records
+// it makes the next reconcile run the join again. On a live node that re-run
+// deletes Cilium's sysctl overrides and restarts containerd under its pods, so
+// a host that already joined as this node must skip it.
+func TestJoinedGuardSkipsOnlyACompletedJoinOfTheSameNode(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		marker        string
+		kubeletActive bool
+		skips         bool
+	}{
+		{"completed join of this node", "node-a\n", true, true},
+		{"no marker", "", true, false},
+		{"box re-adopted under another node", "node-old\n", true, false},
+		{"kubelet not running", "node-a\n", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			marker := filepath.Join(dir, "joined-node")
+			if tc.marker != "" {
+				if err := os.WriteFile(marker, []byte(tc.marker), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			kubeletStatus := "1"
+			if tc.kubeletActive {
+				kubeletStatus = "0"
+			}
+			script := "set -euo pipefail\nsystemctl() { return " + kubeletStatus + "; }\n" +
+				strings.ReplaceAll(joinedGuard("", "node-a"), joinedMarkerPath, marker) +
+				"echo RAN-JOIN\n"
+			output, err := exec.Command("bash", "-c", script).CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s: %v", output, err)
+			}
+			if ran := strings.Contains(string(output), "RAN-JOIN"); ran == tc.skips {
+				t.Fatalf("expected skip=%v, got:\n%s", tc.skips, output)
+			}
+		})
+	}
+}
+
+func TestRenderLinuxBootstrapScript_RecordsTheJoinLast(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "node-a", KubeconfigYAML: "apiVersion: v1\nkind: Config\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", PrivateNetworkVLAN: 3250,
+	})
+	syntax := exec.Command("bash", "-n")
+	syntax.Stdin = strings.NewReader(script)
+	if output, err := syntax.CombinedOutput(); err != nil {
+		t.Fatalf("invalid script: %s: %v", output, err)
+	}
+
+	guardIdx := strings.Index(script, joinedGuard("sudo ", "node-a"))
+	if guardIdx < 0 || guardIdx > strings.Index(script, "sudo mkdir -p /var/lib/kubelet") {
+		t.Fatalf("expected the joined guard before the first host change, got:\n%s", script)
+	}
+	if !strings.HasSuffix(script, "systemctl enable --now kubelet\n"+joinedMarker("sudo ", "node-a")) {
+		t.Fatalf("expected the joined marker right after the kubelet starts, at the end of the script, got:\n%s", script)
+	}
+}
+
+func TestJoinedMarkerWritesWhatTheGuardReads(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "tuist", "joined-node")
+	script := "set -euo pipefail\n" +
+		strings.ReplaceAll(strings.ReplaceAll(joinedMarker("", "node-a"), joinedMarkerPath, marker), "/var/lib/tuist", filepath.Dir(marker)) +
+		"systemctl() { return 0; }\n" +
+		strings.ReplaceAll(joinedGuard("", "node-a"), joinedMarkerPath, marker) +
+		"echo RAN-JOIN\n"
+	output, err := exec.Command("bash", "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s: %v", output, err)
+	}
+	if strings.Contains(string(output), "RAN-JOIN") {
+		t.Fatalf("expected the guard to accept the marker it follows, got:\n%s", output)
 	}
 }

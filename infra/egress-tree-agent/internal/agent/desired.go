@@ -13,6 +13,14 @@ import (
 // it are ever attached to the shared tree.
 const EgressClassAnnotation = "tuist.dev/egress-class"
 
+// AccountLabel is the pod label carrying the tenant's account handle, set on
+// every kura pod by the kura-controller. It is what the per-class metrics are
+// labelled with: a classid minor is allocated per account but freed when the
+// account's last instance goes, so the same minor can name a different account
+// later — a classid-only series silently splices two tenants together. The
+// label is read for metrics only; the annotation remains the sole opt-in.
+const AccountLabel = "tuist.dev/account"
+
 // NodeEgressResource is the extended resource a shared bare-metal node
 // advertises as its egress budget (patched by the CAPI provider). The tree's
 // root ceiling comes from it: the box cap.
@@ -39,14 +47,17 @@ type PodShape struct {
 	Namespace string
 	Name      string
 	IP        string
+	Account   string
 	Minor     uint16
 	FloorMbps int64
 	BurstMbps int64
 }
 
-// TenantClass is one class of the desired HTB tree.
+// TenantClass is one class of the desired HTB tree. It stays comparable: the
+// agent diffs it against the previously converged class to log transitions.
 type TenantClass struct {
 	Minor     uint16
+	Account   string
 	FloorMbps int64
 	BurstMbps int64 // 0: borrow up to the root ceiling
 }
@@ -116,7 +127,7 @@ func Desired(pods []PodShape) (map[uint16]TenantClass, []PodAttachment) {
 		byMinor[pod.Minor] = append(byMinor[pod.Minor], pod)
 		class, ok := classes[pod.Minor]
 		if !ok {
-			class = TenantClass{Minor: pod.Minor, FloorMbps: pod.FloorMbps, BurstMbps: pod.BurstMbps}
+			class = TenantClass{Minor: pod.Minor, Account: pod.Account, FloorMbps: pod.FloorMbps, BurstMbps: pod.BurstMbps}
 		} else {
 			// Replicas normally agree; during a spec rollout the more
 			// permissive value wins so a tenant is never under-provisioned
@@ -128,6 +139,7 @@ func Desired(pods []PodShape) (map[uint16]TenantClass, []PodAttachment) {
 			} else {
 				class.BurstMbps = max(class.BurstMbps, pod.BurstMbps)
 			}
+			class.Account = lowerAccount(class.Account, pod.Account)
 		}
 		classes[pod.Minor] = class
 	}
@@ -158,4 +170,18 @@ func Desired(pods []PodShape) (map[uint16]TenantClass, []PodAttachment) {
 		return attachments[i].Name < attachments[j].Name
 	})
 	return classes, attachments
+}
+
+// lowerAccount picks the account handle a shared class is labelled with,
+// preferring a handle over the empty string and the lower one otherwise. The
+// controller gives one classid to one account, so replicas of a class agree
+// by construction and this only decides the degenerate cases — an unlabelled
+// pod, or a hand-made one carrying another account's classid. It decides them
+// by value rather than by arrival order so the label cannot flap between
+// cycles.
+func lowerAccount(current, next string) string {
+	if current == "" || (next != "" && next < current) {
+		return next
+	}
+	return current
 }

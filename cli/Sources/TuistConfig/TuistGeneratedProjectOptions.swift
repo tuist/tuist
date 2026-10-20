@@ -92,6 +92,11 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             case fail
         }
 
+        public enum ProjectFormat: String, Codable, Hashable, Equatable, Sendable {
+            case pbxproj
+            case xcproj
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -107,11 +112,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
+        public let enableCoveragePrefixMapping: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
         public let manifestEnvironment: [String]
         public let onOutdatedDependencies: OutdatedDependenciesAction
+        public let projectFormat: ProjectFormat
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -127,11 +134,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
+            enableCoveragePrefixMapping: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
             manifestEnvironment: [String] = [],
-            onOutdatedDependencies: OutdatedDependenciesAction = .warn
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -146,11 +155,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
+            self.enableCoveragePrefixMapping = enableCoveragePrefixMapping
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
             self.manifestEnvironment = manifestEnvironment
             self.onOutdatedDependencies = onOutdatedDependencies
+            self.projectFormat = projectFormat
         }
 
         #if DEBUG
@@ -169,11 +180,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disableSandbox: Bool = true,
                 includeGenerateScheme: Bool = true,
                 enableCaching: Bool = false,
+                enableCoveragePrefixMapping: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
                 defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
                 manifestEnvironment: [String] = [],
-                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn
+                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn,
+                projectFormat: TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat = .pbxproj
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -189,11 +202,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     disableSandbox: disableSandbox,
                     includeGenerateScheme: includeGenerateScheme,
                     enableCaching: enableCaching,
+                    enableCoveragePrefixMapping: enableCoveragePrefixMapping,
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
                     defaultSwiftVersion: defaultSwiftVersion,
                     manifestEnvironment: manifestEnvironment,
-                    onOutdatedDependencies: onOutdatedDependencies
+                    onOutdatedDependencies: onOutdatedDependencies,
+                    projectFormat: projectFormat
                 )
             }
         #endif
@@ -201,19 +216,40 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
+        public var packageManifestEnvironment: ManifestEnvironment
 
         public init(
-            passthroughSwiftPackageManagerArguments: [String] = []
+            passthroughSwiftPackageManagerArguments: [String] = [],
+            packageManifestEnvironment: ManifestEnvironment = .init()
         ) {
             self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+            self.packageManifestEnvironment = packageManifestEnvironment
+        }
+
+        public struct ManifestEnvironment: Codable, Equatable, Sendable, Hashable {
+            public let usesAutomaticProviderDefaults: Bool
+            public let includedVariablePatterns: [String]
+            public let excludedVariablePatterns: [String]
+
+            public init(
+                usesAutomaticProviderDefaults: Bool = true,
+                includedVariablePatterns: [String] = [],
+                excludedVariablePatterns: [String] = []
+            ) {
+                self.usesAutomaticProviderDefaults = usesAutomaticProviderDefaults
+                self.includedVariablePatterns = includedVariablePatterns
+                self.excludedVariablePatterns = excludedVariablePatterns
+            }
         }
 
         #if DEBUG
             public static func test(
-                passthroughSwiftPackageManagerArguments: [String] = []
+                passthroughSwiftPackageManagerArguments: [String] = [],
+                packageManifestEnvironment: ManifestEnvironment = .init()
             ) -> Self {
                 .init(
-                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
+                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
+                    packageManifestEnvironment: packageManifestEnvironment
                 )
             }
         #endif

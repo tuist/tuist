@@ -43,7 +43,7 @@ class PreviewsRepositoryTest {
                 token = "",
                 repositoryUrl = "https://github.com/tuist/tuist",
                 visibility = Project.Visibility.`public`,
-                buildSystem = Project.BuildSystem.xcode,
+                buildSystem = "xcode",
             ),
         )
         coEvery { projectsApi.listProjects() } returns Response.success(ListProjects200Response(projects))

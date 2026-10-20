@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>dev.tuist.atlas</string>
+    <key>CFBundleExecutable</key>
+    <string>Atlas</string>
+    <key>CFBundleName</key>
+    <string>Atlas</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array><string>$(ATLAS_SUPPORTED_PLATFORM)</string></array>
+    <key>DTPlatformName</key>
+    <string>$(ATLAS_PLATFORM_NAME)</string>
+    <key>MinimumOSVersion</key>
+    <string>17.0</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>UIDeviceFamily</key>
+    <array><integer>1</integer><integer>2</integer></array>
+    <key>CFBundleDisplayName</key>
+    <string>Atlas</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.tuist.atlas.oauth</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>dev.tuist.atlas</string></array>
+        </dict>
+    </array>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>

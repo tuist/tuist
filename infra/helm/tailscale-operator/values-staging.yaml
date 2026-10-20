@@ -9,6 +9,29 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
+  # Staging is the one env where human kubectl runs over the tailnet
+  # instead of through Pomerium. Being on the tailnet IS the
+  # authentication; the impersonated tier comes from the
+  # `tailscale.com/cap/kubernetes` grants in
+  # infra/tailscale/acls.json. Reachable at
+  # `https://tuist-k8s-staging.taild6d7bb.ts.net` — the operator's
+  # own MagicDNS name, per `operatorConfig.hostname` above.
+  #
+  # Staging can afford this because its write tier is standing
+  # access, not a per-request elevation, so nothing here needs the
+  # per-request PolicyController lookup Pomerium exists to carry.
+  # Read the CAUTION in values.yaml before copying this into another
+  # env: auth mode brings an unrestricted impersonation ClusterRole
+  # with it.
+  #
+  # Pomerium stays deployed in staging. It still owns the
+  # `tuist-admins` / `tuist-eng` / `tuist-staging-write` →
+  # ClusterRole bindings this path depends on, and it remains a
+  # working door for anyone off the tailnet.
+  apiServerProxyConfig:
+    mode: "true"
+    allowImpersonation: "true"
+
 connector:
   hostname: tuist-cluster-router-staging
   tags:
@@ -40,12 +63,36 @@ connector:
     enabled: true
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    # The pool's nodes register with `tuist.dev/runner-cache=true:NoSchedule`
+    # (infra/helm/tuist/templates/kura-fleet.yaml). Without this the router
+    # has no schedulable node.
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+
+# A ProxyGroup with static UDP endpoints on md-0's public IPs, so the macOS
+# xcresult VMs reach the Services it serves over a direct path instead of a
+# DERP relay, as in production. See `tailnetIngress` in values.yaml.
+tailnetIngress:
+  enabled: true
+  proxyGroup:
+    hostnamePrefix: tailnet-ingress-staging
+    tags:
+      - "tag:tuist-k8s-staging"
 
 macminiEgress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: macmini-egress-staging
     tags:
       - "tag:tuist-k8s-staging"
+    # For a BER1 rack host production lends this env (RackHost `lendTo`):
+    # this env's operator dials it at its address on the rack's machines
+    # segment, which the rack's edges advertise as subnet routes. A proxy
+    # that does not accept routes answers `no matching peer` for it. See
+    # values-production.yaml.
+    acceptRoutes: true
   # Per-machine Services are created dynamically by the CAPI
   # provider's ScalewayAppleSiliconMachine reconciler — see
   # macosFleet.tailscaleEgress in the main tuist chart's

@@ -9,6 +9,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -585,17 +588,43 @@ defmodule TuistWeb.RunnerJobLiveTest do
           conclusion: "failure",
           started_at: ~U[2026-05-28 10:00:05.000000Z],
           completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:35.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 4,
+          name: "Upload artifacts",
+          status: "completed",
+          conclusion: "skipped",
+          started_at: nil,
+          completed_at: nil
         }
       ])
 
     flush_outbox!()
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
 
     assert html =~ "Steps"
     assert html =~ "Set up job"
     assert html =~ "Run tests"
-    # 30-second duration badge for the failing step (no fractional seconds)
+    assert has_element?(lv, ~s|#runner-step-1 [data-part="step-timeline-bar"][data-kind="success"]|)
+    assert has_element?(lv, ~s|#runner-step-2 [data-part="step-timeline-bar"][data-kind="failure"]|)
+    assert has_element?(lv, ~s|#runner-step-3 [data-part="step-timeline-bar"]|)
+    assert has_element?(lv, ~s|#runner-step-4 [data-part="step-duration"]|)
+    refute has_element?(lv, ~s|#runner-step-4 [data-part="step-timeline-bar"]|)
+
+    # 30-second duration for the failing step (no fractional seconds)
     assert html =~ "30s"
     refute html =~ "30.0s"
   end
@@ -679,6 +708,140 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
     assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  test "hides insights when no project matches the job repository", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_502,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "unmatched/repository",
+        workflow_run_id: 315_020,
+        job_name: "test"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315020/jobs/31502")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "No matching project was found"
+  end
+
+  test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 900
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        fleet_name: "linux-amd64",
+        repository: "acme/mobile",
+        workflow_run_id: 900,
+        workflow_name: "pipeline",
+        job_name: "test",
+        head_branch: "main"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert has_element?(lv, ~s(a[href="https://gitlab.example.com/acme/mobile/-/jobs/42"]), "GitLab")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "https://github.com/acme/mobile"
+    refute html =~ "steps-card"
+    refute html =~ "job-secret"
+  end
+
+  describe "Buildkite jobs" do
+    defp buildkite_job!(account, workflow_run_id, job_name) do
+      {:ok, mapping} =
+        %Buildkite.Job{}
+        |> Buildkite.Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme",
+          pipeline_slug: "ios-app",
+          build_number: workflow_run_id,
+          queue_key: "tuist-macos"
+        })
+        |> Repo.insert(returning: true)
+
+      # `repository` holds the pipeline slug on this lane, exactly as
+      # `Buildkite.lifecycle_attrs/4` fills it.
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: mapping.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "ios-app",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "ios-app",
+          run_attempt: 1,
+          job_name: job_name,
+          head_branch: "main",
+          head_sha: ""
+        })
+
+      flush_outbox!()
+      mapping
+    end
+
+    test "links to the Buildkite build instead of a non-existent GitHub repository", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4821, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4821/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "https://buildkite.com/acme/ios-app/builds/4821"
+      # The GitHub deep link would be built from the pipeline slug and 404.
+      refute html =~ "https://github.com/ios-app"
+    end
+
+    test "omits the steps card, which this lane never populates", %{conn: conn, account: account} do
+      mapping = buildkite_job!(account, 4822, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4822/jobs/#{mapping.workflow_job_id}")
+
+      refute html =~ "Steps will appear here once the job finishes."
+    end
+
+    test "still offers insights, which resolve through the pipeline handle", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4823, "test")
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: "4823"
+        )
+
+      flush_outbox!()
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "Insights"
+      assert html =~ build_run.id
+    end
   end
 
   test "renders captured logs on mount", %{conn: conn, account: account} do
@@ -823,8 +986,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     # Three GH-shaped steps: an auto "Set up job" head, a single
     # user "Build" step delimited by `##[group]Run`, and an auto
-    # "Complete job" tail anchored to its own `started_at`. Slicing
-    # walks the marker, not the timestamps — see Tuist.Runners.JobLogs.
+    # "Complete job" tail starting at the runner's cleanup line.
+    # Slicing walks those markers, not the timestamps — see
+    # Tuist.Runners.JobLogs.
     :ok =
       JobSteps.record([
         %{
@@ -894,7 +1058,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
           account_id: account.id,
           line_number: 5,
           ts: ~U[2026-05-28 12:02:00.000000Z],
-          message: "after the build step"
+          message: "Cleaning up orphan processes"
         }
       ])
 
@@ -908,8 +1072,57 @@ defmodule TuistWeb.RunnerJobLiveTest do
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
-    refute panel =~ "after the build step"
+    refute panel =~ "Cleaning up orphan processes"
     refute panel =~ "Current runner version"
+  end
+
+  test "renders a composite action's steps as nested step headers", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_603, 316_030, ["Set up job", "Apply Simulator Workaround", "Complete job"], [
+      "Current runner version",
+      "##[group]Run ./.github/actions/simulator-workaround",
+      "##[endgroup]",
+      "##[start-action display=Apply workaround;id=__self.__run]",
+      "##[group]Run echo workaround",
+      "##[endgroup]",
+      "##[error]Process completed with exit code 26.",
+      "##[end-action id=__self.__run;outcome=failure;conclusion=failure;duration_ms=204]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
+    assert has_element?(lv, ~s{[data-kind="action"] [data-part="log-action-icon"][data-status="failure"]})
+    assert panel =~ "Process completed with exit code 26."
+    assert has_element?(lv, ~s{[data-part="log-line"][data-annotation="error"] .log-annotation-label}, "Error:")
+    refute panel =~ "##[error]"
+    refute panel =~ "##[start-action"
+    refute panel =~ "##[end-action"
+  end
+
+  test "explains when a step's output can't be separated from the job log", %{conn: conn, account: account} do
+    # Two `##[group]Run` lines for a single user step: the boundaries
+    # don't line up with the steps, so no step gets a slice.
+    complete_job_with_logs!(account, 31_604, 316_040, ["Set up job", "Test", "Complete job"], [
+      "Current runner version",
+      "##[group]Run make test",
+      "##[endgroup]",
+      "##[group]Run tests",
+      "##[endgroup]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "be separated from the rest of the job"
+    refute panel =~ "No logs were captured for this step."
+    assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
   end
 
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
@@ -1358,6 +1571,51 @@ defmodule TuistWeb.RunnerJobLiveTest do
            )
   end
 
+  test "refuses a shell session to a member demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    # Given — a job whose shell is requestable, with the page already open while
+    # the member could still attach.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_999,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_990,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Demoted Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-demoted", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_999, "tuist-runner-linux-demoted", claimed_at)
+
+    flush_outbox!()
+
+    # Mounted away from the terminal tab, which auto-requests a session on
+    # connect and would create one before the demotion lands.
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/319990/jobs/31999")
+
+    # When — demoted without reloading. `InteractiveSessions` mints tokens
+    # without authorizing, so the socket's cached answer must not be what
+    # decides this.
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    render_hook(lv, "request_shell_session", %{})
+
+    # Then
+    assert is_nil(InteractiveSessions.current_for_job(account.id, 31_999, :shell))
+  end
+
   test "closes the shell session when the browser terminal disconnects", %{
     conn: conn,
     account: account,
@@ -1758,6 +2016,160 @@ defmodule TuistWeb.RunnerJobLiveTest do
       assert TuistWeb.RunnerJobLive.step_window([]) == nil
       assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
     end
+  end
+
+  describe "step timeline geometry" do
+    test "positions sequential steps on the same time axis" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:15Z]},
+        %{started_at: ~U[2026-05-28 10:00:15Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      window = TuistWeb.RunnerJobLive.step_window(steps)
+      [first, last] = steps
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(first, window) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(first, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(last, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(last, window) == "75.0%"
+    end
+
+    test "keeps zero-length steps drawable, including a zero-length job" do
+      step = %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      for window <- [%{min: timestamp, max: timestamp + 60_000}, %{min: timestamp, max: timestamp}] do
+        assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == "0.0%"
+        assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == "0.0%"
+      end
+    end
+
+    test "omits geometry when timestamps or a valid window are missing" do
+      step = %{started_at: nil, completed_at: nil}
+      window = %{min: 0, max: 60_000}
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(%{step | started_at: ~U[2026-05-28 10:00:00Z]}, window) ==
+               nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: 1, max: 0}) == nil
+    end
+
+    test "clamps out-of-window starts and negative durations" do
+      step = %{started_at: ~U[2026-05-28 10:00:10Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp + 1, max: timestamp + 2}) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp - 2, max: timestamp - 1}) == "100.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: timestamp, max: timestamp + 1}) == "0.0%"
+    end
+  end
+
+  test "flags a volume that a failed job filled as the likely cause" do
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+
+    usage = %Usage{
+      volume_id: volume.id,
+      volume: volume,
+      warm: true,
+      size_bytes: 19_427_938_304,
+      capacity_bytes: 19_503_599_616
+    }
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: true)
+    assert html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+    assert html =~ "gradle-deps ran out of space"
+
+    succeeded =
+      render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: false)
+
+    refute succeeded =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+
+    roomy = %{usage | size_bytes: 10_000_000_000}
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
+    refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
+  test "names managed volumes after the caches they hold" do
+    builtin = %Volume{id: Ecto.UUID.generate(), key: "tuist-cache", builtin_name: "tuist-cache"}
+    gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
+
+    usages =
+      for volume <- [builtin, gradle] do
+        %Usage{
+          volume_id: volume.id,
+          volume: volume,
+          warm: true,
+          size_bytes: 19_427_938_304,
+          capacity_bytes: 19_503_599_616
+        }
+      end
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
+
+    assert html =~ "Xcode and module caches"
+    assert html =~ "Gradle cache ran out of space"
+    refute html =~ "tuist-cache"
+    refute html =~ "tuist-gradle"
+  end
+
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-x", claimed_at)
+    {:ok, _} = Jobs.complete(workflow_job_id, "success")
+
+    :ok =
+      step_names
+      |> Enum.with_index(1)
+      |> Enum.map(fn {name, number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: number,
+          name: name,
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:01.000000Z]
+        }
+      end)
+      |> JobSteps.record()
+
+    :ok =
+      messages
+      |> Enum.with_index(1)
+      |> Enum.map(fn {message, line_number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          line_number: line_number,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: message
+        }
+      end)
+      |> JobLogs.append()
+
+    flush_outbox!()
   end
 
   defp flush_outbox! do

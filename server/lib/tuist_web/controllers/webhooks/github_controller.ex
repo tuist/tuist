@@ -254,16 +254,19 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # the binding is kept only for jobs that can actually match.
   @tuist_runner_label_prefix "tuist-"
 
-  defp dispatchable_workflow_job?("in_progress", params) do
-    params
-    |> get_in(["workflow_job", "labels"])
+  defp dispatchable_workflow_job?("in_progress", %{"workflow_job" => %{} = workflow_job}) do
+    workflow_job
+    |> Map.get("labels")
     |> List.wrap()
     |> Enum.any?(fn label ->
       is_binary(label) and String.starts_with?(String.downcase(label), @tuist_runner_label_prefix)
     end)
   end
 
-  defp dispatchable_workflow_job?(action, _params), do: action in @dispatchable_workflow_job_actions
+  defp dispatchable_workflow_job?(action, %{"workflow_job" => %{}}), do: action in @dispatchable_workflow_job_actions
+
+  # GitHub occasionally delivers `workflow_job` events whose `workflow_job` is null.
+  defp dispatchable_workflow_job?(_action, _params), do: false
 
   defp handle_workflow_job(conn, params) do
     installation_id =

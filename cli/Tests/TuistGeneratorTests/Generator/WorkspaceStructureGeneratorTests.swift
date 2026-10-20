@@ -474,6 +474,14 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             throw NSError(domain: "Not implemented", code: 0)
         }
 
+        func glob(
+            directory _: AbsolutePath,
+            include _: [String],
+            exclude _: [String]
+        ) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+
         func currentWorkingDirectory() async throws -> AbsolutePath {
             try AbsolutePath(validating: "/")
         }

@@ -4,12 +4,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.Gradle
   alias Tuist.Repo
+  alias TuistWeb.Components.BuildHealth
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -17,7 +19,8 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
   def assign_mount(socket) do
     project = socket.assigns.selected_project
-    assign(socket, :available_filters, define_filters(project))
+    tags = Gradle.project_build_tags(project)
+    assign(socket, :available_filters, define_filters(project, tags))
   end
 
   def assign_handle_params(socket, params) do
@@ -121,11 +124,11 @@ defmodule TuistWeb.GradleBuildRunsLive do
         %{value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []
@@ -157,11 +160,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
     flop_filters = base_flop_filters ++ filter_flop_filters ++ ran_by_flop_filters ++ is_ci_flop_filters
 
-    order_by =
-      case build_runs_sort_by do
-        "duration" -> [:duration_ms]
-        _ -> [:inserted_at]
-      end
+    order_by = sort_fields(build_runs_sort_by)
 
     order_directions =
       case build_runs_sort_order do
@@ -176,10 +175,15 @@ defmodule TuistWeb.GradleBuildRunsLive do
       page: page,
       page_size: @page_size,
       order_by: order_by,
-      order_directions: order_directions
+      order_directions: List.duplicate(hd(order_directions), length(order_by))
     }
 
-    {builds, meta} = Gradle.list_builds(project.id, flop_params, requested_tasks_filters: requested_tasks_query_filters)
+    {builds, meta} =
+      Gradle.list_builds(project.id, flop_params,
+        requested_tasks_filters: requested_tasks_query_filters,
+        failure_category: true
+      )
+
     builds = Repo.preload(builds, :built_by_account)
 
     socket
@@ -210,8 +214,13 @@ defmodule TuistWeb.GradleBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  defp define_filters(project) do
+  defp sort_fields("failure-category"), do: [:failure_category, :inserted_at, :id]
+  defp sort_fields("duration"), do: [:duration_ms]
+  defp sort_fields(_), do: [:inserted_at]
+
+  defp define_filters(project, tags) do
     base = [
+      BuildHealth.category_filter(),
       %Filter.Filter{
         id: "status",
         field: :status,
@@ -225,6 +234,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_gradle", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
       },
       %Filter.Filter{
         id: "git_branch",
@@ -300,6 +317,25 @@ defmodule TuistWeb.GradleBuildRunsLive do
         []
       end
 
-    base ++ ran_by_filter
+    tag_filter =
+      if Enum.empty?(tags) do
+        []
+      else
+        [
+          %Filter.Filter{
+            id: "custom_tags",
+            field: :custom_tags,
+            display_name: dgettext("dashboard_gradle", "Tags"),
+            type: :option,
+            searchable: true,
+            options: tags,
+            options_display_names: Map.new(tags, &{&1, &1}),
+            operator: :contains,
+            value: nil
+          }
+        ]
+      end
+
+    base ++ tag_filter ++ ran_by_filter
   end
 end

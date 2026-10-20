@@ -1,9 +1,10 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-public struct HashCacheCommand: AsyncParsableCommand {
+public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -20,7 +21,7 @@ public struct HashCacheCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .hashCachePath
     )
-    var path: String?
+    public var path: String?
 
     @Option(
         name: .shortAndLong,
@@ -29,7 +30,18 @@ public struct HashCacheCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
+    @Flag(
+        name: .long,
+        help: """
+        When passed, the hashes are those of the coverage variant of the binary cache: the keys a `tuist test` run \
+        that collects coverage reads, and `tuist cache --coverage` fills. Repository-owned targets of a debug \
+        configuration differ from the plain hashes; external packages and release configurations keep them.
+        """,
+        envKey: .hashCacheCoverage
+    )
+    var coverage: Bool = false
+
     public func run() async throws {
-        try await HashCacheCommandService().run(path: path, configuration: configuration)
+        try await HashCacheCommandService().run(path: path, configuration: configuration, coverage: coverage)
     }
 }

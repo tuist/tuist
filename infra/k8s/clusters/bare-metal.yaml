@@ -366,6 +366,42 @@ spec:
   template:
     spec:
       files:
+        # Keep these in sync with controllers/linux/kata_shared_memory.go.
+        # Kata guest RAM must not hit tmpfs's default half-RAM ceiling.
+        - content: |
+            #!/bin/sh
+            set -eu
+
+            test "$(findmnt -n -o FSTYPE --mountpoint /dev/shm)" = tmpfs
+            memory_kib=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+            test "$memory_kib" -gt 0
+            target_bytes=$((memory_kib * 1024))
+            current_bytes=$(df -B1 --output=size /dev/shm | tail -n 1)
+
+            # Grow only, preserving any larger operator-defined ceiling and mount flags.
+            if [ "$current_bytes" -lt "$target_bytes" ]; then
+              mount -o "remount,size=${memory_kib}k" /dev/shm
+            fi
+            test "$(df -B1 --output=size /dev/shm | tail -n 1)" -ge "$target_bytes"
+          owner: root:root
+          path: /usr/local/sbin/tuist-kata-shared-memory
+          permissions: "0755"
+        - content: |
+            [Unit]
+            Description=Size shared memory for Kata guest RAM
+            RequiresMountsFor=/dev/shm
+            Before=containerd.service
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/sbin/tuist-kata-shared-memory
+            RemainAfterExit=yes
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/tuist-kata-shared-memory.service
+          permissions: "0644"
         # containerd's GitHub-released tarball does NOT ship a
         # systemd unit (the older cri-containerd-cni- bundle did,
         # the plain `containerd-` tarball does not). Without this,
@@ -499,6 +535,8 @@ spec:
         # on disk, systemd just hasn't scanned it yet. Same call
         # the cloud worker template makes for the same reason.
         - systemctl daemon-reload
+        - systemctl enable tuist-kata-shared-memory.service
+        - systemctl start tuist-kata-shared-memory.service
         - systemctl enable --now containerd
         - systemctl enable kubelet
       postKubeadmCommands:

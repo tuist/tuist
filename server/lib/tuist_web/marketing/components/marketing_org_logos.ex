@@ -32,26 +32,26 @@ defmodule TuistWeb.Marketing.MarketingOrgLogos do
   attr :label, :string, required: true, doc: "The aria-label for accessibility"
 
   def org_logo(assigns) do
+    assigns = assign(assigns, :variant, logo_variant(assigns.name, Gettext.get_locale()))
+
     ~H"""
-    <div data-part="org-logo" aria-label={@label}>
-      {render_logo(@name, Gettext.get_locale())}
+    <div data-part="org-logo" data-variant={@variant} aria-label={@label}>
+      {render_logo(@name, @variant)}
     </div>
     """
   end
 
-  defp render_logo(name, "ko") do
-    color_func = String.to_atom("#{name}_org_logo_color")
-
-    if function_exported?(__MODULE__, color_func, 1) do
-      apply(__MODULE__, color_func, [%{}])
-    else
-      mono_func = String.to_atom("#{name}_org_logo")
-      apply(__MODULE__, mono_func, [%{}])
-    end
+  # Colour variants keep their brand colours but draw their black ink as
+  # currentColor, so the page can pick an ink that shows on both themes
+  # (data-variant lets the CSS tell the two apart).
+  defp logo_variant(name, "ko") do
+    if function_exported?(__MODULE__, String.to_atom("#{name}_org_logo_color"), 1),
+      do: "color",
+      else: "mono"
   end
 
-  defp render_logo(name, _locale) do
-    mono_func = String.to_atom("#{name}_org_logo")
-    apply(__MODULE__, mono_func, [%{}])
-  end
+  defp logo_variant(_name, _locale), do: "mono"
+
+  defp render_logo(name, "color"), do: apply(__MODULE__, String.to_atom("#{name}_org_logo_color"), [%{}])
+  defp render_logo(name, "mono"), do: apply(__MODULE__, String.to_atom("#{name}_org_logo"), [%{}])
 end

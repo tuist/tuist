@@ -4,8 +4,12 @@ defmodule Tuist.Tests.Test do
   This is a ClickHouse entity that stores test run data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Tests.StressNewTests
 
   @derive {
     Flop.Schema,
@@ -17,11 +21,22 @@ defmodule Tuist.Tests.Test do
       :xcode_version,
       :macos_version,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :is_ci,
       :build_system,
       :ran_at
     ],
-    sortable: [:ran_at, :duration, :inserted_at]
+    sortable: [:ran_at, :duration, :inserted_at],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -37,11 +52,34 @@ defmodule Tuist.Tests.Test do
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"
     field :git_ref, Ch, type: "String"
+    # Where the run sits in the repository's history (see Tuist.GitHistory):
+    # the branch it will merge into, the merge base it was diffed against,
+    # and how much of that the client could tell.
+    field :base_branch, Ch, type: "String", default: ""
+    field :merge_base_sha, Ch, type: "String", default: ""
+    field :is_pull_request, :boolean, default: false
+    field :pull_request_number, Ch, type: "UInt32", default: 0
+    field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
+    field :history_source, Ch, type: "LowCardinality(String)", default: ""
+    field :history_fallback_reason, Ch, type: "String", default: ""
+    # The repository the remote identified (`Tuist.GitHistory.Repository`), and
+    # whether the checkout had uncommitted changes: a dirty run measured code
+    # that is not the commit's, so it never joins the commit's coverage.
+    field :git_repository_id, Ch, type: "Int64", default: 0
+    field :git_dirty, :boolean, default: false
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
+    field :coverage_evidence_status, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
+    field :bazel_invocation_id, Ch, type: "String", default: ""
+    field :once_run_id, Ch, type: "String", default: ""
     field :ci_run_id, Ch, type: "String", default: ""
     field :ci_project_handle, Ch, type: "String", default: ""
     field :ci_host, Ch, type: "String", default: ""
@@ -50,8 +88,16 @@ defmodule Tuist.Tests.Test do
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :coverage_enabled, Ch, type: "Nullable(Bool)"
+    field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_new_count, Ch, type: "UInt32", default: 0
+    field :stress_stressed_count, Ch, type: "UInt32", default: 0
+    field :stress_excluded_count, Ch, type: "UInt32", default: 0
+    field :stress_known_count, Ch, type: "UInt32", default: 0
 
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
@@ -73,15 +119,31 @@ defmodule Tuist.Tests.Test do
       :scheme,
       :project_id,
       :account_id,
+      :actor_account_id,
+      :claimed_actor_id,
+      :submission_auth,
       :status,
       :is_flaky,
       :git_branch,
       :git_commit_sha,
       :git_ref,
+      :base_branch,
+      :merge_base_sha,
+      :is_pull_request,
+      :pull_request_number,
+      :git_object_format,
+      :history_source,
+      :history_fallback_reason,
+      :git_repository_id,
+      :git_dirty,
+      :execution_mode,
+      :coverage_evidence_status,
       :ran_at,
       :inserted_at,
       :build_run_id,
       :gradle_build_id,
+      :bazel_invocation_id,
+      :once_run_id,
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
@@ -89,7 +151,15 @@ defmodule Tuist.Tests.Test do
       :build_system,
       :shard_plan_id,
       :only_test_identifiers,
-      :skip_test_identifiers
+      :skip_test_identifiers,
+      :coverage_enabled,
+      :stress_mode,
+      :stress_outcome,
+      :stress_skip_reason,
+      :stress_new_count,
+      :stress_stressed_count,
+      :stress_excluded_count,
+      :stress_known_count
     ])
     |> validate_required([
       :id,
@@ -102,7 +172,10 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix", "cargo"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
+    |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
+    |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])
+    |> validate_inclusion(:stress_skip_reason, ["" | StressNewTests.skip_reasons()])
   end
 end

@@ -1,0 +1,125 @@
+name: Tuist Elixir
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tuist_ex/**
+      - .github/workflows/tuist-ex.yml
+      - .github/workflows/tuist-ex-release.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - tuist_ex/**
+      - .github/workflows/tuist-ex.yml
+      - .github/workflows/tuist-ex-release.yml
+  merge_group: {}
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  compile:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Compile without warnings (Elixir ${{ matrix.elixir }})
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - elixir: 1.18.4-otp-27
+            erlang: 27.3.4
+          - elixir: 1.20.2
+            erlang: 29.0.3
+    env:
+      MISE_ELIXIR_VERSION: ${{ matrix.elixir }}
+      MISE_ERLANG_VERSION: ${{ matrix.erlang }}
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix compile --warnings-as-errors
+
+  docs:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Docs without warnings
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix docs --warnings-as-errors
+
+  test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Tests pass
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix test --warnings-as-errors
+
+  format:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Format checks pass
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix format --check-formatted
+
+  package:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Package builds
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: tuist_ex
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix hex.build

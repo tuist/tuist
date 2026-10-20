@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -70,12 +71,34 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
-	// shellSocketPath is shared through the work volume. The trusted
-	// shell sidecar owns server authentication, but the PTY child is
-	// spawned by a tiny socket server inside the runner container so
-	// the terminal sees the same filesystem, environment, and Docker
-	// socket as the running job.
-	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
+	// workPath is the runner's work directory. It must match the
+	// `work_folder` the server mints into the JIT config (`mint_jit`
+	// in `Tuist.Runners`, `/home/runner/work` on Linux to mirror
+	// GitHub-hosted's layout), NOT the runner's own default
+	// of `<runner root>/_work`: the runner honors the JIT's absolute
+	// path and never touches the default. Mounting the shared volume
+	// anywhere else leaves the real work directory container-local,
+	// which is invisible to dockerd in the dind sidecar and breaks
+	// every `jobs.<id>.container` job.
+	workPath = "/home/runner/work"
+	// shellSocketPath sits on its own volume rather than under
+	// workPath: the runner bind-mounts the whole work directory into
+	// a job container as /__w, and the socket is the runner
+	// container's PTY entry point — it has no business inside the
+	// tree a workflow reads and writes.
+	shellSocketMountPath = "/var/lib/tuist-runner-shell"
+	shellSocketPath      = shellSocketMountPath + "/shell.sock"
+	// externalsPath is the runner's `externals` directory — the node
+	// runtimes the runner bind-mounts into a job container as /__e.
+	// dockerd resolves that mount in the dind sidecar's namespace, so
+	// the directory has to exist there under the same path. Unlike
+	// the work directory this one is fixed by the runner image
+	// layout, not by the JIT.
+	externalsPath = "/home/runner/actions-runner/externals"
+	// externalsStagePath is where the staging container mounts the
+	// shared externals volume. Deliberately not externalsPath, which
+	// would shadow the source being copied.
+	externalsStagePath = "/mnt/dind-externals"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -123,6 +146,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	}
 
 	linuxPod := pool.Spec.OS == "linux"
+	cacheVolumes := pool.Spec.CacheVolumeRoot != ""
+	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
+		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
+	}
 
 	// Env consumed by the dispatch poll loop. On macOS the loop runs
 	// inside the Tart VM, so this is the runner container's env. On
@@ -254,12 +281,16 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		runnerEnv = []corev1.EnvVar{
 			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		}
-		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		volumes = append(volumes,
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "shell-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
 		runnerMounts = []corev1.VolumeMount{
 			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			{Name: "work", MountPath: workPath},
+			{Name: "shell-sock", MountPath: shellSocketMountPath},
 		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
@@ -279,8 +310,21 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				mirrorHost := strings.TrimPrefix(strings.TrimPrefix(registryMirror, "https://"), "http://")
 				dockerdMirrorFlags = " --registry-mirror=" + registryMirror + " --insecure-registry=" + mirrorHost
 			}
+			mountHelper := ""
+			probeCommand := []string{"docker", "info"}
+			if cacheVolumes {
+				// The existing privileged sidecar brokers descriptor-based mounts inside
+				// this Kata guest; workflows retain their unprivileged container shape.
+				probeCommand = []string{"sh", "-c", "test -S " + workPath + "/.tuist-cache-mount.sock && docker info"}
+				mountHelper = "rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); "
+			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				// Staging area for the runner image's externals
+				// directory, filled by the dind-externals init
+				// container below and mounted into the sidecar at
+				// the runner's own path.
+				corev1.Volume{Name: "dind-externals", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -305,6 +349,39 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
+			// A job that declares `jobs.<id>.container` (or a
+			// container action) doesn't run in the runner container:
+			// the runner asks dockerd to create a container and
+			// bind-mounts its own directories into it — the work
+			// directory as /__w, then _temp, _actions and _tool
+			// under it, _temp/_github_home as /github/home,
+			// _temp/_github_workflow as /github/workflow, and
+			// `externals` (the node runtimes every JS action runs
+			// under) as /__e. Docker resolves those source paths in
+			// the sidecar's mount namespace, not the runner's, and
+			// silently creates an empty directory for any that are
+			// missing there.
+			//
+			// Everything but externals hangs off the work directory,
+			// which the `work` volume shares with the sidecar at
+			// workPath. externals ships in the runner image alone, so
+			// stage it into a volume both sides mount, the way ARC's
+			// dind mode does (init-dind-externals). Runs before the
+			// sidecar so the copy is in place by the time dockerd can
+			// serve a container, and fails the Pod early if the image
+			// ever stops shipping externals.
+			initContainers = append(initContainers, corev1.Container{
+				Name:    "dind-externals",
+				Image:   pool.Spec.Image,
+				Command: []string{"sh", "-c"},
+				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "dind-externals", MountPath: externalsStagePath},
+				},
+				// Root only to write the root-owned emptyDir; it runs
+				// our copy, never customer code.
+				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+			})
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -344,7 +421,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
 						"mkdir -p /var/lib/docker && " +
 						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
-						"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
+						mountHelper + "exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 						"--default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags,
 				},
 				SecurityContext: &corev1.SecurityContext{
@@ -352,7 +429,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				StartupProbe: &corev1.Probe{
-					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
+					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
 					PeriodSeconds: 2,
 					// Was 30. apk add + truncate + mkfs.ext4 +
 					// loop mount add ~8 s of pre-dockerd setup;
@@ -362,7 +439,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
-					{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+					{Name: "work", MountPath: workPath},
+					{Name: "dind-externals", MountPath: externalsPath},
 					{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
 				},
 			})
@@ -406,7 +484,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
 			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "shell",
@@ -420,7 +498,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
 				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+				// Only the socket, not the work volume: the PTY runs
+				// in the runner container, so this sidecar needs to
+				// reach the socket and nothing else.
+				{Name: "shell-sock", MountPath: shellSocketMountPath},
 			},
 			// Root only for the trusted agent: it reads the root-only
 			// token and then drops PTY children to the runner user.
@@ -455,7 +536,27 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// effective uid). The loop-mounted ext4 above sidesteps the
 	// problem entirely by giving dockerd a real kernel-native
 	// filesystem.
+
+	if cacheVolumes {
+		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
+		// pod's directory crosses virtiofs; slots and other tenants never do.
+		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
+		mount := corev1.VolumeMount{Name: "cache-volumes", MountPath: workPath + "/_tuist_cache", SubPathExpr: "$(TUIST_CACHE_VOLUME_UID)", MountPropagation: ptr(corev1.MountPropagationHostToContainer)}
+		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
+		runnerMounts = append(runnerMounts, mount)
+		runnerEnv = append(runnerEnv, uidEnv, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_URL", Value: pool.Spec.CacheVolumeURL}, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_POD", Value: podName})
+		for i := range initContainers {
+			if initContainers[i].Name == "dind" {
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
+				initContainers[i].Env = append(initContainers[i].Env, uidEnv)
+			}
+		}
+	}
+
 	annotations := map[string]string{}
+	if linuxPod {
+		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
+	}
 	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
 		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
 		// vitals probe can report CPU/memory pressure. The stock kata
@@ -515,7 +616,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// container only — see the Linux branch above.
 			AutomountServiceAccountToken: ptr(automount),
 			NodeSelector:                 nodeSelector,
-			Affinity:                     goldenAffinity(pool),
+			Affinity:                     runnerAffinity(pool),
 			Tolerations:                  tolerations,
 			Volumes:                      volumes,
 			InitContainers:               initContainers,
@@ -591,7 +692,7 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // goldenNodeLabelPrefix namespaces the per-digest Node labels tart-kubelet
 // publishes to advertise which golden base VMs a host already holds.
 //
-// CONTRACT: this prefix and goldenNodeAffinityKey's hashing MUST stay in
+// CONTRACT: this prefix and GoldenNodeAffinityKey's hashing MUST stay in
 // lockstep with tart-kubelet's `podagent.goldenNodeLabelPrefix` /
 // `goldenVMName` — the two live in separate Go modules, so they're coupled
 // by this convention, not shared code. A mismatch silently disables the
@@ -600,27 +701,36 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // scheduling, so it's failure-safe but worth a test on both sides.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 
-// goldenNodeAffinityKey is the Node-label key advertising that a host holds
+// GoldenNodeAffinityKey is the Node-label key advertising that a host holds
 // the golden base for `image`. The suffix is the same 8-byte SHA-256 prefix
 // of the image ref that tart-kubelet embeds in the golden VM name, so both
 // sides derive an identical key from the same digest-pinned ref.
-func goldenNodeAffinityKey(image string) string {
+func GoldenNodeAffinityKey(image string) string {
 	sum := sha256.Sum256([]byte(image))
 	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
 }
 
-// goldenAffinity returns soft node-affinity steering a pool's Pods toward
+// runnerAffinity returns soft node-affinity steering a pool's Pods toward
 // hosts that already hold the golden base for its image, so a recycle is a
 // local APFS clonefile instead of a multi-GB cold pull. Preferred, not
 // required: when no warm host has a free slot the Pod still schedules onto
 // a cold host (and pays the one-time materialize) rather than going Pending.
 //
-// macOS only — Linux runners are kata microVMs with no golden-base concept,
-// and `image` re-pull there is a different (much smaller) story. Returns nil
-// for Linux so their Pods keep memory-bin-packed placement untouched.
-func goldenAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
+// Linux prefers cache-ready hosts but still schedules when provisioning fails.
+// Cache availability must never gate jobs that can use job-local directories.
+func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	if pool.Spec.OS == "linux" {
-		return nil
+		if pool.Spec.CacheVolumeRoot == "" || pool.Spec.CacheVolumeURL == "" {
+			return nil
+		}
+		return &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: "tuist.dev/linux-cache-volumes", Operator: corev1.NodeSelectorOpIn, Values: []string{"local-images-v1"},
+				}}},
+			}},
+		}}
 	}
 	return &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
@@ -628,7 +738,7 @@ func goldenAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 				Weight: 100,
 				Preference: corev1.NodeSelectorTerm{
 					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      goldenNodeAffinityKey(pool.Spec.Image),
+						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
 						Operator: corev1.NodeSelectorOpExists,
 					}},
 				},
@@ -718,3 +828,9 @@ func ReservationValue(poolName string) string {
 }
 
 var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+
+// CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
+func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
+	h := sha256.Sum256([]byte("local-images-bind-v3\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	return hex.EncodeToString(h[:])
+}

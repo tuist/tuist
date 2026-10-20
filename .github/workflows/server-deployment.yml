@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      staging_platform_revision:
+        description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
+        required: false
       kura_controller_image_tag:
         description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
@@ -83,8 +86,15 @@ on:
       egress_tree_agent_image_tag:
         description: Pre-built egress-tree-agent image tag to pin (e.g. `sha-537c990cae68`, built by egress-tree-agent-image.yml); wins over the resolved `egress-tree-agent@*` semver. Use to validate an in-flight BPF/HTB change on staging before tagging a release.
         required: false
+      xcresult_processor_image_tag:
+        description: Pre-built xcresult processor Tart image tag to pin (e.g. `d0d53abc`, built by xcresult-processor-image.yml); wins over the resolved `xcresult-processor-image@*` semver. Use to validate an in-flight processor change on staging before tagging a release.
+        required: false
   workflow_call:
     inputs:
+      staging_platform_revision:
+        description: Existing staging platform Helm revision to restore and retain for this deployment
+        required: false
+        type: string
       environment:
         description: Target environment (staging | canary | production)
         required: true
@@ -124,8 +134,9 @@ on:
       kura_runtime_image_tag:
         description: >-
           Pre-built Kura runtime image tag to deploy. When unset, the
-          deploy job resolves the latest kura@ release tag and strips the
-          tag prefix before passing it to Helm.
+          deploy job resolves the latest kura@ canary tag reachable from
+          the deployed commit and strips the tag prefix before passing it
+          to Helm.
         required: false
         type: string
       kura_expedite:
@@ -182,13 +193,21 @@ on:
           staging before tagging a release.
         required: false
         type: string
+      xcresult_processor_image_tag:
+        description: >-
+          Pre-built xcresult processor Tart image tag to pin (e.g.
+          `d0d53abc`, built by xcresult-processor-image.yml). When unset,
+          the deploy job resolves the latest `xcresult-processor-image@*`
+          semver tag. Use to validate an in-flight processor change on
+          staging before tagging a release.
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 env:
-  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
@@ -218,7 +237,7 @@ env:
 jobs:
   guard_production_source:
     name: Guard production source
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     steps:
       - name: Require main for production
@@ -245,7 +264,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux-large
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:
@@ -309,8 +328,14 @@ jobs:
           # cache for every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - uses: docker/build-push-action@v6
@@ -362,10 +387,10 @@ jobs:
     # Guarded to exactly the case the deploy job will consume this image, so
     # nothing builds an image that won't be deployed:
     #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
-    #     this sha; canary/production resolve the released `kura@` tag and
+    #     this sha; canary/production resolve the latest `kura@` canary and
     #     never reference it (the production cascade also skips it via image_tag).
     #   - image_tag == '': a staging re-roll of a prebuilt server image skips
-    #     the build, so the deploy falls through to the released kura@ tag — no
+    #     the build, so the deploy falls through to the latest kura@ canary — no
     #     point building a sha image it won't pin.
     #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
     #     tag, the deploy uses that instead, so building the sha image is waste.
@@ -389,9 +414,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
@@ -463,7 +487,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -547,7 +571,7 @@ jobs:
             echo "$VALUES not present; skipping tailscale-operator install for this env."
           fi
       - if: steps.check-values.outputs.exists == 'true'
-        uses: jdx/mise-action@v3.2.0
+        uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -575,12 +599,47 @@ jobs:
         name: helm dependency update
         run: helm dependency update "$TAILSCALE_CHART_PATH"
       - if: steps.check-values.outputs.exists == 'true'
-        name: helm upgrade --install tailscale-operator
+        # Earlier versions of the chart created its Connector, ProxyClasses
+        # and ProxyGroups as hooks, which Helm deleted and recreated on every
+        # upgrade (see the chart's templates/_helpers.tpl). They are ordinary
+        # release resources now, and Helm only takes over an existing object
+        # that carries its ownership metadata, so stamp it on before
+        # upgrading. The hook annotations come off here too: a client-side
+        # apply upgrade, which these releases use, leaves them on the object.
+        # Metadata only: the operator does not restart a proxy for it, and
+        # objects already in this state are left as they are.
+        name: Let Helm adopt the chart's tailscale.com resources
         run: |
-          helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
-            --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
-            -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
-            --timeout 10m --wait
+          set -euo pipefail
+          if ! kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1; then
+            echo "No tailscale.com CRDs yet; nothing to adopt."
+            exit 0
+          fi
+          kubectl get connectors.tailscale.com,proxyclasses.tailscale.com,proxygroups.tailscale.com \
+            -l app.kubernetes.io/name=tuist-tailscale-operator -o name |
+            while read -r resource; do
+              kubectl label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
+              kubectl annotate --overwrite "$resource" \
+                meta.helm.sh/release-name="$TAILSCALE_RELEASE_NAME" \
+                meta.helm.sh/release-namespace="$TAILSCALE_NAMESPACE" \
+                helm.sh/hook- helm.sh/hook-weight- helm.sh/hook-delete-policy-
+            done
+      - if: steps.check-values.outputs.exists == 'true'
+        name: helm upgrade --install tailscale-operator
+        # On a cluster without the tailscale.com CRDs, the first pass installs
+        # them and leaves out the chart's Connector, ProxyClasses and
+        # ProxyGroups, which only render once the CRDs exist; the second
+        # renders them.
+        run: |
+          set -euo pipefail
+          passes=1
+          kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1 || passes=2
+          for _ in $(seq "$passes"); do
+            helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
+              --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
+              -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
+              --timeout 10m --wait
+          done
 
   platform-install:
     # Installs / upgrades the platform chart (cert-manager, ingress-nginx,
@@ -613,7 +672,7 @@ jobs:
           # Full history + tags so k8s:install-platform can resolve the
           # stable-egress-controller@<semver> image tag reachable from this commit.
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -634,7 +693,20 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Restore the selected staging platform revision
+        if: inputs.staging_platform_revision != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          PLATFORM_REVISION: ${{ inputs.staging_platform_revision }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET_ENVIRONMENT" != staging || ! "$PLATFORM_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "A platform revision override requires staging and a positive Helm revision."
+            exit 1
+          fi
+          helm rollback platform "$PLATFORM_REVISION" --namespace platform --wait --timeout 15m
       - name: Run k8s:install-platform
+        if: inputs.staging_platform_revision == ''
         # CLOUDFLARE_API_TOKEN is read from the in-cluster Secret the bootstrap
         # script created (CI is cluster-admin) instead of being added as a
         # second GitHub secret. ::add-mask:: registers the value with Actions
@@ -687,9 +759,11 @@ jobs:
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
-    # when helm was bumped from 30m). 80m keeps helm < step < job so a
-    # stuck deploy fails via helm's own clean path, not this ceiling.
-    timeout-minutes: 80
+    # when helm was bumped from 30m). It also covers the smoke test and the
+    # xcresult processor rollout report (35m) that follow. 125m keeps helm <
+    # step < job so a stuck deploy fails via helm's own clean path, not this
+    # ceiling.
+    timeout-minutes: 125
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -704,6 +778,7 @@ jobs:
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
       EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
+      XCRESULT_PROCESSOR_IMAGE_TAG_INPUT: ${{ inputs.xcresult_processor_image_tag }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -745,7 +820,13 @@ jobs:
             "$probe" "$1" "$2"
           }
 
-          # $1 tag prefix, $2 GHCR repository the version is pinned into.
+          # $1 tag prefix, $2 GHCR repository the version is pinned into,
+          # $3 reachability: "merged" (default) restricts to tags reachable
+          # from DEPLOY_SHA (per-commit stable release model); "any" allows
+          # tags anywhere in the repo (release-branch stable model, where
+          # the promoted tag lives on releases/<component>-X.Y.x and is not
+          # --merged into main). $4 is the version pattern, stable X.Y.Z by
+          # default.
           # An empty $2 skips the publication check: the macOS runner image
           # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
           # profile, so there is no single manifest to probe here. The
@@ -753,10 +834,17 @@ jobs:
           resolve() {
             prefix="$1"
             repository="${2:-}"
+            reachability="${3:-merged}"
+            pattern="${4:-^[0-9]+\.[0-9]+\.[0-9]+$}"
+            if [ "$reachability" = "any" ]; then
+              tag_args=(--list "${prefix}*")
+            else
+              tag_args=(--list "${prefix}*" --merged "$DEPLOY_SHA")
+            fi
             versions="$(
-              git tag --list "${prefix}*" --merged "$DEPLOY_SHA" \
+              git tag "${tag_args[@]}" \
                 | sed "s|^${prefix}||" \
-                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | grep -E "$pattern" \
                 | sort -rV
             )"
             for version in $versions; do
@@ -768,16 +856,47 @@ jobs:
             done
           }
 
+          runner_image_semver="$(resolve 'runner-image@')"
+
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
-            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura')"
-            echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
+            # Hosted Kura follows main like the server: the newest canary
+            # this commit contains (server-production-deployment.yml calls
+            # kura-release.yml before deploying a Kura change). The weekly
+            # RC/stable train is for self-hosted operators. The stable
+            # fallback only covers re-deploys of commits that predate
+            # canaries.
+            kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' merged '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$')"
+            [ -n "$kura_runtime_tag" ] || kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' any)"
+            echo "KURA_RUNTIME_TAG=$kura_runtime_tag"
+            echo "RUNNER_IMAGE_SEMVER=$runner_image_semver"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
             echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
-      - uses: jdx/mise-action@v3.2.0
+
+          # Each macOS pool names its runner image by the digest its release
+          # tag serves, not by the tag. A release re-tags the profiles it did
+          # not rebuild, and a new tag on the same content would otherwise
+          # roll every warm pool and send every host to pull a new golden.
+          # The profiles are the ones that release published, which its gate
+          # checked before tagging, so a tag that cannot be pinned fails the
+          # deploy instead of falling back to the tag. A checkout predating
+          # the digest script also predates the chart's digest support.
+          digest_script=.github/scripts/ghcr-manifest-digest.sh
+          if [ -n "$runner_image_semver" ] && [ -x "$digest_script" ]; then
+            profiles="$(git show "runner-image@${runner_image_semver}:infra/runner-image/profiles.json" | jq -r '.[]')"
+            runner_image_digests='{}'
+            for xcode in $profiles; do
+              tag="macos-${xcode//./-}-${runner_image_semver}"
+              digest="$("$digest_script" tuist/tuist-runner "$tag")"
+              echo "ghcr.io/tuist/tuist-runner:${tag} is ${digest}"
+              runner_image_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$runner_image_digests")"
+            done
+            echo "RUNNER_IMAGE_DIGESTS=$runner_image_digests" >> "$GITHUB_ENV"
+          fi
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -893,47 +1012,66 @@ jobs:
         # schema changes ship the same way code changes do; no
         # operator-side manual step.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
-      - name: Recover interrupted Helm release
+      - name: Recover interrupted Helm releases
+        # The xcresult processor release too: its preflight runs on every
+        # deploy, so a processor release left pending would refuse ("another
+        # operation is in progress") every server deploy after it.
         run: |
           set -euo pipefail
 
-          status="$(
-            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
-              awk '/^STATUS:/ { print $2 }' ||
-              true
-          )"
-          case "$status" in
-            pending-install|pending-upgrade|pending-rollback)
-              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
-              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+          recover_release() {
+            release="$1"
+            status="$(
+              helm status "$release" -n "$NAMESPACE" 2>/dev/null |
+                awk '/^STATUS:/ { print $2 }' ||
+                true
+            )"
+            case "$status" in
+              pending-install|pending-upgrade|pending-rollback)
+                echo "Release $release is $status; recovering it before upgrading."
+                helm history "$release" -n "$NAMESPACE" --max 20
 
-              deployed_revision="$(
-                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
-                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
-              )"
+                deployed_revision="$(
+                  helm history "$release" -n "$NAMESPACE" --max 20 |
+                    awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+                )"
 
-              if [ -z "$deployed_revision" ]; then
-                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
-                exit 1
-              fi
+                if [ -z "$deployed_revision" ]; then
+                  if [ "$release" = "$HELM_RELEASE_NAME" ]; then
+                    echo "No deployed revision found for $release in $NAMESPACE."
+                    exit 1
+                  fi
+                  # An interrupted first install of the processor release.
+                  # Dropping its release records leaves the objects running
+                  # and still annotated for this release, so the upgrade
+                  # below installs it again and adopts them. `helm uninstall`
+                  # would delete them.
+                  echo "No deployed revision found for $release; deleting its release records so the upgrade below installs it again."
+                  kubectl -n "$NAMESPACE" delete secret -l "owner=helm,name=$release"
+                  return
+                fi
 
-              # This is a metadata recovery path, not the real health gate.
-              # An interrupted atomic rollback can leave the latest Helm
-              # revision in pending-rollback even when the last deployed
-              # revision is the only viable base for the next deploy. Waiting
-              # here replays the old manifest's readiness problems and can
-              # strand this recovery step before the current chart gets a
-              # chance to fix them. The following helm upgrade owns the full
-              # --wait/--atomic rollout with richer diagnostics.
-              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --timeout 5m
+                # This is a metadata recovery path, not the real health gate.
+                # An interrupted atomic rollback can leave the latest Helm
+                # revision in pending-rollback even when the last deployed
+                # revision is the only viable base for the next deploy. Waiting
+                # here replays the old manifest's readiness problems and can
+                # strand this recovery step before the current chart gets a
+                # chance to fix them. The following helm upgrade owns the full
+                # --wait/--atomic rollout with richer diagnostics.
+                helm rollback "$release" "$deployed_revision" \
+                  --namespace "$NAMESPACE" --timeout 5m
 
-              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
-              ;;
-            *)
-              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
-              ;;
-          esac
+                helm status "$release" -n "$NAMESPACE"
+                ;;
+              *)
+                echo "Release $release status is ${status:-not-installed}; no recovery needed."
+                ;;
+            esac
+          }
+
+          recover_release "$HELM_RELEASE_NAME"
+          recover_release "$HELM_RELEASE_NAME-xcresult-processor"
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any
@@ -1024,8 +1162,20 @@ jobs:
               echo "WARNING: no version resolved for $1; leaving chart default."
             fi
           }
-          add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
+          xcresult_processor_image_tag="${XCRESULT_PROCESSOR_IMAGE_TAG_INPUT:-}"
+          if [ -n "$xcresult_processor_image_tag" ]; then
+            echo "Overriding resolved xcresult processor tag with input ${xcresult_processor_image_tag}"
+          else
+            xcresult_processor_image_tag="${XCRESULT_PROCESSOR_TAG:-}"
+          fi
+          add_set "xcresultProcessor.image.tag" "$xcresult_processor_image_tag"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          if [ -n "${RUNNER_IMAGE_DIGESTS:-}" ]; then
+            while IFS=$'\t' read -r xcode digest; do
+              image_sets+=(--set-string "runnersFleet.runnerImageDigests.${xcode//./\\.}=$digest")
+              echo "Pinning runnersFleet.runnerImageDigests.$xcode=$digest"
+            done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<< "$RUNNER_IMAGE_DIGESTS")
+          fi
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used
           # to pin staging at an in-flight `:macos-26-5-<git-sha>` build
@@ -1065,8 +1215,7 @@ jobs:
           #      exist; fall through to (3) rather than pin a tag that
           #      ImagePullBackOffs.
           #   3. canary/production — and staging re-rolls of a prebuilt image —
-          #      pin the released kura@ tag resolved from git, so they never
-          #      run an unreleased (or never-built) binary.
+          #      pin the latest kura@ canary resolved from git.
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
@@ -1075,7 +1224,7 @@ jobs:
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
             kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
-            echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
+            echo "Kura runtime: ${{ inputs.environment }} pins kura@ tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
           # Expediting the rollout is always an explicit deployment input,
@@ -1129,6 +1278,12 @@ jobs:
           else
             registry_enabled=false
           fi
+          xcresult_processor_name="$HELM_RELEASE_NAME-tuist-xcresult-processor"
+          if grep -qx "  name: $xcresult_processor_name" "$registry_render"; then
+            main_renders_xcresult_processor=true
+          else
+            main_renders_xcresult_processor=false
+          fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
@@ -1161,14 +1316,14 @@ jobs:
           # `kubectl patch` to it survives every later deploy: the RunnerPool
           # `linux-4vcpu-16gb` sat at `maxReplicas: 8` from 2026-08-14 while the
           # chart said 120, capping the pool at a fifteenth of its siblings.
-          # Reassert the ceiling keys so the chart is the source of truth again.
+          # `minWarmPoolFloor` drifts the same way. Reassert these keys so the
+          # chart is the source of truth again.
           #
-          # Scoped to the two keys nothing else writes. `minWarmPoolFloor` is
-          # excluded because live values are owned by other field managers, and
-          # `spec.replicas` because the chart only seeds it and the
-          # runners-controller owns it from then on. Reasserting either would
-          # have this step fight the controller on every deploy.
-          echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
+          # Scoped to the keys nothing else writes. `spec.replicas` is excluded
+          # because the chart only seeds it and the runners-controller owns it
+          # from then on. Reasserting it would have this step fight the
+          # controller on every deploy.
+          echo "::group::Reassert chart-owned RunnerPool scaling settings"
           runner_pools_render="$(mktemp)"
           if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
                "${helm_values_args[@]}" \
@@ -1190,6 +1345,7 @@ jobs:
                             | {name: .metadata.name, namespace: .metadata.namespace,
                                autoscaling: (.spec.autoscaling
                                  | with_entries(select(.key | . == "maxReplicas"
+                                                         or . == "minWarmPoolFloor"
                                                          or . == "scaleDownCooldownSeconds")))}
                             | select(.autoscaling != {})]
                           | .[]'
@@ -1229,7 +1385,7 @@ jobs:
                 continue
               fi
 
-              echo "RunnerPool $pool_namespace/$pool_name: scaling ceiling drifted from the chart; reasserting."
+              echo "RunnerPool $pool_namespace/$pool_name: scaling settings drifted from the chart; reasserting."
               echo "  live:  $have"
               echo "  chart: $want"
               kubectl -n "$pool_namespace" patch runnerpool "$pool_name" --type=merge \
@@ -1241,6 +1397,134 @@ jobs:
           rm -f "$runner_pools_render"
           echo "::endgroup::"
 
+          # The xcresult processor's Deployment and PDB ship in a release of
+          # their own, rendered from the same values by
+          # infra/helm/xcresult-processor, and nothing below waits on it or
+          # rolls it back. Its readinessProbe follows Postgres, ClickHouse and
+          # the Mac mini's path to its Tart guest, so inside this release's
+          # `--atomic --wait` a single NotReady processor held every server
+          # deploy for the full timeout and then rolled it back. The
+          # "xcresult processor rollout" step reports on it instead.
+          xcresult_release="$HELM_RELEASE_NAME-xcresult-processor"
+          xcresult_args=(
+            --namespace "$NAMESPACE"
+            --set tuistRelease="$HELM_RELEASE_NAME"
+            "${helm_values_args[@]}"
+            "${image_sets[@]}"
+          )
+          xcresult_render="$(mktemp)"
+          helm template "$xcresult_release" infra/helm/xcresult-processor \
+            "${xcresult_args[@]}" > "$xcresult_render"
+          if grep -q '^kind: Deployment$' "$xcresult_render"; then
+            xcresult_owner="$xcresult_release"
+            echo "XCRESULT_PROCESSOR_DEPLOYMENT=$xcresult_processor_name" >> "$GITHUB_ENV"
+          elif [ "$main_renders_xcresult_processor" = "true" ]; then
+            xcresult_owner="$HELM_RELEASE_NAME"
+          else
+            xcresult_owner=""
+          fi
+          rm -f "$xcresult_render"
+
+          # Move the live objects to the release that renders them before
+          # either upgrade, so the processor keeps running across the move.
+          # Helm adopts an existing object whose ownership annotations name
+          # the installing release. `keep` stops the release that stops
+          # rendering it from deleting it; Helm checks that annotation on the
+          # live object when an upgrade drops a resource.
+          #
+          # Both directions, so a deploy from a commit that renders the
+          # processor in this release takes it back.
+          #
+          # The chart never renders `keep`, so every one found on these
+          # objects is a handover's, this run's or one an interrupted run
+          # left behind, and is cleared once both upgrades below have
+          # succeeded. Left in place it would outlive the move: a later
+          # deploy that disables the processor would leave it running,
+          # managed by neither release.
+          xcresult_objects=("deployment/$xcresult_processor_name" "poddisruptionbudget/$xcresult_processor_name")
+          clear_xcresult_keep() {
+            for object in "${xcresult_objects[@]}"; do
+              policy="$(
+                kubectl -n "$NAMESPACE" get "$object" --ignore-not-found \
+                  -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}'
+              )"
+              if [ "$policy" = "keep" ]; then
+                kubectl -n "$NAMESPACE" annotate "$object" helm.sh/resource-policy-
+              fi
+            done
+          }
+          echo "::group::xcresult processor release ownership"
+          if [ -n "$xcresult_owner" ]; then
+            for object in "${xcresult_objects[@]}"; do
+              current_owner="$(
+                kubectl -n "$NAMESPACE" get "$object" --ignore-not-found \
+                  -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}'
+              )"
+              if [ -n "$current_owner" ] && [ "$current_owner" != "$xcresult_owner" ]; then
+                echo "Handing $object from release $current_owner to $xcresult_owner."
+                kubectl -n "$NAMESPACE" annotate --overwrite "$object" \
+                  "meta.helm.sh/release-name=$xcresult_owner" \
+                  "meta.helm.sh/release-namespace=$NAMESPACE" \
+                  helm.sh/resource-policy=keep
+              fi
+            done
+          else
+            # Neither release renders the processor, so whichever one holds
+            # it has to be free to delete it.
+            clear_xcresult_keep
+          fi
+          echo "xcresult processor objects belong to: ${xcresult_owner:-no release (processor disabled)}"
+          echo "::endgroup::"
+
+          # Push the rendered release through the API server, admission
+          # webhooks included, without persisting anything. A rejection fails
+          # the deploy here, before the real upgrade has mutated the release,
+          # so the run cannot end in an --atomic rollback. That rollback is
+          # what makes a rejected resource expensive: it reverts every other
+          # resource in the release along with it, including changes applied
+          # outside the release by a hotfix, and it restores the previous
+          # manifest under a database the pre-upgrade migration has already
+          # moved forward.
+          #
+          # Same arguments as the upgrade below, built from the same shell, so
+          # the two cannot drift. Hooks are rendered but not executed, so the
+          # migration Job does not run twice.
+          #
+          # Skipped when the namespace does not exist: a server-side dry run
+          # cannot validate namespaced resources against a namespace that is
+          # not there, and --create-namespace does not create one during a dry
+          # run. That case is a first install, where there is no live release
+          # for a rollback to damage.
+          echo "::group::helm upgrade --dry-run=server (preflight)"
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            preflight_log="$(mktemp)"
+            if helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace "$NAMESPACE" \
+              "${helm_values_args[@]}" \
+              --set server.image.tag="$IMAGE_TAG" \
+              --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+              --set registry.image.tag="$registry_image_tag" \
+              --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+              "${image_sets[@]}" \
+              --dry-run=server >"$preflight_log" 2>&1 &&
+              helm upgrade --install "$xcresult_release" infra/helm/xcresult-processor \
+                "${xcresult_args[@]}" \
+                --dry-run=server >>"$preflight_log" 2>&1; then
+              rm -f "$preflight_log"
+              echo "Preflight passed; the API server accepts the rendered releases."
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error title=Helm preflight failed::The API server rejected a rendered release. Neither release was upgraded."
+              tail -80 "$preflight_log"
+              rm -f "$preflight_log"
+              exit 1
+            fi
+          else
+            echo "Namespace $NAMESPACE does not exist yet; skipping the preflight for this first install."
+            echo "::endgroup::"
+          fi
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
@@ -1250,6 +1534,41 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+
+          # What runs on a rack's Linux nodes (infra/helm/rack-nodes), from the
+          # same values and the operator's image, as a release nothing waits
+          # on. A rack is down for days at a time (transport, power, its one
+          # uplink), and Helm's wait holds a DaemonSet until every pod it wants
+          # is Ready, so in the release above a single dark rack node would roll
+          # every deploy back. The DaemonSet controller rolls these out on the
+          # nodes that are up, and on the others when they return. After the
+          # upgrade above, so they move only with an operator that rolled out.
+          rack_node_sets=()
+          if [ -n "$capi_image_tag" ]; then
+            rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
+          fi
+          # The rack's image cache prewarms the runner images the tuist
+          # release's pools run, so it names them from the same values.
+          if [ -n "${RUNNER_IMAGE_SEMVER:-}" ]; then
+            rack_node_sets+=(--set "runnersFleet.runnerImageSemver=$RUNNER_IMAGE_SEMVER")
+          fi
+          if [ -n "${MACOS_RUNNER_IMAGE_TAG_INPUT:-}" ]; then
+            rack_node_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$MACOS_RUNNER_IMAGE_TAG_INPUT")
+          fi
+          helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            "${helm_values_args[@]}" \
+            "${rack_node_sets[@]}" \
+            --wait=hookOnly
+
+          # After the upgrade above, so a new processor boots against migrated
+          # databases, and without waiting: a NotReady processor must not
+          # fail a deploy whose server release is already out.
+          helm upgrade --install "$xcresult_release" infra/helm/xcresult-processor \
+            "${xcresult_args[@]}" \
+            --wait=hookOnly
+          clear_xcresult_keep
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
@@ -1261,6 +1580,9 @@ jobs:
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
+          echo "::group::helm history (xcresult processor)"
+          helm history "$HELM_RELEASE_NAME-xcresult-processor" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
           echo "::group::helm get manifest (last attempted revision)"
           helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
           echo "::endgroup::"
@@ -1270,9 +1592,15 @@ jobs:
           echo "::group::events (last 100, sorted)"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
           echo "::endgroup::"
-          echo "::group::migration job"
-          kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
-          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
+          echo "::group::migration jobs"
+          # Both the Ecto migration (pre-upgrade) and the ClickHouse migration
+          # steps (post-upgrade). A failed hook Job is deleted before the next
+          # deploy recreates it, and its pod is short-lived enough that the log
+          # collector can miss it entirely, so this is the only place its
+          # output survives.
+          JOB_SELECTOR='app.kubernetes.io/component in (server-migration,clickhouse-migration)'
+          kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o wide || true
+          for job in $(kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o name 2>/dev/null); do
             echo "--- describe $job ---"
             kubectl -n "$NAMESPACE" describe "$job" || true
             echo "--- logs $job ---"
@@ -1366,3 +1694,45 @@ jobs:
           else
             echo "Swift registry component disabled; skipping registry smoke test."
           fi
+      - name: xcresult processor rollout
+        # Reports the processor release's rollout without gating the deploy:
+        # the server release is out by now and stays out whatever the
+        # processor does. A processor that never turns Ready (a shared
+        # Postgres or ClickHouse outage, or a Mac mini that cannot reach its
+        # Tart guest) fails this step, which annotates the run, and the job
+        # still succeeds. `:process_xcresult` jobs queue until a processor is
+        # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
+        # Tart VM cycle per replica.
+        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != ''
+        continue-on-error: true
+        timeout-minutes: 35
+        run: |
+          set -uo pipefail
+          deployment="deploy/$XCRESULT_PROCESSOR_DEPLOYMENT"
+          if kubectl -n "$NAMESPACE" rollout status "$deployment" --timeout=30m; then
+            exit 0
+          fi
+
+          echo "::error title=xcresult processor not Ready::$deployment did not finish rolling out within 30m. The server release is deployed and was not rolled back; :process_xcresult jobs queue until a processor is Ready."
+          echo "::group::$deployment"
+          kubectl -n "$NAMESPACE" describe "$deployment" || true
+          echo "::endgroup::"
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
+            echo "::group::$pod"
+            # A Tart Pod carries provisioning and readiness failures in its
+            # status rather than in Warning events.
+            kubectl -n "$NAMESPACE" get "$pod" \
+              -o jsonpath='{.spec.nodeName}{" "}{.status.phase}{" "}{.status.reason}{" "}{.status.message}{"\n"}{range .status.conditions[*]}{.type}={.status} {.reason} {.message}{"\n"}{end}' || true
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "::endgroup::"
+          done
+          {
+            echo "### xcresult processor not Ready"
+            echo
+            echo "\`$deployment\` did not finish rolling out within 30 minutes. The server release is deployed and was not rolled back."
+            echo
+            echo '```'
+            kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o wide 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

@@ -95,45 +95,33 @@ You can also point `TUIST_LOKI_URL` directly at a Loki instance if it exposes th
 
 You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend 30 seconds to balance observability with metrics ingestion costs).
 
-## PostHog analytics {#posthog-analytics}
+## Real user monitoring {#real-user-monitoring}
 
-Tuist integrates with [PostHog](https://posthog.com/) for user behavior analytics and event tracking. This allows you to understand how users interact with your Tuist server, track feature usage, and gain insights into user behavior across the marketing site, dashboard, and API documentation.
+Tuist can report browser performance from the marketing site, documentation, and dashboard using the [Grafana Faro](https://grafana.com/oss/faro/) Web SDK, which is bundled into the served JavaScript. It captures Core Web Vitals (including Largest Contentful Paint), uncaught errors, and page views, and posts them to a [Faro receiver](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) you run — for example the `faro.receiver` component in Grafana Alloy, which forwards to Loki and Tempo.
 
-### Configuration {#posthog-configuration}
-
-PostHog integration is optional and can be enabled by setting the appropriate environment variables. When configured, Tuist will automatically track user events, page views, and user journeys.
+### Configuration {#real-user-monitoring-configuration}
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No | | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL` | The PostHog API endpoint URL | No | | `https://eu.i.posthog.com` |
+| `TUIST_FARO_COLLECTOR_URL` | URL the browser posts Faro payloads to | No | | `/-/faro` |
 
 > [!NOTE]
-> **Analytics Enablement**
->
-> Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and `TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics events will be sent.
+> Real user monitoring is only enabled when `TUIST_FARO_COLLECTOR_URL` is set. Without it, no browser telemetry is collected and no third-party script is loaded.
 
+A same-origin path such as `/-/faro` avoids cross-origin requests and keeps the browser's Content Security Policy unchanged. Point it at your Faro receiver through your ingress.
 
-### Features {#posthog-features}
+### What is collected {#real-user-monitoring-collected}
 
-When PostHog is enabled, Tuist automatically tracks:
+- **Web vitals**: LCP, CLS, INP, FCP, and TTFB, captured automatically by the browser
+- **Page views**: recorded on load and on Phoenix LiveView navigation
+- **Views**: each payload carries the section that produced it — `marketing`, `docs`, `dashboard`, or `api-docs`
+- **Errors**: uncaught exceptions and unhandled promise rejections
 
-- **User identification**: Users are identified by their unique ID and email address
-- **User aliasing**: Users are aliased by their account name for easier identification
-- **Group analytics**: Users are grouped by their selected project and organization for segmented analytics
-- **Page sections**: Events include super properties indicating which section of the application generated them:
-  - `marketing` - Events from marketing pages and public content
-  - `dashboard` - Events from the main application dashboard and authenticated areas  
-  - `api-docs` - Events from API documentation pages
-- **Page views**: Automatic tracking of page navigation using Phoenix LiveView
-- **Custom events**: Application-specific events for feature usage and user interactions
+### Privacy considerations {#real-user-monitoring-privacy}
 
-### Privacy considerations {#posthog-privacy}
-
-- For authenticated users, PostHog uses the user's unique ID as the distinct identifier and includes their email address
-- For anonymous users, PostHog uses memory-only persistence to avoid storing data locally
-- All analytics respect user privacy and follow data protection best practices
-- PostHog data is processed according to PostHog's privacy policy and your configuration
+- No user identity is attached: payloads carry no user ID, email, or account
+- Sessions are not persisted across visits, so nothing is written to browser storage
+- Console capture is off, so application log output is never shipped from the browser
 
 ## Elixir metrics {#elixir-metrics}
 

@@ -1,7 +1,7 @@
-import Command
 import Foundation
 import Mockable
 import Path
+import TuistProcess
 import TuistTesting
 import XCTest
 

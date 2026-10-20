@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.ProjectAutomationsLive
 
   @history_page_size 5
@@ -37,7 +38,8 @@ defmodule TuistWeb.ProjectAutomationLive do
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
-       )}
+       )
+       |> assign(OpenGraph.og_image_assigns("settings"))}
     else
       _ ->
         raise TuistWeb.Errors.NotFoundError,
@@ -55,8 +57,6 @@ defmodule TuistWeb.ProjectAutomationLive do
      |> update(:revisions, &(&1 ++ revisions))
      |> assign(:has_more_revisions?, has_more_revisions?)}
   end
-
-  def automation_summary(automation), do: ProjectAutomationsLive.automation_summary(automation)
 
   def automation_actions_summary(%{trigger_actions: actions}), do: actions_summary(actions)
 
@@ -278,10 +278,17 @@ defmodule TuistWeb.ProjectAutomationLive do
   end
 
   defp condition_summary(monitor_type, trigger_config) do
-    ProjectAutomationsLive.automation_summary(%{
-      monitor_type: monitor_type,
-      trigger_config: trigger_config || %{}
-    })
+    summary =
+      ProjectAutomationsLive.automation_summary(%{
+        monitor_type: monitor_type,
+        trigger_config: trigger_config || %{}
+      })
+
+    if trigger_config && trigger_config["apply_actions_to_existing_matches"] == true do
+      summary <> " · " <> dgettext("dashboard_projects", "Requested actions for existing matches")
+    else
+      summary
+    end
   end
 
   defp enabled_label(true), do: dgettext("dashboard_projects", "Enabled")

@@ -39,7 +39,7 @@ enum RemoteMetadata {
         }
 
         let gitLabRepo = try? GitLabRepo(location: location)
-        if let gitLabRepo, await GitLabAuth.hasSession(host: gitLabRepo.host) {
+        if let gitLabRepo, await GitLabAuth.hasSession(for: gitLabRepo) {
             let apiVersions = (try? await GitLabAPI.remoteVersions(repo: gitLabRepo)) ?? []
             if !apiVersions.isEmpty {
                 return apiVersions
@@ -57,9 +57,8 @@ enum RemoteMetadata {
         var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", "--tags", candidate],
+                    "/usr/bin/git", ["ls-remote", "--tags", candidate],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 return parseGitRemoteVersions(output)
@@ -148,9 +147,8 @@ enum RemoteMetadata {
         var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", candidate, name],
+                    "/usr/bin/git", ["ls-remote", candidate, name],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 guard let line = output.split(separator: "\n").first,

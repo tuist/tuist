@@ -1,0 +1,78 @@
+#gradle-task-execution {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-3) var(--noora-spacing-6);
+  }
+
+  & [data-part="title"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & h1 {
+      margin: 0;
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-part="metadata-grid"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-8);
+    margin: 0;
+  }
+
+  & [data-part="metadata"] {
+    min-width: 0;
+
+    & dt {
+      margin-bottom: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+
+    & dd {
+      margin: 0;
+      font: var(--noora-font-body-medium);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-part="metadata"] dd > a,
+  & [data-part="metadata"] dd > span:has(svg) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    & [data-part="metadata-grid"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 600px) {
+    & [data-part="metadata-grid"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

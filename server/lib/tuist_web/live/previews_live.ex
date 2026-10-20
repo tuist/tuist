@@ -24,7 +24,12 @@ defmodule TuistWeb.PreviewsLive do
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
-     |> assign(OpenGraph.og_image_assigns("previews"))
+     |> assign(
+       OpenGraph.project_image_assigns(project,
+         title: dgettext("dashboard_previews", "Previews"),
+         fallback: "previews"
+       )
+     )
      |> assign(
        :latest_app_previews,
        AppBuilds.latest_previews_with_distinct_bundle_ids(project)
@@ -117,14 +122,7 @@ defmodule TuistWeb.PreviewsLive do
     base_flop_filters = [%{field: :project_id, op: :==, value: project.id}]
     filter_flop_filters = build_flop_filters(filters)
 
-    name_filter =
-      case params["name"] do
-        nil -> []
-        "" -> []
-        name -> [%{field: :display_name, op: :ilike_and, value: name}]
-      end
-
-    flop_filters = base_flop_filters ++ filter_flop_filters ++ name_filter
+    flop_filters = base_flop_filters ++ filter_flop_filters
 
     options = %{
       filters: flop_filters,
@@ -148,7 +146,10 @@ defmodule TuistWeb.PreviewsLive do
           Map.put(options, :first, 20)
       end
 
-    AppBuilds.list_previews(options, preload: [:created_by_account, :app_builds, project: :account])
+    AppBuilds.list_previews(options,
+      search: String.split(params["name"] || ""),
+      preload: [:created_by_account, :app_builds, project: :account]
+    )
   end
 
   defp build_flop_filters(filters) do

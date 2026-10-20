@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Path
@@ -9,6 +8,7 @@ import TuistGit
 import TuistHTTP
 import TuistLoader
 import TuistLogging
+import TuistProcess
 import TuistScaffold
 import TuistSupport
 
@@ -238,6 +238,7 @@ public struct PluginService: PluginServicing {
                 releaseUrl: releaseUrl
             )
         }
+        await fileSystem.markCacheEntryUsed(at: pluginCacheDirectory)
     }
 
     private func pluginCacheDirectory(

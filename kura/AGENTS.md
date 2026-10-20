@@ -3,19 +3,134 @@
 This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
 
 ## Key Boundaries
+- Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
+  See [the recovery runbook](../infra/kura-controller/serving-authority.md).
+  Never promote on timeout alone, reopen a dirty-primary volume, bypass the
+  publication permit on spawned work, or release a retained-corpus hold before
+  authoritative abort/completed transfer. Default-off legacy mode must remain
+  compatible with the preceding runtime.
+  Handover rejections must identify the verification stage and record on both
+  peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
+  details across mixed runtime versions without weakening the retained-data barrier.
+  Live-writer resumption requires the same process's publication-mutex fencing
+  acknowledgment and drained mutations, then a new CAS epoch bound to that
+  acknowledgment. Keep the unclean marker and refuse restarted incarnations;
+  this acknowledgment never authorizes another replica. Handover batches must
+  negotiate support, bound descriptors and referenced bytes, preserve ordered
+  full-corpus verification, and retain the individual-record fallback.
+  A preparation-capable destination may first reconcile under the exact Serving
+  intent while the source continues writing. Keep its fixed deadline, source
+  epoch/incarnation binding, normal background bandwidth admission and shared
+  preparation mutex. Complete one retained walk without waiting for an eviction-free
+  window while the source is mutable. The final Quiescing repair still repeats on
+  eviction before atomically acquiring its hold. Live preparation takes no hold
+  and grants no receipt or serving rights.
+  Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
+  expired grants, epoch/identity changes and drain must stop blocked peer I/O.
+  A named destination reconciles the source’s complete retained index before
+  taking its hold. Keep this pass serialized, bounded by normal replication
+  resources and the intent deadline, cancellable on authoritative abort, and
+  subject to store capacity/version/tombstone rules. Repair outlives
+  the request: a disconnected begin caller must not cancel/restart the
+  serialized preparation. Runtime drain still cancels it, and retries never
+  extend the original authority intent deadline. Named repair bypasses
+  the recency selection cutoff at listing and dispatch: an old missing record
+  is still required by the barrier. Keep normal ring rotation and disk admission;
+  final verification must reject any retained holes caused by rotation.
+  Before named repair, a complete source-index walk may reclaim sealed,
+  unpinned destination-only segments when bodies are missing. Track segment
+  identities rather than buffering the corpus; preserve every segment containing
+  a source-listed local record, including newer local versions. Failed/incomplete
+  listing must reclaim nothing. Durable retirements use supervised, resumable
+  cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
+  Repeat the retained walk if eviction committed during it, including cascaded
+  action-cache removals. Publish the eviction generation from the blocking
+  commit and compare it under the same lock that acquires the destination hold.
+  Repeated walks share the original deadline; never unfreeze a held corpus to
+  retry or bypass storage admission to force convergence.
+  Ordinary backward catch-up and forward pages keep their recency cutoffs.
+  Repair completion never replaces
+  the final full-corpus verification or authorizes promotion.
+  Qualification fixtures and their simulator limits are documented in
+  [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
-- Public HTTP and gRPC surfaces: `src/http.rs`
+- `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
+- Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
+- Bazel dependency fetching: [`src/reapi/asset/AGENTS.md`](src/reapi/asset/AGENTS.md), [protocol and rollout](docs/remote-assets.md).
+- `src/runtime.rs` exposes a race-safe drain notification for cancellable origin fetches. Cache hits bypass origin-download admission; active fetches release their gRPC guards when drain begins.
+- Public HTTP and gRPC surfaces: `src/http.rs`; upload coverage: [`src/http/AGENTS.md`](src/http/AGENTS.md). Tuist Cargo compilation caching uses the existing project-scoped Bazel Remote Execution API and SHA-256 CAS/Action Cache, not an additional HTTP cache protocol.
+- ByteStream upload coalescing (`src/reapi/service.rs`) fills only the remaining admitted staging window before flushing. Preserve borrowed large-chunk bypass, exact byte order and the same bounded path for zstd trailing bytes; ragged chunks must not grow the buffer beyond its reservation. Both the coalescer capacity and file-cache drop interval must respect the actual admitted window when decode buffers clamp it. Reject a window below the normal coalescer size (or the entire smaller blob), rather than doing a synchronous write-and-drop per tiny slice. Keep buffer-capacity and ordered-output tests alongside offset, digest, cancellation and stall coverage. Staging files are created with `create_new` as lease-tracked persistent files and written with positioned writes from the coalescing buffer through the shared `block_in_place` file-operation helper, so no second buffered copy or detached write outlives the upload's admission; persistent opens move their descriptor lease into the blocking open. Uploads stage in the budgeted temporary file (or admitted memory) and reach a segment only through the per-key locked persist, so rejected or abandoned uploads never consume ring space. `BatchUpdateBlobs` decodes compressed items only inside the bounded per-item window, after try-only admission of their declared size, and keeps that permit through the persist. That admission borrows ceiling headroom above a full floor like the rest of write decoding; the persist bounds the borrow, unlike a reply, which stays floor-only.
+- HTTP cache API definition: `openapi/cache.yml` describes the routes the Tuist CLI calls (module multipart and downloads, Xcode CAS, key-value, Gradle, project clean). The CLI's Swift client in `cli/Sources/TuistCache/OpenAPI` is generated from it with `mise run generate-cli-client`, so change it with the routes in `src/http.rs`, then regenerate. Keep new fields optional: older CLIs and the legacy cache service share the contract.
+- Shared REAPI cache analytics recognize RequestMetadata tool names `bazel` and `mix`; keep the same authentication, namespace, queue admission, signed outbox and webhook path for both. Mix uses its compile reporter's stable build ID, dependency target and an audited dependency bundle as the CAS output. Do not add a Mix-specific store or infer transfers from local client observations. Unknown tools remain excluded from analytics; the historical `skipped_no_bazel_metadata` metric name remains compatible.
+- Action-cache analytics may include one output identifier from a successful `ActionResult` for profile-description correlation. Inspect only the first file (or first directory when no file exists), cap it at 1,024 bytes, and allocate only after queue admission. Omit empty hints on the wire so older servers and ordinary CAS events retain their existing payload. Never label outputs as source files, scan all outputs, or change cache responses for presentation.
+- REAPI module clients send `x-tuist-artifact-kind: module` to attribute usage to the module cache. Only this bounded hint is recognized; absent/unknown hints remain `reapi`. It does not affect authentication, storage keys, or tenant selection.
+- `GetActionResult` with `x-tuist-lookup: presence` answers presence only: it neither promotes the entry nor extends the lifetime of the blobs it references (including the tree and chunk reads of its presence gate). Tuist module warms use it to republish evicted entries without keeping alive what only their local cache serves. Every other lookup keeps the REAPI lifetime guarantee.
+- Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
+- Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. Generate the fixture with Tuist's `Project.swift` and `Tuist.swift` manifests, not another project generator. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
+- Xcode transfer analytics coverage lives in `spec/e2e/xcode_analytics_spec.sh`, using the same compiler fixture and local Kura as the chunking spec. Build the server's `xcactivitylog-parser` first (its own AGENTS.md describes the SwiftPM command), or set `KURA_E2E_XCODE_PARSER` to that executable. `KURA_E2E_CAS_BIN` selects the built plugin/proxy directory. The spec matches actual compiler output ids through the analytics database and validates the production parser's upload/download records; retain this boundary so a successful cache restore cannot hide empty analytics.
+- Xcode lookup concurrency coverage lives in `spec/e2e/xcode_lookups_spec.sh`, with the fixture in `spec/fixtures/xcode-lookups/` (two dependent Swift modules, an Objective-C translation unit, and several SDK framework imports, so a cold build has dozens of independent keys). It puts `cas-plugin`'s `chunking_fault_gate` in `delay-lookups=<ms>` mode in front of local Kura and asserts that cold-miss and cold-hit builds overlap their action lookups rather than issuing them one at a time; same `KURA_E2E_XCODE=1` gating as the chunking spec. Its repeated-wipe case drains the seed publications, then wipes fixture-private DerivedData and compilation-cache directories three times while keeping the same proxy alive, requiring complete compiler replay after every wipe. The helper guards deletions and moves its DerivedData out of the shared path on both success and failure. Portable cleanup and unsafe-path regressions live in `spec/e2e/xcode_lookups_lifecycle_spec.sh` and run in the clients CI shard without Xcode. When overriding `KURA_E2E_CAS_BIN`, include both plugin/proxy binaries and `examples/chunking_fault_gate` from the same build.
+- Clang fault coverage lives in `spec/e2e/clang_chunking_spec.sh` and `spec/fixtures/clang-chunking/`. Its loopback-only Rust request gate forwards to real Kura, interrupts uploads, or holds chunk reads while ShellSpec deletes only the test's isolated namespace. This proves client fallback after remote dependency loss, not a server retention lease. Keep fault injection out of production handlers and assert that the fault actually occurred.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
-- Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
+  - Request WAL sequence publication and writer enrollment belong to the detached blocking commit, not its awaiting caller. Cancellation must not leave a visible client manifest untracked. Existing-blob acknowledgements and completed-upload status join the pending WAL prefix before they acknowledge; unrelated cursor, usage, and backfill writes must not trigger extra client flushes.
+  - Metadata SST full-key Bloom filters share the existing RocksDB block-cache budget; they only skip definite misses, never replace authoritative reads. Preserve old unfiltered SST and rollback compatibility, and measure pinned filter memory plus normal-compaction steady-state CPU before claiming a benefit.
+  - `FindMissingBlobs` resolves presence per batch of digests (`Store::artifacts_exist_extending_lifetime`): one manifest-cache lock, one RocksDB multi-get, one segment-state snapshot, no manifest-cache admission. Keep its answers identical to the per-digest `presence_keys` path, including promotion of present blobs in Old segments while the ring is aging; only digests with a stored recipe may fall back to the per-digest chunk walk.
+  - The manifest row cache uses exact LRU ordering in reusable page-indexed slots, not a second hash table. Recency touches preserve handles; sparse-page packing rewrites handles together with their cached rows under the owning cache mutex. Recycle only removed slots, release empty pages during trimming, and pack (then shrink the page index) whenever the index covers more than twice the live rows plus one page, so one hot row cannot pin every old page and released pages cannot keep a historical index peak. Rows are charged their slots and index share, and the fixed one-page slack is deducted from the cache limit before rows are admitted. Preserve recency-link byte accounting and test sustained eviction allocations, not only hit latency: hash tombstones can grow private memory at constant entry count.
+  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Segments a rotation drops from the ring are owned by a guard from that moment; if anything later fails or is cancelled (the caller's manifest commit, a hold-refused eviction, a dropped request), the rest are queued for the worker, never left for the startup sweep. The worker drains that queue before retained segments and only while no handover hold is active. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
+- Action-cache removal log: `src/action_cache_removals.rs` records the entries and blobs the store removes (after the deleting write commits, in one bounded log for all namespaces), so the snapshot serve path drops them from a cached index before encoding it (see the snapshot passage in `docs/architecture.md`). Record every new removal path there, or the served snapshot keeps advertising what it removed until the next reconcile.
+- Backfill catch-up passes (the pipeline every pull link runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set, owned by `AppState.backfill_claims`), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (horizon and capacity rules). Pass scheduling and the bootstrap failure budget live in the links themselves (`src/sync/`).
+  Individually fetched inline records must preserve the same origin/checksum
+  metadata and feed-echo policy as batched records; losing metadata at the same
+  version can make a fully caught-up replica fail retained-corpus handover.
+- Pull replication (`docs/replication-design.md`): `src/sync/` — `feed.rs` (the bounded arrival feed a sibling reads forward), `replica.rs` (intra-region link: snapshot, backward pass, forward reads), `region.rs` (inter-region link: ascending origin-filtered reads from a per-region watermark, gateway only), `roles.rs` (who pulls from whom, from the membership view and published roles), `coordinator.rs` (opens/closes links, readiness and drain terms). Every present peer is pulled from; a peer that answers 404/405 to a pull route (or serves the region listing without `now`) runs a release that predates pull and settles its link as `unsupported` (a capability gap on `/status/rollout`, never `degraded`). Cross-region lag is `kura_region_sync_lag_seconds` (the remote gateway's newest listed version, sent as the additive `newest_version_ms` on each ascending page and kept in an atomic the store raises after each commit, minus the newest applied); the watermark age grows through idle periods and the per-pod byte counters follow the gateway role, so neither is lag on its own. The push path is gone: `src/replication/` holds only membership and the peer body streaming, the `outbox` column family stays declared but is swept at open, and the `/_internal/replicate/*` receivers in `src/http.rs` are kept solely so a pre-pull self-hosted peer can drain its outbox into this node — delete them once the oldest supported self-hosted release pulls.
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
+  - REAPI write decode/staging growth stays nonblocking while holding owned permits. Admission refusals in `src/reapi/admission.rs` carry a standard `google.rpc.RetryInfo` delay of 1–10 seconds; never introduce waiting on shared upload memory or HTTP/2 flow control while holding a partial reservation. Keep upload sizing guidance in `README.md` aligned with the staging/decode charges.
+  - ByteStream response admission uses `src/memory/mod.rs` and `src/memory/pools.rs`: preserve FIFO order, cancellation cleanup, the bounded deadline, and lifetime-bound byte permits. Waiting requests do not own stream buffers; bound their aggregate requested bytes against effective serving capacity as well as their bookkeeping count. Preserve the retry-backoff scale independently of queue expansion. `spec/e2e/bytestream_admission_spec.sh` and `test/e2e/bytestream-admission/` exercise paced local readers and collect resource samples.
+  - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Use the FIFO admission turn and dedicated pressure-tier signal; preserve cancellation cleanup through blocking record writes and expose queue outcomes/depth. Keep occupied-slot and effective-capacity metrics aligned with admission.
+- Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
+  - Optional REAPI wildcard inlining that cannot acquire response memory increments `kura_reapi_inline_fallbacks_total` per omitted file, not the materialization rejection or capacity-shed counters. Explicit inline requests and failed required reads retain rejection accounting. Preserve this distinction when sharing materialization helpers.
+  - Artifact upload readers (`src/utils.rs`, staged and inline handlers in `src/http.rs`) keep incoming-body failures separate from storage I/O. Classify typed disconnects as 499, malformed framing as 400, and incoming-body timeouts as 408; unknown body failures and storage faults remain 5xx. The peer backfill body-fetch request (`/_internal/backfill/bodies`), which both push-era and pull catch-up passes run on, classifies the same way. The push receivers kept for pre-pull peers still map every buffered read failure to 413; they go with those peers rather than being widened. Record rejected reads in domain error counters and preserve bounded causes in upload completion extensions; a size rejection is not a rejected read, so it stays out of the write counter. Client failures use a separate warning limiter from server faults. Protocol and cleanup coverage lives in `src/http/upload_tests.rs` and `spec/e2e/upload_errors_spec.sh` (CI clients shard). Public and peer HTTP entry points wrap concrete Hyper Incoming bodies to reject a swallowed reset without END_STREAM; generic body end-stream hints are not sufficient for this check. The HTTP/2 test must exercise Hyper Incoming to guard both the end-stream check and the typed h2 downcast across dependency upgrades. Ingest checksum verification is opt-in per request (the `tuist-checksum-sha256` header on single-request blob PUTs, `checksum_sha256` in the module-complete body), because these lanes' keys are input-derived cache keys, not content hashes; hash while the bytes stream (staging or assembly), never with a second read pass, and refuse a mismatch with 422 before persist (a `checksum_mismatch` write result). A refused multipart complete drops the whole session — a whole-object digest cannot say which part is wrong and the client's retry opens a fresh session, so kept parts would only hold multipart capacity until the TTL. A verified module digest is stored on the manifest (optional everywhere, carried like `origin_region` through replication and backfill) and served back as `tuist-checksum-sha256` on 200/206, always describing the WHOLE object. Requests that declare nothing stay unverified — old clients, old servers, and old rows must interoperate.
+- Optional fixed connectivity telemetry: [`src/connectivity/AGENTS.md`](src/connectivity/AGENTS.md); dedicated thread/runtime, no startup/readiness dependency, ordinary JSON logs.
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
+- Mesh and usage HTTP timeout policy: `src/control_plane_http.rs`, used by `src/mesh_heartbeat.rs` and `src/usage.rs` — 3 seconds for connection setup including DNS, within a 5-second total request deadline. `src/telemetry.rs` builds the OTLP span exporter's HTTP client from the same two budgets; that client must stay blocking, because the batch span processor drives exports on a thread with no Tokio reactor. Enrollment, registration, analytics, and authentication configure their clients separately. Keep the initial peer-view serving gate intact.
 - Peer TLS support: `src/peer_tls.rs`
+- Provider/domain-aware peer routing: `src/peer_topology.rs`. Private metadata is
+  a deployment attestation of the underlay, never inferred from a provider name.
+  Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
+  identities unchanged, and cross-provider/published replication coverage intact.
+  Keep local private-probe health separate from advertised serving/draining state
+  and out of the local gateway election. Only backward region passes may yield
+  to healthy remote-region private donors; sibling donors and forward pages must
+  never trigger this delay. Preserve legacy canonical discovery semantics.
+  Reuse a status response as private health only when discovery queried the actual
+  private origin; an equal advertised node URL behind a gateway is insufficient.
+  Analytics outbox delivery uses its own control-plane client, independent of
+  peer certificates, proxy suppression and redirect policy.
+  Rollout gates and unresolved provider setup are in
+  [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
+  Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
+  use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Regional E2E private aliases must be isolated per domain. The fixture mTLS
+  proxies distinguish private body transfers from discovery probes; retain the
+  one-sided-approval negative case and independent suite lifecycles.
+  Keep run-specific manifests, credentials, captures and dated results out of
+  the repository; record deployment validation in the associated PR. Private-path
+  fault tests must observe a real blackhole: changing a Service port can leave
+  pooled connections alive. Scope fixture cleanup to its unique test label.
+  Preserve qualification limits: a single-host canary is not a physical host
+  pair, and Chicago does not qualify an ORD–SCL private interconnect.
+  Distinct same-provider domains require reciprocal exact-ID approval through
+  `canonical_networks` before using canonical mTLS. Same-domain traffic always
+  stays private-only. Canonically approved peers are not private donors. Roll
+  out policy-capable runtimes before advertising a newly qualified domain.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
+  - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.
+  - ByteStream admission uses the standard ShellSpec `support.sh` lifecycle and the Compose override in `test/e2e/bytestream-admission/`. The CI bytestream-admission shard runs it against the shared prebuilt Kura image and the existing Go load-client image. Optional resource captures use the same test path.
+  - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps + `patches/`, applied to rules_rs's pinned rules_rust); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which parses libtest's text output and writes JUnit to `$XML_OUTPUT_FILE`. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
@@ -31,22 +146,76 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
+- Synchronize inline write races with the test-only `FailpointAction::Pause` and explicit replicated versions; local versions are stamped at staging, so sleeps between request starts cannot guarantee distinct versions.
+- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
+- The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
+- Consider a behavioural change incomplete until it has been stress tested against `main` on all four
+  resource axes — see [Resource Budgets](#resource-budgets)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
+- Wait for `/ready` (`wait_for_node_ready` in `spec/e2e/support.sh`) before seeding or measuring an E2E node: the bootstrap listener answers `/up` successfully during store recovery while cache routes still return 503 and are never counted by the serving router's metrics middleware. Keep mid-backfill observations on joining nodes independent of readiness.
+
+## Resource Budgets
+Kura is bound by memory, disk, CPU, and egress, and each of those is a hard, shared bound on a mesh node. A change that buys latency by keeping more bytes resident, writing more segments, spending more CPU per request, or moving the same artifact across peers twice is a regression even when every test passes. Staying inside the four budgets is part of the change, not a follow-up.
+
+Once an implementation works, stress it under sustained load and compare all four axes against the merge base on `main`:
+- Run both builds through the same harness, on the same host, sequentially, with the same config and the same load shape.
+- The node's `/metrics` endpoint is the source of truth for all four axes; scrape it on an interval rather than reading a single sample. Counters render with a doubled `_total` suffix, so query the scraped name and not the one registered in `src/metrics.rs` — the registered spelling silently sums to zero and reads as "unchanged".
+- Hold the load long enough to reach steady state, then keep sampling after it stops. The peak under load and the level it settles back to are separate answers: a change that never gives memory back is a leak even when its peak is unchanged.
+
+What to observe, per axis. Find the current metric for each from `src/metrics.rs`; what matters is the quantity, not the name it happens to carry:
+- Memory, heap: anonymous resident memory and the allocator's own allocated/resident accounting. Do not judge by total resident size — file-backed resident pages are mmap'd segments the kernel reclaims on demand, so a rising total with flat anonymous is page cache, not growth. Allocator memory retained from the OS, rising on its own, is virtual address space rather than a regression.
+- Memory, headroom: equal resident memory reached by shedding more work is still a regression. Alongside the bytes, compare the pressure tier the node sits in and how often it moves, how much work was shed or refused, and how much of the transient budget was reserved against its capacity. At the same offered load the node should stay in the same tier as `main`.
+- Disk: bytes on the data volume for the same corpus, and what retention those bytes buy. Retention falling at unchanged capacity means the change costs cache hit rate even though the volume looks the same. Watch the segment write and refresh volume for write amplification.
+- CPU: process CPU seconds per unit of work (bytes served, requests completed) across the whole run, not an instantaneous percentage — local load generators drift between runs. Higher CPU per byte surfaces as queueing under fleet load long before it is visible on one node.
+- Egress: bytes on the wire for client traffic and for peer replication, each normalized to the same offered work. Refetch loops, duplicated replication, and lost dedup all look like unchanged latency with more bytes moved. Peer egress is metered and shaped per tenant (`src/bandwidth.rs`, `infra/egress-tree-agent/`), so extra bytes are a real cost and not just spare bandwidth.
+
+Put the before/after numbers for all four axes in the pull request description, including the ones that did not move — "measured, unchanged" is a result, and the next person needs to know it was checked.
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
 - Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
+- ByteStream partial staging is request-owned, not resumable session state. Missing completed-upload status signals `UNIMPLEMENTED` so Bazel can restart; keep this contract and completed-artifact queries covered by the real uploader fixture in `test/e2e/bytestream-recovery/`. A Write of an already stored direct blob is drained, not answered early: early answers reset streams the client is still sending on and exhaust h2's per-connection error-reset budget (GOAWAY `too_many_internal_resets`)
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
+- When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
+  `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That
+  dashboard is meant to cover every `kura_*` family the runtime exports, so an unlisted metric is
+  effectively invisible to whoever is debugging next. Add the panel to the row for its subsystem, and
+  put the operational interpretation in the panel description rather than in the Prometheus HELP text.
+  Note that counters scrape with a doubled suffix (a counter registered as `foo_total` is served as
+  `foo_total_total`) — panels must query the scraped name, not the name in the source.
 
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:
 - Keep changes backward and forward compatible across one version skew. New nodes must interoperate with old nodes on the peer replication and membership protocols, and clients must keep working against either version. Prefer additive, negotiated changes (for example, offering HTTP/2 while still accepting HTTP/1) over flag-day switches.
-- Never change the on-disk segment/blob format or the replication wire format in a way that an old peer cannot read. Segment and blob files are **append-only and reclaimed by unlink, never truncated**; code that maps them (`src/mmap.rs`) depends on this invariant for memory safety (truncation would SIGBUS live mappings). Do not introduce in-place rewrites or `set_len`/`ftruncate` on those files without revisiting the mmap serving path.
+- Never change the on-disk segment/blob format or the replication wire format in a way that an old peer cannot read. Segment and blob files are logically append-only and reclaimed by unlink, never truncated. Active segments may receive reserved, non-overlapping positioned writes without the operating system's append flag. A failed or cancelled reservation may leave a bounded hole, but writers must never overwrite a committed range, reuse an uncertain tail offset, or truncate the file. Rotation takes the exclusive segment barrier before publishing a new active segment. Memory-mapped serving remains safe because manifests expose only fully written committed ranges and existing mappings may observe file growth; truncation could crash a process through a live mapping. Do not introduce in-place rewrites or `set_len`/`ftruncate` on those files without revisiting `src/mmap.rs` and the reservation, synchronization, and rotation protocol.
 - Node-local optimizations (caching, mmap serving, readahead) must degrade gracefully to a known-good path and must not alter response bytes or headers, so a half-rolled fleet stays consistent.
 - New dependencies must build in the release image (`Dockerfile`) without new system requirements, and config/limit changes must ship with matching Helm values in `ops/` so a rollout does not depend on out-of-band manual steps.
+- Hosted canary and production run the `kura@X.Y.0-canary.N` that the deploy cascade publishes for each Kura change on `main`, so every merged change reaches hosted production in that same cascade. Stay compatible with the previous canary, not only the previous stable release.
+
+- Private runner Kura uses the ordinary managed StatefulSet rollout and account mesh. Both replicas continuously pull from each other over the arrival feed, with a bootstrap pass after a restart; the standby is not read-only. The stable private gateway pins reads and writes to the selected primary. Replication remains asynchronous; Kubernetes readiness alone does not prove a caught-up sibling. See `infra/kura-controller/private-runner-rollouts.md`.
+
+## Network-trusted Bazel reporting
+- No Authorization plus exactly one explicit network-reporting header uses uncached control-plane publishing authorization, never cache authorization entries. Keep marker parsing regressions for blank/duplicate credentials and malformed/duplicate markers; actor claims never select this mode. Missing auth-engine configuration, invalid/duplicate supplied credentials or disabled instance publishing configuration fail closed. The control-plane startup setting applies to all supported projects/accounts, and operators must restart its replicas after changes.
+- Unsigned streams mint server invocation IDs, ignore client lifecycle IDs, never deliver CAS/JUnit/profile/action artifacts, and carry network provenance through signed invocation telemetry. Inline target summaries are bounded telemetry, not trusted flakiness/quarantine evidence. The server rechecks policy before ingestion.
+- Keep unsigned admission separate from authenticated traffic: 16 pre-auth stream permits, four concurrent streams/retained invocation records per project, 8 MiB/20,000 retained-event and 256 MiB transport caps, five-minute idle/backpressure and six-hour lifetime bounds, cleanup, and deadline-bounded reads AND response/error sends. Authenticated records take precedence at the global cap. Never hold a permit indefinitely on HTTP/2 flow control.
+- Unsigned invocation analytics has its own bounded queue/runtime/circuit breaker. Cap serialized events at 128 KiB (including escaping) and inline summary state at 32 KiB so batches cannot exceed the webhook body cap or poison signed telemetry. Preserve the previous authenticated wire format by omitting empty optional fields.
+- `TUIST_ACTOR_ID` build metadata overrides Bazel's OS user, including empty/invalid suppression. Reserve the reported-user metadata key so custom metadata cannot undo an explicit opt-out. Generated per-machine configuration captures the environment override at setup; a direct Bazel `--build_metadata=TUIST_ACTOR_ID=...` can override it per invocation.
+
+## Bazel timelines
+- `src/reapi/bep.rs` keeps its bounded invocation summary and separately delivers the `command.profile.gz` CAS reference and action diagnostics through `src/bazel_test_artifacts.rs`. The delivery worker reserves memory before reading artifacts. Profiles are limited to 32 MiB compressed; diagnostic streams use bounded range reads that retain their first and last 16 KiB. Only project-scoped CAS artifacts are read; arbitrary profile URLs and local paths are never fetched.
+- `tuist bazel setup` enables JSON profiles, disables profile event merging, includes target/output identifiers and uses the remote BEP artifact uploader. The server retains profile intervals and diagnostics for 90 days.
+- `spec/e2e/bazel_timeline_spec.sh` runs real C++ builds against configured local Kura and Tuist endpoints, compares every API interval to the original profile, verifies more than 32 compiler actions and native counters, and checks the failed-action log. Configure `TUIST_TIMELINE_SERVER_URL`, `TUIST_TIMELINE_KURA_URL`, `TUIST_TIMELINE_PROJECT`, and `TUIST_TIMELINE_TOKEN_FILE` to run it.
+
+- Timeline action and profile admission uses separate bounded nonblocking queues, isolated from test delivery. Action diagnostics are batched by account/project, at most 32 per signed request; a missing batch endpoint falls back to the legacy single-action protocol during rollout. Overflow is best effort and increments source-specific dropped metrics. Profile/action delivery outcomes use `bazel_profile` / `bazel_action` analytics kinds, including size rejections.
+
+- Account renames separate immutable storage identity from a mesh-refreshed authorization handle. Preserve the configured tenant, workload and peer CA. Client endpoints follow the current name with 90-day DNS/TLS/HTTP/gRPC aliases only after the server's default-off per-account endpoint-migration gate is enabled. Pausing freezes deployed routing and clears redirect targets, including for already-renamed accounts, without gating authorization identity refresh or extending expiry deadlines. The server expires URL routing separately from permanent name reservations and runtime authorization/analytics identity. Snapshot the handle, aliases and ready redirect targets together; HTTP redirects require explicit client capability and gRPC remains an alias. See `docs/account-renames.md` for readiness gates and retirement policy. Missing optional identity fields preserve learned state during version overlap.
+
+- Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume.
+
+- Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.

@@ -4,14 +4,19 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
 
   alias Tuist.Builds
   alias Tuist.MCP.Components.Tools.GetXcodeBuild
+  alias Tuist.MCP.Components.Tools.GetXcodeBuildStep
   alias Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks
   alias Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs
   alias Tuist.MCP.Components.Tools.ListXcodeBuildFiles
   alias Tuist.MCP.Components.Tools.ListXcodeBuildIssues
   alias Tuist.MCP.Components.Tools.ListXcodeBuilds
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildSteps
   alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.Projects
   alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   defp conn_with_subject do
     %Plug.Conn{assigns: %{current_subject: :subject}}
@@ -23,6 +28,44 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     stub(Builds, :get_build, fn id -> {:ok, %{id: id, project_id: 1}} end)
     stub(Projects, :get_project_by_id, fn 1 -> project end)
     stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+  end
+
+  test "ID-only Xcode MCP tools refuse a public attacker's duplicate private build UUID", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    public = ProjectsFixtures.project_fixture(visibility: :public)
+
+    {:ok, victim} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "Victim",
+        inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+      )
+
+    {:ok, _} = RunsFixtures.build_fixture(id: victim.id, project_id: public.id, scheme: "Attacker")
+    conn = assign(conn, :current_subject, user)
+
+    for tool <- [
+          GetXcodeBuild,
+          ListXcodeBuildSteps,
+          GetXcodeBuildStep,
+          ListXcodeBuildTargets,
+          ListXcodeBuildFiles,
+          ListXcodeBuildIssues,
+          ListXcodeBuildCacheTasks,
+          ListXcodeBuildCASOutputs
+        ],
+        reference <- [victim.id, "https://tuist.dev/#{project.account.name}/#{project.name}/builds/#{victim.id}"] do
+      arguments = %{"build_run_id" => reference}
+      arguments = if tool == GetXcodeBuildStep, do: Map.put(arguments, "step_id", "1"), else: arguments
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = tool.call(conn, arguments)
+
+      assert text == "Build not found: #{victim.id}"
+      refute text =~ "Attacker"
+    end
+
+    assert {:ok, build} = Builds.get_build(victim.id, project_id: project.id)
+    assert build.scheme == "Victim"
   end
 
   describe "list_xcode_builds" do
@@ -92,6 +135,51 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
   end
 
   describe "get_xcode_build" do
+    test "returns the CAS transfer totals for the build" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok,
+         %{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+
+      expect(Builds, :cas_output_metrics, fn "build-1" ->
+        cas_output_metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert result["cas_output_download_count"] == 90
+      assert result["cas_output_upload_count"] == 10
+      assert result["cas_output_download_bytes"] == 9000
+      assert result["cas_output_upload_bytes"] == 1000
+    end
+
     test "returns build details and an archive download URL" do
       project = %{id: 1, name: "app", account: %{name: "acme"}}
 
@@ -130,6 +218,8 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       end)
 
       reject(&Storage.get_object_size/2)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
 
       result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
@@ -411,5 +501,16 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert hd(result["outputs"])["node_id"] == "node-1"
       assert hd(result["outputs"])["size"] == 1024
     end
+  end
+
+  defp cas_output_metrics(attrs \\ []) do
+    %{
+      download_count: Keyword.get(attrs, :download_count, 0),
+      upload_count: Keyword.get(attrs, :upload_count, 0),
+      download_bytes: Keyword.get(attrs, :download_bytes, 0),
+      upload_bytes: Keyword.get(attrs, :upload_bytes, 0),
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
   end
 end

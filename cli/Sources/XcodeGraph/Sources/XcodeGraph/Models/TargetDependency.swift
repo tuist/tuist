@@ -28,6 +28,8 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
     public enum PackageType: String, Equatable, Hashable, Codable, Sendable {
         case runtime
         case runtimeEmbedded
+        case runtimeDynamic
+        case runtimeDynamicEmbedded
         case plugin
         case macro
     }

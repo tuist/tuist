@@ -38,6 +38,12 @@ defmodule TuistWeb.API.InvitationsController do
            invitee_email: %Schema{
              type: :string,
              description: "The email of the invitee."
+           },
+           role: %Schema{
+             type: :string,
+             enum: Accounts.organization_role_names(),
+             default: "user",
+             description: "The role the invitee gets when they accept the invitation."
            }
          },
          required: [:invitee_email]
@@ -53,10 +59,12 @@ defmodule TuistWeb.API.InvitationsController do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(
-        %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
+        %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email} = body} =
+          conn,
         _params
       ) do
     subject = Authentication.authenticated_subject(conn)
+    role = Map.get(body, :role, "user")
 
     organization = Accounts.get_organization_by_handle(organization_name)
 
@@ -94,9 +102,7 @@ defmodule TuistWeb.API.InvitationsController do
         |> put_status(:bad_request)
         |> json(%{message: "The user is already invited to the organization."})
 
-      !is_nil(invitee) and
-          (Accounts.organization_admin?(invitee, organization) or
-             Accounts.organization_user?(invitee, organization)) ->
+      !is_nil(invitee) and Accounts.belongs_to_organization?(invitee, organization) ->
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The user is already a member of the organization."})
@@ -111,11 +117,15 @@ defmodule TuistWeb.API.InvitationsController do
         inviter_account = Accounts.get_account_from_user(inviter)
 
         {:ok, invitation} =
-          Accounts.invite_user_to_organization(invitee_email, %{
-            inviter: inviter,
-            to: organization,
-            url: &url(~p"/auth/invitations/#{&1}")
-          })
+          Accounts.invite_user_to_organization(
+            invitee_email,
+            %{
+              inviter: inviter,
+              to: organization,
+              url: &url(~p"/auth/invitations/#{&1}")
+            },
+            role: String.to_existing_atom(role)
+          )
 
         conn
         |> put_status(:ok)
@@ -128,7 +138,8 @@ defmodule TuistWeb.API.InvitationsController do
             name: inviter_account.name
           },
           token: invitation.token,
-          organization_id: invitation.organization_id
+          organization_id: invitation.organization_id,
+          role: invitation.role
         })
     end
   end

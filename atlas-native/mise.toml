@@ -1,0 +1,79 @@
+[tools]
+"github:tuist/once" = "0.68.2"
+rust = "1.96.0"
+kotlin = "2.4.10"
+"github:ktlint/ktlint" = { version = "1.7.1", asset_pattern = "ktlint-*.zip" }
+
+# Mobile tool installation must not run the monorepo's CLI bootstrap hook.
+[hooks]
+postinstall = "true"
+
+[tasks."prepare:rust"]
+description = "Materialize locked Rust sources for Once's per-crate build graph"
+run = "cargo vendor --quiet --locked .once/vendor > /dev/null"
+
+[tasks.check]
+depends = ["prepare:rust"]
+description = "Validate the graph, check Rust formatting, and test the Rust surfaces"
+run = ["once query validate-workspace", "cargo fmt --all -- --check", "once test AtlasCoreTests", "once test AtlasAuthTests", "once test AtlasCLITests"]
+
+[tasks."build:cli"]
+depends = ["prepare:rust"]
+description = "Build the Atlas Rust CLI for the host"
+run = "once build AtlasCLI"
+
+[tasks."test:cli"]
+depends = ["prepare:rust"]
+description = "Test CLI commands against the shared Rust catalog"
+run = "once test AtlasCLITests"
+
+[tasks."build:android"]
+depends = ["prepare:rust"]
+description = "Build the arm64 Android preview APK"
+run = '''
+set -eu
+: "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to the installed Android NDK}"
+host=linux-x86_64
+if [ "$(uname -s)" = Darwin ]; then host=darwin-x86_64; fi
+ndk_tools="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$host/bin"
+mkdir -p .once/android-tools
+ln -sf "$ndk_tools/aarch64-linux-android26-clang" .once/android-tools/aarch64-linux-android-clang
+export PATH="$PWD/.once/android-tools:$ndk_tools:$PATH"
+once build AtlasAndroid
+'''
+
+[tasks."build:ios"]
+depends = ["prepare:rust"]
+description = "Build the arm64 iOS simulator app"
+run = "once build AtlasIOS"
+
+[tasks."build:ios-device"]
+depends = ["prepare:rust"]
+description = "Build the arm64 iOS device app without distribution credentials"
+run = "once build AtlasIOSDevice"
+
+[tasks."bundle:ios"]
+description = "Sign the device app with the Atlas ad-hoc profile and package an IPA"
+run = "bash ios/distribution/bundle.sh"
+
+[tasks."test:core"]
+depends = ["prepare:rust"]
+description = "Test navigation, authentication, and the JNI bridge"
+run = ["once test AtlasCoreTests", "once test AtlasAuthTests"]
+
+[tasks."lint:rust"]
+description = "Check Rust formatting and Clippy warnings"
+run = ["cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]
+
+[tasks."lint:swift"]
+description = "Lint the Swift app and bridge tests"
+run = "once lint AtlasSwiftLint"
+
+[tasks."lint:kotlin"]
+description = "Check Kotlin style"
+run = "ktlint 'android/src/**/*.kt'"
+
+[tasks."test:ios"]
+depends = ["prepare:rust"]
+description = "Test the Swift bridge on an iOS simulator"
+run = "once test AtlasIOSTests"

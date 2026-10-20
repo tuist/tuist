@@ -2,6 +2,9 @@ defmodule TuistWeb.API.TestsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -27,7 +30,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       stub(Tests, :list_test_runs, fn _attrs ->
         {[
-           %{
+           %Test{
              id: test_run_id,
              duration: 5000,
              status: :success,
@@ -224,7 +227,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       stub(Tests, :list_test_runs, fn _attrs ->
         {[
-           %{
+           %Test{
              id: test_run_id,
              duration: 1000,
              status: :success,
@@ -331,6 +334,207 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts the enumerated tests an older client still sends, and stores the run without them", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :create_test, fn attrs ->
+        refute Map.has_key?(attrs, :enumerated_tests)
+        assert attrs.skip_test_identifiers == ["MyTests/MathTests/testTrim()"]
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        duration: 1000,
+        macos_version: "15.0",
+        xcode_version: "16.0",
+        is_ci: true,
+        status: "success",
+        test_modules: [],
+        skip_test_identifiers: ["MyTests/MathTests/testTrim()"],
+        enumerated_tests: [%{module: "MyTests", suite: "MathTests", name: "testTrim()", enabled: true}]
+      })
+      |> json_response(:ok)
+    end
+
+    test "schedules the publication of uploaded coverage under the run's own key", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      run_id = UUIDv7.generate()
+      key = "#{user.account.name}/#{project.name}/runs/#{run_id}/coverage.ndjson.deflate"
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage_storage_key: key,
+        xcode_coverage_partial: true
+      })
+      |> json_response(:ok)
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.PublishCoverageWorker,
+        args: %{test_run_id: run_id, storage_key: key, partial: true}
+      )
+    end
+
+    @tag :tmp_dir
+    test "never reads a server-side file a client names in xcode_coverage", %{
+      conn: conn,
+      user: user,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      path = Path.join(tmp_dir, "coverage.ndjson")
+
+      File.write!(
+        path,
+        JSON.encode!(%{
+          "path" => "Sources/Secret.swift",
+          "git_blob_id" => "secret1",
+          "targets" => ["App"],
+          "covered_lines" => 1,
+          "executable_lines" => 1,
+          "line_numbers" => [1],
+          "execution_counts" => [1],
+          "functions" => []
+        }) <> "\n"
+      )
+
+      run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage: %{partial: false, files: [], path: path}
+      })
+      |> json_response(:ok)
+
+      assert Tuist.ClickHouseRepo.all(
+               from(f in Tuist.Tests.CoverageFile, where: f.test_run_id == ^run_id, select: f.path)
+             ) == []
+    end
+
+    test "rejects coverage evidence past its size limits", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration: 1000,
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        coverage_evidence: %{
+          paths: ["Sources/A.swift"],
+          scopes: [%{kind: "target", module: "AppTests", files: [0], lines: [List.duplicate(1, 200_002)]}]
+        }
+      }
+
+      assert conn
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/projects/#{user.account.name}/#{project.name}/tests", body)
+             |> json_response(:bad_request)
+    end
+
+    test "accepts and ignores the changed files older clients send", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration: 1000,
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        changed_files: [%{path: "Sources/A.swift", status: "modified", hunks: [%{start: 1, end: 2}]}]
+      }
+
+      assert conn
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/projects/#{user.account.name}/#{project.name}/tests", body)
+             |> json_response(:ok)
+    end
+
+    test "rejects a coverage storage key that is not the run's", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
+    test "rejects a coverage block whose storage key is not the run's", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false,
+          build_system: "mix",
+          test_modules: [],
+          status: "success",
+          coverage: %{
+            tool: "cover",
+            partial: false,
+            storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+          }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
+    test "rejects a coverage block storage key that is not the run's even beside a valid Xcode one", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      id = UUIDv7.generate()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: id,
+          duration: 1000,
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: Tuist.Tests.Coverage.storage_key(project, id),
+          coverage: %{
+            tool: "cover",
+            partial: false,
+            storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+          }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
@@ -403,6 +607,60 @@ defmodule TuistWeb.API.TestsControllerTest do
         )
 
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
+    end
+
+    test "accepts a skipped repetition, which the Gradle plugin reports for an aborted rerun", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        [module] = attrs.test_modules
+        [test_case] = module.test_cases
+        assert Enum.map(test_case.repetitions, & &1.status) == ["success", "skipped"]
+
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 3000,
+            macos_version: "",
+            xcode_version: "",
+            is_ci: true,
+            build_system: "gradle",
+            status: "success",
+            scheme: "my-android-app",
+            test_modules: [
+              %{
+                name: ":app",
+                status: "success",
+                duration: 3000,
+                test_suites: [%{name: "com.example.LoginTest", status: "success", duration: 2000}],
+                test_cases: [
+                  %{
+                    name: "testLogin",
+                    test_suite_name: "com.example.LoginTest",
+                    status: "success",
+                    duration: 1500,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "success", duration: 700},
+                      %{repetition_number: 2, name: "Stress 1", status: "skipped", duration: 800, source: "stress"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        )
+
+      assert %{"type" => "test"} = json_response(conn, 200)
     end
 
     test "creates a test run without macos_version (not required)", %{conn: conn, user: user, project: project} do
@@ -557,7 +815,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       # the test already exists, get_test must preload test_case_runs so
       # the response reflects what is actually stored, not an empty list.
       expect(Tests, :get_test, fn ^existing_id, opts ->
-        assert opts[:preload] == [test_case_runs: :arguments]
+        assert opts[:preload] == [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]
 
         {:ok,
          %Test{
@@ -657,7 +915,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           status: "success",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           test_modules: []
         }
       )
@@ -718,7 +976,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           scheme: "TuistAcceptanceTests",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           shard_index: 1,
           test_modules: []
         }
@@ -844,6 +1102,317 @@ defmodule TuistWeb.API.TestsControllerTest do
           "storage_key" => "#{organization.account.name}/#{project.name}/runs/#{test_run_id}/result_bundle.zip"
         }
       )
+    end
+
+    test "carries the stress gate's verdict and bundle key into the processing job", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      # The worker rebuilds the run from the job's arguments once the bundle is
+      # parsed, so a verdict that does not travel with the job is a verdict lost.
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           stress_mode: "report",
+           stress_outcome: "disagreed",
+           stress_skip_reason: "",
+           stress_new_count: 2,
+           stress_stressed_count: 1,
+           stress_excluded_count: 1,
+           stress_known_count: 40,
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: [],
+            stress_new_tests: %{
+              mode: "report",
+              outcome: "disagreed",
+              new_count: 2,
+              stressed_count: 1,
+              excluded_count: 1,
+              known_count: 40,
+              has_result_bundle: true,
+              test_cases: []
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "stress_storage_key" => "#{user.account.name}/#{project.name}/runs/#{test_run_id}/stress_result_bundle.zip",
+          "stress_mode" => "report",
+          "stress_outcome" => "disagreed",
+          "stress_new_count" => 2,
+          "stress_stressed_count" => 1,
+          "stress_excluded_count" => 1,
+          "stress_known_count" => 40
+        }
+      )
+    end
+
+    test "async reports retain verified actors and child case attribution", %{conn: conn, user: user, project: project} do
+      id = UUIDv7.generate()
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-tuist-actor-id", "developer-123")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: id,
+        duration: 0,
+        is_ci: false,
+        status: "processing",
+        test_modules: []
+      })
+      |> json_response(:ok)
+
+      [job] = all_enqueued(worker: ProcessXcresultWorker)
+      assert job.args["actor_account_id"] == user.account.id
+      assert job.args["claimed_actor_id"] == "developer-123"
+      assert job.args["submission_auth"] == "token"
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _, _ ->
+        {:ok,
+         %{
+           "status" => "success",
+           "duration" => 10,
+           "test_modules" => [
+             %{
+               "name" => "ActorModule",
+               "status" => "success",
+               "duration" => 10,
+               "test_suites" => [%{"name" => "ActorSuite", "status" => "success", "duration" => 10}],
+               "test_cases" => [
+                 %{
+                   "name" => "test_actor",
+                   "test_suite_name" => "ActorSuite",
+                   "status" => "success",
+                   "duration" => 10,
+                   "failures" => [],
+                   "repetitions" => [],
+                   "attachments" => []
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      assert :ok = perform_job(ProcessXcresultWorker, job.args)
+      {:ok, run} = Tests.get_test(id, preload: [:test_case_runs])
+      assert run.actor_account_id == user.account.id
+      assert run.claimed_actor_id == "developer-123"
+      assert run.submission_auth == "token"
+
+      assert [%{actor_account_id: actor_id, claimed_actor_id: "developer-123", submission_auth: "token"} = case_run] =
+               run.test_case_runs
+
+      assert actor_id == user.account.id
+      assert Tuist.ReportActor.actor(case_run).source == :verified
+    end
+
+    test "keeps the run's Git history once the processor replaces a remotely processed run", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: test_run_id,
+        duration: 0,
+        is_ci: true,
+        status: "processing",
+        test_modules: [],
+        git_branch: "feature",
+        git_commit_sha: String.duplicate("a", 40),
+        git_remote_url_origin: "https://github.com/tuist/app",
+        base_branch: "main",
+        merge_base_sha: String.duplicate("b", 40),
+        is_pull_request: true,
+        pull_request_number: 42,
+        git_object_format: "sha1",
+        history_source: "none",
+        history_fallback_reason: "shallow clone",
+        git_dirty: true,
+        execution_mode: "serial",
+        coverage_enabled: false
+      })
+      |> json_response(:ok)
+
+      [job] = all_enqueued(worker: ProcessXcresultWorker)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:ok, %{"status" => "success", "duration" => 10, "test_modules" => []}}
+      end)
+
+      assert :ok = perform_job(ProcessXcresultWorker, job.args)
+
+      {:ok, run} = Tests.get_test(test_run_id)
+
+      assert %{
+               status: "success",
+               base_branch: "main",
+               merge_base_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+               is_pull_request: true,
+               pull_request_number: 42,
+               git_object_format: "sha1",
+               history_source: "none",
+               history_fallback_reason: "shallow clone",
+               git_dirty: true,
+               execution_mode: "serial",
+               coverage_enabled: false
+             } = run
+
+      assert run.git_repository_id == Tuist.GitHistory.repository_id(user.account.id, "https://github.com/tuist/app")
+      assert run.git_repository_id > 0
+    end
+
+    test "passes a locally processed run's coverage on", %{conn: conn, user: user, project: project} do
+      conn = Authentication.put_current_user(conn, user)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert %{
+                 partial: true,
+                 files: [%{path: "Sources/Add.swift", line_numbers: [1, 2]}]
+               } =
+                 attrs.xcode_coverage
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "success",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 10,
+            is_ci: false,
+            status: "success",
+            test_modules: [],
+            xcode_coverage: %{
+              partial: true,
+              files: [
+                %{
+                  path: "Sources/Add.swift",
+                  git_blob_id: "abc",
+                  targets: ["Calculator"],
+                  covered_lines: 1,
+                  executable_lines: 2,
+                  line_numbers: [1, 2],
+                  execution_counts: [3, 0],
+                  functions: []
+                }
+              ]
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+    end
+
+    test "passes a Mix run's coverage on", %{conn: conn, user: user, project: project} do
+      conn = Authentication.put_current_user(conn, user)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert %{
+                 tool: "cover",
+                 tool_version: "OTP 28/Elixir 1.19.5",
+                 partial: false,
+                 files: [%{path: "lib/add.ex", targets: ["calculator"], line_numbers: [1, 2]}]
+               } = attrs.coverage
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "mix",
+           status: "success",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 10,
+            is_ci: false,
+            status: "success",
+            build_system: "mix",
+            test_modules: [],
+            coverage: %{
+              tool: "cover",
+              tool_version: "OTP 28/Elixir 1.19.5",
+              partial: false,
+              files: [
+                %{
+                  path: "lib/add.ex",
+                  git_blob_id: "abc",
+                  targets: ["calculator"],
+                  is_test: false,
+                  covered_lines: 1,
+                  executable_lines: 2,
+                  line_numbers: [1, 2],
+                  execution_counts: [3, 0],
+                  functions: []
+                }
+              ]
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
     end
 
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{

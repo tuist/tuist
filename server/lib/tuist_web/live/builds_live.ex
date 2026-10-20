@@ -14,15 +14,35 @@ defmodule TuistWeb.BuildsLive do
         :head_title,
         "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("builds"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Builds"),
+          fallback: "builds"
+        )
+      )
 
     socket =
-      if Project.gradle_project?(project) do
-        socket
-        |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
-        |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()
-      else
-        TuistWeb.XcodeBuildsLive.assign_mount(socket, params)
+      cond do
+        Project.cargo_project?(project) ->
+          TuistWeb.CargoBuildsLive.assign_mount(socket)
+
+        Project.bazel_project?(project) ->
+          params
+          |> TuistWeb.BazelBuildsLive.mount(%{}, socket)
+          |> elem(1)
+
+        Project.gradle_project?(project) ->
+          socket
+          |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
+          |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()
+
+        Project.mix_project?(project) ->
+          socket
+          |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
+          |> TuistWeb.MixBuildsLive.assign_initial_configuration_insights()
+
+        true ->
+          TuistWeb.XcodeBuildsLive.assign_mount(socket, params)
       end
 
     {:ok, socket}
@@ -31,19 +51,45 @@ defmodule TuistWeb.BuildsLive do
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
 
-    if Project.gradle_project?(project) do
-      {:noreply,
-       socket
-       |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
-       |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
-       |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
-    else
-      {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
-    end
+    {:noreply, socket} =
+      cond do
+        Project.cargo_project?(project) ->
+          {:noreply, TuistWeb.CargoBuildsLive.assign_handle_params(socket, params)}
+
+        Project.bazel_project?(project) ->
+          TuistWeb.BazelBuildsLive.handle_params(params, uri, socket)
+
+        Project.gradle_project?(project) ->
+          {:noreply,
+           socket
+           |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
+           |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
+           |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
+
+        Project.mix_project?(project) ->
+          {:noreply,
+           socket
+           |> TuistWeb.MixBuildsLive.assign_handle_params(params)
+           |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
+           |> TuistWeb.MixBuildsLive.assign_configuration_insights()}
+
+        true ->
+          {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(_event, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_build_duration_type",
+        params,
+        %{assigns: %{selected_project: %{build_system: :cargo}}} = socket
+      ) do
+    TuistWeb.CargoBuildsLive.handle_event("select_build_duration_type", params, socket)
   end
 
   def handle_event("select_build_duration_type", %{"type" => type}, socket) do
@@ -55,6 +101,39 @@ defmodule TuistWeb.BuildsLive do
      |> assign(:selected_build_duration_type, type)
      |> assign(:uri, uri)
      |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event("select_duration_type", params, %{assigns: %{selected_project: project}} = socket)
+      when is_map(params) do
+    if Project.bazel_project?(project) do
+      TuistWeb.BazelBuildsLive.handle_event("select_duration_type", params, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("add_filter", params, %{assigns: %{selected_project: project}} = socket) do
+    if Project.bazel_project?(project) do
+      TuistWeb.BazelBuildsLive.handle_event("add_filter", params, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_filter", params, %{assigns: %{selected_project: project}} = socket) do
+    if Project.bazel_project?(project) do
+      TuistWeb.BazelBuildsLive.handle_event("update_filter", params, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "select_build_duration_chart_type",
+        params,
+        %{assigns: %{selected_project: %{build_system: :cargo}}} = socket
+      ) do
+    TuistWeb.CargoBuildsLive.handle_event("select_build_duration_chart_type", params, socket)
   end
 
   def handle_event("select_build_duration_chart_type", %{"type" => type}, socket) do
@@ -71,10 +150,21 @@ defmodule TuistWeb.BuildsLive do
   end
 
   def handle_event("select_widget", %{"widget" => _widget} = params, %{assigns: %{selected_project: project}} = socket) do
-    if Project.gradle_project?(project) do
-      TuistWeb.GradleBuildsLive.handle_event("select_widget", params, socket)
-    else
-      TuistWeb.XcodeBuildsLive.handle_event("select_widget", params, socket)
+    cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildsLive.handle_event("select_widget", params, socket)
+
+      Project.bazel_project?(project) ->
+        TuistWeb.BazelBuildsLive.handle_event("select_widget", params, socket)
+
+      Project.gradle_project?(project) ->
+        TuistWeb.GradleBuildsLive.handle_event("select_widget", params, socket)
+
+      Project.mix_project?(project) ->
+        TuistWeb.MixBuildsLive.handle_event("select_widget", params, socket)
+
+      true ->
+        TuistWeb.XcodeBuildsLive.handle_event("select_widget", params, socket)
     end
   end
 
@@ -83,16 +173,27 @@ defmodule TuistWeb.BuildsLive do
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
       ) do
-    query_params =
-      if preset == "custom" do
-        socket.assigns.uri.query
-        |> Query.put("analytics-date-range", "custom")
-        |> Query.put("analytics-start-date", start_date)
-        |> Query.put("analytics-end-date", end_date)
-      else
-        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
-      end
+    if Project.bazel_project?(selected_project) do
+      TuistWeb.BazelBuildsLive.handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      )
+    else
+      query_params =
+        if preset == "custom" do
+          socket.assigns.uri.query
+          |> Query.put("analytics-date-range", "custom")
+          |> Query.put("analytics-start-date", start_date)
+          |> Query.put("analytics-end-date", end_date)
+        else
+          Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+        end
 
-    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
+      socket =
+        if Project.cargo_project?(selected_project), do: assign(socket, :cargo_build_period_inputs, nil), else: socket
+
+      {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
+    end
   end
 end

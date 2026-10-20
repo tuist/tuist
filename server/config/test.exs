@@ -14,6 +14,8 @@ config :ex_aws,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+config :open_api_spex, :cache_adapter, TuistTestSupport.OpenApiSpexCache
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 
@@ -55,12 +57,13 @@ config :tuist, Tuist.IngestRepo,
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
 
-# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
-config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
-
 # Same for the Kura cache-demand buffer, which is otherwise process-wide and
 # would let one async test's demand be flushed inside another's transaction.
 config :tuist, Tuist.Kura.Demand, write_through_repo: true
+# A run's clock, tightened so a test can spend it with a handful of slow
+# checks instead of the seven seconds production allows, but left wide enough
+# that the check-count cap is reached long before it on a loaded machine.
+config :tuist, Tuist.Kura.Workers.AwaitActivationWorker, check_interval_ms: 0, run_budget_ms: 1_500
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
@@ -88,6 +91,7 @@ config :tuist, Tuist.Repo,
   password: "postgres",
   hostname: "localhost",
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  parameters: [timezone: "UTC"],
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
@@ -98,6 +102,9 @@ config :tuist, Tuist.Repo,
   timeout: 60_000
 
 config :tuist, Tuist.Tasks, sync: true
+
+# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
+config :tuist, TuistCommon.Ingestion.Bufferable, write_through_repo: true
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

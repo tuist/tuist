@@ -127,7 +127,7 @@ defmodule TuistWeb.SCIM.UsersController do
           %{}
           |> maybe_put(:user_name, user_name)
           |> maybe_put(:active, Map.get(params, "active"))
-          |> maybe_put(:role, role_from_payload(params))
+          |> maybe_put(:role, SCIM.most_privileged_role(Map.get(params, "roles")))
 
         {:ok, attrs}
     end
@@ -135,14 +135,6 @@ defmodule TuistWeb.SCIM.UsersController do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp role_from_payload(params) do
-    case Map.get(params, "roles") do
-      [%{"value" => v} | _] when is_binary(v) -> v
-      [v | _] when is_binary(v) -> v
-      _ -> nil
-    end
-  end
 
   defp parse_int(nil, default), do: default
 

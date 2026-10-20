@@ -232,15 +232,20 @@ defmodule Tuist.Storage.ExpiredArtifacts do
         })
         |> ClickHouseRepo.all()
 
-      object_keys =
+      prefixes =
         Enum.flat_map(rows, fn shard_plan ->
           case Map.fetch(projects_by_id, shard_plan.project_id) do
-            {:ok, project} -> [Shards.bundle_object_key(account, project, shard_plan.id)]
+            {:ok, project} -> [Shards.plan_object_prefix(account, project, shard_plan.id)]
             :error -> []
           end
         end)
 
-      delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:shard_bundle, rows))
+      delete_prefixes_and_continue(
+        account,
+        prefixes,
+        next_cursor(rows, batch_size),
+        progress_cursor(:shard_bundle, rows)
+      )
     end
   end
 

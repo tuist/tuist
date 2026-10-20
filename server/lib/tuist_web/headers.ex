@@ -4,8 +4,10 @@ defmodule TuistWeb.Headers do
   """
   @cli_version_header "x-tuist-cli-version"
   @client_feature_flags_header "x-tuist-feature-flags"
+  @gradle_plugin_version_header "x-tuist-gradle-plugin-version"
 
   def cli_version_header, do: @cli_version_header
+  def gradle_plugin_version_header, do: @gradle_plugin_version_header
   def client_feature_flags_header, do: @client_feature_flags_header
 
   def get_cli_version_string(conn) do
@@ -22,6 +24,16 @@ defmodule TuistWeb.Headers do
     else
       _ ->
         nil
+    end
+  end
+
+  def get_gradle_plugin_version(conn) do
+    with version_string when not is_nil(version_string) <-
+           conn |> Plug.Conn.get_req_header(gradle_plugin_version_header()) |> List.first(),
+         {:ok, version} <- Version.parse(version_string) do
+      version
+    else
+      _ -> nil
     end
   end
 

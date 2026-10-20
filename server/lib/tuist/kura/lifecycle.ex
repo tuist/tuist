@@ -14,10 +14,9 @@ defmodule Tuist.Kura.Lifecycle do
 
   Two entry points, split by cadence rather than by concern. `reconcile/0`
   runs on every reconciler tick and does everything an account can feel:
-  provisioning, cancelling a drain, finishing a teardown. `sweep/0` runs daily
-  and only decides that an instance has gone inactive, because that threshold
-  is measured in whole days and re-deciding it every minute would change
-  nothing except query volume.
+  provisioning, cancelling a drain, finishing a teardown. `sweep/0` runs hourly
+  and decides which instances have gone inactive or remained unused, without
+  scanning the fleet on every reconciler tick.
 
   Five states, one instance:
 
@@ -51,6 +50,11 @@ defmodule Tuist.Kura.Lifecycle do
   the cold-provision path, on the same row, with no expectation of prior
   content.
 
+  An instance, a first one or a return, starts from the request that asks for
+  it (`provision_account/2`) rather than from the reconciler tick, and its
+  activation is checked twice a second (`Tuist.Kura.Workers.AwaitActivationWorker`)
+  rather than every minute.
+
   ## Why archival cannot run on empty demand data
 
   An archival sweep against an unseeded `last_cache_demand_at` reads every
@@ -60,32 +64,61 @@ defmodule Tuist.Kura.Lifecycle do
     * an account-region with no lifecycle row is never archived. Absence of
       demand data is not evidence of absence of demand.
     * a lifecycle row younger than the tracking grace period is never
-      archived, so the backfill has a full window to land before any row it
-      wrote can be acted on.
+      archived for inactivity, so the backfill has a full window to land
+      before its demand history can be acted on.
     * `keep_warm` holds a named account-region out of archival entirely, for
       the cases where a directory must survive inactivity.
 
+  ## Never-used instances
+
+  An active instance whose storage telemetry shows nothing stored since it
+  entered service is drained after 24 hours on Air and seven days on Pro and
+  Enterprise by default, whatever its demand. The hourly sweep reads
+  `Tuist.Environment.kura_air_unused_hours/0` and `kura_unused_days/0`.
+  Air's unused-instance tracking grace is capped at its unused window; the
+  inactivity path retains the full tracking grace. Every plan requires
+  snapshots on every full service day and at least 90% of the expected
+  per-replica snapshot count, with each date capped at the time in service. Partial boundary days need not have a row: provisioning and
+  rollup delivery can cross midnight. Insufficient telemetry is left to the
+  inactivity window.
+  Demand does not cancel that drain, and once archived the account-region is
+  provisioned again only by demand recorded after the archival.
+
   ## Plans
 
-  Enterprise is never archived. Air and Pro follow the 90-day window, and Air
-  alone can shorten to 60 under capacity pressure. Open-source accounts are
+  Enterprise is never archived for inactivity, only for never being used. Pro
+  follows the 90-day window. Air follows a 7-day window
+  (`Tuist.Environment.kura_air_inactive_days/0`) measured on traffic
+  (`last_cache_traffic_at`) rather than demand, and only traffic cancels its
+  drain: an older CLI resolves the endpoint on every command whether or not it
+  uses the cache, so on the demand clock an instance that served nothing stayed
+  in service for as long as anybody ran a command. An Air account that used its
+  cache and stopped is archived as `:inactive` and returns on its next demand.
+  One whose service period carried no traffic at all is archived as `:idle`,
+  and for `Tuist.Kura.Demand.idle_hold_days/0` after that only traffic returns
+  it; resolution and dispatch do once the hold runs out, or as soon as the
+  account leaves Air. A returned instance gets a full window from its return,
+  whatever its traffic clock says. Every other archival
+  for inactivity returns on demand recorded after it. Open-source accounts are
   outside the lifecycle entirely: `Tuist.Kura.AccountPolicies` resolves no
   service region for them, so they are never provisioned and never archived.
 
   ## Air pressure
 
-  Air may enter drain-pending at 60 complete inactive days instead of 90, but
-  only while the region's forecast enforced warm quota does not fit what is
-  installed (`Tuist.Kura.Capacity`). With room, the 90-day target holds for
-  every plan. Under pressure, the least-recently-demanded Air instances go
-  first, and only as many as it takes to fit. No account on any plan is ever
-  archived before 60 complete inactive days.
+  Air may enter drain-pending at the pressure window (60 days by default)
+  instead of its own, but only while the region's admission headroom can no
+  longer take a new enterprise instance (`Tuist.Kura.Capacity.under_pressure?/1`).
+  It only matters where Air's own window is the longer of the two. Under
+  pressure, the least-recently-demanded Air instances go first, and only as many
+  as it takes to fit. Once archived, the account-region is provisioned again
+  only by demand recorded after the archival.
   """
 
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
@@ -93,9 +126,13 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.PlacerRegion
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
+  alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
 
@@ -106,6 +143,11 @@ defmodule Tuist.Kura.Lifecycle do
   # a rollout. Anything over the ceiling is picked up by the next pass.
   @max_provisions_per_pass 20
   @max_archival_transitions_per_pass 100
+
+  # Kura emits one snapshot per replica every 15 minutes. A region without
+  # an explicit replica count uses the controller's three-replica default.
+  @storage_snapshot_interval_seconds 900
+  @default_storage_replicas 3
 
   # Under capacity pressure, eligibility depends on each account's plan and so
   # is decided after the query. These bound the scan that looks past ineligible
@@ -124,19 +166,82 @@ defmodule Tuist.Kura.Lifecycle do
   """
   def reconcile do
     each_region(&reconcile_region/1)
+    reconcile_placement_retirements()
+  end
+
+  @doc """
+  Provisions what one account's cache demand asks for, now, instead of on the
+  next reconciler tick: demand is written through at `requested_at` rather than
+  left in this node's buffer, and every region that needs an instance for the
+  account gets one, a return from archive included. The same eligibility rules
+  as the tick apply, so the two can never disagree about whether an instance is
+  due.
+
+  Returns the account's instances that are coming up, whether this call started
+  them or not, so the caller can apply and await each one.
+  """
+  def provision_account(account_id, %DateTime{} = requested_at, opts \\ []) do
+    {:ok, _count} = Demand.persist_now(account_id, requested_at, traffic: Keyword.get(opts, :traffic, false))
+
+    case image_tag() do
+      nil ->
+        {:ok, []}
+
+      image_tag ->
+        lifecycle_region_ids = Enum.map(lifecycle_regions(), & &1.id)
+
+        account_id
+        |> account_lifecycles_needing_instance(lifecycle_region_ids)
+        |> Enum.filter(&demand_inside_window?(&1, Capacity.under_pressure?(&1.service_region)))
+        |> Enum.each(&provision(&1, &1.service_region, image_tag))
+
+        {:ok, coming_up(account_id, lifecycle_region_ids)}
+    end
+  end
+
+  defp coming_up(account_id, region_ids) do
+    Repo.all(
+      from(s in Server,
+        where: s.account_id == ^account_id and s.region in ^region_ids,
+        where: s.status == :provisioning and s.move_phase == :none,
+        order_by: [asc: s.region]
+      )
+    )
   end
 
   @doc """
   Decides which instances have gone a complete inactive window without cache
-  demand and moves them into drain-pending.
+  demand or have remained unused, and moves them into drain-pending.
 
-  Separate from `reconcile/0` and on a daily cadence because the thresholds
-  are whole days: scanning every active instance every minute would multiply
-  the query volume by three orders of magnitude and change nothing about when
-  an instance is archived.
+  Runs hourly by default so never-used Air instances are considered promptly
+  after their 24-hour window, separately from the per-minute reconciler.
   """
   def sweep do
     each_region(&sweep_region/1)
+  end
+
+  @doc """
+  Drains the instances placement has decided to retire, one account-region at
+  a time and never the last one an account has.
+
+  Not part of the per-region loop, because the safety condition is about the
+  account rather than the region: a region may only be drained once the
+  account is actually being served from somewhere else. That is what turns a
+  relocation into a move rather than an outage — the destination is
+  provisioned by the ordinary demand path, and the source leaves only after it
+  is up.
+
+  On the reconciler's cadence rather than the archival sweep's, because what
+  it is waiting for is the destination coming up, which happens on that same
+  cadence. On a daily one a relocation would sit finished-but-not-cleaned-up
+  for most of a day, holding a slot in a region it has already left.
+  """
+  def reconcile_placement_retirements do
+    @max_archival_transitions_per_pass
+    |> PlacerRegions.retiring()
+    |> Enum.each(&retire_placement/1)
+
+    :ok
   end
 
   defp each_region(fun) do
@@ -183,6 +288,105 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp sweep_region(%Regions{id: region_id} = region) do
     reconcile_drain_entries(region, Capacity.under_pressure?(region_id))
+  end
+
+  ## Placement retirements
+
+  defp retire_placement(%PlacerRegion{account: %Account{} = account, region: region_id} = placer_region) do
+    servers = live_servers(account.id)
+
+    cond do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. The instance there is still serving, and
+      # a drain scheduled now would outlive the window that made it look wrong.
+      not Regions.exists?(region_id) ->
+        :ok
+
+      # Nothing left to drain: the instance is already gone, so the row has
+      # done its job and the region is free to be chosen again on its merits.
+      is_nil(Enum.find(servers, &(&1.region == region_id))) ->
+        PlacerRegions.remove(account, region_id)
+
+      # Somewhere else has to be serving first. Until then the retiring
+      # instance is the account's cache, and taking it would be an outage
+      # rather than a move.
+      not Enum.any?(
+        servers,
+        &(&1.region != region_id and &1.status == :active and StableEndpoint.retirement_ready?(&1, account))
+      ) ->
+        :ok
+
+      true ->
+        drain_retiring(account, Enum.find(servers, &(&1.region == region_id)), placer_region)
+    end
+  end
+
+  defp drain_retiring(account, %Server{status: :active} = server, _placer_region) do
+    # The drain resolution reaches an instance by joining its lifecycle row, so
+    # an account-region without one would go into drain-pending, lose its
+    # endpoint, and never be looked at again — holding its volume and its slot
+    # forever. A region can lack one: only the regions an account is *served*
+    # from get demand rows, and a region placement is leaving has already
+    # stopped being one of those.
+    ensure_lifecycle_row(account, server.region)
+
+    case Kura.begin_drain(server) do
+      {:ok, _server} ->
+        stamp_drain_started(account.id, server.region)
+        Telemetry.drain_pending(Billing.effective_plan(account), server.region, :placement_retirement)
+
+        Logger.info("[Kura.Lifecycle] draining account #{account.id} out of #{server.region} for a placement retirement")
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Lifecycle] could not drain account #{account.id} out of #{server.region}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  # Already draining or tearing down: the ordinary drain resolution carries it
+  # the rest of the way, and the row is removed once the instance is gone.
+  defp drain_retiring(_account, %Server{}, _placer_region), do: :ok
+
+  # Public regions only. A private runner-cache instance is in-cluster and
+  # never CLI-facing, so counting it as "somewhere else is serving" would
+  # drain the account's only developer-facing cache and leave every machine on
+  # the fallback lane until the destination came up.
+  defp live_servers(account_id) do
+    private_region_ids = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+
+    Repo.all(
+      from(s in Server,
+        where: s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none,
+        where: s.region not in ^private_region_ids
+      )
+    )
+  end
+
+  defp ensure_lifecycle_row(%Account{id: account_id}, region_id) do
+    case Demand.get(account_id, region_id) do
+      nil -> Demand.upsert(account_id, region_id, now())
+      %AccountRegionLifecycle{} -> {:ok, 0}
+    end
+  end
+
+  defp stamp_drain_started(account_id, region_id) do
+    case Demand.get(account_id, region_id) do
+      nil ->
+        :ok
+
+      lifecycle ->
+        {:ok, _lifecycle} =
+          lifecycle
+          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), drain_reason: :placement_retirement})
+          |> Repo.update()
+
+        :ok
+    end
   end
 
   ## Provisioning
@@ -238,10 +442,32 @@ defmodule Tuist.Kura.Lifecycle do
   # `id` breaks ties so paging is a total order: without it, rows sharing a
   # demand second could repeat or be skipped across pages.
   defp account_regions_needing_instance(region_id, limit, offset) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.service_region == ^region_id,
+        order_by: [desc: l.last_cache_demand_at, asc: l.id],
+        limit: ^limit,
+        offset: ^offset,
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp account_lifecycles_needing_instance(account_id, region_ids) do
+    Repo.all(
+      from(l in needing_instance_query(),
+        where: l.account_id == ^account_id and l.service_region in ^region_ids,
+        order_by: [asc: l.service_region],
+        preload: [account: :subscriptions]
+      )
+    )
+  end
+
+  defp needing_instance_query do
     live_server_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status not in [:destroyed, :archived],
         select: 1
       )
@@ -254,7 +480,7 @@ defmodule Tuist.Kura.Lifecycle do
     destroyed_since_demand_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
-        where: s.region == ^region_id,
+        where: s.region == parent_as(:lifecycle).service_region,
         where: s.status == :destroyed,
         where: s.updated_at >= parent_as(:lifecycle).last_cache_demand_at,
         select: 1
@@ -262,18 +488,59 @@ defmodule Tuist.Kura.Lifecycle do
 
     default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
 
-    Repo.all(
-      from(l in AccountRegionLifecycle,
-        as: :lifecycle,
-        where: l.service_region == ^region_id,
-        where: l.last_cache_demand_at >= ^default_cutoff,
-        where: not exists(live_server_exists),
-        where: not exists(destroyed_since_demand_exists),
-        order_by: [desc: l.last_cache_demand_at, asc: l.id],
-        limit: ^limit,
-        offset: ^offset,
-        preload: [account: :subscriptions]
+    from(l in AccountRegionLifecycle,
+      as: :lifecycle,
+      where: l.last_cache_demand_at >= ^default_cutoff,
+      where: not exists(live_server_exists),
+      where: not exists(destroyed_since_demand_exists),
+      where: ^returnable_after_archival()
+    )
+  end
+
+  # An instance reclaimed for inactivity, for never storing anything or under
+  # pressure comes back only for demand recorded after its archival, not for
+  # the demand it already had: Air's window is far shorter than the window
+  # `needing_instance_query/0` provisions within.
+  #
+  # An `:idle` one served no traffic at all in the period that ended, and the
+  # demand that kept it warm was resolution or dispatch that moved no bytes.
+  # Returning it for more of the same would cycle it straight back into
+  # service, so until its hold runs out only traffic returns it. The hold is an
+  # Air rule: an account that has since moved to a paid plan returns on demand
+  # like any other archival. Any live paid subscription counts, which can only
+  # release a hold `Billing.effective_plan/1` would have kept, never keep one
+  # it would have released.
+  defp returnable_after_archival do
+    dynamic(
+      [lifecycle: l],
+      ^not_held_by_archival() or (l.drain_reason != :idle and l.last_cache_demand_at > l.archived_at) or
+        (l.drain_reason == :idle and ^idle_returnable())
+    )
+  end
+
+  defp not_held_by_archival do
+    dynamic(
+      [lifecycle: l],
+      is_nil(l.drain_reason) or l.drain_reason not in [:inactive, :idle, :unused, :capacity_pressure] or
+        is_nil(l.archived_at)
+    )
+  end
+
+  defp idle_returnable do
+    idle_hold_cutoff = DateTime.add(now(), -Demand.idle_hold_days() * 86_400, :second)
+
+    left_air =
+      from(sub in Subscription,
+        where: sub.account_id == parent_as(:lifecycle).account_id,
+        where: sub.status in ^Billing.live_subscription_statuses(),
+        where: sub.plan != :air,
+        select: 1
       )
+
+    dynamic(
+      [lifecycle: l],
+      l.last_cache_traffic_at > l.archived_at or
+        (l.last_cache_demand_at > l.archived_at and (l.archived_at <= ^idle_hold_cutoff or exists(left_air)))
     )
   end
 
@@ -290,22 +557,26 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Nothing here decides whether the region has room. Every cache pod requests
-  # its claim's worth of ephemeral storage, so the scheduler declines to place
-  # an instance that does not fit and the KuraInstance stays Pending, which is
-  # exact per node in a way a forecast computed here never was.
+  # Nothing here decides whether the region has room. `Tuist.Kura.Admission`
+  # refuses inside `Kura.create_server/1` and `Kura.return_from_archive/3`
+  # once the region's reservations reach its pressure line, and the scheduler
+  # declines to place a pod that does not fit its node. Room is also read one
+  # step earlier, where the region is chosen: `AccountPolicies` steers a first
+  # placement away from a region the cluster says is full when the account's
+  # residency admits another. What reaches here is an account whose region is
+  # decided, so a refusal is counted and retried on the next pass, and a full
+  # region is then something to buy a box for.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
-    # The lifecycle row records where demand *was* served; the policy decides
-    # where it belongs *now*. They diverge when an account changes plan or
-    # storage region while it has no instance — a downgrade to Open Source, or
-    # a reassignment away from this region — and provisioning from the stored
-    # row would resurrect the account in a region it no longer belongs to.
-    case AccountPolicies.resolve(account) do
-      {:ok, %{plan: plan, service_region: ^region_id}} ->
-        do_provision(lifecycle, account, plan, region_id, image_tag)
-
-      _other ->
-        :ok
+    # The lifecycle row records where demand *was* served; placement decides
+    # where the account belongs *now*. They diverge when an account changes
+    # plan or storage region while it has no instance — a downgrade to Open
+    # Source, a reassignment away from this region, a relocation that has
+    # already flipped — and provisioning from the stored row would resurrect
+    # the account in a region it no longer belongs to.
+    if region_id in AccountPolicies.serving_regions(account) do
+      do_provision(lifecycle, account, Billing.effective_plan(account), region_id, image_tag)
+    else
+      :ok
     end
   end
 
@@ -332,6 +603,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, region_id, reason, false)
+
         Logger.warning(
           "[Kura.Lifecycle] could not provision instance for account #{account.id} in #{region_id}: #{inspect(reason)}"
         )
@@ -349,6 +622,8 @@ defmodule Tuist.Kura.Lifecycle do
         :ok
 
       {:error, reason} ->
+        report_capacity_refusal(plan, server.region, reason, true)
+
         Logger.warning(
           "[Kura.Lifecycle] could not return account #{account.id} from archive in #{server.region}: #{inspect(reason)}"
         )
@@ -357,11 +632,19 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
+  defp report_capacity_refusal(plan, region_id, reason, cold_return?)
+       when reason in [:capacity_exhausted, :capacity_unknown] do
+    Telemetry.provision_refused(plan, region_id, reason, cold_return?)
+  end
+
+  defp report_capacity_refusal(_plan, _region_id, _reason, _cold_return?), do: :ok
+
   defp mark_returned(%AccountRegionLifecycle{} = lifecycle) do
     lifecycle
     |> AccountRegionLifecycle.phase_changeset(%{
       drain_started_at: nil,
       teardown_started_at: nil,
+      drain_reason: nil,
       last_returned_at: now()
     })
     |> Repo.update()
@@ -390,20 +673,64 @@ defmodule Tuist.Kura.Lifecycle do
   defp archival_candidates(region_id, pressure?) do
     now = now()
     default_cutoff = DateTime.add(now, -Environment.kura_inactive_days() * 86_400, :second)
+    air_cutoff = DateTime.add(now, -air_inactive_days() * 86_400, :second)
     pressure_cutoff = DateTime.add(now, -Environment.kura_pressure_inactive_days() * 86_400, :second)
     tracking_cutoff = DateTime.add(now, -Environment.kura_demand_tracking_grace_days() * 86_400, :second)
 
-    region_id
-    |> active_instances_with_lifecycle(pressure_cutoff, tracking_cutoff)
-    |> Enum.flat_map(&classify_candidate(&1, pressure?, default_cutoff))
-    |> take_pressure_candidates(region_id)
+    unused = unused_candidates(region_id, now, tracking_cutoff)
+    unused_ids = MapSet.new(unused, fn {server, _lifecycle, _plan, _reason} -> server.id end)
+
+    inactive =
+      region_id
+      |> active_instances_with_lifecycle(Enum.max([air_cutoff, pressure_cutoff], DateTime), tracking_cutoff)
+      |> Enum.reject(fn {server, _lifecycle} -> MapSet.member?(unused_ids, server.id) end)
+      |> Enum.flat_map(&classify_candidate(&1, pressure?, %{default: default_cutoff, air: air_cutoff}))
+
+    take_pressure_candidates(unused ++ inactive, region_id)
   end
 
-  # One row per active instance whose account-region has demand tracking older
-  # than the grace period and demand older than the shortest window any plan
-  # can use. Keep-warm instances never appear: they hold their allocation
-  # while inactive by definition.
-  defp active_instances_with_lifecycle(region_id, pressure_cutoff, tracking_cutoff) do
+  # Instances that have stored nothing since they entered service. Only
+  # snapshots covering the service life count as evidence: a pod restart
+  # empties a ring without an eviction, so a day without snapshots
+  # could hide use. An eviction on any day is use.
+  defp unused_candidates(region_id, now, tracking_cutoff) do
+    air_window_seconds = Environment.kura_air_unused_hours() * 3600
+    default_window_seconds = Environment.kura_unused_days() * 86_400
+    earliest_cutoff = DateTime.add(now, -min(air_window_seconds, default_window_seconds), :second)
+    air_cutoff = DateTime.add(now, -air_window_seconds, :second)
+    air_tracking_cutoff = Enum.max([tracking_cutoff, air_cutoff], DateTime)
+    region = Regions.get(region_id)
+    replicas = region.provisioner_config[:replicas] || @default_storage_replicas
+
+    instances =
+      region_id
+      |> active_instances_in_service_before(earliest_cutoff, air_tracking_cutoff)
+      |> Enum.filter(fn {server, lifecycle} ->
+        plan = Billing.effective_plan(server.account)
+        cutoff = if plan == :air, do: air_cutoff, else: DateTime.add(now, -default_window_seconds, :second)
+        tracked_before = if plan == :air, do: air_tracking_cutoff, else: tracking_cutoff
+
+        DateTime.before?(service_started_at(server, lifecycle), cutoff) and
+          DateTime.before?(lifecycle.inserted_at, tracked_before)
+      end)
+
+    rollups = storage_rollups_by_account(instances, region_id)
+
+    Enum.flat_map(instances, fn {server, lifecycle} ->
+      plan = Billing.effective_plan(server.account)
+      started_at = service_started_at(server, lifecycle)
+
+      if never_stored?(Map.get(rollups, server.account_id, []), started_at, now, replicas) do
+        [{server, lifecycle, plan, :unused}]
+      else
+        []
+      end
+    end)
+  end
+
+  # A cold return reuses the server row, so the service life starts at the
+  # return rather than at the row's insertion.
+  defp active_instances_in_service_before(region_id, unused_cutoff, tracking_cutoff) do
     Repo.all(
       from(s in Server,
         join: l in AccountRegionLifecycle,
@@ -412,7 +739,93 @@ defmodule Tuist.Kura.Lifecycle do
         where: s.status == :active,
         where: s.move_phase == :none,
         where: l.keep_warm == false,
-        where: l.last_cache_demand_at < ^pressure_cutoff,
+        where: s.inserted_at < ^unused_cutoff,
+        where: is_nil(l.last_returned_at) or l.last_returned_at < ^unused_cutoff,
+        where: l.inserted_at < ^tracking_cutoff,
+        order_by: [asc: s.inserted_at],
+        preload: [account: :subscriptions],
+        select: {s, l}
+      )
+    )
+  end
+
+  defp storage_rollups_by_account([], _region_id), do: %{}
+
+  defp storage_rollups_by_account(instances, region_id) do
+    since =
+      instances
+      |> Enum.map(fn {server, lifecycle} -> DateTime.to_date(service_started_at(server, lifecycle)) end)
+      |> Enum.min(Date)
+
+    account_ids = Enum.map(instances, fn {server, _lifecycle} -> server.account_id end)
+
+    region_id
+    |> StorageRollups.for_region(account_ids, since)
+    |> Enum.group_by(& &1.account_id)
+  end
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: nil}),
+    do: inserted_at
+
+  defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: returned_at}),
+    do: Enum.max([inserted_at, returned_at], DateTime)
+
+  defp never_stored?(rollups, started_at, now, replicas) do
+    started_on = DateTime.to_date(started_at)
+    today = DateTime.to_date(now)
+
+    in_service =
+      Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt and Date.compare(&1.date, today) != :gt))
+
+    snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
+    expected = div(DateTime.diff(now, started_at), @storage_snapshot_interval_seconds) * replicas
+
+    # Boundary days can lack a row when provisioning crosses midnight or the
+    # current day's rollup has not landed. Cap each day's credit at the time
+    # actually in service so old return-day samples or extra pods cannot fill
+    # another day's gap. Counts alone cannot establish full-day continuity.
+    observed =
+      Enum.reduce(in_service, 0, fn rollup, total ->
+        day_start = DateTime.new!(rollup.date, ~T[00:00:00], "Etc/UTC")
+        day_end = DateTime.add(day_start, 1, :day)
+        first = Enum.max([day_start, started_at], DateTime)
+        last = Enum.min([day_end, now], DateTime)
+        day_expected = div(DateTime.diff(last, first), @storage_snapshot_interval_seconds) * replicas
+        total + min(rollup.snapshot_count, day_expected)
+      end)
+
+    expected > 0 and observed * 10 >= expected * 9 and
+      Enum.all?(full_days_in_service(started_on, today), &MapSet.member?(snapshot_dates, &1)) and
+      not Enum.any?(in_service, &stored?/1)
+  end
+
+  defp full_days_in_service(started_on, today) do
+    first = Date.add(started_on, 1)
+    last = Date.add(today, -1)
+
+    if Date.after?(first, last), do: [], else: Date.range(first, last)
+  end
+
+  defp stored?(rollup) do
+    (rollup.max_live_segment_bytes || 0) > 0 or rollup.eviction_count > 0 or rollup.evicted_bytes > 0
+  end
+
+  # One row per active instance whose account-region has demand tracking older
+  # than the grace period and demand, or for Air traffic, older than the
+  # shortest window any plan can use. Keep-warm instances never appear: they
+  # hold their allocation while inactive by definition.
+  defp active_instances_with_lifecycle(region_id, shortest_cutoff, tracking_cutoff) do
+    Repo.all(
+      from(s in Server,
+        join: l in AccountRegionLifecycle,
+        on: l.account_id == s.account_id and l.service_region == s.region,
+        where: s.region == ^region_id,
+        where: s.status == :active,
+        where: s.move_phase == :none,
+        where: l.keep_warm == false,
+        where:
+          fragment("LEAST(?, COALESCE(?, ?))", l.last_cache_demand_at, l.last_cache_traffic_at, l.inserted_at) <
+            ^shortest_cutoff,
         where: l.inserted_at < ^tracking_cutoff,
         where: s.inserted_at < ^tracking_cutoff,
         order_by: [asc: l.last_cache_demand_at],
@@ -422,18 +835,22 @@ defmodule Tuist.Kura.Lifecycle do
     )
   end
 
-  defp classify_candidate({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, pressure?, default_cutoff) do
+  defp classify_candidate({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, pressure?, cutoffs) do
     plan = Billing.effective_plan(server.account)
 
     cond do
       not archivable_plan?(plan) ->
         []
 
-      DateTime.before?(lifecycle.last_cache_demand_at, default_cutoff) ->
+      plan == :air and DateTime.before?(air_clock(server, lifecycle), cutoffs.air) ->
+        [{server, lifecycle, plan, air_inactivity_reason(server, lifecycle)}]
+
+      DateTime.before?(lifecycle.last_cache_demand_at, cutoffs.default) ->
         [{server, lifecycle, plan, :inactive}]
 
-      # Between 60 and 90 complete inactive days. Only Air is eligible, and
-      # only while the region is over its installed capacity.
+      # Between the pressure window and the full window. Only Air is eligible,
+      # and only while the region is under pressure; with Air's own window
+      # shorter than the pressure window, its instances never reach here.
       plan == :air and pressure? ->
         [{server, lifecycle, plan, :capacity_pressure}]
 
@@ -442,10 +859,34 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
+  # Air's window runs on traffic, not demand: an older CLI resolves the endpoint
+  # on every command whether or not it then uses the cache, which on the demand
+  # clock kept instances that served nothing in service indefinitely. A row
+  # without traffic yet has gone without it since it was created.
+  #
+  # Never earlier than the current service period's start. A return brought
+  # about by demand alone keeps the traffic stamp from before the archival and
+  # reuses the server row, and reading that stamp as-is would drain the
+  # returned instance on the next sweep instead of giving it its window.
+  # Classification still compares the raw stamp (`air_inactivity_reason/2`).
+  defp air_clock(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
+    Enum.max([lifecycle.last_cache_traffic_at || lifecycle.inserted_at, service_started_at(server, lifecycle)], DateTime)
+  end
+
+  # `:idle` when the service period ending now carried no traffic at all, so
+  # what kept it warm was demand that moved no bytes and resolution alone should
+  # not bring it straight back. An instance that was used and then went quiet is
+  # `:inactive`, and returns on its next request like before.
+  defp air_inactivity_reason(server, %AccountRegionLifecycle{last_cache_traffic_at: traffic_at} = lifecycle) do
+    if is_nil(traffic_at) or DateTime.before?(traffic_at, service_started_at(server, lifecycle)),
+      do: :idle,
+      else: :inactive
+  end
+
   # Pressure archival reclaims only as much as it takes to fit. Instances past
   # the full 90-day window are unconditional and are not counted against that
   # budget; the 60-day ones are taken in least-recent-demand order until the
-  # region is back under its pressure line.
+  # region is out of pressure.
   #
   # Each candidate frees its own reservation, not an average: instances in a
   # region are sized from their accounts' plans, so archiving the same number of
@@ -453,18 +894,17 @@ defmodule Tuist.Kura.Lifecycle do
   defp take_pressure_candidates(candidates, region_id) do
     {pressured, unconditional} = Enum.split_with(candidates, fn {_s, _l, _p, reason} -> reason == :capacity_pressure end)
 
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         reserved when is_integer(reserved) <- Capacity.reserved_gib(region_id) do
-      {:ok, region} = Regions.fetch(region_id)
+    with deficit when is_integer(deficit) <- Capacity.pressure_deficit_gib(region_id),
+         {:ok, region} <- Regions.fetch(region_id) do
       freed = fn {server, _lifecycle, _plan, _reason} -> Capacity.resident_gib(region, server) end
 
       # The unconditional archivals happen regardless, so the room they free
       # counts before deciding how many more the pressure rule has to take.
-      after_unconditional = reserved - Enum.sum(Enum.map(unconditional, freed))
+      after_unconditional = deficit - Enum.sum(Enum.map(unconditional, freed))
 
       {_final, needed} =
         Enum.reduce(pressured, {after_unconditional, []}, fn candidate, {gib, taken} ->
-          if gib > target do
+          if gib > 0 do
             {gib - freed.(candidate), [candidate | taken]}
           else
             {gib, taken}
@@ -486,7 +926,11 @@ defmodule Tuist.Kura.Lifecycle do
            with {:ok, drained} <- Kura.begin_drain(server),
                 {:ok, _lifecycle} <-
                   lifecycle
-                  |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), teardown_started_at: nil})
+                  |> AccountRegionLifecycle.phase_changeset(%{
+                    drain_started_at: now(),
+                    teardown_started_at: nil,
+                    drain_reason: reason
+                  })
                   |> Repo.update() do
              drained
            else
@@ -509,12 +953,26 @@ defmodule Tuist.Kura.Lifecycle do
   # Drain-pending instances that have not had teardown issued yet: either
   # demand came back (cancel) or the drain window elapsed (issue teardown).
   defp reconcile_drain_pending(%Regions{id: region_id}) do
-    drain_cutoff = DateTime.add(now(), -Kura.drain_seconds(), :second)
+    cutoffs = %{
+      inactivity: DateTime.add(now(), -Kura.drain_seconds(), :second),
+      placement: DateTime.add(now(), -Kura.placement_drain_seconds(), :second)
+    }
 
-    region_id
-    |> draining_instances()
-    |> Enum.take(@max_archival_transitions_per_pass)
-    |> Enum.each(&resolve_drain(&1, drain_cutoff))
+    draining = region_id |> draining_instances() |> Enum.take(@max_archival_transitions_per_pass)
+    retiring = placement_retirements(region_id, Enum.map(draining, fn {server, _lifecycle} -> server.account_id end))
+
+    Enum.each(draining, &resolve_drain(&1, cutoffs, retiring))
+  end
+
+  # Accounts whose instance in this region is draining because placement
+  # decided to leave it, rather than because the region went quiet.
+  defp placement_retirements(region_id, account_ids) do
+    PlacerRegion
+    |> where([placer], placer.region == ^region_id and placer.status == :retiring)
+    |> where([placer], placer.account_id in ^account_ids)
+    |> select([placer], placer.account_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   defp draining_instances(region_id) do
@@ -532,19 +990,44 @@ defmodule Tuist.Kura.Lifecycle do
     )
   end
 
-  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, drain_cutoff) do
+  # Two drains reach here with different owners. The inactivity rules get no
+  # say in one they did not start: their cancels both answer "has this account
+  # gone quiet?", and placement left a region for a different reason — its
+  # traffic no longer earns a slot there, which is a judgement about one region
+  # rather than about the account. Enterprise is where the difference bites,
+  # because it is never archived for inactivity and would otherwise cancel
+  # every retirement it was given on the next tick.
+  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, cutoffs, retiring) do
+    if MapSet.member?(retiring, server.account_id) do
+      resolve_placement_retirement(server, lifecycle, cutoffs.placement)
+    else
+      resolve_inactivity_drain(server, lifecycle, cutoffs.inactivity)
+    end
+  end
+
+  defp resolve_placement_retirement(server, lifecycle, drain_cutoff) do
+    cond do
+      is_nil(lifecycle.drain_started_at) -> start_drain_clock(lifecycle)
+      drain_window_elapsed?(lifecycle, drain_cutoff) -> start_teardown(server, lifecycle)
+      true -> :ok
+    end
+  end
+
+  defp resolve_inactivity_drain(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, drain_cutoff) do
     plan = Billing.effective_plan(server.account)
 
     cond do
       # Re-read at resolution, not only at selection: an account that upgrades
       # to a plan that is never archived while its instance is mid-drain gets
-      # it back, rather than being reclaimed under the plan it just left.
-      not archivable_plan?(plan) ->
+      # it back, rather than being reclaimed under the plan it just left. A
+      # never-used instance holds nothing the plan protects, so it drains on
+      # every plan.
+      lifecycle.drain_reason != :unused and not archivable_plan?(plan) ->
         Logger.info("[Kura.Lifecycle] instance #{server.id} is on a plan that is never archived; returning it to service")
 
         cancel_drain(server, lifecycle, plan)
 
-      lifecycle.keep_warm or demand_returned?(lifecycle) ->
+      lifecycle.keep_warm or demand_returned?(lifecycle, plan) ->
         cancel_drain(server, lifecycle, plan)
 
       # A drain-pending row with no clock cannot have waited out its window,
@@ -574,9 +1057,22 @@ defmodule Tuist.Kura.Lifecycle do
   # Any cache demand recorded after the drain began cancels archival. Entering
   # the drain required demand older than a full inactivity window, so a
   # timestamp newer than the drain start can only be a client that came back.
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}), do: false
+  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}, _plan), do: false
 
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}) do
+  # A never-used instance holds no cache to keep, so demand does not cancel its
+  # drain. Demand recorded after the archival returns it instead.
+  defp demand_returned?(%AccountRegionLifecycle{drain_reason: :unused}, _plan), do: false
+
+  # Air entered the drain on its traffic clock, so only traffic cancels it. The
+  # resolution that failed to keep it warm would otherwise cancel every drain
+  # on the next tick.
+  defp demand_returned?(%AccountRegionLifecycle{drain_reason: reason} = lifecycle, :air)
+       when reason in [:inactive, :idle] do
+    is_struct(lifecycle.last_cache_traffic_at, DateTime) and
+      DateTime.compare(lifecycle.last_cache_traffic_at, lifecycle.drain_started_at) != :lt
+  end
+
+  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}, _plan) do
     # At-or-after, not strictly after: both clocks are second-resolution, and
     # a request arriving in the same second the drain started is a client that
     # came back. Entering the drain required demand at least a full inactivity
@@ -595,7 +1091,7 @@ defmodule Tuist.Kura.Lifecycle do
       {:ok, _server} ->
         {:ok, _lifecycle} =
           lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: nil, teardown_started_at: nil})
+          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: nil, teardown_started_at: nil, drain_reason: nil})
           |> Repo.update()
 
         Telemetry.archive_cancelled(plan, server.region)
@@ -701,7 +1197,7 @@ defmodule Tuist.Kura.Lifecycle do
           })
           |> Repo.update()
 
-        Telemetry.archived(plan, server.region, reclaimed_bytes, drain_duration_ms)
+        Telemetry.archived(plan, server.region, lifecycle.drain_reason || :inactive, reclaimed_bytes, drain_duration_ms)
 
         Logger.info(
           "[Kura.Lifecycle] archived instance #{server.id}: reclaimed #{reclaimed_bytes} bytes after #{drain_duration_ms}ms"
@@ -753,8 +1249,14 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: nil}, _started_at), do: false
 
+  # `last_returned_at` is stamped after the return's deployment is inserted and
+  # truncated to the second, so the deployment can read as up to a second later
+  # than the return. The minute of slack before it mirrors
+  # `Kura.new_instance_readiness/1`: an archived server is outside every
+  # rollout, so nothing else is deployed in that minute.
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: returned_at}, started_at) do
-    DateTime.compare(returned_at, started_at) != :lt
+    DateTime.compare(started_at, DateTime.add(returned_at, -1, :minute)) != :lt and
+      DateTime.before?(started_at, DateTime.add(returned_at, 1, :second))
   end
 
   ## Gates
@@ -767,6 +1269,10 @@ defmodule Tuist.Kura.Lifecycle do
   # not depend on anyone remembering to configure it.
   defp archivable_plan?(:enterprise), do: false
   defp archivable_plan?(_plan), do: true
+
+  # Capped at the window every plan uses, so an environment that shortens the
+  # lifecycle for everyone shortens it for Air too.
+  defp air_inactive_days, do: min(Environment.kura_air_inactive_days(), Environment.kura_inactive_days())
 
   defp image_tag do
     case Environment.kura_runtime_image_tag() do

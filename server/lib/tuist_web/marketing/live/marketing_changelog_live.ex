@@ -6,8 +6,16 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
+  alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.SocialCards
+
+  on_mount {TuistWeb.Authentication, :mount_current_user}
 
   @page_size 10
+
+  embed_templates "marketing_changelog_live/*"
+
+  def render(assigns), do: changelog(assigns)
 
   def mount(params, _session, socket) do
     entries = Changelog.get_entries()
@@ -57,18 +65,13 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(:has_more?, has_more?)
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(
-         path:
-           TuistWeb.Helpers.OpenGraph.image_path(:marketing_changelog,
-             title: dgettext("marketing", "Changelog")
-           )
-       )
+       SocialCards.image_url("changelog")
      )
      |> assign(:head_title, "Tuist Changelog")
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)
      |> assign(:head_twitter_card, "summary_large_image")
-     |> assign_structured_data(get_changelog_structured_data(filtered_entries))
+     |> put_structured_data(get_changelog_structured_data(filtered_entries))
      |> assign(
        :head_description,
        dgettext(
@@ -89,7 +92,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
         %{"category" => category, "page" => new_page}
       end
 
-    {:noreply, push_patch(socket, to: ~p"/changelog?#{params}")}
+    {:noreply, push_patch(socket, to: Localization.localized_href(~p"/changelog?#{params}"))}
   end
 
   defp parse_page(params) do

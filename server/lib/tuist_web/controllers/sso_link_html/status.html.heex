@@ -1,0 +1,9 @@
+<.link_frame title={@title} subtitle={@subtitle}>
+  <.button
+    data-part="dashboard-button"
+    variant="primary"
+    size="large"
+    label={dgettext("dashboard_auth", "Dashboard")}
+    href={TuistWeb.Authentication.signed_in_path(@current_user)}
+  />
+</.link_frame>

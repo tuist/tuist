@@ -15,16 +15,24 @@ final class LocalHTTPServer: Sendable {
     struct Response: Sendable {
         let statusCode: Int
         let headers: [String: String]
-        let body: String
+        let body: Data
 
         init(statusCode: Int, headers: [String: String] = [:], body: String = "") {
+            self.init(statusCode: statusCode, headers: headers, data: Data(body.utf8))
+        }
+
+        init(statusCode: Int, headers: [String: String] = [:], data: Data) {
             self.statusCode = statusCode
             self.headers = headers
-            self.body = body
+            body = data
         }
 
         static func ok(_ body: String) -> Response {
             Response(statusCode: 200, body: body)
+        }
+
+        static func ok(_ data: Data) -> Response {
+            Response(statusCode: 200, data: data)
         }
 
         static func status(_ statusCode: Int, headers: [String: String] = [:]) -> Response {
@@ -169,7 +177,7 @@ final class LocalHTTPServer: Sendable {
     }
 
     private func write(response: Response, to connection: Int32) {
-        let body = Array(response.body.utf8)
+        let body = Array(response.body)
         var head = "HTTP/1.1 \(response.statusCode) \(Self.reason(for: response.statusCode))\r\n"
         head += "Content-Length: \(body.count)\r\n"
         head += "Connection: close\r\n"

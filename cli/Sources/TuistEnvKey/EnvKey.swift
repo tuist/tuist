@@ -201,6 +201,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardPlanId = "TUIST_SHARD_PLAN_ID"
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
     case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
+    case testStressNewTests = "TUIST_TEST_STRESS_NEW_TESTS"
 
     // TEST SHOW
 
@@ -344,6 +345,7 @@ public enum EnvKey: String, CaseIterable {
 
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
+    case organizationInviteRole = "TUIST_ORGANIZATION_INVITE_ROLE"
     case organizationInvitePath = "TUIST_ORGANIZATION_INVITE_PATH"
 
     // ORGANIZATION SHOW
@@ -417,6 +419,12 @@ public enum EnvKey: String, CaseIterable {
     case cacheRunShowPath = "TUIST_CACHE_RUN_SHOW_PATH"
     case cacheRunShowJson = "TUIST_CACHE_RUN_SHOW_JSON"
 
+    // COVERAGE COMPLETE
+    case coverageCompletePath = "TUIST_COVERAGE_COMPLETE_PATH"
+    case coverageCompleteFullHandle = "TUIST_COVERAGE_COMPLETE_FULL_HANDLE"
+    case coverageCompleteCommit = "TUIST_COVERAGE_COMPLETE_COMMIT"
+    case coverageCompleteJSON = "TUIST_COVERAGE_COMPLETE_JSON"
+
     // ORGANIZATION UPDATE MEMBER
 
     case organizationUpdateMemberOrganizationName = "TUIST_ORGANIZATION_UPDATE_MEMBER_ORGANIZATION_NAME"
@@ -466,6 +474,7 @@ public enum EnvKey: String, CaseIterable {
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
     case shareTrack = "TUIST_SHARE_TRACK"
+    case shareReleaseNotes = "TUIST_SHARE_RELEASE_NOTES"
 
     // CACHE
 
@@ -478,19 +487,18 @@ public enum EnvKey: String, CaseIterable {
     case cachePath = "TUIST_CACHE_PATH"
     case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
+    case cacheCoverage = "TUIST_CACHE_COVERAGE"
 
     // HASH CACHE
 
     case hashCachePath = "TUIST_HASH_CACHE_PATH"
     case hashCacheConfiguration = "TUIST_HASH_CACHE_CONFIGURATION"
+    case hashCacheCoverage = "TUIST_HASH_CACHE_COVERAGE"
 
     // HASH TEST
 
     case hashTestPath = "TUIST_HASH_TEST_PATH"
     case hashTestConfiguration = "TUIST_HASH_TEST_CONFIGURATION"
-
-    /// CACHE START
-    case cacheStartPath = "TUIST_CACHE_START_PATH"
 
     // CACHE CONFIG
 

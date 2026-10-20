@@ -30,7 +30,86 @@ defmodule TuistWeb.TestCaseRunLiveTest do
     %{conn: conn, user: user, account: account, project: project}
   end
 
+  for build_system <- [:xcode, :gradle, :once] do
+    test "uses Test Run for an empty #{build_system} back-button label", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      project =
+        project
+        |> Ecto.Changeset.change(build_system: unquote(build_system))
+        |> Tuist.Repo.update!()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          build_system: Atom.to_string(unquote(build_system)),
+          scheme: ""
+        )
+
+      [test_case_run | _] = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs).test_case_runs
+
+      {:ok, lv, _} =
+        live(
+          assign(conn, :selected_project, project),
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      assert has_element?(lv, "[data-part='back-button']", "Test Run")
+    end
+  end
+
   describe "mount" do
+    for {build_system, scheme, label} <- [
+          {:mix, "", "mix test"},
+          {:mix, "clickhouse-current", "mix test · clickhouse-current"},
+          {:mix, "clickhouse-floor", "mix test · clickhouse-floor"},
+          {:bazel, "", "bazel test"},
+          {:gradle, "root-project", "root-project"},
+          {:xcode, "AppScheme", "AppScheme"}
+        ] do
+      test "renders meaningful #{build_system} #{scheme} command and parent-run labels", %{
+        conn: conn,
+        account: account,
+        project: project
+      } do
+        project =
+          project
+          |> Ecto.Changeset.change(build_system: unquote(build_system))
+          |> Tuist.Repo.update!()
+
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: account.id,
+            build_system: Atom.to_string(unquote(build_system)),
+            scheme: unquote(scheme)
+          )
+
+        [test_case_run | _] = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs).test_case_runs
+
+        {:ok, lv, _} =
+          live(
+            assign(conn, :selected_project, project),
+            ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+          )
+
+        assert has_element?(lv, "[data-part='back-button']", unquote(label))
+        assert has_element?(lv, "[data-part='value-link']", unquote(label))
+        assert has_element?(lv, "[data-part='metadata'] [data-part='value']", unquote(label))
+
+        {:ok, run_lv, _} =
+          live(
+            assign(conn, :selected_project, project),
+            ~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+          )
+
+        assert has_element?(run_lv, "h1", unquote(label))
+      end
+    end
+
     test "renders test case run page with name and run details", %{
       conn: conn,
       account: account,
@@ -45,6 +124,163 @@ defmodule TuistWeb.TestCaseRunLiveTest do
 
       assert html =~ test_case_run.name
       assert html =~ "Run Details"
+    end
+
+    test "shows the repetitions the stress gate ran for the test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 100,
+          status: "success",
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 10,
+              test_cases: [
+                %{
+                  name: "testNew",
+                  test_suite_name: "CheckoutTests",
+                  status: "success",
+                  duration: 5,
+                  repetitions: [
+                    %{repetition_number: 1, name: "Stress 1", status: "success", duration: 4, source: "stress"},
+                    %{repetition_number: 2, name: "Stress 2", status: "failure", duration: 5, source: "stress"}
+                  ]
+                }
+              ]
+            }
+          ],
+          stress_new_tests: %{
+            mode: "report",
+            outcome: "disagreed",
+            new_count: 1,
+            stressed_count: 1,
+            excluded_count: 0,
+            known_count: 5,
+            test_cases: [
+              %{
+                name: "testNew",
+                suite_name: "CheckoutTests",
+                module_name: "AppTests",
+                repetitions: 2,
+                failed_repetitions: 1,
+                outcome: "disagreed",
+                is_quarantined: false,
+                repetition_results: [
+                  %{repetition_number: 1, status: "success", duration: 4},
+                  %{
+                    repetition_number: 2,
+                    status: "failure",
+                    duration: 5,
+                    failure: %{
+                      message: "Bool.random()",
+                      issue_type: "assertion_failure",
+                      line_number: 0
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      assert html =~ "Repetitions"
+      assert html =~ "Repetition 1"
+      assert html =~ "Repetition 2"
+    end
+
+    test "summarises the stress gate's repetitions when every one of them passed", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 100,
+          status: "success",
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 10,
+              test_cases: [
+                %{
+                  name: "testNew",
+                  test_suite_name: "CheckoutTests",
+                  status: "success",
+                  duration: 5,
+                  repetitions:
+                    Enum.map(1..3, fn number ->
+                      %{
+                        repetition_number: number,
+                        name: "Stress #{number}",
+                        status: "success",
+                        duration: 4,
+                        source: "stress"
+                      }
+                    end)
+                }
+              ]
+            }
+          ],
+          stress_new_tests: %{
+            mode: "report",
+            outcome: "passed",
+            new_count: 1,
+            stressed_count: 1,
+            excluded_count: 0,
+            known_count: 5,
+            test_cases: [
+              %{
+                name: "testNew",
+                suite_name: "CheckoutTests",
+                module_name: "AppTests",
+                repetitions: 3,
+                failed_repetitions: 0,
+                outcome: "passed",
+                is_quarantined: false,
+                repetition_results: [
+                  %{repetition_number: 1, status: "success", duration: 4},
+                  %{repetition_number: 2, status: "success", duration: 5},
+                  %{repetition_number: 3, status: "success", duration: 6}
+                ]
+              }
+            ]
+          }
+        })
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      assert html =~ "All 3 repetitions passed"
+      refute html =~ "Repetition 1"
     end
 
     test "shows link to test case when test_case_id exists", %{

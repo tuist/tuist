@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Plugs.LoaderPlug
 
   setup :set_mimic_from_context
@@ -66,6 +67,37 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
                      LoaderPlug.call(conn, plug_opts)
                    end
     end
+
+    test "raises a service-unavailable error when the store rejects the read", %{conn: conn} do
+      # Given
+      plug_opts = LoaderPlug.init([])
+      run_id = "00000000-0000-0000-0000-000000000000"
+
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id ->
+        {:error,
+         "Code: 241. DB::Exception: (total) memory limit exceeded: would use 18.00 GiB, " <>
+           "maximum: 18.00 GiB. (MEMORY_LIMIT_EXCEEDED)"}
+      end)
+
+      # When / Then
+      conn = assign(%{conn | path_params: %{"run_id" => run_id}}, :caching, false)
+
+      assert_raise ServiceUnavailableError, fn ->
+        LoaderPlug.call(conn, plug_opts)
+      end
+    end
+  end
+
+  test "a warmed public loader cannot hide a privacy change", %{conn: conn, cache: cache} do
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+    outsider = AccountsFixtures.user_fixture(preload: [:account])
+    request = %{conn | path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}}
+    request = request |> assign(:cache, cache) |> assign(:caching, true)
+    first = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, first.assigns.selected_project) == :ok
+    project |> Ecto.Changeset.change(visibility: :private) |> Tuist.Repo.update!()
+    second = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, second.assigns.selected_project) == {:error, :forbidden}
   end
 
   describe "call/2 when the 'account_handle' and 'project_handle' path params are present" do

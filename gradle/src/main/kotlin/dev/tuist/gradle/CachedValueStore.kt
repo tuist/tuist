@@ -2,8 +2,12 @@ package dev.tuist.gradle
 
 import java.io.File
 import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.channels.OverlappingFileLockException
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class CachedValueStore<T>(
     private val lockFilePath: File? = null
@@ -26,7 +30,16 @@ class CachedValueStore<T>(
     private var pending: CompletableFuture<T>? = null
     private val lock = Any()
 
-    fun getValue(forceRefresh: Boolean = false, compute: () -> Pair<T, Long?>): T {
+    /**
+     * @param deadlineNanos a [System.nanoTime] after which waiting for another caller's computation,
+     * or for the file lock, gives up with a [TimeoutException]. `null` waits for as long as it takes.
+     * It does not bound [compute] itself.
+     */
+    fun getValue(
+        forceRefresh: Boolean = false,
+        deadlineNanos: Long? = null,
+        compute: () -> Pair<T, Long?>
+    ): T {
         if (!forceRefresh) {
             cached?.let { if (!it.isExpired) return it.value }
         }
@@ -51,12 +64,13 @@ class CachedValueStore<T>(
         }
 
         if (!isOwner) {
-            return future.get()
+            if (deadlineNanos == null) return future.get()
+            return future.get(deadlineNanos - System.nanoTime(), TimeUnit.NANOSECONDS)
         }
 
         try {
             val (value, expiresAtMs) = if (lockFilePath != null) {
-                withFileLock { compute() }
+                withFileLock(deadlineNanos) { compute() }
             } else {
                 compute()
             }
@@ -71,7 +85,7 @@ class CachedValueStore<T>(
         }
     }
 
-    private fun withFileLock(action: () -> Pair<T, Long?>): Pair<T, Long?> {
+    private fun withFileLock(deadlineNanos: Long?, action: () -> Pair<T, Long?>): Pair<T, Long?> {
         val lockFile = lockFilePath!!
         lockFile.parentFile.mkdirs()
 
@@ -82,7 +96,7 @@ class CachedValueStore<T>(
         )
 
         try {
-            val fileLock = channel.lock()
+            val fileLock = if (deadlineNanos == null) channel.lock() else lockBefore(channel, deadlineNanos)
 
             try {
                 // Double-check in-memory cache after acquiring lock
@@ -95,5 +109,28 @@ class CachedValueStore<T>(
         } finally {
             channel.close()
         }
+    }
+
+    private fun lockBefore(channel: FileChannel, deadlineNanos: Long): FileLock {
+        while (true) {
+            // Another process holding the lock makes `tryLock` return null; another channel in
+            // this JVM holding it makes it throw.
+            val fileLock = try {
+                channel.tryLock()
+            } catch (_: OverlappingFileLockException) {
+                null
+            }
+            if (fileLock != null) return fileLock
+
+            val remainingNanos = deadlineNanos - System.nanoTime()
+            if (remainingNanos <= 0) {
+                throw TimeoutException("Timed out waiting for the lock at $lockFilePath")
+            }
+            Thread.sleep(minOf(LOCK_POLL_INTERVAL_MS, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1))
+        }
+    }
+
+    private companion object {
+        const val LOCK_POLL_INTERVAL_MS = 50L
     }
 }

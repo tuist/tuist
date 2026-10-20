@@ -14,6 +14,8 @@ defmodule Tuist.Accounts.AccountTokenTest do
                "account:members:write",
                "account:registry:read",
                "account:registry:write",
+               "account:runners:read",
+               "account:runners:write",
                "project:previews:read",
                "project:previews:write",
                "project:admin:read",
@@ -44,6 +46,10 @@ defmodule Tuist.Accounts.AccountTokenTest do
                "project:builds:write",
                "project:runs:write"
              ]
+    end
+
+    test "includes runner reads in the coding-agent scope" do
+      assert "account:runners:read" in AccountToken.expand_scopes([AccountToken.mcp_scope()])
     end
   end
 

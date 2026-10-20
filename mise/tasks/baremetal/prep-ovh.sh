@@ -19,7 +19,8 @@
 #   e.g. mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
 #
 # The fleet pubkey and the OVH API triple come from the env's 1Password vault
-# (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with PREP_VAULT) — so a
+# (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with PREP_VAULT) in the
+# tuist.1password.com account (override with OP_ACCOUNT) — so a
 # box can be prepped with no cluster access. Falls back to the in-cluster
 # <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
 # selects the entity (default ovh-us).
@@ -39,6 +40,7 @@ fi
 root="$(git rev-parse --show-toplevel)"
 env="${ns#tuist-}"
 vault="${PREP_VAULT:-tuist-k8s-$env}"
+export OP_ACCOUNT="${OP_ACCOUNT:-tuist.1password.com}"
 values="$root/infra/helm/tuist/values-managed-${env}.yaml"
 
 kube=(kubectl)

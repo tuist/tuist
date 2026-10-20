@@ -14,22 +14,54 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
-  test "puts the starting journeys first in the guides sidebar" do
-    [%Sidebar.Group{label: nil, items: [chooser]} | rest] = Sidebar.guides_tree()
+  test "puts install and the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: nil, items: [install, chooser]} | rest] = Sidebar.guides_tree()
+
+    assert install.label == "Install Tuist"
+    assert install.slug == "/en/guides/install-tuist"
+    assert install.icon == "download"
 
     assert chooser.label == "Get started"
     assert chooser.slug == "/en/guides/get-started"
     assert chooser.icon == "bulb"
 
     assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
-             {"Observe", "/en/guides/get-started/observability"},
-             {"Optimize", "/en/guides/get-started/optimization"},
-             {"Run", "/en/guides/get-started/tuist-runners"},
-             {"Ask", "/en/guides/get-started/ask"}
+             {"Xcode project", "/en/guides/get-started/existing-xcode-project"},
+             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
+             {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Elixir project", "/en/guides/get-started/elixir-project"},
+             {"Rust project", "/en/guides/get-started/rust-project"},
+             {"Bazel project", "/en/guides/get-started/bazel-project"}
            ]
+
+    assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
+  test "links every Rust journey with the Rust brand logo" do
+    rust_slugs =
+      for group <- Sidebar.guides_tree(),
+          item <- group.items,
+          child <- item.items,
+          child.icon == "brand_rust",
+          do: child.slug
+
+    assert MapSet.new(rust_slugs) ==
+             MapSet.new([
+               "/en/guides/get-started/rust-project",
+               "/en/guides/features/build-insights/rust",
+               "/en/guides/features/test-insights/rust",
+               "/en/guides/features/test-insights/flaky-tests/rust",
+               "/en/guides/features/test-sharding/rust"
+             ])
+  end
+
+  test "links the library documentation from the references sidebar" do
+    libraries = Enum.find(Sidebar.references_tree(), &(&1.label == "Libraries"))
+
+    assert [%{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}] = libraries.items
   end
 
   test "all sidebar slugs correspond to actual docs pages" do
@@ -79,6 +111,27 @@ defmodule Tuist.Docs.SidebarTest do
     assert Sidebar.item_or_children_active?(item, "/en/parent")
     assert Sidebar.item_or_children_active?(item, "/en/parent/child")
     refute Sidebar.item_or_children_active?(item, "/en/other")
+  end
+
+  test "localizes each Insights item by its catalogue path, not by English label" do
+    tree = Sidebar.tree_for_tab(:guides, "es")
+
+    insights_by_group =
+      for %Sidebar.Group{label: group, items: items} <- tree,
+          group in ["Builds", "Tests", "Bundles"],
+          item <- items,
+          item.slug in [
+            "/es/guides/features/build-insights",
+            "/es/guides/features/test-insights",
+            "/es/guides/features/bundle-insights"
+          ],
+          into: %{} do
+        {group, item.label}
+      end
+
+    assert insights_by_group["Builds"] == "Análisis de builds"
+    assert insights_by_group["Tests"] == "Insights"
+    assert insights_by_group["Bundles"] == "Insights"
   end
 
   test "returns the top-level category for localized slugs" do

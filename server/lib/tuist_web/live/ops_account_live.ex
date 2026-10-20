@@ -28,6 +28,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, account} ->
         account = preload_billing(account)
         balance = Prepaid.balance(account)
+        subscription = Billing.get_current_active_subscription(account)
 
         {:ok,
          socket
@@ -37,8 +38,12 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_balance, balance)
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_pool_quote, nil)
+         |> assign(:prepaid_pool_coverage, nil)
          |> assign(:prepaid_quote, nil)
-         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign_standing_prepaid(account, subscription)
+         |> assign(:has_subscription, not is_nil(subscription))
+         |> assign_free_tier(account)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -51,13 +56,21 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
+  defp assign_free_tier(socket, account) do
+    socket
+    |> assign(:free_tier_hits, account.current_month_remote_cache_hits_count || 0)
+    |> assign(:free_tier_limit, Billing.get_payment_thresholds()[:remote_cache_hits])
+    |> assign(:free_tier_reset_at, account.free_tier_reset_at)
+    |> assign(:cache_access_blocked, Billing.cache_access_blocked?(account))
+  end
+
   defp preload_billing(account) do
     Repo.preload(account, [
       :organization,
       :user,
       subscriptions:
         from(s in Subscription,
-          where: s.status in ["active", "trialing"],
+          where: s.status in ^Billing.live_subscription_statuses(),
           order_by: [desc: s.inserted_at]
         )
     ])
@@ -113,6 +126,35 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, reason} ->
         {:noreply,
          put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("reset_free_tier", _params, socket) do
+    case Billing.reset_free_tier(socket.assigns.account) do
+      {:ok, account} ->
+        account = preload_billing(account)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign_free_tier(account)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not reset the free tier: %{reason}", reason: inspect(reason))
+         )}
     end
   end
 
@@ -182,6 +224,73 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("quote_prepaid_pool", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:prepaid_pool_quote, quote_pool(params))
+     |> assign(:prepaid_pool_coverage, pool_coverage(params, socket.assigns.account))}
+  end
+
+  @impl true
+  def handle_event("grant_prepaid_pool", params, socket) do
+    case parse_pool_params(params) do
+      {:ok, attrs} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.grant_pool(account, attrs) do
+          {:ok, _grant} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_pool_quote, nil)
+             |> assign(:prepaid_pool_coverage, nil)
+             |> put_flash(:info, grant_pool_message(account, attrs))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, prepaid_pool_error(reason))}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, prepaid_pool_error(:unreadable))}
+    end
+  end
+
+  @impl true
+  def handle_event("quote_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :standing_prepaid_quote, quote_minutes(minutes))}
+  end
+
+  # Sets the subscription item only. It does not touch the period already
+  # running, so an operator agreeing a deal mid-cycle uses the field above
+  # for this cycle and this one for every cycle after.
+  @impl true
+  def handle_event("set_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = socket.assigns.account
+
+        case Prepaid.set_standing_minutes(account, minutes) do
+          {:ok, minutes} ->
+            {:noreply,
+             socket
+             |> assign(:standing_prepaid_minutes_value, minutes)
+             |> assign(:standing_prepaid_quote, nil)
+             |> put_flash(:info, set_standing_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, standing_prepaid_error(reason))}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to stop."))}
+    end
+  end
+
+  @impl true
   def handle_event("apply_kura_claim_proposal", _params, socket) do
     account = socket.assigns.account
     proposal = socket.assigns.kura_claim_proposal
@@ -218,6 +327,49 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign_kura(account)
          |> put_flash(:info, dgettext("dashboard", "Sizing proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura(socket, account)}
+    end
+  end
+
+  @impl true
+  def handle_event("apply_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.apply_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, outcome} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_placement_message(outcome))}
+
+      _stale_or_missing ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next placement sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.dismiss_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, dgettext("dashboard", "Placement proposal dismissed."))}
 
       _stale_or_missing ->
         {:noreply, assign_kura(socket, account)}
@@ -273,12 +425,38 @@ defmodule TuistWeb.OpsAccountLive do
        )}
     else
       # Missing billing details: open the modal pre-filled with whatever
-      # the Stripe customer already has.
+      # the Stripe customer already has. The modal is `:if`-gated on
+      # `upgrade_target_account`, so it isn't in the DOM yet and its
+      # Noora Modal hook hasn't attached the `phx:open-modal` window
+      # listener. Defer the event to the next tick so the DOM patch
+      # mounts the modal (and its listener) before we dispatch.
+      send(self(), :open_enterprise_modal)
+
       {:noreply,
        socket
        |> assign(:upgrade_target_account, account)
-       |> assign(:upgrade_target_customer, customer)
-       |> push_event("open-modal", %{id: "enterprise-modal"})}
+       |> assign(:upgrade_target_customer, customer)}
+    end
+  end
+
+  @impl true
+  def handle_event("start_open_source_plan", _params, socket) do
+    account = socket.assigns.account
+
+    case Billing.start_open_source_plan(account) do
+      {:ok, _sub} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, dgettext("dashboard", "%{account} is now on the Open Source plan.", account: account.name))
+         |> push_navigate(to: ~p"/ops/accounts/#{account.id}")}
+
+      {:error, :subscription_exists} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "%{account} already has an active subscription.", account: account.name)
+         )}
     end
   end
 
@@ -337,6 +515,11 @@ defmodule TuistWeb.OpsAccountLive do
      |> assign(:upgrade_target_account, nil)
      |> assign(:upgrade_target_customer, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
+  end
+
+  @impl true
+  def handle_info(:open_enterprise_modal, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal"})}
   end
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
@@ -416,12 +599,234 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  defp quote_pool(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, quote} <- Prepaid.quote_pool(paid_cents, credit_multiplier) do
+      quote
+    else
+      _invalid -> nil
+    end
+  end
+
+  # Which invoices the pool will pay for, read only once both contract dates
+  # are filled in, since the billing cycle can take a Stripe call to read.
+  defp pool_coverage(params, account) do
+    with {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]),
+         false <- Date.after?(starts_on, expires_on) do
+      Prepaid.pool_coverage(Billing.current_billing_period(account), starts_on, expires_on)
+    else
+      _incomplete -> nil
+    end
+  end
+
+  # Reads the form into the terms `Prepaid.grant_pool/2` takes. It only
+  # parses: whether the terms make sense is the domain's to decide, so the
+  # same rules hold however a pool is granted.
+  defp parse_pool_params(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, platforms} <- parse_pool_platforms(params["platforms"]),
+         {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]) do
+      {:ok,
+       %{
+         paid_cents: paid_cents,
+         credit_multiplier: credit_multiplier,
+         platforms: platforms,
+         starts_on: starts_on,
+         expires_on: expires_on,
+         invoice_id: blank_to_nil(params["invoice_id"])
+       }}
+    end
+  end
+
+  # Dollars as typed, to whole cents. A fraction of a cent is a typo, not a
+  # rounding question.
+  defp parse_pool_paid(raw) do
+    with {:ok, dollars} <- parse_decimal(String.replace(raw || "", ",", "")),
+         cents = Decimal.mult(dollars, 100),
+         true <- Decimal.integer?(cents) do
+      {:ok, Decimal.to_integer(cents)}
+    else
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(raw) when is_binary(raw) do
+    case Decimal.parse(String.trim(raw)) do
+      {decimal, ""} -> {:ok, decimal}
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(_raw), do: :error
+
+  defp parse_pool_platforms("all"), do: {:ok, [:linux, :macos]}
+  defp parse_pool_platforms("macos"), do: {:ok, [:macos]}
+  defp parse_pool_platforms("linux"), do: {:ok, [:linux]}
+  defp parse_pool_platforms(_raw), do: :error
+
+  defp parse_date(raw) when is_binary(raw) do
+    case Date.from_iso8601(String.trim(raw)) do
+      {:ok, date} -> {:ok, date}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp parse_date(_raw), do: :error
+
+  defp blank_to_nil(raw) when is_binary(raw) do
+    case String.trim(raw) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp blank_to_nil(_raw), do: nil
+
+  # The standard prepaid terms as a credit multiplier, which the pool form
+  # opens on.
+  def standard_credit_multiplier do
+    Prepaid.default_funding_ratio_bp()
+    |> Decimal.new()
+    |> Decimal.div(10_000)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
+  end
+
+  def credit_multiplier_hint do
+    paid = Money.new(100_000, :USD)
+    {:ok, quote} = Prepaid.quote_pool(paid.amount, Decimal.new(standard_credit_multiplier()))
+
+    dgettext(
+      "dashboard",
+      "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute. The standard prepaid terms are %{multiplier}, so %{paid} paid grants %{granted} of credit.",
+      multiplier: standard_credit_multiplier(),
+      paid: format_money(paid),
+      granted: format_money(quote.granted)
+    )
+  end
+
+  defp grant_pool_message(account, attrs) do
+    {:ok, quote} = Prepaid.quote_pool(attrs.paid_cents, attrs.credit_multiplier)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}.",
+      account: account.name,
+      credit: format_money(quote.granted),
+      minutes: format_number(quote.minutes),
+      date: Timex.format!(attrs.expires_on, "{Mfull} {D}, {YYYY}")
+    )
+  end
+
+  def prepaid_pool_error(:unreadable),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :paid_cents}),
+    do: dgettext("dashboard", "Could not grant the pool: the amount paid has to be more than zero.")
+
+  def prepaid_pool_error({:invalid_pool, :credit_multiplier}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :platforms}),
+    do: dgettext("dashboard", "Could not grant the pool: choose the platforms the credit pays for.")
+
+  def prepaid_pool_error({:invalid_pool, :term}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :expires_on}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :invoice_id}),
+    do: dgettext("dashboard", "Could not grant the pool: a Stripe invoice id starts with in_.")
+
+  def prepaid_pool_error(:no_runner_prices_configured),
+    do: dgettext("dashboard", "Could not grant the pool: no runner price is configured for this environment yet.")
+
+  def prepaid_pool_error(reason),
+    do: dgettext("dashboard", "Could not grant the pool: %{reason}", reason: inspect(reason))
+
+  defp assign_standing_prepaid(socket, account, subscription) do
+    {minutes, unavailable} =
+      case Prepaid.standing_minutes(account) do
+        {:ok, minutes} -> {minutes, nil}
+        {:error, reason} -> {0, reason}
+      end
+
+    socket
+    |> assign(:standing_prepaid_minutes_value, minutes)
+    |> assign(:standing_prepaid_unavailable, unavailable)
+    |> assign(:standing_prepaid_quote, nil)
+    # The item is billed and granted on the renewal invoice, so the end of
+    # the period now running is when the next minutes land.
+    |> assign(:standing_prepaid_next_at, subscription && subscription.current_period_end)
+  end
+
+  defp set_standing_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} will no longer be billed or granted minutes at each renewal.",
+      account: account.name
+    )
+  end
+
+  defp set_standing_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} will be billed %{amount} and granted %{minutes} minutes at each renewal. The cycle now running is unchanged.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  def standing_prepaid_error(:no_subscription),
+    do: dgettext("dashboard", "This account has no active subscription to carry standing minutes.")
+
+  def standing_prepaid_error(:not_monthly),
+    do: dgettext("dashboard", "Standing minutes need a subscription that renews monthly, and this one does not.")
+
+  def standing_prepaid_error(:on_runner_trial),
+    do:
+      dgettext("dashboard", "This account is on a runner trial, so standing minutes would buy credit it can never spend.")
+
+  def standing_prepaid_error(:no_prepaid_price_configured),
+    do: dgettext("dashboard", "No prepaid minutes price is configured for this environment yet.")
+
+  def standing_prepaid_error(reason),
+    do: dgettext("dashboard", "Could not read or set the standing monthly minutes: %{reason}", reason: inspect(reason))
+
+  def standing_prepaid_next_label(nil), do: dgettext("dashboard", "the next renewal")
+
+  def standing_prepaid_next_label(%DateTime{} = next_at), do: Timex.format!(next_at, "{Mfull} {D}, {YYYY}")
+
   # The field opens on what the account holds, so an operator corrects a
   # figure rather than working out the difference from the table above.
   defp held_minutes(nil), do: 0
 
+  # A pool is not what the field sets, so counting it would sell its minutes
+  # again as a month's worth.
   defp held_minutes(%{grants: grants}) do
-    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+    grants |> Enum.reject(&(&1.kind == "pool")) |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
   end
 
   defp parse_minutes(raw) when is_binary(raw) do
@@ -433,11 +838,17 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp parse_minutes(_raw), do: :error
 
+  def prepaid_pool_invoice_label(%DateTime{} = closes_at), do: Timex.format!(closes_at, "{Mfull} {D}, {YYYY}")
+
   def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label("pool"), do: dgettext("dashboard", "Pool")
   def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
 
   def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
   def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+
+  def free_tier_reset_label(nil), do: dgettext("dashboard", "Never")
+  def free_tier_reset_label(%DateTime{} = reset_at), do: Timex.format!(reset_at, "{Mfull} {D}, {YYYY} {h24}:{m} UTC")
 
   defp runner_concurrency_form(account) do
     account
@@ -448,6 +859,10 @@ defmodule TuistWeb.OpsAccountLive do
   # The rows, the forms and the numbers the rows resolve against move together:
   # an applied proposal re-pins instances and re-resolves their limits, so a
   # table left on the old assign would show values that no longer exist.
+  # Long enough to cover the shortest decision window, so an operator sees the
+  # same evidence the shortest-fused transition reads.
+  @kura_traffic_mix_days 14
+
   defp assign_kura(socket, account) do
     servers = Kura.list_servers_for_account(account.id)
 
@@ -465,6 +880,10 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
     |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
+    |> assign(:kura_placement_regions, Kura.placement_regions(account))
+    |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
+    |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
+    |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
   end
 
   # One entry per egress-governed region the account holds an instance in, each
@@ -753,6 +1172,16 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext(
+      "dashboard",
+      "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}.",
+      region: evidence["region"],
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
   defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
     dgettext(
       "dashboard",
@@ -765,14 +1194,27 @@ defmodule TuistWeb.OpsAccountLive do
   # The second line: how much observation stands behind the first. Days are
   # what the measurements are grouped into, so an operator can see whether this
   # is one bad afternoon or a standing pattern.
-  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: %{"ring_turnover" => turnover} = evidence})
+       when not is_nil(turnover) do
     dngettext(
       "dashboard",
       "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
-      "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       evidence["window_days"],
       bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
-      turnover: evidence["ring_turnover"] || 0
+      turnover: turnover
+    )
+  end
+
+  # No node reported the ring it was running, so there is no turnover to
+  # quote and the volume stands on its own.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded).",
+      "Seen on %{count} days of measurements (%{bytes} discarded).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0)
     )
   end
 
@@ -795,7 +1237,18 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
-  defp kura_claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
+  # A growth that recommends the claim the account already has raises the
+  # instances pinned under it, so the move worth showing is theirs.
+  def claim_history_change(%{
+        direction: :grow,
+        current_claim_size: claim,
+        recommended_claim_size: claim,
+        evidence: %{"region_claim_size" => from}
+      }) do
+    "#{from} → #{claim}"
+  end
+
+  def claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
 
   def claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
   def claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
@@ -819,8 +1272,96 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  def claim_history_reason(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext("dashboard", "keeps work %{retention}, needs %{floor}",
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
   def claim_history_reason(%{direction: :shrink, evidence: evidence}) do
     dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
+  end
+
+  def placement_history_change(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct],
+    do: "#{from} → #{to}"
+
+  def placement_history_change(%{kind: :expand, to_region: to}), do: dgettext("dashboard", "add %{region}", region: to)
+
+  def placement_history_change(%{kind: :retire, from_region: from}),
+    do: dgettext("dashboard", "leave %{region}", region: from)
+
+  def placement_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  def placement_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Placement")
+
+  def placement_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def placement_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  def placement_history_reason(%{kind: kind, evidence: evidence}) when kind in [:relocate, :correct] do
+    dgettext("dashboard", "%{share}%% of runs over %{days} days",
+      share: round((evidence["share"] || 0) * 100),
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :expand, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :retire, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :relocate} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account from %{from} to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :correct} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account off its first region, %{from}, to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :expand} = proposal) do
+    dgettext("dashboard", "Placement proposes also serving this account from %{to}.", to: proposal.to_region)
+  end
+
+  defp placement_proposal_summary(%{kind: :retire} = proposal) do
+    dgettext("dashboard", "Placement proposes giving up %{from} for this account.", from: proposal.from_region)
+  end
+
+  # What the apply actually did, rather than "saved". Nothing moves at the
+  # moment a proposal is applied: the lifecycle provisions the destination on
+  # the account's next demand, and the source leaves only once it is serving.
+  defp kura_placement_message(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct] do
+    dgettext(
+      "dashboard",
+      "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains.",
+      from: from,
+      to: to
+    )
+  end
+
+  defp kura_placement_message(%{kind: :expand, to_region: to}) do
+    dgettext("dashboard", "Placement added %{region}. It is provisioned on the account's next cache demand.", region: to)
+  end
+
+  defp kura_placement_message(%{kind: :retire, from_region: from}) do
+    dgettext("dashboard", "Placement is leaving %{region}. It drains once nothing else is waiting on it.", region: from)
   end
 
   defp kura_disk_usage_label(snapshot) do
@@ -839,6 +1380,27 @@ defmodule TuistWeb.OpsAccountLive do
       "dashboard",
       "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
       claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [_ | _] = raised, lowered: [_ | _] = lowered}) do
+    Enum.join(
+      [
+        dgettext("dashboard", "Kura disk claim moved to %{claim}.", claim: claim_size),
+        dngettext(
+          "dashboard",
+          "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+          "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+          length(raised)
+        ),
+        dngettext(
+          "dashboard",
+          "%{count} instance was lowered and keeps its cache, evicting down to the new budget.",
+          "%{count} instances were lowered and keep their caches, evicting down to the new budget.",
+          length(lowered)
+        )
+      ],
+      " "
     )
   end
 

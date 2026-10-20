@@ -149,17 +149,18 @@ var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
 	[]string{"outcome"},
 )
 
-// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
-// a master existed for the dispatched account on this host: "warm" (the
-// account's master was clonefiled into the VM's branch) or "cold" (no master
-// yet — a first job for that account here, whose writes seed the master).
-// warm/(warm+cold) is the hit rate of the local warm set against dispatched
-// demand — the signal for whether affinity is routing jobs to hosts that hold
-// their account's master.
+// cacheVolumeMaterializeTotal counts post-dispatch materializations by where
+// the branch's image came from (MaterializeSource): "warm" (the job's volume
+// master was clonefiled into the VM's branch), "seeded" (the repository volume
+// had no master here, so the account's ReservedTuistCacheVolume master was
+// cloned instead) or "cold" (no master to clone — a first job for that volume
+// here, whose writes seed its master). warm/total is the hit rate of the local
+// warm set against dispatched demand — the signal for whether affinity is
+// routing jobs to hosts that hold their volume's master.
 var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_materialize_total",
-		Help: "Post-dispatch cache materializations, by warm/cold.",
+		Help: "Post-dispatch cache materializations, by warm/seeded/cold.",
 	},
 	[]string{"result"},
 )
@@ -187,15 +188,56 @@ var cacheVolumePromoteTotal = prometheus.NewCounterVec(
 )
 
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
-// master to the account's HEAD — a host that was behind pulling the latest
-// master after a job started (off the job-start path), so the next job on it
-// starts fresher. A high rate relative to materialize means hosts are
+// master to the volume's HEAD — a host that was behind pulling the latest
+// master off every job's critical path, so the next job on it starts fresher. A high rate relative to materialize means hosts are
 // frequently stale (jobs spread thin across hosts, or the cache churns fast).
 var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_converged_total",
-		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+		Help: "Background master fast-forwards to the volume's HEAD.",
 	},
+)
+
+// cacheVolumeConvergeTotal counts the converge worker's attempts by what queued
+// them and how they ended. source is "job" (a job for the volume ran here and
+// relayed its HEAD) or "prefetch" (the server listed it for this host's fleet).
+// result is "converged", "current" (nothing to adopt), "recent" (a resident
+// master close enough to the HEAD is left in place), "yielded" (a job landed
+// and the download paused), "too_large" (larger than the volume can keep),
+// "no_room" (no space without evicting what it may not), "unverifiable" (the
+// object does not reproduce the HEAD's digest), "expired" (queued past its
+// download URL) or "failed".
+var cacheVolumeConvergeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_total",
+		Help: "Converge worker attempts, by what queued them and how they ended.",
+	},
+	[]string{"source", "result"},
+)
+
+// cacheVolumeConvergeBytesTotal counts bytes the converge worker received, by
+// what queued the download, whether or not it ended in an install. It is the
+// host's share of master egress, including what yields, displacement and
+// failed verification threw away.
+var cacheVolumeConvergeBytesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_bytes_total",
+		Help: "Bytes the converge worker downloaded, by what queued the download.",
+	},
+	[]string{"source"},
+)
+
+// cacheVolumeConvergeSeconds is how long an installed convergence took from its
+// last start to install: transfer, verification and install. Beside the bytes
+// it tells a host limited by its link from one limited by idle time (many
+// yields) or by stalls (many attempts in the converged log line).
+var cacheVolumeConvergeSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_converge_seconds",
+		Help:    "Seconds from the last start of an installed convergence to its install.",
+		Buckets: []float64{10, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200},
+	},
+	[]string{"source"},
 )
 
 // cacheVolumeResidentCount is the number of resident master images on this
@@ -289,11 +331,85 @@ var cacheVolumeUploadSeconds = prometheus.NewHistogram(
 // reserve/split tunable from observation rather than from build failures.
 var cacheVolumeFillPercent = prometheus.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "tart_kubelet_cache_volume_fill_percent",
-		Help:    "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
-		Buckets: []float64{25, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
+		Name: "tart_kubelet_cache_volume_fill_percent",
+		Help: "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
+		// Boundaries below 50 were added once the 30 GiB cap and the division by
+		// use put every teardown under 60%, where 25 -> 50 -> 60 says almost
+		// nothing. Only added, never moved, so quantiles stay comparable across
+		// the change.
+		Buckets: []float64{10, 20, 25, 30, 40, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
 	},
 )
+
+// cacheVolumeByteBuckets sit on the decisions the guest's division makes: the
+// 2 GiB floor either cache is never sized under, the 12 GiB even share of a
+// 24 GiB budget, and the 10/14 GiB fixed split it replaced.
+var cacheVolumeByteBuckets = []float64{
+	256 << 20, 512 << 20, 1 << 30, 2 << 30, 4 << 30, 6 << 30, 8 << 30,
+	10 << 30, 12 << 30, 14 << 30, 16 << 30, 20 << 30, 24 << 30,
+}
+
+// cacheVolumeCacheBytes is what a cache in the image held when the guest divided
+// the budget, and cacheVolumeCacheLimitBytes what the division allowed it, per
+// cache and end of job. Together they answer what no other metric does: how the
+// budget is actually spent, whether the floors bind, and whether an account's two
+// caches diverge enough for the division to do anything.
+var cacheVolumeCacheBytes = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_cache_bytes",
+		Help:    "Bytes a cache in the image held when the guest divided the shared budget, by cache and end of job.",
+		Buckets: cacheVolumeByteBuckets,
+	},
+	[]string{"cache", "when"},
+)
+
+var cacheVolumeCacheLimitBytes = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_cache_limit_bytes",
+		Help:    "Bytes the guest's division allowed a cache in the image, by cache and end of job.",
+		Buckets: cacheVolumeByteBuckets,
+	},
+	[]string{"cache", "when"},
+)
+
+// imageMirrorProbeTotal counts what a host learned each time it asked a rack
+// image cache for a golden base's image: `ok` (pulled from it next),
+// `syncing` (requeued while the cache fetches it), `syncing_bypassed` (still
+// fetching it, but another cache held it), `sync_timeout` (waited too long,
+// pulled from the upstream), `absent`, `unavailable` or `error`
+// (pulled from the upstream).
+var imageMirrorProbeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_image_mirror_probe_total",
+		Help: "Rack image cache probes for a golden base's image, by result.",
+	},
+	[]string{"result"},
+)
+
+// imagePullSeconds is how long each golden base's `tart pull` took, by where
+// it pulled from (`mirror` or `upstream`) and whether it succeeded. The
+// before/after of a rack image cache is the `upstream` and `mirror`
+// distributions on the same hosts.
+var imagePullSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_image_pull_seconds",
+		Help:    "Wall-clock time of a golden base's tart pull, by source and result.",
+		Buckets: []float64{30, 60, 120, 180, 300, 450, 600, 900, 1200},
+	},
+	[]string{"source", "result"},
+)
+
+func recordImageMirrorProbe(result string) {
+	imageMirrorProbeTotal.WithLabelValues(result).Inc()
+}
+
+func recordImagePull(source string, err error, seconds float64) {
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	imagePullSeconds.WithLabelValues(source, result).Observe(seconds)
+}
 
 func init() {
 	metrics.Registry.MustRegister(
@@ -307,6 +423,9 @@ func init() {
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
+		cacheVolumeConvergeTotal,
+		cacheVolumeConvergeBytesTotal,
+		cacheVolumeConvergeSeconds,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -314,7 +433,21 @@ func init() {
 		cacheVolumeAdmissionDeclinedTotal,
 		cacheVolumeUploadSeconds,
 		cacheVolumeFillPercent,
+		cacheVolumeCacheBytes,
+		cacheVolumeCacheLimitBytes,
+		imageMirrorProbeTotal,
+		imagePullSeconds,
 	)
+
+	// Same reason as the promote results below: a vector's series is created on
+	// first observation, so a panel dividing by a cache that no job has divided
+	// for yet would read "No data" instead of nothing-to-show.
+	for _, cache := range []string{"binary", "compilation"} {
+		for _, when := range []string{"attach", "teardown"} {
+			cacheVolumeCacheBytes.WithLabelValues(cache, when)
+			cacheVolumeCacheLimitBytes.WithLabelValues(cache, when)
+		}
+	}
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
 	// series are created lazily on first Inc(), so without this the "rejected"
@@ -343,6 +476,15 @@ func RecordVolumeFill(pct int) {
 	cacheVolumeFillPercent.Observe(float64(pct))
 }
 
+// RecordVolumeCacheLimits records what each cache in the image held and what the
+// guest's division allowed it.
+func RecordVolumeCacheLimits(samples []cacheLimitSample) {
+	for _, sample := range samples {
+		cacheVolumeCacheBytes.WithLabelValues(sample.cache, sample.when).Observe(sample.heldBytes)
+		cacheVolumeCacheLimitBytes.WithLabelValues(sample.cache, sample.when).Observe(sample.limitBytes)
+	}
+}
+
 // RecordVolumeOutcome increments the per-outcome count of finalized cache
 // volume branches.
 func RecordVolumeOutcome(outcome string) {
@@ -366,20 +508,33 @@ func RecordVolumePromote(result string) {
 	cacheVolumePromoteTotal.WithLabelValues(result).Inc()
 }
 
-// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
-// cache materializations.
-func RecordVolumeMaterialized(warm bool) {
-	result := "cold"
-	if warm {
-		result = "warm"
-	}
-	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+// RecordVolumeMaterialized increments the count of post-dispatch cache
+// materializations by where the branch's image came from.
+func RecordVolumeMaterialized(source MaterializeSource) {
+	cacheVolumeMaterializeTotal.WithLabelValues(string(source)).Inc()
 }
 
-// RecordVolumeConverged increments the count of materialize-time master
-// fast-forwards to the account's HEAD.
+// RecordVolumeConverged increments the count of background master
+// fast-forwards to the volume's HEAD.
 func RecordVolumeConverged() {
 	cacheVolumeConvergedTotal.Inc()
+}
+
+// RecordVolumeConverge counts one converge worker attempt.
+func RecordVolumeConverge(source convergeSource, result string) {
+	cacheVolumeConvergeTotal.WithLabelValues(string(source), result).Inc()
+}
+
+// RecordVolumeConvergeBytes counts bytes a convergence downloaded.
+func RecordVolumeConvergeBytes(source convergeSource, bytes int64) {
+	if bytes > 0 {
+		cacheVolumeConvergeBytesTotal.WithLabelValues(string(source)).Add(float64(bytes))
+	}
+}
+
+// RecordVolumeConvergeSeconds records how long an installed convergence took.
+func RecordVolumeConvergeSeconds(source convergeSource, seconds float64) {
+	cacheVolumeConvergeSeconds.WithLabelValues(string(source)).Observe(seconds)
 }
 
 // RecordVolumeResident publishes the resident master count and root free

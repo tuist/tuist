@@ -1,0 +1,443 @@
+import FileSystem
+import Foundation
+import Mockable
+import Path
+import Testing
+import TuistAlert
+import TuistCore
+import TuistGit
+import TuistServer
+import TuistSupport
+import TuistTesting
+import TuistXCResultService
+import XCResultParser
+
+@testable import TuistKit
+
+@Suite
+struct StressNewTestsServiceTests {
+    private let planService = MockCreateStressPlanServicing()
+    private let xcResultService = MockXCResultServicing()
+    private let gitController = MockGitControlling()
+    private let gitHistoryService = MockGitHistoryServicing()
+    private let subject: StressNewTestsService
+    private let serverURL = URL(string: "https://tuist.dev")!
+
+    init() {
+        subject = StressNewTestsService(
+            createStressPlanService: planService,
+            xcResultService: xcResultService,
+            fileSystem: FileSystem(),
+            gitController: gitController,
+            gitHistoryService: gitHistoryService
+        )
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
+    }
+
+    private func summary(_ testCases: [TestCase]) -> TestSummary {
+        TestSummary(
+            testPlanName: nil,
+            status: testCases.contains { $0.status == .failed } ? .failed : .passed,
+            duration: 100,
+            testModules: [
+                TestModule(name: "AppTests", status: .passed, duration: 100, testSuites: [], testCases: testCases),
+            ]
+        )
+    }
+
+    private func testCase(_ name: String, duration: Int = 10, repetitionStatuses: [TestStatus] = []) -> TestCase {
+        TestCase(
+            name: name,
+            testSuite: "CheckoutTests",
+            module: "AppTests",
+            duration: duration,
+            status: .passed,
+            failures: [],
+            repetitions: repetitionStatuses.enumerated().map { index, status in
+                TestCaseRepetition(
+                    repetitionNumber: index + 1,
+                    name: "Repetition \(index + 1)",
+                    status: status,
+                    duration: 5,
+                    failures: []
+                )
+            }
+        )
+    }
+
+    private func plan(
+        candidates: [Components.Schemas.StressPlan.candidatesPayloadPayload],
+        guardSignal: Components.Schemas.StressPlan._guardPayload? = nil,
+        ceiling: Int = 600_000
+    ) -> Components.Schemas.StressPlan {
+        .init(
+            candidates: candidates,
+            _guard: guardSignal,
+            known_count: 40,
+            parameters: .init(
+                bulk_change_floor: 50,
+                bulk_change_ratio: 0.3,
+                candidate_cap: 200,
+                repetition_curve: [.init(max_duration_ms: 5000, repetitions: 10)],
+                wall_clock_ceiling_ms: ceiling
+            )
+        )
+    }
+
+    private func candidate(
+        _ name: String,
+        repetitions: Int = 10,
+        excluded: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload? = nil
+    )
+        -> Components.Schemas.StressPlan.candidatesPayloadPayload
+    {
+        .init(
+            excluded_reason: excluded,
+            module_name: "AppTests",
+            name: name,
+            repetitions: repetitions,
+            suite_name: "CheckoutTests"
+        )
+    }
+
+    private func identifier(_ name: String) throws -> TestIdentifier {
+        try TestIdentifier(target: "AppTests", class: "CheckoutTests", method: name)
+    }
+
+    @Test(.withMockedDependencies())
+    func skipsWhenTheFirstPassFailed() async throws {
+        let result = await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()")]),
+            firstPassFailed: true,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(result?.outcome == .skipped)
+        #expect(result?.skipReason == .firstPassFailed)
+        #expect(result?.blocks == false)
+        verify(planService).createPlan(fullHandle: .any, serverURL: .any, testCases: .any).called(0)
+    }
+
+    @Test(.withMockedDependencies())
+    func publishesTheRunsGitHistoryBeforeAskingForThePlan() async throws {
+        // The plan reads which commits the default branch reached, and this run may be the first
+        // to have seen its newest one.
+        let events = EventLog()
+        let root = try AbsolutePath(validating: "/repo")
+        let gitInfo = GitInfo(ref: nil, branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
+        let gitController = MockGitControlling()
+        let gitHistoryService = MockGitHistoryServicing()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(root)
+        given(gitController).gitInfo(workingDirectory: .value(root)).willReturn(gitInfo)
+        given(gitHistoryService)
+            .publish(gitInfo: .value(gitInfo), workingDirectory: .value(root), fullHandle: .value("tuist/app"), serverURL: .any)
+            .willProduce { _, _, _, _ in
+                events.append("publish")
+                return nil
+            }
+        let stressPlan = plan(candidates: [])
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willProduce { _, _, _ in
+                events.append("plan")
+                return stressPlan
+            }
+        let subject = StressNewTestsService(
+            createStressPlanService: planService,
+            xcResultService: xcResultService,
+            fileSystem: FileSystem(),
+            gitController: gitController,
+            gitHistoryService: gitHistoryService
+        )
+
+        _ = await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(events.all == ["publish", "plan"])
+    }
+
+    @Test(.withMockedDependencies())
+    func sendsExecutedTestCasesAndRecordsTheGuard() async throws {
+        given(planService)
+            .createPlan(
+                fullHandle: .value("tuist/app"),
+                serverURL: .any,
+                testCases: .matching { $0.map(\.name) == ["testNew()"] }
+            )
+            .willReturn(plan(candidates: [], guardSignal: .init(kind: .bulk_change, known_count: 100, new_count: 70)))
+
+        var skipped = testCase("testSkipped()")
+        skipped = TestCase(
+            name: skipped.name,
+            testSuite: skipped.testSuite,
+            module: skipped.module,
+            duration: 0,
+            status: .skipped,
+            failures: []
+        )
+
+        let result = await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()"), skipped]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(result?.outcome == .skipped)
+        #expect(result?.skipReason == .bulkChange)
+        #expect(result?.newCount == 70)
+        #expect(result?.knownCount == 100)
+        #expect(result?.blocks == false)
+    }
+
+    @Test(.withMockedDependencies())
+    func skipsWhenThePlanIsUnavailable() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willThrow(TestError("connection refused"))
+
+        let result = await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(result?.outcome == .skipped)
+        #expect(result?.skipReason == .planUnavailable)
+        #expect(result?.blocks == false)
+    }
+
+    @Test(.withMockedDependencies())
+    func stressesEachRepetitionGroupOnceAndPricesTheOutcomes() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [
+                candidate("testFlaky()"),
+                candidate("testStable()"),
+                candidate("testSlow()", repetitions: 3),
+                candidate("testTooSlow()", repetitions: 0, excluded: .too_slow),
+            ]))
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willProduce { path, _ in
+                if path.basename.contains("stress-10") {
+                    return summary([
+                        testCase(
+                            "testFlaky()",
+                            repetitionStatuses: [
+                                .passed,
+                                .failed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .passed,
+                                .failed,
+                                .passed,
+                                .passed,
+                            ]
+                        ),
+                        testCase("testStable()", repetitionStatuses: Array(repeating: .passed, count: 10)),
+                    ])
+                }
+                return summary([testCase("testSlow()", repetitionStatuses: [.passed, .passed, .passed])])
+            }
+
+        let passes = PassRecorder()
+
+        let result = await subject.run(
+            mode: .report,
+            testSummary: summary([
+                testCase("testFlaky()"),
+                testCase("testStable()"),
+                testCase("testSlow()"),
+                testCase("testTooSlow()"),
+                testCase("testOld()"),
+            ]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { identifiers, repetitions, _ in
+                await passes.record(identifiers: identifiers, repetitions: repetitions)
+                if repetitions == 10 { throw TestError("xcodebuild exited with 65") }
+            }
+        )
+
+        let recorded = await passes.passes
+        #expect(recorded.map(\.repetitions) == [10, 3])
+        #expect(try recorded[0].identifiers == [identifier("testFlaky()"), identifier("testStable()")])
+        #expect(try recorded[1].identifiers == [identifier("testSlow()")])
+
+        let result_ = try #require(result)
+        #expect(result_.outcome == .disagreed)
+        #expect(result_.newCount == 4)
+        #expect(result_.stressedCount == 3)
+        #expect(result_.excludedCount == 1)
+        #expect(result_.blocks == false)
+        let byName = Dictionary(uniqueKeysWithValues: result_.candidates.map { ($0.identifier.method!, $0) })
+        #expect(byName["testFlaky()"]?.outcome == .disagreed)
+        #expect(byName["testFlaky()"]?.failedRepetitions == 2)
+        #expect(byName["testFlaky()"]?.repetitions == 10)
+        #expect(byName["testStable()"]?.outcome == .passed)
+        #expect(byName["testSlow()"]?.outcome == .passed)
+        #expect(byName["testSlow()"]?.repetitions == 3)
+        #expect(byName["testTooSlow()"]?.outcome == .excludedTooSlow)
+        #expect(AlertController.current.warnings().count == 1)
+        #expect(result_.serverPayload.outcome == .disagreed)
+        #expect(result_.serverPayload.test_cases.count == 4)
+    }
+
+    @Test(.withMockedDependencies())
+    func enforceBlocksOnlyOnUnmutedDisagreements() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [candidate("testMuted()", repetitions: 2), candidate("testFlaky()", repetitions: 2)]))
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(summary([
+                testCase("testMuted()", repetitionStatuses: [.passed, .failed]),
+                testCase("testFlaky()", repetitionStatuses: [.failed, .passed]),
+            ]))
+
+        let result = try #require(await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testMuted()"), testCase("testFlaky()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [identifier("testMuted()")],
+            stressPass: { _, _, _ in }
+        ))
+
+        #expect(result.blocks == true)
+        #expect(try result.blockingCandidates.map(\.identifier) == [identifier("testFlaky()")])
+        let muted = try #require(result.candidates.first { $0.identifier.method == "testMuted()" })
+        #expect(muted.outcome == .disagreed)
+        #expect(muted.isQuarantined == true)
+        #expect(AlertController.current.warnings().isEmpty)
+        #expect(StressNewTestsError.blocked(result.blockingCandidates)
+            .description == "testFlaky() failed 1 of 2 repetitions and blocked this run.")
+    }
+
+    @Test(.withMockedDependencies())
+    func recordsNoCandidatesWhenTheBranchAddsNoTests() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: []))
+
+        let result = await subject.run(
+            mode: .report,
+            testSummary: summary([testCase("testOld()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        )
+
+        #expect(result?.outcome == .noCandidates)
+        #expect(result?.knownCount == 40)
+    }
+
+    @Test(.withMockedDependencies())
+    func marksCandidatesNotStressedWhenTheCeilingIsAlreadyReached() async throws {
+        given(planService)
+            .createPlan(fullHandle: .any, serverURL: .any, testCases: .any)
+            .willReturn(plan(candidates: [candidate("testNew()")], ceiling: 0))
+
+        let result = try #require(await subject.run(
+            mode: .enforce,
+            testSummary: summary([testCase("testNew()")]),
+            firstPassFailed: false,
+            fullHandle: "tuist/app",
+            serverURL: serverURL,
+            mutedTests: [],
+            stressPass: { _, _, _ in Issue.record("must not run a stress pass") }
+        ))
+
+        #expect(result.candidates.map(\.outcome) == [.notStressedCeiling])
+        #expect(result.stressedCount == 0)
+        #expect(result.excludedCount == 1)
+        #expect(result.outcome == .passed)
+    }
+}
+
+private actor PassRecorder {
+    private(set) var passes: [(identifiers: [TestIdentifier], repetitions: Int)] = []
+
+    func record(identifiers: [TestIdentifier], repetitions: Int) {
+        passes.append((identifiers, repetitions))
+    }
+}
+
+@Suite
+struct StressPassArgumentsTests {
+    @Test
+    func xcodebuildStressPassReplacesActionSelectionAndRepetitionOptions() throws {
+        let arguments = XcodeBuildTestCommandService.stressPassArguments(
+            from: [
+                "test", "-workspace", "App.xcworkspace", "-scheme", "App",
+                "-only-testing", "AppTests/Old", "-skip-testing:AppTests/Skipped",
+                "-resultBundlePath", "/tmp/first.xcresult",
+                "-retry-tests-on-failure", "-test-iterations", "3",
+                "-destination", "platform=macOS",
+            ],
+            identifiers: [try TestIdentifier(target: "AppTests", class: "CheckoutTests", method: "testNew()")],
+            repetitions: 10,
+            resultBundlePath: try AbsolutePath(validating: "/tmp/stress-10.xcresult")
+        )
+
+        #expect(arguments == [
+            "test-without-building", "-workspace", "App.xcworkspace", "-scheme", "App",
+            "-destination", "platform=macOS",
+            "-only-testing", "AppTests/CheckoutTests/testNew()",
+            "-test-iterations", "10",
+            "-test-repetition-relaunch-enabled", "YES",
+            "-resultBundlePath", "/tmp/stress-10.xcresult",
+        ])
+    }
+
+    @Test
+    func serviceStressPassthroughDropsRepetitionAndSelectionOptions() {
+        let arguments = TestService.stressPassthroughArguments([
+            "-parallel-testing-enabled", "YES",
+            "-test-iterations", "3", "-retry-tests-on-failure",
+            "-only-testing:AppTests/Old", "-skip-testing", "AppTests/Skipped",
+            "-resultBundlePath", "/tmp/first.xcresult",
+            "-derivedDataPath", "/tmp/dd",
+        ])
+
+        #expect(arguments == ["-parallel-testing-enabled", "YES", "-derivedDataPath", "/tmp/dd"])
+    }
+}
+
+private final class EventLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func append(_ event: String) {
+        lock.withLock { events.append(event) }
+    }
+
+    var all: [String] { lock.withLock { events } }
+}

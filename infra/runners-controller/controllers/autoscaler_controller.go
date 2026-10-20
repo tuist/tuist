@@ -27,7 +27,7 @@ import (
 // gives the memory budget the pool's shapes compete for.
 const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 
-// macosFleetLabel + macosNodeOSLabel identify the Mac mini hosts
+// macosFleetLabel + nodeOSLabel identify the Mac mini hosts
 // claimed by a macOS RunnerPool's fleetSelector. tuist.dev/fleet is
 // stamped by the runners-fleet's MachineDeployment (and matched by
 // the macOS runner Pods' nodeSelector); kubernetes.io/os=darwin
@@ -35,13 +35,16 @@ const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 // actually admit gives the slot budget the macOS Xcode pools compete
 // for.
 //
+// nodeOSLabel is not macOS-only: the reservation path pairs it with
+// fleetNodePoolLabel to address the Linux fleet's bare-metal hosts.
+//
 // One fleet label can span several MachineDeployments — that is how a
 // mixed-SKU fleet is expressed (M2-L at one guest per host next to
 // M4-XL at two), so the node set behind a fleetSelector is NOT
 // homogeneous and its capacity is not its cardinality.
 const (
 	macosFleetLabel   = "tuist.dev/fleet"
-	macosNodeOSLabel  = "kubernetes.io/os"
+	nodeOSLabel       = "kubernetes.io/os"
 	macosNodeOSDarwin = "darwin"
 )
 
@@ -103,6 +106,7 @@ type AutoscalerReconciler struct {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
 
 func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -149,8 +153,9 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	knobs := scaling.PolicyKnobs{
 		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 	}
-	desired := r.desiredForPool(ctx, pool, *signals, knobs, logger)
+	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 
 	current := pool.Spec.Replicas
 	now := r.now()
@@ -177,6 +182,13 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if pool.Status.LastScaleDownAt != nil {
 			elapsed := now.Sub(pool.Status.LastScaleDownAt.Time)
 			if elapsed < cooldown {
+				preempted, err := r.preemptForStarvedSiblings(ctx, pool, fleet, now, logger)
+				if err != nil {
+					logger.Error(err, "preempt idle runners for starved siblings; will retry")
+				}
+				if preempted {
+					return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+				}
 				logger.V(1).Info("scale-down deferred by cooldown",
 					"elapsed", elapsed.String(),
 					"cooldown", cooldown.String(),
@@ -238,9 +250,9 @@ func (r *AutoscalerReconciler) desiredForPool(
 	signals scaling.Signals,
 	knobs scaling.PolicyKnobs,
 	logger logr.Logger,
-) int32 {
+) (int32, *fleetAllocation) {
 	perPool := scaling.DesiredReplicas(signals, knobs)
-	allocated := r.allocate(ctx, pool, signals, knobs, perPool, logger)
+	allocated, fleet := r.allocate(ctx, pool, signals, knobs, perPool, logger)
 
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
@@ -252,7 +264,20 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// (queued -> claimed) and the post-job tail (claimed -> occupied).
 	metrics.RecordDemand(pool.Name, signals.Claimed, signals.CurrentOccupancy(), signals.Queued)
 
-	return allocated
+	return allocated, fleet
+}
+
+// fleetAllocation is one tick's view of the capacity domain a pool was
+// allocated in. Nil when the allocator was bypassed or fell back.
+type fleetAllocation struct {
+	members map[string]fleetMember
+}
+
+type fleetMember struct {
+	pool      *tuistv1.RunnerPool
+	cost      int64
+	queued    int32
+	allocated int32
 }
 
 // allocate runs the shared-capacity fleet allocator for `pool`,
@@ -266,21 +291,21 @@ func (r *AutoscalerReconciler) allocate(
 	knobs scaling.PolicyKnobs,
 	perPool int32,
 	logger logr.Logger,
-) int32 {
+) (int32, *fleetAllocation) {
 	if knobs.MaxReplicas <= 0 {
-		return perPool
+		return perPool, nil
 	}
 
-	demands, shapes, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
+	demands, shapes, members, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
 	if err != nil {
 		if errors.Is(err, errPodCostUnavailable) {
 			logger.Error(err, "per-Pod scheduling cost unknown; leaving replicas unchanged",
 				"fleetSelector", pool.Spec.FleetSelector)
-			return pool.Spec.Replicas
+			return pool.Spec.Replicas, nil
 		}
 		logger.Error(err, "gather fleet demands; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector)
-		return perPool
+		return perPool, nil
 	}
 
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
@@ -295,7 +320,7 @@ func (r *AutoscalerReconciler) allocate(
 	if err != nil || capacity <= 0 {
 		logger.Error(err, "read fleet capacity; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector, "os", pool.Spec.OS)
-		return perPool
+		return perPool, nil
 	}
 
 	// A cap read failure degrades to the byte budget alone rather than
@@ -309,10 +334,16 @@ func (r *AutoscalerReconciler) allocate(
 	}
 
 	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
-	if v, ok := alloc[pool.Name]; ok {
-		return v
+	v, ok := alloc[pool.Name]
+	if !ok {
+		return perPool, nil
 	}
-	return perPool
+	for name, granted := range alloc {
+		member := members[name]
+		member.allocated = granted
+		members[name] = member
+	}
+	return v, &fleetAllocation{members: members}
 }
 
 // podShape is the placement footprint of one pool's Pod. Two pools with
@@ -326,6 +357,57 @@ type podShape struct {
 
 func podShapeOf(pool *tuistv1.RunnerPool) podShape {
 	return podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
+}
+
+// placementShapeOf is podShapeOf plus the RuntimeClass overhead the
+// scheduler adds at admission, which is the footprint a node is actually
+// asked to seat. Under kata a 16 GiB shape costs 18.5 GiB and a 4 vCPU
+// shape costs 4.25, so dividing a node's allocatable by the bare shape
+// reports seats that do not exist: 117 GiB / 16 GiB is seven where the
+// truth is six. Runtimes without overhead (macOS Tart guests) return the
+// bare shape unchanged, so both platforms use one definition.
+//
+// This is also the right grouping key for capByShape: two pools whose
+// Pods request the same resources but run under different RuntimeClasses
+// do not compete for the same node slots.
+func (r *AutoscalerReconciler) placementShapeOf(ctx context.Context, pool *tuistv1.RunnerPool) (podShape, error) {
+	shape := podShapeOf(pool)
+
+	overheadCPU, overheadMemory, err := r.runtimeClassOverhead(ctx, pool)
+	if err != nil {
+		return podShape{}, err
+	}
+	shape.cpuMilli += int32(overheadCPU)
+	shape.memoryMB += int32(overheadMemory / (1024 * 1024))
+	return shape, nil
+}
+
+// runtimeClassOverhead reads the pool's RuntimeClass podFixed overhead as
+// (CPU milli, memory bytes). No RuntimeClass, or one without overhead,
+// is zero rather than an error. A RuntimeClass that is named but cannot
+// be read IS an error: scaling without known admission overhead
+// overcommits the fleet.
+func (r *AutoscalerReconciler) runtimeClassOverhead(ctx context.Context, pool *tuistv1.RunnerPool) (int64, int64, error) {
+	if pool.Spec.RuntimeClass == "" {
+		return 0, 0, nil
+	}
+
+	runtimeClass := &nodev1.RuntimeClass{}
+	if err := r.Get(ctx, client.ObjectKey{Name: pool.Spec.RuntimeClass}, runtimeClass); err != nil {
+		return 0, 0, fmt.Errorf("%w: get RuntimeClass %q: %w", errPodCostUnavailable, pool.Spec.RuntimeClass, err)
+	}
+	if runtimeClass.Overhead == nil {
+		return 0, 0, nil
+	}
+
+	var cpuMilli, memoryBytes int64
+	if cpu := runtimeClass.Overhead.PodFixed.Cpu(); cpu != nil {
+		cpuMilli = cpu.MilliValue()
+	}
+	if memory := runtimeClass.Overhead.PodFixed.Memory(); memory != nil {
+		memoryBytes = memory.Value()
+	}
+	return cpuMilli, memoryBytes, nil
 }
 
 func (s podShape) key() string {
@@ -354,16 +436,16 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	pool *tuistv1.RunnerPool,
 	shapes map[string]podShape,
 ) (map[string]int32, error) {
-	if pool.Spec.OS != macosNodeOSDarwin || len(shapes) == 0 {
+	if len(shapes) == 0 {
 		return nil, nil
 	}
 
+	// fleetNodeSelector mirrors the nodeSelector podtemplate stamps on
+	// these Pods, so the cap counts exactly the nodes the scheduler will
+	// consider.
 	var nodes corev1.NodeList
-	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  pool.Spec.FleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
-	}); err != nil {
-		return nil, fmt.Errorf("list macOS fleet nodes for shape caps: %w", err)
+	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
 
 	caps := make(map[string]int32, len(shapes))
@@ -458,21 +540,11 @@ func (r *AutoscalerReconciler) fleetCapacity(ctx context.Context, pool *tuistv1.
 func (r *AutoscalerReconciler) perPodCost(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
 	cost := int64(pool.Spec.PodMemoryMB) * 1024 * 1024
 
-	if pool.Spec.RuntimeClass == "" {
-		return cost, nil
+	_, overheadMemory, err := r.runtimeClassOverhead(ctx, pool)
+	if err != nil {
+		return 0, err
 	}
-
-	runtimeClass := &nodev1.RuntimeClass{}
-	if err := r.Get(ctx, client.ObjectKey{Name: pool.Spec.RuntimeClass}, runtimeClass); err != nil {
-		return 0, fmt.Errorf("%w: get RuntimeClass %q: %w", errPodCostUnavailable, pool.Spec.RuntimeClass, err)
-	}
-	if runtimeClass.Overhead == nil {
-		return cost, nil
-	}
-	if memory := runtimeClass.Overhead.PodFixed.Memory(); memory != nil {
-		cost += memory.Value()
-	}
-	return cost, nil
+	return cost + overheadMemory, nil
 }
 
 // gatherFleetDemands builds the allocator input for every
@@ -489,14 +561,15 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 	pool *tuistv1.RunnerPool,
 	signals scaling.Signals,
 	knobs scaling.PolicyKnobs,
-) ([]scaling.PoolDemand, map[string]podShape, error) {
+) ([]scaling.PoolDemand, map[string]podShape, map[string]fleetMember, error) {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
-		return nil, nil, fmt.Errorf("list runner pools: %w", err)
+		return nil, nil, nil, fmt.Errorf("list runner pools: %w", err)
 	}
 
 	var demands []scaling.PoolDemand
 	shapes := map[string]podShape{}
+	members := map[string]fleetMember{}
 	for i := range pools.Items {
 		p := &pools.Items[i]
 		if p.Spec.OS != pool.Spec.OS || p.Spec.FleetSelector != pool.Spec.FleetSelector {
@@ -511,18 +584,19 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		if p.Name != pool.Name {
 			fetched, err := r.SignalsClient.Signals(ctx, p.Name)
 			if err != nil {
-				return nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
+				return nil, nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
 			k = scaling.PolicyKnobs{
 				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
+				IgnoreRecentPeak: !p.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 			}
 		}
 
 		cost, err := r.perPodCost(ctx, p)
 		if err != nil {
-			return nil, nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
+			return nil, nil, nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
 		}
 
 		// A costless Pod would consume none of the shared budget, so
@@ -552,7 +626,10 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			continue
 		}
 
-		shape := podShapeOf(p)
+		shape, err := r.placementShapeOf(ctx, p)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("placement shape for %q: %w", p.Name, err)
+		}
 		shapes[shape.key()] = shape
 
 		demands = append(demands, scaling.PoolDemand{
@@ -563,9 +640,10 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),
 		})
+		members[p.Name] = fleetMember{pool: p, cost: cost, queued: sig.Queued}
 	}
 
-	return demands, shapes, nil
+	return demands, shapes, members, nil
 }
 
 // fleetAllocatableMemory sums allocatable memory across nodes in the
@@ -616,8 +694,8 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, fleetSelector string) (int64, error) {
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  fleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
+		macosFleetLabel: fleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}

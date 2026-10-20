@@ -7,6 +7,8 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics, as: RunsAnalytics
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "lists latest test runs" do
@@ -23,6 +25,56 @@ defmodule TuistWeb.TestRunsLiveTest do
       end)
 
       :ok
+    end
+
+    test "table patches reuse analytics and their date snapshot", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      loader = fn _, opts ->
+        count = if opts[:status] == "failure", do: 0, else: 2
+        %{dates: [], values: [], count: count, trend: nil}
+      end
+
+      expect(TestsAnalytics, :test_run_analytics, 2, loader)
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+      assert has_element?(view, "#test-runs-analytics-chart")
+
+      render_patch(view, path <> "?search=App")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=ready] #test-runs-analytics-chart")
+
+      expect(TestsAnalytics, :test_run_analytics, 2, loader)
+      render_patch(view, path <> "?analytics-environment=ci")
+      render_async(view, 2_000)
+      assert has_element?(view, "#test-runs-analytics-chart")
+    end
+
+    @tag capture_log: true
+    test "matching patches retry a failed analytics load", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+      stub(TestsAnalytics, :test_run_analytics, fn _, _ ->
+        attempt = Agent.get_and_update(attempts, fn count -> {count, count + 1} end)
+        if attempt == 0, do: raise("temporary analytics failure")
+        %{dates: [], values: [], count: 2, trend: nil}
+      end)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=failed] [data-error]")
+
+      render_patch(view, path <> "?search=retry")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=ready] #test-runs-analytics-chart")
     end
 
     test "lists latest test runs", %{
@@ -54,6 +106,51 @@ defmodule TuistWeb.TestRunsLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='test-runs-table']")
+    end
+
+    test "shows the run count chart for an analytics widget it does not know", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          ran_at: ~N[2024-04-30 10:19:30]
+        )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?analytics-selected-widget=coverage"
+        )
+
+      render_async(lv)
+
+      assert has_element?(lv, "#test-runs-analytics-chart")
+    end
+
+    test "lists Bazel invocations using the shared test runs page", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          build_system: "bazel",
+          scheme: "//app:unit_tests",
+          ran_at: ~N[2024-04-30 10:19:30]
+        )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      assert has_element?(lv, "#test-runs-table", "Invocation")
+      assert has_element?(lv, "#test-runs-table", "bazel test //app:unit_tests")
     end
 
     test "handles cursor from another page with different sort fields", %{
@@ -162,6 +259,98 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert html =~ "does not contain"
       assert html =~ "Regular"
       refute html =~ "Queued"
+    end
+  end
+
+  describe "code coverage" do
+    @render_async_timeout 1000
+
+    defp coverage_run(project, organization, scheme, opts) do
+      lines = Keyword.fetch!(opts, :lines)
+
+      {:ok, test_run} =
+        Tuist.Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: organization.account.id,
+          duration: 1000,
+          status: "success",
+          scheme: scheme,
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
+          is_ci: true,
+          test_modules: [],
+          xcode_coverage: %{
+            partial: Keyword.get(opts, :partial, false),
+            files: [
+              %{
+                path: "Sources/Add.swift",
+                git_blob_id: "abc",
+                targets: ["Calculator"],
+                covered_lines: Enum.count(lines, &(&1 > 0)),
+                executable_lines: length(lines),
+                line_numbers: Enum.to_list(1..length(lines)),
+                execution_counts: lines,
+                functions: []
+              }
+            ]
+          }
+        })
+
+      test_run
+    end
+
+    test "leaves coverage out of the table", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      render_async(lv, @render_async_timeout)
+
+      refute has_element?(lv, "#widget-coverage")
+      table = lv |> element("#test-runs-table") |> render()
+      assert table =~ "SchemeFull"
+      refute table =~ "75.0%"
+    end
+
+    test "offers no coverage filter, and ignores one a bookmarked address still names", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
+      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      render_async(lv, @render_async_timeout)
+      refute render(lv) =~ "filter_coverage"
+
+      table =
+        conn
+        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "full"})
+        |> render()
+
+      assert table =~ "SchemeFull"
+      assert table =~ "SchemePartial"
+    end
+
+    defp live_table(conn, organization, project, filters) do
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/tests/test-runs?#{URI.encode_query(filters)}"
+        )
+
+      render_async(lv, @render_async_timeout)
+      element(lv, "#test-runs-table")
     end
   end
 end

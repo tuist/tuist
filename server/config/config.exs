@@ -14,11 +14,18 @@ build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  cache_backend: Tuist.OAuth.AuthoritativeCache,
   max_ttl: [authorization_code: 300],
+  # `access_tokens` is deliberately absent: it defaults to
+  # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
+  # configured here, and copies of it silently rot. Atlas ran the same copy
+  # with `resource` missing from the attributes it persisted, and every OAuth
+  # refresh failed with `invalid_target` for four months. The copy justified
+  # itself by resolving the client through `Tuist.OAuth.Clients`, which the
+  # upstream adapter already does through this `clients` context.
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
-    clients: Tuist.OAuth.Clients,
-    access_tokens: Tuist.OAuth.AccessTokens
+    clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
@@ -52,11 +59,22 @@ config :esbuild,
       "--loader:.woff=file",
       "--loader:.woff2=file",
       "--loader:.ttf=file",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--external:/marketing/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
@@ -128,6 +146,7 @@ config :logger, :console,
     :route,
     :request_path,
     :status,
+    :cache_outcome,
     :duration_ms,
     :auth_account_handle,
     # Source of the request. A failed authentication carries no account, so
@@ -141,6 +160,13 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # LiveView an operator opened under a grant (socket navigations have no
+    # request line of their own)
+    :live_view,
+    # Operator reads through Atlas without a grant: who, and which customer
+    # account a read used it for.
+    :atlas_operator_email,
+    :atlas_operator_read_account_id,
     # Dormant operator account sweep — this line is the evidence record for
     # the inactivity control, so the ids have to survive into the log output
     :disabled_user_ids,
@@ -173,6 +199,11 @@ config :logger, :console,
     :labels,
     :installation_id,
     :requested_labels,
+    # Tuist.Runners.Buildkite structured fields
+    :queue,
+    :job_uuid,
+    :errors,
+    :requested,
     :target,
     :observed,
     :gap,
@@ -243,7 +274,10 @@ config :logger, :console,
     :cap,
     :urls,
     :configured,
-    :reconciling
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis
@@ -259,6 +293,14 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
+config :phoenix, :filter_parameters, [
+  "password",
+  "secret",
+  "token",
+  "credential",
+  "installation_receipt"
+]
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
@@ -271,7 +313,8 @@ config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 # Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
 # Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
 config :stripity_stripe,
-  hackney_opts: [protocols: [:http1]]
+  hackney_opts: [protocols: [:http1]],
+  http_module: Tuist.Billing.StripeHTTPClient
 
 config :tower, reporters: [TowerOpentelemetry]
 
@@ -430,6 +473,11 @@ config :tuist, :runner_free_monthly_minutes, 100
 # cluster's pools and the server's catalog share one source of truth in
 # prod and can't drift. Exactly one entry should carry `default: true`
 # (preselected in the "new profile" form).
+#
+# A Linux shape is only runnable where a bare-metal host can seat it,
+# so like the macOS catalog below this list is per-environment on the
+# Helm side: the 64 GB shape needs an AX162-R and is not offered in
+# environments whose Linux fleet is 64 GB AX42-U only.
 config :tuist, :runner_linux_shapes, [
   %{vcpus: 1, memory_gb: 2},
   %{vcpus: 2, memory_gb: 4},
@@ -438,7 +486,8 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 4, memory_gb: 16},
   %{vcpus: 8, memory_gb: 16},
   %{vcpus: 8, memory_gb: 32},
-  %{vcpus: 16, memory_gb: 32}
+  %{vcpus: 16, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 64}
 ]
 
 # macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
@@ -465,6 +514,7 @@ config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
+  %{xcode_version: "26.1.1"},
   %{xcode_version: "26.0.1"}
 ]
 

@@ -12,7 +12,9 @@ Tuist server release in xcresult-processor mode under launchd, draining
 The image is the *deploy artifact*: `helm upgrade --set
 xcresultProcessor.image.tag=<sha>` updates the Pod spec, k8s rolls Pods,
 tart-kubelet creates new VMs from the new image tag and tears down the
-old ones.
+old ones. In managed envs that upgrade is the `tuist-xcresult-processor`
+release (`infra/helm/xcresult-processor`), which `server-deployment.yml`
+installs after the tuist release without waiting on it.
 
 ## Layout (inside the VM)
 
@@ -45,6 +47,14 @@ action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
 
+The production cascade's `build-xcresult-processor-release` job also builds
+the macOS release on a `tuist-macos-27-0` runner for every deploy and pushes
+it as an OCI artifact to `ghcr.io/tuist/tuist-xcresult-processor-release:sha-<12>`,
+the server image's tag. The artifact has one `release.tar.gz` layer, so the
+layer digest is the tarball's sha256. Its step summary lists the Mach-O
+libraries the release loads from outside itself and the OS. Nothing boots
+from this artifact yet, and the job does not fail the run.
+
 Locally:
 
 ```bash
@@ -76,7 +86,8 @@ at least as new an Xcode as any active runner-image profile.
 The Xcode version is declared inline in
 `.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
-the `XCODE_VERSION` env var on that step). Bump it alongside the
+the `XCODE_VERSION` env var on that step, currently `27.1`). Track the
+newest stable runner Xcode, not prerelease profiles. Bump it alongside the
 runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
@@ -144,16 +155,25 @@ inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
-can see. tart-kubelet is not a real kubelet: it implements no container
-probes at all, and
-`infra/tart-kubelet/internal/podagent/reconciler.go` sets
-`PodReady=True` (plus synthesized Ready container statuses) as soon as
-the VM has an IP. A VM that boots and then dies at `tailscale-up.sh`
-therefore reads `1/1 Running` forever, the Deployment reports
-`Available=True`, and `:process_xcresult` simply stops being consumed.
+can see. The Deployment declares a `readinessProbe` on `GET /ready` (port
+9092, `Tuist.Readiness.Plug`), which tart-kubelet evaluates against the
+guest IP: the Pod stays NotReady until the release answers and can reach
+Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` then reads `0/1 Running`, the rolling update stops on it,
+and the deploy's "xcresult processor rollout" step fails and annotates the
+run. That step does not fail the deploy, and the processor is not in the
+tuist release's `helm upgrade --atomic --wait`, so a NotReady processor
+never holds or rolls back a server deploy. The probe shares the
+host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
+cannot reach its guest at `192.168.64.x` also shows up as
+`up{job="tuist-macos-pod-metrics"} == 0` for that Pod; check that metric
+before reading a NotReady processor as a dependency outage.
 
-This has happened twice, from unrelated causes with the same outward
-shape:
+Without the probe (`xcresultProcessor.readinessProbe.enabled: false`),
+tart-kubelet sets `PodReady=True` as soon as the VM has an IP, so such a VM
+reads `1/1 Running` forever, the Deployment reports `Available=True`, and
+`:process_xcresult` simply stops being consumed. This has happened twice,
+from unrelated causes with the same outward shape:
 
 - **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
   unable to complete a TCP handshake to the Tailscale control plane.
@@ -191,25 +211,30 @@ inheriting their defaults:
 - `preauthorized=true`, because the default is `false` and a device
   parked awaiting manual approval fails the join exactly like an
   expired credential, with the same invisible outcome.
-- `ephemeral=true`, which is narrower than it looks. `TAILSCALE_HOSTNAME`
-  is the Pod name, so every roll registers a new device, but Tailscale
-  converts any device online for four hours into a standard tagged one
-  and Pods normally outlive that between image releases. It reaps only
-  short-lived ones; the rest accumulate, and those stale peers stay
-  pinned in every VM's `/etc/hosts`, which `tailscale-up.sh` rewrites
-  from `tailscale status` on each boot.
+- `ephemeral=true`, so a dead VM's registration goes with it. Tailscale
+  deletes an ephemeral device 30 to 60 minutes after it was last seen,
+  however long it had been online. (Tailscale's docs say an ephemeral
+  device present for four hours "will count as a standard tagged
+  device"; that is billing, not removal.) `TAILSCALE_HOSTNAME` is the
+  Pod name, so every roll registers a new device, and the old one drops
+  out of the netmap within the hour. Ephemeral is already the default
+  for a key minted from an OAuth client; the script spells it out so the
+  property does not rest on that default.
 
-  Renaming the device would not help: a device is identified by its node
-  key, not its hostname, and a VM booted from an image has no persisted
-  tailscaled state, so every boot mints a new key and therefore a new
-  device whatever it is called. The tailnet carries pairs of devices
-  sharing a hostname *and* a tag, which is what that looks like from the
-  outside. Deleting the dead ones is the only available fix, and the
-  `tailscale-device-reaper` CronJob in the main chart is it — see
-  `infra/helm/tuist/templates/tailscale-device-reaper.yaml`. Devices on
-  this path match its short `disposable` grace window precisely because
-  their identity is regenerated on every boot; the Mac mini hosts, which
-  join once and keep their identity, sit behind the long one.
+  Renaming the device would not change this: a device is identified by
+  its node key, not its hostname, and a VM booted from an image has no
+  persisted tailscaled state, so every boot mints a new key and
+  therefore a new device whatever it is called. A VM recreated under the
+  same Pod shows up as a second device with the same hostname and tag
+  until the first one ages out.
+
+  The `tailscale-device-reaper` CronJob in the main chart
+  (`infra/helm/tuist/templates/tailscale-device-reaper.yaml`) gives
+  devices on this path a short `disposable` grace window. With ephemeral
+  joins it has nothing to collect; it is the backstop for a join that
+  is not ephemeral, which is what a legacy pre-auth key produces (see
+  below). The Mac mini hosts, which join once and keep their identity,
+  sit behind its long window.
 
 Keys minted through an OAuth client are always tagged and carry no
 default tag, so `TAILSCALE_TAGS` must name one (the chart sources it
@@ -218,23 +243,27 @@ start when the credential is an OAuth secret and the tag is missing,
 rather than letting `tailscale up` fail 60s later with a message that
 reads like a network fault. A legacy pre-auth key is detected by prefix
 and passed through untouched, so the image boots against either
-credential while envs migrate.
+credential while envs migrate. Such a key joins with whatever
+ephemerality it was created with, and the one the fleet used before the
+OAuth client was not ephemeral: every production device it registered
+stayed on the tailnet after its Pod was gone.
 
 One diagnostic gap this does not close: `tailscale-up.sh` still reports
 a server-side credential rejection and an unreachable control plane
 through the same "did not reach Running within timeout" path, which is
 what made the two incidents above look alike from the outside.
 
-**Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
-can see this class of failure, it is caught in the metrics pipeline
-instead. Four rules in
+**Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
+ExternalSecrets cannot see this class of failure at all, so it is caught
+in the metrics pipeline too. Five rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere. This is the readiness probe tart-kubelet cannot provide. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere in production, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 

@@ -3,8 +3,31 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- The project sidebar accepts `previews_available` from the authorized layout.
+  Keep Xcode/Gradle's default Previews entry; other build systems gain it after
+  their first preview upload without database queries during component rendering.
+- Preview cards show app/build metadata and a single truncated first nonblank release-notes line. Share the plain-text summary helper with the previews table; never render notes as HTML or Markdown. Full notes remain on the preview detail page.
+- `Runs.RanByBadge.run_ran_by_badge_cell/1` is shared by command/run tables and persistent build-entity activity. Render CI with the shared settings badge, verified or historical local actors with the user badge, opaque local actor claims with a distinct laptop icon and neutral styling (no suffix or tooltip), and missing environment/attribution as Unknown. Nullable environment must not become local or expose an inferred actor.
+- `LayoutComponents.head_canonical_link` shares canonical URLs across marketing, docs, and app layouts. Project descriptions fall back to page and project identity; preserve explicit descriptions and keep social URL metadata aligned with the canonical URL.
+- `LayoutComponents.head_analytics_scripts` loads Glossia independently with `async` on hosted production marketing, documentation and dashboard pages. Use `https://glossia.ai/assets/glossia-web.js` with the `tuist.dev` domain and keep the `https://glossia.ai` script and collection origin aligned with the shared content security policy, and honor `analytics_disabled?` for embedded visualizations.
+- `GoogleOneTap` shares the protected credential form and configuration gates between marketing pages and login/sign-up LiveViews. It supports static mounting and LiveView lifecycle hooks.
+- Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
+- Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
+- A Mix timeline (`source="mix"`) has its own legend groups: Compilation, Type checking, Writing to disk, Other compilers, Other and Failed. They reuse the lane colours of the closest groups of the other build systems (`setup`, `resource`, `script`). Its inspector hides Project and labels the target as File, because a Mix build's unit of work is the file.
+- Pass the build source to the shared timeline. Bazel uses a full-width CPU chart above memory and network; Xcode and Gradle retain the four-chart grid.
+- Render source-specific legend labels: Bazel has File preparation, Fetching and Analysis/setup; Gradle has Testing, Packaging, Configuration and Artifact transforms. Their legend buttons expose the selected group via `aria-pressed`, with filtering handled locally by the hook. Xcode keeps its passive legend.
 - Provide reusable UI components (navigation, auth components, forms).
+- Mix projects expose a Mix Cache sidebar item at `/mix-cache`; Cargo projects expose Cargo Cache at `/cargo-cache`. Keep both project-build-system gates and selected states aligned with the shared toolchain cache dashboard routes.
+- `ReapiCacheOutputs` presents real successful CAS transfers from the same analytics queries as Bazel: download/upload count graph, time-weighted Kura throughput and a digest/operation-filtered, searchable, sortable, paginated table. The caller scopes project, invocation and client kind. Never synthesize content hashes from action keys, compressed sizes or remote rows from local copies. Reset pagination after search, filter, key drill-down/clearing and sorting. Legacy/absent measurements remain honestly unavailable.
+- Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.
+- Cargo exposes the shared Shards navigation beside its test runs/cases, just like Xcode and Mix. Keep the navigation gate aligned with supported shard-reporting build systems; do not build a separate Rust sharding page.
+- `BuildTimeline` uses Noora cards, search and empty states around the Xcode build timeline hook, without embedding step payloads in HTML, with translated controls and accessible step details in a resizable right-hand inspector shown only when a step is selected, including its recorded log loaded on demand. Project and target are separate fields; type and outcome use Noora badges, and duration uses the standard history icon.
+- `CacheBreakdown` shares the Xcode/Cargo cache stacked bar, number-formatted legend and rounded outer nonempty segments. Omit zero-count series from the chart and legend, and omit zero-total charts. Callers supply source-appropriate labels and only recorded counts; the component must not infer local/remote provenance.
+- `CacheOutputList` shares Xcode/Cargo expanded-row presentation: compact reference labels, truncated hashes and a full-hash popover with Copy inside it. Callers supply recorded identities and source-appropriate labels; the component never assigns transfer outcomes to references.
+- `CargoCacheInspection` renders the shared Cacheable Tasks / CAS Outputs split using Noora tables, search/filter/sort/pagination, copy controls and percentile/throughput widgets. Feed it only authorized parent-build public records; never reconstruct rows or local/remote hit labels from aggregate counters. Expanded tasks show at most 50 distinct recorded CAS references, independently of build-wide transfer operations; absent legacy details show an explicit empty state. Per-key latency is observed index work, not compiler hashing, artifact transfer totals or background publication completion. The Swift cache has no speculative prefetch; describe actual downloads, including protocol metadata, without implying predictive execution. Task cache badges have short explanations and a Cache column heading. Show only Hit/Missed reuse outcomes; cold-compilation and verification distinctions belong in the explanations, not extra statuses. The CAS chart shows completed Download/Upload transfers only, with their count as its total; Already present and Failed remain table details. Hide the chart when no transfers completed. Keep interpretation guidance in documentation and metric tooltips rather than an always-on banner; retain actionable divergence and incomplete-record notices.
 - Keep rendering logic here; avoid domain logic.
+- `Runs.ProjectWithTags` shares project/scheme cells and tag overflow rules across build and task tables; detail headings reuse its uncollapsed tags.
+- Widgets and trend badges accept an optional formatted trend value for absolute changes when a percentage is undefined. Zero trends default to “No change”; percentage rendering remains shared across pages.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
@@ -13,3 +36,23 @@ This area owns shared UI components for LiveView and templates.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- `recorded_build_timeline` wraps Gradle/Bazel loading and coverage states around the same `BuildTimeline` component. Non-Xcode inspectors display recorded operation categories and task outcomes, including cache hits, skipped work and unknown outcomes; they hide logs when no per-step logs are recorded.
+
+- Run cache details and JSON comparisons use individual recorded hash inputs. Missing historical destinations and other unrecorded inputs display as unavailable; recorded empty inputs remain distinguishable. Test device and runtime rows appear only in selective-testing details.
+
+- Expanded cache targets list sorted direct target dependencies, linking to module details within the selected project, and retain the aggregate dependencies hash separately. JSON comparisons include both names and the hash.
+
+- `build_timeline_section` shares the initial loading/error states for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
+
+- Widgets and legends format numeric values through `CldrHelpers.format_number/2`; preformatted strings retain their units. Count table cells must use the same helper.
+
+- Do not render fallback coverage or internal clock-origin banners. Pages hide Timeline when the required recorded data is unavailable; Bazel requires a published profile, not retained build-summary spans. Preserve coverage and clock-origin metadata in the API.
+
+- Xcode and Mix cache analytics opt into `chart_frame="cache"` and matching `data-chart-frame="cache"` sections. Its minimum fits the 200px plot plus card padding; controls add natural height. Use it for loading and failures too. Other dashboards retain their existing frame geometry.
+- `AsyncCard` coordinates required analytics results through a readiness flag while preserving each card’s existing loading markup. Guard required result reads with that flag, keep optional results independently guarded, and leave header actions available. Use `async_section` around analytics inside a card with synchronous table content. Failed required loads render the shared error section; successful content stays mounted during refresh. Scatter charts retain points during refresh and show an explicit failure within the chart area. Their requested period can update before the points finish refreshing, so keep the pending state visible.
+
+
+- Keep failure categories out of default build overview and Build Runs tables. Retain category filtering and saved category sorting before pagination. Build details show the shared classification with a focusable Noora info hint beside the category heading; successful, cancelled and unfinished builds omit it. `BuildHealth` shares category labels, detail presentation, filters, and the Gradle cumulative task-time widget/chart. Preserve missing versus zero estimates.
+
+- Cumulative task-time comparisons use the immediately preceding equal-length period with identical filters. Missing previous estimates show no comparison; a recorded zero baseline uses an absolute delta or no change, never division by zero. Use neutral trend styling.

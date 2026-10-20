@@ -29,6 +29,7 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   # Platforms with an agreed rate. Linux joins when it has one.
   @priced_platforms [:macos]
@@ -67,9 +68,16 @@ defmodule Tuist.Runners.Allowance do
   for.
   """
   def exhausted?(%Account{} = account) do
-    case Billing.effective_plan(account) do
-      :air -> minutes_used(account) >= free_monthly_minutes()
-      _plan -> false
+    cond do
+      # A runner trial is precisely "uses runners without being billed for
+      # them", so the free-tier cut-off cannot apply to it. A trial account has
+      # no subscription, so `effective_plan/1` reports `:air` and it would
+      # otherwise be cut off at the baseline — leaving the account on a trial
+      # that does not let it run runners. The trial is what makes the usage
+      # unbillable; nothing else has to hold it back.
+      Trials.on_trial?(account) -> false
+      Billing.effective_plan(account) == :air -> minutes_used(account) >= free_monthly_minutes()
+      true -> false
     end
   end
 

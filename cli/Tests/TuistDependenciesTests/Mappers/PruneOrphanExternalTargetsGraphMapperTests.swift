@@ -1,29 +1,18 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistDependencies
 
-final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
-    var subject: PruneOrphanExternalTargetsGraphMapper!
-
-    override func setUp() {
-        super.setUp()
-        subject = PruneOrphanExternalTargetsGraphMapper()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_when_external_targets_to_prune() async throws {
+struct PruneOrphanExternalTargetsGraphMapperTests {
+    @Test func map_when_external_targets_to_prune() async throws {
+        let subject = PruneOrphanExternalTargetsGraphMapper()
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
-        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let project = Project.test(path: try AbsolutePath(validating: "/App"), targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
         let directPackageProduct = Target.test(name: "DirectPackage", destinations: [.iPhone], product: .app)
         let transitivePackageProduct = Target.test(name: "TransitivePackage", destinations: [.iPhone], product: .app)
@@ -45,7 +34,7 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
             product: .unitTests
         )
         let packageProject = Project.test(
-            path: try! AbsolutePath(validating: "/Package"),
+            path: try AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [
                 directPackageProduct,
@@ -82,35 +71,17 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         // When
         let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
-        // Then
-
-        XCTAssertEqual(gotGraph.projects[project.path]?.targets[app.name]?.metadata.tags.contains("tuist:prunable"), false)
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.metadata.tags.contains("tuist:prunable"),
-            false
-        )
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[transitivePackageProduct.name]?.metadata.tags
-                .contains("tuist:prunable"),
-            false
-        )
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.metadata.tags.contains("tuist:prunable"),
-            true
-        )
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[packageDevTestProduct.name]?.metadata.tags.contains("tuist:prunable"),
-            false
-        )
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[remotePackageTestProduct.name]?.metadata.tags
-                .contains("tuist:prunable"),
-            true
-        )
-        XCTAssertEqual(
-            gotGraph.projects[packageProject.path]?.targets[transitivePackageProductWithNoDestinations.name]?.metadata.tags
-                .contains("tuist:prunable"),
-            true
-        )
+        for (path, target, shouldPrune) in [
+            (project.path, app, false),
+            (packageProject.path, directPackageProduct, false),
+            (packageProject.path, transitivePackageProduct, false),
+            (packageProject.path, packageDevProduct, true),
+            (packageProject.path, packageDevTestProduct, true),
+            (packageProject.path, remotePackageTestProduct, true),
+            (packageProject.path, transitivePackageProductWithNoDestinations, true),
+        ] {
+            let mapped = try #require(gotGraph.projects[path]?.targets[target.name])
+            #expect(mapped.metadata.tags.contains("tuist:prunable") == shouldPrune)
+        }
     }
 }

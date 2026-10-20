@@ -23,21 +23,23 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-We release new versions of Tuist continuously as new releasable changes land on main. We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility.
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
 
-The major component is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+
+See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
 ## Continuous deployment {#continuous-deployment}
 
-We strongly recommend setting up a continuous deployment pipeline that automatically deploys the latest version of Tuist every day. This ensures you always have access to the latest features, improvements, and security updates.
+We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
 
-Here's an example GitHub Actions workflow that checks for and deploys new versions daily:
+If you would rather absorb new features as they become stable without touching your manifests, pin `:latest`. The tag moves once a week on Monday morning, so schedule your deploy window accordingly. Here's an example GitHub Actions workflow that checks for and deploys the latest stable image on that cadence:
 
 ```yaml
 name: Update Tuist Server
 on:
   schedule:
-    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+    - cron: '0 8 * * 1' # Mondays 08:00 UTC, after the weekly stable promote
   workflow_dispatch: # Allow manual runs
 
 jobs:
@@ -50,6 +52,62 @@ jobs:
           # Example: docker pull ghcr.io/tuist/tuist:latest
           # Deploy to your infrastructure
 ```
+
+## Network-trusted report publishing {#network-trusted-report-publishing}
+
+Self-hosted installations can opt into accepting completed **Xcode, Gradle, Elixir/Mix, and Bazel build and test reports** without individual sign-in. This policy is off by default and unavailable on hosted Tuist. It grants reporting only, not dashboard access, administration, reads, remote cache access, archives, attachments, shard planning, or artifact processing. The self-hosting license requirement remains enforced.
+
+### Configure the instance {#network-trusted-instance-configuration}
+
+This is an **instance-wide runtime configuration**, not a dashboard or per-project setting. Enabling it permits credential-free reporting to **all existing and newly created Xcode, Gradle, Elixir/Mix, and Bazel projects across every account on the instance**, including private projects. It does not change project visibility or grant access to their existing reports. There is no project allowlist or dashboard toggle.
+
+1. Restrict the HTTP deployment and any Bazel BES ingress to your trusted network, for example a VPN and ingress firewall. Tuist does not verify VPN membership or infer trust from forwarded IP headers.
+2. Set the following environment variable on every server replica that handles report publishing or Bazel analytics ingestion:
+
+   ```sh
+   TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true
+   ```
+
+   For example, in the Tuist server service's Docker Compose configuration:
+
+   ```yaml
+   environment:
+     TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING: "true"
+   ```
+
+3. Restart or redeploy those replicas. The server reads the variable at startup; changing the deployment environment does not update an already running process. The default is `false`, and only the exact value `true` enables it. Hosted Tuist cannot enable this mode.
+
+### Configure the clients {#network-trusted-client-configuration}
+
+Keep credential-free publishing disabled during a rolling upgrade until the server and clients include the required safeguards: Gradle must treat unreadable credential directories and ancestors as errors, and unsigned Swift/Gradle build bodies must omit Git origins before serialization. Upgrading only the server cannot fix an older client's credential-absence decision or prevent a credential-bearing origin from being transmitted or logged by that client. Ordinary authenticated older clients remain supported. Clients using an older server without credential-free publishing support must still authenticate; a client opt-in cannot enable the server feature.
+
+Configure the self-hosted server URL and project on each client and explicitly opt in in the environment used by the reporting command, Gradle daemon, or Xcode scheme post-action:
+
+```sh
+TUIST_NETWORK_TRUSTED_PUBLISHING=true
+```
+
+The server variable allows unsigned reports on the instance; the client variable chooses that publishing mode when credentials are genuinely absent. They are separate controls. No project administrator action in the dashboard is required. For Gradle, you can instead check in `buildInsights.networkTrustedPublishing = true`. For Elixir, `tuist: [network_trusted_publishing: true]` is also supported. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials are errors, not permission to publish anonymously. Swift records a rejected refresh in the shared credential file so later authenticated and opted-in commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
+
+| Client | Credential-free reporting path | Intentional limitations |
+| --- | --- | --- |
+| Xcode | `tuist inspect build` parses activity logs locally; `tuist inspect test` parses local XCResult bundles | No raw archive, attachment, coverage/history upload, selective-execution evidence, or remote processors |
+| Gradle | Build and test insights POST structured JSON | No cache discovery or shard references; quarantine lookup is skipped only when credentials are genuinely absent |
+| Elixir | `mix tuist.compile` and `mix tuist.test` POST structured JSON | No privileged coverage/history references; shards and artifact endpoints still require credentials |
+| Bazel | `tuist bazel setup` generates BES-only configuration for an explicit `TUIST_BAZEL_BES_BACKEND=grpcs://bes.example:443` | No remote cache, downloader, credential helper, or artifact reads; test reports contain target-level outcomes, not JUnit testcase detail |
+
+For Bazel, deploy a compatible Kura node with its authentication engine connected to the self-hosted control plane. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. After a server replica restarts with publishing disabled, it rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Regenerate the BES-only configuration after enabling or disabling the client opt-in; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
+
+> [!WARNING]
+> Anyone who can reach a supported project's publishing endpoint on an enabled instance can submit telemetry, consume its quota, and claim an actor identifier. This applies to every account/project, not just a selected project. Reporting responses can also reveal whether an account/project handle exists and its build system, including private projects. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
+
+Credential-free requests are limited to 8 MB of request/decompressed data, bounded collections, and recursive structure limits. Project quotas are 60 requests per minute and 10,000 per day, independent of VPN NAT addresses. Rejected payloads also consume quota; authenticated publication is unaffected. Configure shared Valkey for deployment-wide enforcement with multiple replicas; without it, limits are per server process and reset on restart. If the configured shared quota backend is unavailable, credential-free publishing fails closed rather than falling back to per-node limits. Add ingress connection, body, and rate limits as a separate defense. Kura additionally bounds unsigned streams to 8 MB/20,000 retained events, 256 MiB of transport data, a five-minute idle/backpressure timeout, a six-hour lifetime, 16 concurrent streams per node, and four concurrent streams/retained invocation records per project. Discarded output/artifact events count only toward the transport cap. Unsigned telemetry has a separate bounded analytics queue/circuit breaker, with 128 KiB serialized invocation events and a 32 KiB inline test-summary budget. An idle BES connection (including a silent action that sends no events) can expire after five minutes. A network caller can occupy its bounded reporting slots until the lifetime limit; size ingress capacity accordingly. These reporting limits do not apply to authenticated traffic.
+
+The server generates report IDs; repeat submissions may produce duplicate reports. Replayed Bazel analytics for the same server invocation deduplicate the test summary, but a restarted BES stream receives a new invocation ID and cannot recover the previous stream's acknowledged events. Unsigned reports are visible telemetry, not authenticated test evidence: they cannot replace canonical testcase metadata, retroactively change authenticated runs, populate selective-execution or quarantine evidence indexes, influence coverage carry-forward/gaps/completeness or enqueue coverage recomputation, enqueue flaky alerts, trigger first-run webhooks, VCS comments, or automatic failure-agent events. Unknown testcases remain report-local; already known cases may be linked for navigation. Run views can show claimed outcomes, but trusted reliability/automation aggregates intentionally exclude them. Optional actor identifiers label telemetry but do not grant access or link claims to accounts.
+
+### Disable credential-free publishing {#disable-network-trusted-publishing}
+
+Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to restore credential-required behavior on clients; the explicit environment opt-out overrides Gradle and Elixir configuration. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
 
 ## Runtime requirements {#runtime-requirements}
 
@@ -90,6 +148,14 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
+
+#### ClickHouse replication topology {#clickhouse-replication-topology}
+
+Multi-replica ClickHouse behind Tuist is supported on ClickHouse Cloud only. Self-managed ClickHouse is single-replica.
+
+The ingest migrations emit a plain `MergeTree` engine. On Cloud that becomes a `SharedMergeTree` transparently, so writes land in shared object storage and any replica count works. On self-managed ClickHouse, `MergeTree` writes to local disk on one replica only; a multi-replica setup will either split ingest silently across replicas or reject the CREATE with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` depending on how `database_replicated_allow_only_replicated_engine` is set on the connecting user.
+
+Run one shard with one replica on self-managed ClickHouse, and take regular backups of the ClickHouse data directory. There is no second replica to fall back to if the node is lost.
 
 #### Capping operational log retention {#capping-operational-log-retention}
 
@@ -181,14 +247,11 @@ The configuration of the service is done at runtime through environment variable
 
 ### License configuration {#license-configuration}
 
-As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+As an on-premise user, you'll receive a license that you'll need to expose as an environment variable. The license is used to validate the deployment and ensure that the service is running within the terms of the agreement.
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_LICENSE` | The license provided after signing the service level agreement | Yes* | | `******` |
-| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes* | | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
-
-\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be provided, but not both. Use `TUIST_LICENSE` for standard deployments.
+| `TUIST_LICENSE` | The license provided after signing the service level agreement. Accepts either the standard license key or the base64-encoded certificate used in air-gapped environments where the server cannot contact external services. | Yes | | `******` |
 
 > [!WARNING]
 > **Expiration Date**
@@ -213,8 +276,14 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | A label displayed as a badge in the dashboard navbar to identify the server instance (e.g. a version number or branch name) | No | Git branch in dev | `v1.2.3` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
+| `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` | Accept completed build and test reports without credentials for all supported projects/accounts on a privately protected self-hosted instance. Read at startup; restart all relevant replicas after changing it. Does not grant dashboard, cache, archive, attachment, or administration access. | No | `false` | `true` |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
 | `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
+
+> [!WARNING]
+> **Serve the app over HTTPS**
+>
+> Session cookies are flagged `Secure`, so browsers drop them over plain `http://` and users cannot sign in. Terminate TLS in front of the server (a reverse proxy with a certificate from your internal CA is enough) and set `TUIST_APP_URL` to the `https://` URL, even for internal or VPN-only deployments.
 
 ### Database configuration {#database-configuration}
 
@@ -450,7 +519,7 @@ A self-hosted Tuist server cannot install the GitHub App that runs on `https://t
 
 | Setting | Value |
 | --- | --- |
-| Callback URL | `YOUR_APP_URL/users/auth/github/callback` |
+| Callback URLs | `YOUR_APP_URL/users/auth/github/callback` and `YOUR_APP_URL/integrations/github/authorize` |
 | Setup URL | `YOUR_APP_URL/integrations/github/setup` |
 | Redirect on update | Enabled |
 | Webhook URL | `YOUR_APP_URL/webhooks/github` |
@@ -466,7 +535,11 @@ Grant the following repository permissions:
 | Pull requests | Read and write |
 | Checks | Read and write |
 
+Grant the **Members: read-only** organization permission as well. During github.com setup, Tuist checks that the person connecting an organization installation is an active GitHub organization owner, not just someone with access to one of its repositories.
+
 Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
+
+Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization; installs started in Tuist retain their organization.
 
 ##### Configuring the server {#platform-github-configuring-the-server}
 
@@ -475,15 +548,16 @@ Set the following environment variables, then restart the server:
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_NAME` | The App's slug, which is the last path component of its public page URL `https://github.com/apps/<slug>` | Yes | | `my-company-tuist` |
+| `TUIST_GITHUB_APP_ID` | The numeric App ID, used to verify installation ownership | Yes | | `123456` |
 | `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key of the GitHub application. Preferred over `TUIST_GITHUB_APP_PRIVATE_KEY`, which is sensitive to how your platform handles newlines | Yes | | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |
 | `TUIST_GITHUB_APP_WEBHOOK_SECRET` | The webhook secret configured on the GitHub application | No | | `a4c1e0f2b8d6...` |
 
 > [!IMPORTANT]
-> **All four required variables must be set**
+> **Configure all required App credentials**
 >
-> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
+> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The numeric `TUIST_GITHUB_APP_ID` is also needed to verify installation ownership. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
 
 Once the server restarts, organization admins install the App and connect repositories to projects following the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link>.
 
@@ -502,6 +576,60 @@ Your Tuist server also needs outbound access to your CI provider's OIDC issuer t
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 
 The env vars above only configure Tuist's github.com App. To integrate Tuist with a GitHub Enterprise Server (GHES) instance instead, organization admins switch to the **Enterprise server** tab on the integrations page and enter the GHES base URL — Tuist walks them through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) to register a fresh Tuist App on their GHES instance. The new App's credentials are stored encrypted per installation; no additional `TUIST_GITHUB_APP_*` env vars are needed.
+
+#### Origin {#platform-origin}
+
+A self-hosted Tuist server needs its own Origin app, configured with your deployment's URLs and signing key. Register a separate app for each Tuist environment so that installations and credentials stay independent.
+
+##### Registering the App {#platform-origin-registering-the-app}
+
+1. Generate an Ed25519 signing key pair using OpenSSL with Ed25519 support:
+
+   ```sh
+   umask 077
+   openssl genpkey -algorithm ED25519 -out origin-app-private.pem
+   openssl pkey -in origin-app-private.pem -pubout -out origin-app-public.pem
+   ```
+
+2. Create an app in [Origin app settings](https://cursor.com/codebase/settings/apps). Register the contents of `origin-app-public.pem` as its public signing key. Keep `origin-app-private.pem` secret; you will provide it to the Tuist server, not upload it to Cursor.
+3. Configure the following settings, replacing `YOUR_APP_URL` with your Tuist deployment's HTTPS base URL:
+
+   | Setting | Value |
+   | --- | --- |
+   | Homepage URL | `YOUR_APP_URL` |
+   | Redirect URI | `YOUR_APP_URL/integrations/origin/setup` |
+   | Webhook URL | `YOUR_APP_URL/webhooks/origin` |
+
+4. Copy the registered App ID, which starts with `app_`.
+
+Tuist requests the following permissions during installation:
+
+| Scope | Used for |
+| --- | --- |
+| `repository:pull_requests:read` | Find pull requests and their current head commit. |
+| `repository:pull_requests:reviews:write` | Read, post, and update report comments. Origin includes the corresponding review-read permission. |
+| `repository:metadata:read` | Discover repositories and read their default branches. Granted automatically by Origin. |
+
+Leave optional repository webhook events unselected. Installation lifecycle notifications are sufficient; source-code access, merge permissions, and check-run permissions are not required.
+
+##### Configuring the server {#platform-origin-configuring-the-server}
+
+Set the following environment variables, then restart the server:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_ORIGIN_APP_ID` | The App ID copied from Origin app settings. | Yes | | `app_...` |
+| `TUIST_ORIGIN_APP_PRIVATE_KEY` | The complete contents of `origin-app-private.pem`, including the `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines and all line breaks. | Yes | | `-----BEGIN PRIVATE KEY-----...` |
+
+Store the private key in your deployment's secret manager. Preserve its multiline PEM format; this setting does not accept a base64-encoded replacement. Never commit the key to source control or expose it in logs. Both variables must belong to the same registered app.
+
+Your Tuist server needs outbound HTTPS access to `api.cursor.com`. Cursor must be able to deliver requests to the webhook URL, and administrators must be able to return to the redirect URI in their browser. Both registered URLs must match your deployment's HTTPS base URL.
+
+##### Installing the App {#platform-origin-installing-the-app}
+
+Once the server restarts, an administrator opens **Settings → Integrations**, chooses **Connect** under Origin, and approves the app's access to the appropriate Origin account and repositories. The Tuist organization is retained throughout this flow. Installations initiated directly from Origin instead prompt the administrator to log in and select the Tuist organization to connect. Then they choose **Add new project connection** to link a Tuist project to a native repository.
+
+Follow the <.localized_link href="/guides/integrations/gitforge/origin">Origin integration guide</.localized_link> for project connections and result-upload requirements. Installing the app does not start build or test workflows; those workflows continue reporting results to your Tuist server.
 
 ## Testing Locally {#testing-locally}
 
@@ -617,6 +745,26 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --set server.license.key="YOUR_LICENSE_KEY" \
   --version 0.1.0
 ```
+
+### License {#helm-license}
+
+The `server.license.key` value accepts both the standard license key and, for air-gapped installations, the Base64-encoded license certificate; the server auto-detects which one it is.
+
+Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: TUIST_LICENSE
+      certificateBase64: ""
+```
+
+The entry under `existingSecretKeys.key` names the field in your Secret that holds the license value, which can be the license key or, for air-gapped installations, the Base64-encoded license certificate. Each entry under `existingSecretKeys` defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string, as `certificateBase64` is above. Otherwise the pods reference keys that don't exist and fail to start. Create the Secret in the release namespace before you install or upgrade the chart.
+
+Configure the license through one source only: `server.license.key` or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 

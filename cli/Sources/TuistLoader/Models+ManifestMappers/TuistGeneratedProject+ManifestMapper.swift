@@ -37,13 +37,16 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             disableSandbox: manifest.disableSandbox,
             includeGenerateScheme: manifest.includeGenerateScheme,
             enableCaching: manifest.enableCaching,
+            enableCoveragePrefixMapping: manifest.enableCoveragePrefixMapping,
             registryEnabled: manifest.registryEnabled,
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
                 .from(manifest: manifest.warningsAsErrors),
             defaultSwiftVersion: manifest.defaultSwiftVersion,
             manifestEnvironment: manifest.manifestEnvironment,
             onOutdatedDependencies: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction
-                .from(manifest: manifest.onOutdatedDependencies)
+                .from(manifest: manifest.onOutdatedDependencies),
+            projectFormat: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat
+                .from(manifest: manifest.projectFormat)
         )
     }
 }
@@ -53,7 +56,12 @@ extension TuistConfig.TuistGeneratedProjectOptions.InstallOptions {
         manifest: ProjectDescription.Config.InstallOptions
     ) -> Self {
         return .init(
-            passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
+            passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments,
+            packageManifestEnvironment: .init(
+                usesAutomaticProviderDefaults: manifest.packageManifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: manifest.packageManifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: manifest.packageManifestEnvironment.excludedVariablePatterns
+            )
         )
     }
 }
@@ -97,6 +105,15 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDep
         case .warn: return .warn
         case .install: return .install
         case .fail: return .fail
+        }
+    }
+}
+
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.ProjectFormat) -> Self {
+        switch manifest {
+        case .pbxproj: return .pbxproj
+        case .xcproj: return .xcproj
         }
     }
 }

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistLogging
 import TuistSupport
 import XCResultParser
@@ -10,19 +11,34 @@ import XCResultParser
 public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
+    func coveredFilePaths(path: AbsolutePath) async throws -> [String]?
+    /// The targets the bundle reports coverage for, with the products xcodebuild built and the
+    /// files each compiled. Nil when the bundle has no coverage.
+    func coverageTargets(path: AbsolutePath) async throws -> [XcodeCoverageTarget]?
+    /// Reads the bundle's coverage against `manifest`, streamed to `output` as one JSON object per
+    /// source file so memory stays flat in the bundle's size. Nil when the bundle has no coverage
+    /// or it could not be read.
+    func parseCoverage(
+        path: AbsolutePath,
+        manifest: XcodeCoverageManifest,
+        into output: AbsolutePath
+    ) async throws -> XcodeCoverageSummary?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
     private let parser: XCResultParser
+    private let coverageParser: XcodeCoverageParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        parser: XCResultParser = XCResultParser()
+        parser: XCResultParser = XCResultParser(),
+        coverageParser: XcodeCoverageParsing = XcodeCoverageParser()
     ) {
         self.fileSystem = fileSystem
         self.parser = parser
+        self.coverageParser = coverageParser
     }
 
     public func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath)
@@ -60,6 +76,30 @@ public struct XCResultService: XCResultServicing {
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
         try await parser.parse(path: path, rootDirectory: rootDirectory)
+    }
+
+    public func coveredFilePaths(path: AbsolutePath) async throws -> [String]? {
+        try await coverageParser.coveredFilePaths(resultBundlePath: path)
+    }
+
+    public func coverageTargets(path: AbsolutePath) async throws -> [XcodeCoverageTarget]? {
+        try await coverageParser.coverageTargets(resultBundlePath: path)
+    }
+
+    public func parseCoverage(
+        path: AbsolutePath,
+        manifest: XcodeCoverageManifest,
+        into output: AbsolutePath
+    ) async throws -> XcodeCoverageSummary? {
+        do {
+            return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
+        } catch {
+            // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
+            AlertController.current.warning(
+                .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
+            )
+            return nil
+        }
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {

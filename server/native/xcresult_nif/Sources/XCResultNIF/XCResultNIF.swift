@@ -16,9 +16,13 @@ private enum ParseOutcome: Sendable {
 /// Seconds a parse may run before it cancels itself.
 private let timeoutSeconds = 600
 
+/// Seconds reading the coverage may run after the tests are parsed. Its own budget, so a slow
+/// archive costs the run its coverage rather than its test results.
+private let coverageTimeoutSeconds = 300
+
 /// Seconds a cancelled parse is given to unwind before the caller gives up on
-/// it. Cancellation reaches the `xcresulttool`/`sips` child through Command's
-/// `continuation.onTermination`, which terminates the process; a child that
+/// it. Cancellation reaches the `xcresulttool`/`sips` child through the task
+/// that owns the subprocess; a child that
 /// ignores it would otherwise hold this thread for the life of the BEAM.
 private let cancellationGraceSeconds = 30
 
@@ -38,7 +42,20 @@ public func parseXCResult(
     let task = Task {
         let value: ParseOutcome
         do {
-            let parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
+            var parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
+            do {
+                // Streamed beside the bundle rather than returned as a term: a large bundle's
+                // per-line counts would not fit the BEAM comfortably, and the processor reads
+                // the file back in chunks.
+                let output = "\(rootDir)/tuist_coverage.ndjson"
+                if let summary = try await parseCoverage(path: path, into: output, timeout: coverageTimeoutSeconds) {
+                    parsed.coveragePath = output
+                    parsed.coveragePartial = summary.partial
+                    parsed.coverageFileCount = summary.fileCount
+                }
+            } catch {
+                parsed.coverageError = error.localizedDescription
+            }
             value = .parsed(parsed)
         } catch {
             value = .failed(error.localizedDescription)
@@ -51,9 +68,11 @@ public func parseXCResult(
     // in cannot return until that cancellation has been awaited, so reaching
     // this deadline means the child never honoured it. Nothing is read from
     // `outcome` on that path, so a late write cannot race the value returned.
-    let deadline = DispatchTime.now() + .seconds(timeoutSeconds + cancellationGraceSeconds)
+    let deadline = DispatchTime.now() + .seconds(timeoutSeconds + coverageTimeoutSeconds + 2 * cancellationGraceSeconds)
     guard semaphore.wait(timeout: deadline) == .success else {
-        task.cancel()
+        // Cancelling runs the parse's cancellation handlers on the calling thread. Off this dirty
+        // scheduler, so a handler that never returns cannot keep the scheduler and the job with it.
+        Thread.detachNewThread { task.cancel() }
         return write(
             timedOutMessage(path: path, seconds: timeoutSeconds),
             outputPtr: outputPtr,
@@ -92,7 +111,7 @@ public func parseXCResult(
 /// Losing the race cancels the winner's sibling, and the group cannot return
 /// until every child has been awaited, so a timed-out parse is torn down
 /// before the caller sees the error rather than left running with a
-/// `CommandRunner` process-limiter permit and a temp directory the worker is
+/// process-limiter permit and a temp directory the worker is
 /// about to delete.
 private func parse(path: String, rootDir: String, timeout: Int) async throws -> TestSummary {
     let xcresultPath = try AbsolutePath(validating: path)
@@ -122,6 +141,26 @@ private func parse(path: String, rootDir: String, timeout: Int) async throws -> 
             throw XCResultParserError.failedToParseOutput(xcresultPath)
         }
         return parsed
+    }
+}
+
+/// Reads the coverage against its own deadline, the same way ``parse`` does.
+private func parseCoverage(path: String, into output: String, timeout: Int) async throws -> XcodeCoverageSummary? {
+    let xcresultPath = try AbsolutePath(validating: path)
+    let outputPath = try AbsolutePath(validating: output)
+
+    return try await withThrowingTaskGroup(of: XcodeCoverageSummary?.self) { group in
+        group.addTask {
+            try await XCResultParser().parseCoverage(path: xcresultPath, into: outputPath)
+        }
+        group.addTask {
+            try await Task.sleep(for: .seconds(timeout))
+            throw XCResultParserError.timedOut(xcresultPath, seconds: timeout)
+        }
+
+        defer { group.cancelAll() }
+
+        return try await group.next() ?? nil
     }
 }
 

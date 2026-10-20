@@ -19,6 +19,7 @@ defmodule TuistWeb.RunnersController do
 
   use TuistWeb, :controller
 
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
 
@@ -29,25 +30,27 @@ defmodule TuistWeb.RunnersController do
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok,
           %{
-            jit: jit,
+            credential: credential,
             account: account,
             workflow_job_id: workflow_job_id,
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
           } = dispatched} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(
-        conn,
-        dispatch_response(
-          jit,
+      response =
+        credential
+        |> dispatch_response(
           account,
           workflow_job_id,
           on_cluster_network,
           fleet_platform,
+          Map.get(dispatched, :fleet_site),
           Map.get(dispatched, :cache_signing_grant),
           Map.get(dispatched, :volume_head)
         )
-      )
+        |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
+
+      json(conn, response)
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -90,8 +93,8 @@ defmodule TuistWeb.RunnersController do
       {:error, :unknown_account} ->
         conn |> put_status(:not_found) |> json(%{error: "account not configured"})
 
-      {:error, :github_mint_failed} ->
-        conn |> put_status(:bad_gateway) |> json(%{error: "jit mint failed"})
+      {:error, mint_failure} when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] ->
+        conn |> put_status(:bad_gateway) |> json(%{error: "credential mint failed"})
 
       {:error, :not_in_cluster} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
@@ -103,10 +106,10 @@ defmodule TuistWeb.RunnersController do
   end
 
   # A runner reports the cache-volume it just promoted: it uploaded its branch
-  # to the account's master archive (presigned URL from dispatch) and now bumps
-  # the account's HEAD to that inventory digest. The account is resolved from
-  # the Pod's server-stamped runner-account label, not the body, so a runner
-  # can only advance the HEAD of the account it actually ran.
+  # to the volume's master archive and now bumps the volume's HEAD to that
+  # inventory digest. The account and volume are resolved from the Pod's
+  # server-stamped labels, not the body, so a runner can only advance the HEAD
+  # of the volume it actually ran.
   def report_volume_head(conn, params) do
     digest = Map.get(params, "tree_digest", "")
     node = node_name(params)
@@ -114,8 +117,16 @@ defmodule TuistWeb.RunnersController do
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest, base_generation, unverifiable_digest(params)) do
+         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
+      case Runners.report_volume_head(
+             account_id,
+             volume_name,
+             node,
+             digest,
+             base_generation,
+             unverifiable_digest(params),
+             content_digest(params)
+           ) do
         {:ok, generation} ->
           json(conn, %{generation: generation})
 
@@ -162,6 +173,17 @@ defmodule TuistWeb.RunnersController do
     end
   end
 
+  # The SHA-256 the runner computed over the settled image bytes it uploaded,
+  # when it reported one. Passed through as-is for `Runners` to validate against
+  # the digest format; a non-binary reads as no report — promotes from runner
+  # images that predate the content hash carry none.
+  defp content_digest(params) do
+    case Map.get(params, "content_digest") do
+      digest when is_binary(digest) -> digest
+      _ -> nil
+    end
+  end
+
   # The Node name of the host that published this HEAD, for attribution only —
   # nothing in the fast-forward reads it, so a name that does not check out is
   # dropped rather than failing the promote.
@@ -185,9 +207,9 @@ defmodule TuistWeb.RunnersController do
   # inventory digest it is about to promote, then PUTs its image there and calls
   # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
   # is a distinct object, so concurrent promotes never clobber the object the
-  # current HEAD points at. Same SA-token + server-stamped account-label binding
-  # as report_volume_head, so a runner can only mint an upload URL under the
-  # account it actually ran.
+  # current HEAD points at. Same SA-token + server-stamped label binding as
+  # report_volume_head, so a runner can only mint an upload URL under the account
+  # and volume it actually ran.
   #
   # Minting also PRE-FLIGHTS the fast-forward the upload leads to: a runner that
   # sends the base generation it built on gets a 409 here, before transferring
@@ -199,13 +221,19 @@ defmodule TuistWeb.RunnersController do
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      if doomed_fast_forward?(account_id, params) do
+         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
+      if doomed_fast_forward?(account_id, volume_name, params) do
         conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
       else
-        case Runners.volume_master_upload_url(account_id, digest) do
-          {:ok, upload_url} ->
+        case Runners.volume_master_upload_url(account_id, volume_name, digest, content_digest(params)) do
+          {:ok, upload_url, nil} ->
             json(conn, %{upload_url: upload_url})
+
+          {:ok, upload_url, checksum} ->
+            # The URL's signature covers the x-amz-checksum-sha256 header, so
+            # the guest MUST send exactly this value with its PUT — echoed back
+            # rather than recomputed guest-side so the two cannot drift.
+            json(conn, %{upload_url: upload_url, checksum_sha256: checksum})
 
           :error ->
             conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
@@ -230,10 +258,15 @@ defmodule TuistWeb.RunnersController do
   # the way the bump does: a runner image predating this pre-flight sends no base
   # here, and must keep its upload-then-arbitrate path instead of being told its
   # cold-job promote is stale.
-  defp doomed_fast_forward?(account_id, params) do
+  defp doomed_fast_forward?(account_id, volume_name, params) do
     case Map.fetch(params, "base_generation") do
       {:ok, value} ->
-        not Runners.fast_forward_viable?(account_id, parse_base_generation(value), unverifiable_digest(params))
+        not Runners.fast_forward_viable?(
+          account_id,
+          volume_name,
+          parse_base_generation(value),
+          unverifiable_digest(params)
+        )
 
       :error ->
         false
@@ -309,24 +342,25 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform, which
-  #     `runner_cache_endpoint_url/2` matches against the private
-  #     region's `runner_platforms`, so a node co-located with one
-  #     fleet never serves a fleet on the wrong side of a WAN.
+  #   * locality — the fleet's platform and site, which
+  #     `runner_cache_endpoint_url/3` matches against the private
+  #     region's `runner_platforms` and `site`, so a node co-located with
+  #     one fleet never serves a fleet on the wrong side of a WAN.
   defp dispatch_response(
-         jit,
+         credential,
          account,
          workflow_job_id,
          fleet_on_cluster_network,
          fleet_platform,
+         fleet_site,
          cache_signing_grant,
          volume_head
        ) do
-    base = %{
-      encoded_jit_config: jit,
-      owner: account.name,
-      workflow_job_id: workflow_job_id
-    }
+    base =
+      Map.merge(
+        %{owner: account.name, workflow_job_id: workflow_job_id},
+        credential_fields(credential)
+      )
 
     base =
       case cache_signing_grant do
@@ -340,15 +374,61 @@ defmodule TuistWeb.RunnersController do
         _ -> base
       end
 
+    base = Map.merge(base, opt_in_cache_fields(fleet_platform, account))
+
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
          url when is_binary(url) and url != "" <-
-           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform) do
+           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform, fleet_site) do
       Map.put(base, :cache_endpoint_url, url)
     else
       _ -> base
     end
   end
+
+  defp opt_in_cache_fields(:macos, account) do
+    if FeatureFlags.runner_opt_in_caches_enabled?(account), do: %{automatic_caches: false}, else: %{}
+  end
+
+  defp opt_in_cache_fields(_fleet_platform, _account), do: %{}
+
+  # The VM branches on which of these two key sets it receives, so the
+  # response stays a single shape per provider rather than a discriminator
+  # the poll script would have to read before it knows what else to expect.
+  defp credential_fields(%{kind: :github, jit: jit}), do: %{encoded_jit_config: jit}
+
+  defp credential_fields(%{kind: :gitlab} = credential) do
+    %{
+      gitlab_job: %{
+        url: credential.url,
+        payload: credential.payload,
+        report_token: credential.report_token,
+        waiting_trace: credential.waiting_trace
+      }
+    }
+  end
+
+  defp credential_fields(%{kind: :buildkite} = credential) do
+    %{
+      buildkite_acquisition_token: credential.token,
+      buildkite_job_uuid: credential.job_uuid,
+      buildkite_organization_slug: credential.organization_slug,
+      buildkite_report_token: credential.report_token
+    }
+  end
+
+  # Groups the GitHub runner prints in the job's "Set up job" step. The VM
+  # writes them verbatim to the runner's `.setup_info`, which the runner
+  # reads before it is given a job, so the link names the runner and the
+  # dashboard resolves it to whichever job GitHub placed there.
+  defp setup_info_fields(%{kind: :github}, account, runner_name) when is_binary(runner_name) and runner_name != "" do
+    job_url =
+      Tuist.Environment.app_url(path: "/#{account.name}/runners/by-runner/#{URI.encode_www_form(runner_name)}")
+
+    %{setup_info: [%{group: "Tuist Runner", detail: "Job details: #{job_url}"}]}
+  end
+
+  defp setup_info_fields(_credential, _account, _runner_name), do: %{}
 
   defp bearer_token(conn) do
     case Plug.Conn.get_req_header(conn, "authorization") do

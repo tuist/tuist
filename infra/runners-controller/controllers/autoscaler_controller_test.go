@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -181,6 +182,39 @@ func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	}
 	if got.Status.LastScaleDownAt == nil || !got.Status.LastScaleDownAt.Time.Equal(now) {
 		t.Errorf("LastScaleDownAt = %v, want %v", got.Status.LastScaleDownAt, now)
+	}
+}
+
+func TestAutoscaler_HoldRecentPeakFalseReleasesABurstPool(t *testing.T) {
+	tests := []struct {
+		name string
+		hold *bool
+		want int32
+	}{
+		{name: "default holds the last hour's peak", hold: nil, want: 11},
+		{name: "false sizes to current load", hold: ptr.To(false), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := newAutoscalerPool("smoke", 11, &tuistv1.RunnerPoolAutoscaling{
+				Enabled:          true,
+				MinWarmPoolFloor: ptr.To[int32](0),
+				MaxReplicas:      18,
+				HoldRecentPeak:   tt.hold,
+			})
+			r, server := setupReconciler(t, pool, scaling.Signals{Fleet: "smoke", P95ConcurrentLastHour: 11})
+			defer server.Close()
+
+			reconcileOnce(t, r, "smoke")
+
+			got := &tuistv1.RunnerPool{}
+			if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+				t.Fatalf("get pool: %v", err)
+			}
+			if got.Spec.Replicas != tt.want {
+				t.Errorf("Replicas = %d, want %d", got.Spec.Replicas, tt.want)
+			}
+		})
 	}
 }
 
@@ -567,8 +601,8 @@ func macosNodeWithGuests(name, fleetSelector string, guests int64) *corev1.Node 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				macosFleetLabel:  fleetSelector,
-				macosNodeOSLabel: macosNodeOSDarwin,
+				macosFleetLabel: fleetSelector,
+				nodeOSLabel:     macosNodeOSDarwin,
 			},
 		},
 		Status: corev1.NodeStatus{
@@ -645,6 +679,34 @@ func TestAutoscaler_MacosFleetCapacityExcludesUnhealthyNodes(t *testing.T) {
 	}
 }
 
+// A joining host pulling its runner images is tainted against runner Pods, so
+// counting its memory would scale pools into slots the scheduler cannot fill.
+func TestAutoscaler_MacosFleetCapacityExcludesPrewarmingNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("mac-ready", fleet)
+	prewarming := macosNode("mac-joining", fleet)
+	prewarming.Spec.Taints = []corev1.Taint{{Key: "tuist.dev/prewarming", Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, prewarming).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+	if want := int64(macosGuestMemoryMB) * 1024 * 1024; got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the warm node's memory %d", got, want)
+	}
+	if reason := nodeFilterReason(prewarming); reason != nodeFilteredPrewarming {
+		t.Fatalf("nodeFilterReason = %q, want %q", reason, nodeFilteredPrewarming)
+	}
+}
+
 // TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts is the
 // mixed-SKU case the byte-based budget exists for: one fleet label
 // spanning a single-guest M2-L and a dual-guest M4-XL. Counting hosts
@@ -690,7 +752,7 @@ func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
 	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
 	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
 
-	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	got, _ := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
 	if got != 8 {
 		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
@@ -935,15 +997,15 @@ func macosNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int6
 	return node
 }
 
-// The production topology: 9 M2-L (8 CPU / 14336 MB) + 2 M4-XL
-// (12 CPU / 28672 MB). The 6 vCPU shape seats 13, the 12 vCPU shape
+// The production topology: 10 M2-L (8 CPU / 14336 MB) + 2 M4-XL
+// (12 CPU / 28672 MB). The 6 vCPU shape seats 14, the 12 vCPU shape
 // seats 2 — and the second number is the one no fleet-wide division can
-// produce, since 186368 MB / 28672 reads as 6.
+// produce, since 200704 MB / 28672 reads as 7.
 func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
 	const fleet = "runners-macos"
 
 	objects := []client.Object{}
-	for i := 0; i < 9; i++ {
+	for i := 0; i < 10; i++ {
 		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m2-%d", i), fleet, 8, 14336))
 	}
 	for i := 0; i < 2; i++ {
@@ -967,8 +1029,8 @@ func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}
 
-	if got := caps[small.key()]; got != 13 {
-		t.Fatalf("6 vCPU seats = %d, want 13 (9 M2-L at one + 2 M4-XL at two)", got)
+	if got := caps[small.key()]; got != 14 {
+		t.Fatalf("6 vCPU seats = %d, want 14 (10 M2-L at one + 2 M4-XL at two)", got)
 	}
 	if got := caps[large.key()]; got != 2 {
 		t.Fatalf("12 vCPU seats = %d, want 2 (M4-XL only, one guest each)", got)
@@ -999,22 +1061,145 @@ func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
 	}
 }
 
-// Linux opts out: kata pins memory per sandbox and oversubscribes CPU,
-// so a CPU quotient would cap a fleet that is not CPU-bound.
-func TestAutoscaler_ShapePlacementCapsSkipLinux(t *testing.T) {
+// Linux is capped too. It used to opt out on the grounds that kata
+// oversubscribes CPU, so a CPU quotient would cap a fleet that is not
+// CPU-bound. That does not hold on this fleet: podtemplate sets the
+// runner container's CPU request equal to its limit equal to the shape,
+// so kube-scheduler bin-packs on the full vCPU and a 16 vCPU Pod costing
+// 16.25 with kata's overhead seats exactly once on a 31-vCPU RISE-L. The
+// min() of the two quotients is what the scheduler does, so taking it
+// here is agreement rather than pessimism.
+//
+// The production topology: 4 RISE-L at 31 vCPU / 117 GiB allocatable.
+func TestAutoscaler_ShapePlacementCapsCountLinuxSeats(t *testing.T) {
+	const fleet = "runners-linux"
+
+	objects := []client.Object{}
+	for i := 0; i < 4; i++ {
+		objects = append(objects, linuxNodeWithResources(fmt.Sprintf("rise-l-%d", i), fleet, 31, 117*1024))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	// Placement shapes: the advertised shape plus kata's 250m / 2560Mi.
+	small := podShape{cpuMilli: 2250, memoryMB: 8*1024 + 2560}
+	big := podShape{cpuMilli: 4250, memoryMB: 16*1024 + 2560}
+	ceiling := podShape{cpuMilli: 16250, memoryMB: 32*1024 + 2560}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small, big.key(): big, ceiling.key(): ceiling,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 44 {
+		t.Fatalf("2vcpu-8gb seats = %d, want 44 (11 per box, memory-bound)", got)
+	}
+	// The shape that starved the fleet on 2026-09-02: the autoscaler
+	// targeted 67 of these where 24 fit.
+	if got := caps[big.key()]; got != 24 {
+		t.Fatalf("4vcpu-16gb seats = %d, want 24 (6 per box, memory-bound)", got)
+	}
+	// CPU binds this one: 117 GiB would suggest three per box, but two
+	// would need 32.5 of 31 vCPU.
+	if got := caps[ceiling.key()]; got != 4 {
+		t.Fatalf("16vcpu-32gb seats = %d, want 4 (1 per box, CPU-bound)", got)
+	}
+}
+
+// An unrecognised OS is left uncapped rather than capped against the
+// wrong node set: fleetNodeSelector falls through to darwin, which
+// matches no node in a Linux fleet, and a zero cap would freeze the pool
+// at zero replicas.
+func TestAutoscaler_ShapePlacementCapsNoNodesLeavesZero(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
 
-	shape := podShape{cpuMilli: 2000, memoryMB: 8192}
+	shape := podShape{cpuMilli: 2250, memoryMB: 10752}
 	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
 
 	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
 	if err != nil {
 		t.Fatalf("shapePlacementCaps: %v", err)
 	}
-	if caps != nil {
-		t.Fatalf("Linux must not be capped, got %v", caps)
+	if got := caps[shape.key()]; got != 0 {
+		t.Fatalf("seats with no nodes = %d, want 0", got)
+	}
+}
+
+// The seat cap and the byte budget must charge a Pod the same overhead,
+// or the two halves of the allocator disagree about what fits.
+func TestAutoscaler_PlacementShapeIncludesRuntimeClassOverhead(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 16*1024, 1, 30)
+	pool.Spec.PodCPUMilli = 4000
+	pool.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("250m"),
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(runtimeClass).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape, err := r.placementShapeOf(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("placementShapeOf: %v", err)
+	}
+	if shape.cpuMilli != 4250 {
+		t.Fatalf("cpuMilli = %d, want 4250 (4000 + kata 250m)", shape.cpuMilli)
+	}
+	if shape.memoryMB != 16*1024+2560 {
+		t.Fatalf("memoryMB = %d, want %d (16 GiB + kata 2560Mi)", shape.memoryMB, 16*1024+2560)
+	}
+}
+
+// A named RuntimeClass that cannot be read freezes the pool rather than
+// silently sizing it as if the sandbox were free.
+func TestAutoscaler_PlacementShapeFailsOnUnreadableRuntimeClass(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	if _, err := r.placementShapeOf(context.Background(), pool); !errors.Is(err, errPodCostUnavailable) {
+		t.Fatalf("err = %v, want errPodCostUnavailable", err)
+	}
+}
+
+func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"node.cluster.x-k8s.io/pool": fleetSelector,
+				"kubernetes.io/os":           "linux",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+			},
+		},
 	}
 }

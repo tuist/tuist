@@ -1,0 +1,294 @@
+defmodule Tuist.ClickHouse.SchemaCloneTest do
+  use ExUnit.Case, async: true
+
+  alias Tuist.ClickHouse.SchemaClone
+
+  describe "rewrite/3" do
+    test "maps every Cloud Shared engine onto its self-managed Replicated equivalent" do
+      for {shared, replicated} <- [
+            {"SharedMergeTree", "ReplicatedMergeTree"},
+            {"SharedReplacingMergeTree", "ReplicatedReplacingMergeTree"},
+            {"SharedAggregatingMergeTree", "ReplicatedAggregatingMergeTree"},
+            {"SharedSummingMergeTree", "ReplicatedSummingMergeTree"}
+          ] do
+        ddl =
+          "CREATE TABLE default.t (`id` UUID) ENGINE = #{shared}('/clickhouse/tables/{uuid}/{shard}', '{replica}') ORDER BY id"
+
+        assert SchemaClone.rewrite(ddl, "default", "tuist") =~ "ENGINE = #{replicated}("
+        refute SchemaClone.rewrite(ddl, "default", "tuist") =~ "Shared"
+      end
+    end
+
+    test "keeps the Keeper path arguments the source emits" do
+      # The destination is configured with
+      # `database_replicated_allow_replicated_engine_arguments = 2`, which
+      # accepts these and substitutes its own defaults. Stripping them here
+      # would work too, but it would mean parsing the argument list to tell a
+      # path from a version column, and getting that wrong silently changes
+      # the deduplication key of a ReplacingMergeTree.
+      ddl =
+        "CREATE TABLE default.build_runs (`id` UUID) ENGINE = SharedReplacingMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}', updated_at) ORDER BY id"
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "ReplicatedReplacingMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}', updated_at)"
+    end
+
+    test "requalifies the database in both the target and the view's own select" do
+      ddl =
+        "CREATE MATERIALIZED VIEW default.mv TO default.target (`id` UUID) AS SELECT id FROM default.source"
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "CREATE MATERIALIZED VIEW IF NOT EXISTS tuist.mv TO tuist.target"
+      assert rewritten =~ "FROM tuist.source"
+      refute rewritten =~ "default."
+    end
+
+    test "only requalifies a database name that starts a qualified name" do
+      # Staging's source database is literally called `database`, so a plain
+      # string replace would rewrite `system.database_name` and anything
+      # ending in the same word. Only a leading qualifier may move.
+      ddl =
+        "CREATE MATERIALIZED VIEW database.mv TO database.target (`database_id` UUID, `x` String DEFAULT 'my database.thing') AS SELECT database_id FROM database.source"
+
+      rewritten = SchemaClone.rewrite(ddl, "database", "tuist")
+
+      assert rewritten =~ "tuist.mv TO tuist.target"
+      assert rewritten =~ "FROM tuist.source"
+      # Neither the column nor the text inside the literal is a qualifier.
+      assert rewritten =~ "`database_id` UUID"
+      assert rewritten =~ "SELECT database_id FROM"
+      assert rewritten =~ "'my database.thing'"
+    end
+
+    test "does not rewrite a system-qualified reference" do
+      ddl = "CREATE VIEW default.v AS SELECT name FROM system.default_roles"
+
+      assert SchemaClone.rewrite(ddl, "default", "tuist") =~ "FROM system.default_roles"
+    end
+
+    test "is idempotent so a partial clone can be re-run" do
+      ddl = "CREATE TABLE default.t (`id` UUID) ENGINE = SharedMergeTree ORDER BY id"
+
+      once = SchemaClone.rewrite(ddl, "default", "tuist")
+      twice = SchemaClone.rewrite(once, "tuist", "tuist")
+
+      assert once =~ "CREATE TABLE IF NOT EXISTS tuist.t"
+      assert twice == once
+    end
+
+    test "leaves an already self-managed source untouched apart from the database" do
+      ddl =
+        "CREATE TABLE default.t (`id` UUID) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}') ORDER BY id"
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "ENGINE = ReplicatedMergeTree("
+      assert rewritten =~ "tuist.t"
+    end
+
+    test "preserves indexes, projections and default expressions" do
+      # Taken from the real production `command_events`, which is the widest
+      # DDL in the database: eleven skip indexes, a projection, and columns
+      # whose defaults are expressions over other columns.
+      ddl = """
+      CREATE TABLE default.command_events (`id` UUID, `legacy_id` UInt64 DEFAULT generateSerialID('command_events_legacy_id'), \
+      `cacheable_targets` Array(String), `cacheable_targets_count` UInt32 DEFAULT length(cacheable_targets), \
+      INDEX idx_name name TYPE bloom_filter GRANULARITY 4, PROJECTION proj_by_id (SELECT * ORDER BY id)) \
+      ENGINE = SharedMergeTree('/clickhouse/tables/{uuid}/{shard}', '{replica}') ORDER BY id
+      """
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "INDEX idx_name name TYPE bloom_filter GRANULARITY 4"
+      assert rewritten =~ "PROJECTION proj_by_id (SELECT * ORDER BY id)"
+      assert rewritten =~ "DEFAULT generateSerialID('command_events_legacy_id')"
+      assert rewritten =~ "DEFAULT length(cacheable_targets)"
+      assert rewritten =~ "ENGINE = ReplicatedMergeTree("
+    end
+  end
+
+  describe "pinning a drifted SELECT * projection" do
+    # `test_case_runs_by_inserted_at` in production is defined as
+    # `SELECT * FROM test_case_runs`. It declares 20 columns; the source table
+    # has since grown to 24. ClickHouse validates a materialized view against
+    # its target only when the view is created, so the live view keeps working
+    # while its own stored definition no longer reproduces it: replaying the
+    # DDL fails with THERE_IS_NO_COLUMN.
+    test "the rewrite leaves a star projection alone, so the retry is what handles it" do
+      ddl =
+        "CREATE MATERIALIZED VIEW default.mv (`id` UUID, `name` String) ENGINE = SharedMergeTree ORDER BY id AS SELECT * FROM default.source"
+
+      rewritten = SchemaClone.rewrite(ddl, "default", "tuist")
+
+      assert rewritten =~ "AS SELECT * FROM tuist.source"
+      assert rewritten =~ "ENGINE = ReplicatedMergeTree"
+    end
+  end
+
+  describe "run/1" do
+    test "does nothing when no destination is configured" do
+      # `TUIST_CLICKHOUSE_BARE_METAL_URL` is unset in test, so this must not
+      # try to start a repository that is not configured.
+      assert {:error, :no_target_configured} = SchemaClone.run()
+    end
+  end
+
+  describe "in_source_order/2" do
+    test "adds a run of new adjacent columns front to back, so each one's predecessor exists" do
+      positions = ["id", "base_branch", "merge_base_sha", "is_pull_request", "pull_request_number", "git_dirty"]
+      # The drift lists missing columns alphabetically.
+      missing = ["git_dirty Bool", "is_pull_request Bool", "merge_base_sha String", "pull_request_number UInt32"]
+
+      ordered = SchemaClone.in_source_order(missing, positions)
+
+      assert ordered == ["merge_base_sha String", "is_pull_request Bool", "pull_request_number UInt32", "git_dirty Bool"]
+
+      assert ordered
+             |> Enum.map(&SchemaClone.add_column_statement("tuist", "test_runs", &1, positions))
+             |> Enum.map(fn statement ->
+               statement |> String.split(" AFTER ") |> List.last()
+             end) == ["`base_branch`", "`merge_base_sha`", "`is_pull_request`", "`pull_request_number`"]
+    end
+
+    test "keeps a column the source no longer lists, last" do
+      assert SchemaClone.in_source_order(["gone String", "b UInt8"], ["a", "b"]) == ["b UInt8", "gone String"]
+    end
+  end
+
+  describe "add_column_statement/4" do
+    @positions ~w(id name inserted_at)
+
+    test "adds the column where the source has it, not at the end" do
+      # Position is not cosmetic: the backfill copies with `SELECT *`, which
+      # maps by position, so a column appended here and sitting in the middle
+      # there would copy every later column into the wrong one.
+      assert SchemaClone.add_column_statement("tuist", "build_runs", "name String", @positions) =~
+               "ADD COLUMN IF NOT EXISTS `name` String AFTER `id`"
+    end
+
+    test "puts a new first column first rather than after nothing" do
+      assert SchemaClone.add_column_statement("tuist", "build_runs", "id UUID", @positions) =~ "`id` UUID FIRST"
+    end
+
+    test "keeps a type containing a space intact" do
+      # `Map(String, String)` splits on its own space if the name and type are
+      # separated naively, which would emit `Map(String,` as the type.
+      statement = SchemaClone.add_column_statement("tuist", "t", "labels Map(String, String)", ["a", "labels"])
+
+      assert statement =~ "`labels` Map(String, String) AFTER `a`"
+    end
+
+    test "keeps the source's default and codec, so rows already there read the same value" do
+      clauses = %{
+        "build_system" => SchemaClone.column_clause("DEFAULT", "'xcode'", ""),
+        "inserted_at" => SchemaClone.column_clause("DEFAULT", "now64()", "CODEC(Delta(8), ZSTD(1))")
+      }
+
+      positions = ["id", "build_system", "inserted_at"]
+
+      assert SchemaClone.add_column_statement("tuist", "t", "build_system LowCardinality(String)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `build_system` LowCardinality(String) DEFAULT 'xcode' AFTER `id`"
+
+      assert SchemaClone.add_column_statement("tuist", "t", "inserted_at DateTime64(6)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `inserted_at` DateTime64(6) DEFAULT now64() CODEC(Delta(8), ZSTD(1)) AFTER `build_system`"
+
+      assert SchemaClone.column_clause("", "", "") == ""
+    end
+
+    test "quotes the table and column, so a name that needs it still works" do
+      assert SchemaClone.add_column_statement("tuist", "order", "date Date", ["date"]) =~
+               "ALTER TABLE `tuist`.`order` ADD COLUMN IF NOT EXISTS `date` Date FIRST"
+    end
+  end
+
+  describe "missing_indices/3" do
+    test "selects source indexes the destination lacks, only on tables it has" do
+      gradle_id = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      mix_id = %{table: "mix_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      test_runs_sha = %{
+        table: "test_runs",
+        name: "idx_git_commit_sha",
+        expr: "git_commit_sha",
+        type: "bloom_filter",
+        granularity: 1
+      }
+
+      not_cloned = %{table: "not_cloned", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      target_tables = MapSet.new(["gradle_builds", "mix_builds", "test_runs"])
+
+      assert SchemaClone.missing_indices([gradle_id, mix_id, test_runs_sha, not_cloned], [mix_id], target_tables) ==
+               [gradle_id, test_runs_sha]
+    end
+
+    test "leaves an index alone when the destination defines it differently or has one the source lacks" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      differently = %{source | granularity: 4}
+      only_destination = %{source | name: "idx_extra"}
+
+      assert SchemaClone.missing_indices([source], [differently, only_destination], MapSet.new(["gradle_builds"])) == []
+    end
+  end
+
+  describe "mismatched_indices/2" do
+    test "pairs indexes both sides define differently and ignores identical or one-sided ones" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      same = %{table: "mix_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+      only_source = %{source | name: "idx_only_source"}
+      differently = %{source | granularity: 4}
+      only_destination = %{same | name: "idx_only_destination"}
+
+      assert SchemaClone.mismatched_indices([source, same, only_source], [differently, same, only_destination]) == [
+               {source, differently}
+             ]
+    end
+
+    test "compares expression and type too" do
+      source = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      assert [_] = SchemaClone.mismatched_indices([source], [%{source | expr: "toString(id)"}])
+      assert [_] = SchemaClone.mismatched_indices([source], [%{source | type: "bloom_filter(0.01)"}])
+    end
+  end
+
+  describe "add_index_statement/2" do
+    test "adds the index as the source defines it, quoted and idempotent" do
+      index = %{table: "gradle_builds", name: "idx_id", expr: "id", type: "bloom_filter", granularity: 1}
+
+      assert SchemaClone.add_index_statement("tuist", index) ==
+               "ALTER TABLE `tuist`.`gradle_builds` ADD INDEX IF NOT EXISTS `idx_id` id TYPE bloom_filter GRANULARITY 1"
+    end
+
+    test "keeps a parameterized index type intact" do
+      index = %{
+        table: "test_cases",
+        name: "idx_name",
+        expr: "lower(name)",
+        type: "ngrambf_v1(3, 256, 2, 0)",
+        granularity: 4
+      }
+
+      assert SchemaClone.add_index_statement("tuist", index) =~
+               "ADD INDEX IF NOT EXISTS `idx_name` lower(name) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 4"
+    end
+  end
+
+  describe "materialize_index_statements/4" do
+    test "emits one asynchronous mutation per partition" do
+      assert SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", ["202609", "202610"]) == [
+               "ALTER TABLE `tuist`.`mix_builds` MATERIALIZE INDEX `idx_id` IN PARTITION ID '202609' SETTINGS mutations_sync = 0",
+               "ALTER TABLE `tuist`.`mix_builds` MATERIALIZE INDEX `idx_id` IN PARTITION ID '202610' SETTINGS mutations_sync = 0"
+             ]
+    end
+
+    test "emits nothing for a table without partitions and escapes partition IDs" do
+      assert SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", []) == []
+
+      assert [statement] = SchemaClone.materialize_index_statements("tuist", "mix_builds", "idx_id", ["a'b"])
+      assert statement =~ "IN PARTITION ID 'a\\'b'"
+    end
+  end
+end

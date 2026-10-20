@@ -17,6 +17,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
@@ -95,6 +96,12 @@ defmodule TuistWeb.API.PreviewsController do
              type: :string,
              description: "The track for the preview (e.g., 'beta', 'nightly')."
            },
+           release_notes: %Schema{
+             type: :string,
+             nullable: true,
+             maxLength: 10_000,
+             description: "Optional plain-text release notes describing this preview build."
+           },
            build_version: %Schema{
              type: :string,
              description: "The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android)."
@@ -166,7 +173,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
         supported_platforms: [],
-        track: Map.get(body_params, :track)
+        track: Map.get(body_params, :track),
+        release_notes: Map.get(body_params, :release_notes)
       })
 
     # `preview.created` fires here — at the moment the preview row is
@@ -195,21 +203,7 @@ defmodule TuistWeb.API.PreviewsController do
            build_version: build_version
          }) do
       {:ok, app_build} ->
-        upload_id =
-          Storage.multipart_start(
-            AppBuilds.storage_key(%{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              app_build: app_build
-            }),
-            selected_project.account
-          )
-
-        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
-        json(conn, %{
-          status: "success",
-          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
-        })
+        start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project)
 
       {:error, %Ecto.Changeset{errors: errors}} ->
         if Keyword.has_key?(errors, :binary_id) do
@@ -375,32 +369,25 @@ defmodule TuistWeb.API.PreviewsController do
 
     case AppBuilds.app_build_by_id(app_build_id, preload: [:preview]) do
       {:ok, app_build} ->
-        :ok =
-          Storage.multipart_complete_upload(
-            AppBuilds.storage_key(%{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              app_build: app_build
-            }),
-            upload_id,
-            Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-              {part_number, etag}
-            end),
-            selected_project.account
-          )
+        object_key =
+          AppBuilds.storage_key(%{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            app_build: app_build
+          })
 
-        AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+        parts_list =
+          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+            {part_number, etag}
+          end)
 
-        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+        case Storage.multipart_complete_upload(object_key, upload_id, parts_list, selected_project.account) do
+          :ok ->
+            complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project)
 
-        {:ok, preview} =
-          AppBuilds.preview_by_id(app_build.preview.id,
-            preload: [:app_builds, :created_by_account]
-          )
-
-        conn
-        |> put_status(:ok)
-        |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
+          {:error, _reason} ->
+            StorageError.render(conn)
+        end
 
       {:error, :not_found} ->
         conn
@@ -412,6 +399,40 @@ defmodule TuistWeb.API.PreviewsController do
         |> put_status(:bad_request)
         |> json(%{message: reason})
     end
+  end
+
+  defp start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
+    object_key =
+      AppBuilds.storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        app_build: app_build
+      })
+
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, upload_id} ->
+        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
+        json(conn, %{
+          status: "success",
+          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
+        })
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
+  end
+
+  defp complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
+    AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+
+    Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+
+    {:ok, preview} =
+      AppBuilds.preview_by_id(app_build.preview.id, preload: [:app_builds, :created_by_account])
+
+    conn
+    |> put_status(:ok)
+    |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
   end
 
   operation(:show,
@@ -510,6 +531,18 @@ defmodule TuistWeb.API.PreviewsController do
         type: :string,
         description: "The display name of previews."
       ],
+      search: [
+        in: :query,
+        type: :string,
+        description:
+          "Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews."
+      ],
+      track: [
+        in: :query,
+        type: :string,
+        description:
+          "Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks."
+      ],
       specifier: [
         in: :query,
         type: :string,
@@ -601,6 +634,7 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         distinct: distinct,
+        search: Map.get(params, :search),
         supported_platforms: Map.get(params, :supported_platforms),
         preload: [:app_builds, :created_by_account]
       )
@@ -620,6 +654,48 @@ defmodule TuistWeb.API.PreviewsController do
         total_pages: meta.total_pages
       }
     })
+  end
+
+  operation(:tracks,
+    summary: "List the available preview tracks for a project.",
+    description:
+      "Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.",
+    operation_id: "listPreviewTracks",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
+    ],
+    responses: %{
+      ok:
+        {"Available preview tracks.", "application/json",
+         %Schema{
+           title: "PreviewTracks",
+           type: :object,
+           properties: %{
+             total_count: %Schema{type: :integer, minimum: 0},
+             tracks: %Schema{
+               type: :array,
+               items: %Schema{
+                 title: "PreviewTrack",
+                 type: :object,
+                 properties: %{
+                   name: %Schema{type: :string},
+                   count: %Schema{type: :integer, minimum: 0}
+                 },
+                 required: [:name, :count]
+               }
+             }
+           },
+           required: [:total_count, :tracks]
+         }},
+      unauthorized: {"Authentication is required.", "application/json", Error},
+      forbidden: {"The authenticated subject cannot read this project's previews.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def tracks(%{assigns: %{selected_project: project}} = conn, _params) do
+    json(conn, AppBuilds.list_preview_tracks(project))
   end
 
   operation(:latest,
@@ -713,7 +789,10 @@ defmodule TuistWeb.API.PreviewsController do
         display_name -> [%{field: :display_name, op: :==, value: display_name} | filters]
       end
 
-    filters
+    case Map.get(params, :track) do
+      track when track in [nil, ""] -> filters
+      track -> [%{field: :track, op: :==, value: track} | filters]
+    end
   end
 
   operation(:upload_icon,
@@ -900,6 +979,7 @@ defmodule TuistWeb.API.PreviewsController do
       git_commit_sha: preview.git_commit_sha,
       git_branch: preview.git_branch,
       track: preview.track,
+      release_notes: preview.release_notes,
       builds: builds,
       supported_platforms: preview.supported_platforms,
       inserted_at: preview.inserted_at,

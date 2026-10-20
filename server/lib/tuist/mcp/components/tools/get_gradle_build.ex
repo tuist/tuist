@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "duration_ms" => %{"type" => "integer"},
         "status" => %{"type" => "string"},
         "gradle_version" => %{"type" => "string"},
@@ -31,6 +32,16 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "git_ref" => %{"type" => "string"},
         "root_project_name" => %{"type" => "string"},
         "requested_tasks" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"],
+          "additionalProperties" => false
+        },
+        "tasks_cache_hit_count" => %{"type" => "integer"},
         "tasks_local_hit_count" => %{"type" => "integer"},
         "tasks_remote_hit_count" => %{"type" => "integer"},
         "tasks_up_to_date_count" => %{"type" => "integer"},
@@ -40,6 +51,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "tasks_no_source_count" => %{"type" => "integer"},
         "cacheable_tasks_count" => %{"type" => "integer"},
         "cache_hit_rate" => %{"type" => ["number", "null"]},
+        "cache_download_bytes" => %{"type" => "integer"},
+        "cache_upload_bytes" => %{"type" => "integer"},
         "inserted_at" => %{"type" => "string"}
       },
       "required" => [
@@ -54,6 +67,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "git_ref",
         "root_project_name",
         "requested_tasks",
+        "custom_metadata",
+        "tasks_cache_hit_count",
         "tasks_local_hit_count",
         "tasks_remote_hit_count",
         "tasks_up_to_date_count",
@@ -63,6 +78,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "tasks_no_source_count",
         "cacheable_tasks_count",
         "cache_hit_rate",
+        "cache_download_bytes",
+        "cache_upload_bytes",
         "inserted_at"
       ],
       "additionalProperties" => false
@@ -88,9 +105,13 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
+      cache_aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
+
       {:ok,
        %{
          id: build.id,
+         actor: Tuist.ReportActor.actor(build),
+         tasks_cache_hit_count: build.tasks_cache_hit_count,
          duration_ms: build.duration_ms,
          status: to_string(build.status),
          gradle_version: build.gradle_version,
@@ -101,6 +122,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          git_ref: build.git_ref,
          root_project_name: build.root_project_name,
          requested_tasks: build.requested_tasks,
+         custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
          tasks_local_hit_count: build.tasks_local_hit_count,
          tasks_remote_hit_count: build.tasks_remote_hit_count,
          tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -110,6 +132,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          tasks_no_source_count: build.tasks_no_source_count,
          cacheable_tasks_count: build.cacheable_tasks_count,
          cache_hit_rate: Gradle.cache_hit_rate(build),
+         cache_download_bytes: cache_aggregates.cache_download_bytes,
+         cache_upload_bytes: cache_aggregates.cache_upload_bytes,
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
        }}
     end

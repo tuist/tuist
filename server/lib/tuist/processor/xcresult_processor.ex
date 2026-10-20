@@ -40,13 +40,11 @@ defmodule Tuist.Processor.XCResultProcessor do
       temp_dir = make_temp_dir()
 
       try do
-        result = process_archive(archive_path, temp_dir)
+        result = process_archive(archive_path, temp_dir, Keyword.get(opts, :read_coverage, false))
 
-        with {:ok, parsed_data} <- result do
-          OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
-            set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
-            upload_attachments(parsed_data, bucket, opts)
-          end
+        with {:ok, parsed_data} <- result,
+             {:ok, parsed_data} <- upload_attachments_in_span(parsed_data, bucket, opts) do
+          relocate_coverage(parsed_data)
         end
       after
         cleanup_temp(temp_dir)
@@ -54,14 +52,26 @@ defmodule Tuist.Processor.XCResultProcessor do
     end
   end
 
-  defp process_archive(archive_path, temp_dir) do
+  defp upload_attachments_in_span(parsed_data, bucket, opts) do
+    OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
+      set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
+      upload_attachments(parsed_data, bucket, opts)
+    end
+  end
+
+  defp process_archive(archive_path, temp_dir, read_coverage) do
     with :ok <- span("xcresult.extract_archive", fn -> extract_archive(archive_path, temp_dir) end),
          xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir),
          :ok <- validate_xcresult(xcresult_path) do
       root_dir = Path.dirname(xcresult_path)
 
+      # The parser reads coverage from any bundle that carries a manifest; without
+      # it, xccov is never spawned for an account that has coverage turned off.
+      if not read_coverage, do: File.rm(Path.join(xcresult_path, "tuist_coverage_manifest.json"))
+
       with {:ok, parsed_data} <-
              span("xcresult.parse", fn -> parse_xcresult_with_telemetry(xcresult_path, root_dir) end) do
+        log_coverage_error(parsed_data)
         quarantined_tests = span("xcresult.read_quarantined_tests", fn -> read_quarantined_tests(xcresult_path) end)
         {:ok, apply_quarantine(parsed_data, quarantined_tests)}
       end
@@ -71,12 +81,39 @@ defmodule Tuist.Processor.XCResultProcessor do
     end
   end
 
+  # The parser streams the coverage to a file beside the bundle, one JSON object
+  # per source file, rather than returning it as a term. The bundle's directory
+  # is removed on the way out, so the file moves to a place of its own; whoever
+  # gets `coverage_path` owns it from here (see `Tuist.Tests.Coverage.rows/2`).
+  defp relocate_coverage(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
+    destination = Path.join(System.tmp_dir!(), "coverage_#{System.unique_integer([:positive])}.ndjson")
+
+    case File.rename(path, destination) do
+      :ok ->
+        {:ok, Map.put(parsed_data, "coverage_path", destination)}
+
+      {:error, reason} ->
+        Logger.warning("xcresult coverage could not be kept for publishing: #{inspect(reason)}")
+        {:ok, Map.drop(parsed_data, ["coverage_path", "coverage_partial", "coverage_file_count"])}
+    end
+  end
+
+  defp relocate_coverage(parsed_data), do: {:ok, parsed_data}
+
   defp parse_xcresult_with_telemetry(xcresult_path, root_dir) do
     with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
       set_span_attribute("xcresult.test_case_count", count_test_cases(parsed_data))
       {:ok, parsed_data}
     end
   end
+
+  # Coverage only enriches a run, so the parser reports why it could not read it
+  # instead of failing the parse; this is the only place that surfaces it.
+  defp log_coverage_error(%{"coverage_error" => message}) when is_binary(message) do
+    Logger.warning("xcresult coverage could not be read: #{message}")
+  end
+
+  defp log_coverage_error(_parsed_data), do: :ok
 
   defp span(name, fun) do
     OpenTelemetry.Tracer.with_span name do
@@ -357,25 +394,50 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp find_xcresult(temp_dir) do
-    case temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first() do
-      # Some archives extract directly to bundle contents without a wrapping
-      # `.xcresult` directory (e.g. AppleArchive payloads compressed without
-      # the base directory preserved). Treat the temp dir as the bundle when
-      # `Info.plist` is present at its root.
-      nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")) do
-          temp_dir
-        else
-          Logger.error(
-            "xcresult bundle not found after extraction in #{temp_dir}: " <>
-              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
-          )
+    # Three shapes to accept, in the order they appear in practice:
+    #   1. `<temp_dir>/**/*.xcresult` — the CLI archived with `preservesBaseDirectory: true`
+    #      and the source bundle was named with a `.xcresult` suffix.
+    #   2. `<temp_dir>/Info.plist` — the archive was written without preserving a base
+    #      directory, so bundle contents extract at the temp-dir root.
+    #   3. `<temp_dir>/<any name>/Info.plist` — the CLI archived with
+    #      `preservesBaseDirectory: true` but the source bundle's directory name did not
+    #      end in `.xcresult`. Xcode 26 stopped creating the `result-bundle` →
+    #      `result-bundle.xcresult` symlink for `-resultBundlePath` targets without an
+    #      extension, so a per-scheme run writes to `result-bundle-<Scheme>/` and the
+    #      CLI archives that exact directory. Info.plist inside a first-level subdir is
+    #      enough to identify it — the file uniquely marks a populated xcresult bundle.
+    with nil <- xcresult_wrapped(temp_dir),
+         nil <- xcresult_at_root(temp_dir),
+         nil <- xcresult_in_nested_dir(temp_dir) do
+      Logger.error(
+        "xcresult bundle not found after extraction in #{temp_dir}: " <>
+          "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+      )
 
-          nil
-        end
+      nil
+    end
+  end
 
-      path ->
-        path
+  defp xcresult_wrapped(temp_dir) do
+    temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first()
+  end
+
+  defp xcresult_at_root(temp_dir) do
+    if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+  end
+
+  defp xcresult_in_nested_dir(temp_dir) do
+    case File.ls(temp_dir) do
+      {:ok, entries} ->
+        Enum.find_value(entries, fn entry ->
+          candidate = Path.join(temp_dir, entry)
+
+          if File.dir?(candidate) and File.exists?(Path.join(candidate, "Info.plist")),
+            do: candidate
+        end)
+
+      _ ->
+        nil
     end
   end
 

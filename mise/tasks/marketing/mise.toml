@@ -1,0 +1,5 @@
+# Conda includes the runtime libraries that the upstream AppImage expects
+# on the host, without requiring Ubuntu package-index downloads in CI.
+[tools."conda:imagemagick"]
+version = "7.1.2_31"
+os = ["linux"]

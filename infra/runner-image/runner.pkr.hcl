@@ -37,9 +37,8 @@ packer {
 # ~30 min.
 #
 # Active Xcode versions baked per release are listed in
-# `infra/runner-image/profiles.json`. `check-releases` reads that list
-# into `server-production-deployment.yml`'s `runner-image-build`
-# matrix, which fans out one build per profile, publishing one
+# `infra/runner-image/profiles.json`. `runner-image-release.yml`
+# publishes one
 # `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
 # that the managed envs' charts reference via
 # `runnersFleet.runnerImageSemver`. Keep the list aligned with
@@ -57,9 +56,14 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
+#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
+#                                                  the last-resort one for jobs that never
+#                                                  run Tuist and so install no proxy of
+#                                                  their own; see cas_proxy_client
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
 # The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
@@ -110,7 +114,7 @@ variable "runner_version" {
   # against GitHub's broker-deprecation message on cold boot.
   # Renovate watches actions/runner releases (see renovate.json's
   # custom regex manager keyed off the marker comment below) and
-  # opens `fix(runner-image): …` PRs which release-runner-image
+  # opens `fix(runner-image): …` PRs which runner-image-release.yml
   # picks up to rebuild + bump the chart's image pin. Renovate PRs
   # auto-merge on green CI, same flow we use for other external
   # deps; falling more than ~1 release behind would re-introduce
@@ -123,7 +127,25 @@ variable "runner_version" {
   # renovate.json for the limits and the dependency dashboard that
   # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.336.0"
+  default = "2.337.0"
+}
+
+variable "buildkite_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 agent tarball, from the release's own SHA256SUMS."
+  # Carried with `buildkite_agent_version`: the download is verified
+  # against this before extraction, so a stale value fails the build
+  # rather than installing an unchecked binary.
+  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+}
+
+variable "buildkite_agent_version" {
+  type        = string
+  description = "Buildkite agent version. https://github.com/buildkite/agent/releases."
+  # Same pinning rationale as `runner_version`, and the same Renovate
+  # flow keeps it current.
+  # renovate: datasource=github-releases depName=buildkite/agent
+  default = "3.138.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -293,6 +315,31 @@ build {
     ]
   }
 
+  # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
+  # only exposes a downloaded toolchain to the user that installed
+  # it. Running the download as `runner` registers it for the user
+  # jobs run as.
+  #
+  # The toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
+    ]
+  }
+
   # Install the Actions runner agent under runner's home so the
   # binary, its `_diag` logs, and any side data it writes land
   # under `/Users/runner/...` — matching GitHub-hosted's layout
@@ -331,6 +378,34 @@ build {
     ]
   }
 
+  # The Buildkite agent lives alongside the GitHub one rather than in a
+  # second image. Which of the two runs is a per-job decision the server
+  # makes at dispatch, so a Pod has to be able to serve either; forking
+  # the image would double the fleet's warm-pool partitioning to save
+  # about 30 MB.
+  #
+  # Pinned for the same reason `runner_version` is: the version that ran a
+  # job should be the version we baked. The agent has no self-update, so
+  # pinning here is the whole mechanism.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
+      "echo '${var.buildkite_agent_sha256_darwin_arm64}  buildkite-agent.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/buildkite-agent-dist",
+      "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
+      "rm -rf buildkite-agent.tar.gz /tmp/buildkite-agent-dist",
+      "/opt/tuist/buildkite-agent --version"
+    ]
+  }
+
+  provisioner "file" {
+    source = "${path.root}/build/tuist-cache-volume"
+    destination = "/tmp/tuist-cache-volume"
+  }
+
   provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
@@ -347,6 +422,21 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/tuist-runner-cache"
+    destination = "/tmp/tuist-runner-cache"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/buildkite-hooks"
+    destination = "/tmp/buildkite-hooks"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-gitlab-runner"
+    destination = "/tmp/tuist-gitlab-runner"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/runner-shell-agent"
     destination = "/tmp/runner-shell-agent"
   }
@@ -354,6 +444,14 @@ build {
   provisioner "file" {
     source      = "${path.root}/runner-shell-agent-supervisor.sh"
     destination = "/tmp/runner-shell-agent-supervisor.sh"
+  }
+
+  # Built by the workflow from cas-plugin/ (see "Build CAS prune client"), the
+  # same way runner-shell-agent is. It is only ever invoked as
+  # `--prune`/`--drain`; it never serves, so the image carries no daemon.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-cas-proxy"
+    destination = "/tmp/tuist-cas-proxy"
   }
 
   provisioner "file" {
@@ -367,9 +465,20 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
+      # Global agent hooks: `buildkite-agent --hooks-path` points here, so
+      # these run for every job the agent takes regardless of what the
+      # customer's own repository defines.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/buildkite-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 
@@ -426,6 +535,57 @@ build {
     ]
   }
 
+  # Standing TCC approvals (scripting Finder, the iOS Simulator's
+  # microphone) live in runner's own TCC.db, which tccd only creates
+  # when runner logs in. Nothing above logs runner in, so reboot into
+  # the auto-login session, write the rows into the database tccd
+  # made, and reboot once more to assert they survive a boot. Runs
+  # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
+  # it cannot dispatch from. See AGENTS.md for why each row has the
+  # shape it has.
+  provisioner "file" {
+    source      = "${path.root}/tcc-approvals.sh"
+    destination = "/tmp/tcc-approvals.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/tcc-approvals.sh /opt/tuist/tcc-approvals.sh",
+      "rm -f /tmp/tcc-approvals.sh"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/launchd.plist"
     destination = "/tmp/dev.tuist.runner.plist"
@@ -465,6 +625,8 @@ build {
   # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
   # explicit `xcrun xcresulttool version` below doubles as proof
   # that the base's Xcode install + `xcode-select -s` propagated.
+  # `xcrun metal --version` proves the base's Metal Toolchain is
+  # visible to `runner` and not only to the user that installed it.
   #
   # Tuist itself isn't in the list — customer workflows install it
   # via mise / brew so they own the version pin.
@@ -472,7 +634,8 @@ build {
     inline = [
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]
   }
 
