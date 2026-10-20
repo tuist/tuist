@@ -250,13 +250,14 @@ jobs:
       # products and the run's profile; cached binaries only show up in the
       # coverage when it reads them, never in the result bundle's own report.
       - name: Run tests
-        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
-          # Reads the coverage variant of the binary cache. Newer CLIs pick the
-          # variant from this (or Tuist.swift's `coverage` option), not from
-          # `-enableCodeCoverage`; older ones ignore it and follow the flag.
+          # Collects coverage and reads the coverage variant of the binary
+          # cache: the scheme leaves its test action's coverage unset, so it
+          # follows this. CLIs before tuist/tuist#14404 ignore it, so until
+          # mise.toml pins one with it these runs collect no coverage.
           TUIST_COVERAGE_ENABLED: "1"
 
   cli-acceptance-tests-build:
