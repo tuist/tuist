@@ -28,6 +28,9 @@ omitting it preserves generic browser login, including self-hosted providers.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
+  Destination, path, fragment, expiry, and state rejections use `invalid_callback`
+  with distinct fixed messages. Never include the callback URL or its parameters
+  in diagnostics.
   Android stores pending grants encrypted so callbacks survive process recreation;
   invalid callbacks must not discard another pending login.
 - Sessions persist server origin, token endpoint, issuing client ID, tokens, and

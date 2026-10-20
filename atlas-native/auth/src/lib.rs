@@ -249,16 +249,31 @@ fn callback_code(pending: &PendingLogin, callback: &str) -> Result<String> {
     let expected = Url::parse(REDIRECT_URI).unwrap();
     if url.scheme() != expected.scheme()
         || url.host_str() != expected.host_str()
-        || url.path() != expected.path()
         || url.port().is_some()
         || !url.username().is_empty()
         || url.password().is_some()
-        || url.fragment().is_some()
-        || now().saturating_sub(pending.created_at) > 600
     {
         return Err(error(
             "invalid_callback",
-            "The sign-in callback is invalid or expired.",
+            "The sign-in callback used an unexpected destination. Start a new sign-in and try again.",
+        ));
+    }
+    if url.path() != expected.path() {
+        return Err(error(
+            "invalid_callback",
+            "The sign-in callback used an unexpected path. Start a new sign-in and try again.",
+        ));
+    }
+    if url.fragment().is_some() {
+        return Err(error(
+            "invalid_callback",
+            "The sign-in callback included an unexpected fragment. Start a new sign-in and try again.",
+        ));
+    }
+    if now().saturating_sub(pending.created_at) > 600 {
+        return Err(error(
+            "invalid_callback",
+            "Sign-in expired after ten minutes. Start a new sign-in and try again.",
         ));
     }
     let pairs: Vec<_> = url.query_pairs().collect();

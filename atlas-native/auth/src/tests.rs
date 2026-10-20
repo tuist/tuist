@@ -253,6 +253,52 @@ fn callback_checks_origin_state_duplicates_expiry_and_denial() {
 }
 
 #[test]
+fn callback_failures_identify_the_check_without_exposing_login_parameters() {
+    let login = begin("https://atlas.example", Some(registration()), None).unwrap();
+    let callback = format!(
+        "{REDIRECT_URI}?state={}&code=secret-code",
+        login.pending.state
+    );
+    let pending = json!(login.pending);
+    for (callback, expired, message) in [
+        (
+            callback.replace("oauth-callback", "unexpected-host"),
+            false,
+            "The sign-in callback used an unexpected destination. Start a new sign-in and try again.",
+        ),
+        (
+            callback.replace("oauth-callback?", "oauth-callback/?"),
+            false,
+            "The sign-in callback used an unexpected path. Start a new sign-in and try again.",
+        ),
+        (
+            format!("{callback}#secret-fragment"),
+            false,
+            "The sign-in callback included an unexpected fragment. Start a new sign-in and try again.",
+        ),
+        (
+            callback,
+            true,
+            "Sign-in expired after ten minutes. Start a new sign-in and try again.",
+        ),
+    ] {
+        let mut request = json!({
+            "operation": "complete",
+            "pending": pending,
+            "callback": callback
+        });
+        if expired {
+            request["pending"]["created_at"] = json!(0);
+        }
+        let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+        assert_eq!(
+            response,
+            json!({"error": {"kind": "invalid_callback", "message": message}})
+        );
+    }
+}
+
+#[test]
 fn google_login_uses_the_same_authorization_endpoint_and_pkce_flow() {
     let request = json!({
         "operation": "begin",
