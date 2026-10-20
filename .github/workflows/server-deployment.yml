@@ -270,7 +270,7 @@ jobs:
           echo "Production deploy is running from refs/heads/main."
 
   build:
-    name: Build + push
+    name: Build + push server
     needs: guard_production_source
     if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
     # Bigger shape: the server image build (Elixir release compile inside
@@ -351,36 +351,57 @@ jobs:
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-      - uses: docker/build-push-action@v6
-        name: Build and push codebase search image
+
+  # The deploy's other images, each in its own job beside `build` so none of
+  # them waits on the server image. Their tags match the server image's.
+  build-images:
+    name: Build + push ${{ matrix.name }}
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
+    runs-on: tuist-linux-large
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: codebase search
+            image: tuist/codebase-search
+            context: ./codebase-search
+            file: ./codebase-search/Dockerfile
+            build-args: TUIST_REVISION=${{ inputs.commit_sha || github.sha }}
+            cache: tuist/codebase-search-buildcache:main
+          - name: Kura controller
+            image: tuist/kura-controller
+            context: .
+            file: ./infra/kura-controller/Dockerfile
+          - name: Swift registry
+            image: tuist/registry
+            context: .
+            file: ./registry/Dockerfile
+            build-args: MIX_ENV=prod
+    steps:
+      - uses: actions/checkout@v4
         with:
-          context: ./codebase-search
-          file: ./codebase-search/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            TUIST_REVISION=${{ env.DEPLOY_SHA }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
-      - uses: docker/build-push-action@v6
-        name: Build and push Kura controller image
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          context: .
-          file: ./infra/kura-controller/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        name: Build and push Swift registry image
+        name: Build and push ${{ matrix.name }} image
         with:
-          context: .
-          file: ./registry/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            MIX_ENV=prod
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
 
   # The macOS server release the xcresult processor boots, built alongside a
   # server image this workflow builds itself. A pre-built image already has
@@ -762,7 +783,7 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-images, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -781,7 +802,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
