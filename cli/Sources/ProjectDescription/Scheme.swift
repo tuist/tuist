@@ -9,6 +9,10 @@ public struct Scheme: Equatable, Codable, Sendable {
     public var shared: Bool
     /// When `true` the scheme doesn't show up in the dropdown scheme's list.
     public var hidden: Bool
+    /// The position of the scheme in Xcode's scheme list. Schemes with an order hint are listed first, in ascending order,
+    /// followed by the rest in alphabetical order. Xcode falls back to the first scheme in the list when none is selected,
+    /// for example in a freshly generated workspace.
+    public var orderHint: Int?
     /// Action that builds the project targets.
     public var buildAction: BuildAction?
     /// Action that runs the project tests.
@@ -27,6 +31,8 @@ public struct Scheme: Equatable, Codable, Sendable {
     ///   - name: Name of the scheme.
     ///   - shared: Whether the scheme is shared.
     ///   - hidden: When true, the scheme is hidden in the list of schemes from Xcode's dropdown.
+    ///   - orderHint: The position of the scheme in Xcode's scheme list. When `nil`, the scheme is listed alphabetically
+    ///     after the schemes that have one.
     ///   - buildAction: Action that builds the project targets.
     ///   - testAction: Action that runs the project tests.
     ///   - runAction: Action that runs project built products.
@@ -37,6 +43,7 @@ public struct Scheme: Equatable, Codable, Sendable {
         name: String,
         shared: Bool = true,
         hidden: Bool = false,
+        orderHint: Int? = nil,
         buildAction: BuildAction? = nil,
         testAction: TestAction? = nil,
         runAction: RunAction? = nil,
@@ -48,6 +55,7 @@ public struct Scheme: Equatable, Codable, Sendable {
             name: name,
             shared: shared,
             hidden: hidden,
+            orderHint: orderHint,
             buildAction: buildAction,
             testAction: testAction,
             runAction: runAction,

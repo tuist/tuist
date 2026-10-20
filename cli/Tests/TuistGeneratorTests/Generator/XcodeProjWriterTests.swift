@@ -307,6 +307,63 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         ])
     }
 
+    func test_writeWorkspace_ordersSchemesAlphabetically() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let project = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            schemes: [
+                SchemeDescriptor.test(name: "Beta", shared: true),
+                SchemeDescriptor.test(name: "Alpha", shared: true),
+            ]
+        )
+        let descriptor = WorkspaceDescriptor.test(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            projects: [project],
+            schemes: [SchemeDescriptor.test(name: "Gamma", shared: true)]
+        )
+
+        // When
+        try await subject.write(workspace: descriptor)
+
+        // Then
+        XCTAssertEqual(try orderHints(in: xcodeProjPath), ["Alpha.xcscheme": 0, "Beta.xcscheme": 1])
+        XCTAssertEqual(try orderHints(in: xcworkspacePath), ["Gamma.xcscheme": 2])
+    }
+
+    func test_writeWorkspace_ordersSchemesWithOrderHintFirst() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let project = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            schemes: [
+                SchemeDescriptor.test(name: "Alpha", shared: true),
+                SchemeDescriptor.test(name: "Beta", shared: true, orderHint: 1),
+                SchemeDescriptor.test(name: "Gamma", shared: true, orderHint: 0),
+            ]
+        )
+        let descriptor = WorkspaceDescriptor.test(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            projects: [project],
+            schemes: [SchemeDescriptor.test(name: "Delta", shared: true)]
+        )
+
+        // When
+        try await subject.write(workspace: descriptor)
+
+        // Then
+        XCTAssertEqual(try orderHints(in: xcodeProjPath), ["Gamma.xcscheme": 0, "Beta.xcscheme": 1, "Alpha.xcscheme": 2])
+        XCTAssertEqual(try orderHints(in: xcworkspacePath), ["Delta.xcscheme": 3])
+    }
+
     func test_writeWorkspace_writesPerUserDerivedDataSettings() async throws {
         // Given
         let path = try temporaryPath()
@@ -386,5 +443,12 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
             .appending(components: "xcuserdata", "\(username).xcuserdatad", "WorkspaceSettings.xcsettings")
         let exists = try await fileSystem.exists(perUserSettingsPath)
         XCTAssertFalse(exists)
+    }
+
+    private func orderHints(in xccontainerPath: AbsolutePath) throws -> [String: Int] {
+        let path = xccontainerPath
+            .appending(components: "xcuserdata", "\(NSUserName()).xcuserdatad", "xcschemes", "xcschememanagement.plist")
+        let schemeManagement = try XCSchemeManagement(path: path.path)
+        return (schemeManagement.schemeUserState ?? []).reduce(into: [:]) { $0[$1.name] = $1.orderHint }
     }
 }
