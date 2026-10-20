@@ -89,6 +89,18 @@ jobs:
         with:
           # The legacy `tools` package does not resolve with cmdline-tools 16.0.
           packages: platform-tools
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-server-${{ github.job }}-mix-v1
+          path: |
+            server/deps
+            server/_build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-cache-${{ github.job }}-mix-v1
+          path: |
+            cache/deps
+            cache/_build
       - name: Install server deps
         uses: ./.github/actions/mix-deps-get
         with:
