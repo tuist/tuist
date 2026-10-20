@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import Testing
 import TuistCore
 import XcodeGraph
 import XCTest
@@ -139,7 +138,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         let bDependencies = got.dependencies[
@@ -245,7 +244,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: precompiledArtifacts,
             sources: Set(["Account"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         XCTAssertEqual(
             got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
@@ -334,7 +333,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: precompiledArtifacts,
             sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         XCTAssertEqual(
             got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .static), default: Set()],
@@ -430,7 +429,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: precompiledArtifacts,
             sources: Set(["FrameworkTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         XCTAssertEqual(
             got.dependencies[.testXCFramework(path: externalLibraryXCFrameworkPath, linking: .static), default: Set()],
@@ -559,7 +558,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -682,7 +681,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -800,7 +799,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -865,7 +864,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: [:], sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -971,7 +970,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         let bDependencies = got.dependencies[
@@ -1110,7 +1109,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1235,7 +1234,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1351,7 +1350,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1457,7 +1456,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1566,7 +1565,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         //        }
         //
         //        // When
-        //        let got = try await subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"])).graph
+        //        let got = try await subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
         //
         //        // Then
         //        XCTAssertEqual(
@@ -1639,7 +1638,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: [:], sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(got.dependencies, graph.dependencies)
@@ -1706,7 +1705,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1770,7 +1769,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1829,7 +1828,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: true
-        ).graph
+        )
 
         // Then
         XCTAssertEqual(
@@ -1910,7 +1909,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let got = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["B"]),
             keepSourceTargets: true
-        ).graph
+        )
 
         XCTAssertEqual(
             got.dependencies,
@@ -2028,7 +2027,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: xcframeworks,
             sources: Set(["SharedCounterTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then: the test target should depend only on the dynamic xcframework.
         // The static xcframeworks (TCALib, DepLib) should NOT appear as deps of
@@ -2140,7 +2139,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: xcframeworks,
             sources: Set(["FeatureTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then: external static xcframework deps should remain behind the cached dynamic binary.
         XCTAssertEqual(
@@ -2236,7 +2235,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: xcframeworks,
             sources: Set(["App", "FeatureTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then: the app should keep depending only on the cached dynamic framework.
         XCTAssertEqual(
@@ -2337,7 +2336,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: xcframeworks,
             sources: Set(["App", "FeatureTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         // Then: cached static deps remain pruned from the shared dynamic binary
         // and are re-added only to non-test consumers.
@@ -2444,7 +2443,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             precompiledArtifacts: xcframeworks,
             sources: Set(["Feature", "FeatureTests"]),
             keepSourceTargets: false
-        ).graph
+        )
 
         XCTAssertEqual(
             got.dependencies[
@@ -2485,45 +2484,5 @@ final class MockArtifactLoader: ArtifactLoading {
         } else {
             return GraphDependency.testFramework(path: path)
         }
-    }
-}
-
-struct CacheGraphMutatorReplacedTargetsTests {
-    /// `App` depends on `B`, which depends on `C`. A target is replaced only when its direct dependencies are,
-    /// so with no binary for `C`, `B`'s binary goes unused and the mutation names only what took a place.
-    @Test func replacedTargets_areOnlyTheTargetsWhoseBinariesTookTheirPlace() async throws {
-        let path = try AbsolutePath(validating: "/project")
-        let c = Target.test(name: "C", platform: .iOS, product: .framework)
-        let b = Target.test(name: "B", platform: .iOS, product: .framework)
-        let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let project = Project.test(path: path, targets: [app, b, c])
-        let bTarget = GraphTarget(path: path, target: b, project: project)
-        let cTarget = GraphTarget(path: path, target: c, project: project)
-        let graph = Graph.test(
-            projects: [path: project],
-            dependencies: [
-                .target(name: "App", path: path): [.target(name: "B", path: path)],
-                .target(name: "B", path: path): [.target(name: "C", path: path)],
-            ]
-        )
-        let bPath = path.appending(component: "B.xcframework")
-        let cPath = path.appending(component: "C.xcframework")
-        let subject = CacheGraphMutator(artifactLoader: MockArtifactLoader())
-
-        let withoutC = try await subject.map(
-            graph: graph,
-            precompiledArtifacts: [bTarget: bPath],
-            sources: [],
-            keepSourceTargets: false
-        )
-        let withBoth = try await subject.map(
-            graph: graph,
-            precompiledArtifacts: [bTarget: bPath, cTarget: cPath],
-            sources: [],
-            keepSourceTargets: false
-        )
-
-        #expect(withoutC.replacedTargets.isEmpty)
-        #expect(withBoth.replacedTargets == [bTarget, cTarget])
     }
 }
