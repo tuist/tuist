@@ -258,7 +258,13 @@ defmodule Tuist.BuildMetricsTest do
       assert result.totals["builds_needing_attention"] == 1
       assert result.totals["cache_time_saved"] == nil
       assert Enum.sum(result.series["builds"]) == 2
-      assert List.last(result.series["p50"]) == nil
+      # Bazel stamps `inserted_at` at ingestion, so its bucket is the current hour's.
+      assert Enum.any?(result.series["p50"])
+
+      for {0, p50} <- Enum.zip(result.series["builds"], result.series["p50"]) do
+        assert p50 == nil
+      end
+
       assert [%{"builds" => 2}] = BuildMetrics.query(project.id, Keyword.put(opts, :view, "workloads")).rows
 
       assert %{category: "verification", builds: 1} in BuildMetrics.query(
