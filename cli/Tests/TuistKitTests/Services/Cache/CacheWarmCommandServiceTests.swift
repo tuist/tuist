@@ -11,6 +11,7 @@
     import TuistConfig
     import TuistConfigLoader
     import TuistCore
+    import TuistEnvironment
     import TuistGit
     import TuistHasher
     import TuistRootDirectoryLocator
@@ -116,7 +117,7 @@
             given(cacheStorageFactory).cacheStorage(config: .value(config)).willReturn(cacheStorage)
             given(cacheStorageFactory).cacheLocalStorage().willReturn(localCacheStorage)
             given(generatorFactory)
-                .binaryCacheWarmingPreload(config: .value(config), targetsToBinaryCache: .value([]))
+                .binaryCacheWarmingPreload(config: .value(config), targetsToBinaryCache: .value([]), coverage: .any)
                 .willReturn(preloadGenerator)
             given(preloadGenerator)
                 .load(path: .value(temporaryDirectory), options: .value(config.project.generatedProject?.generationOptions))
@@ -159,8 +160,7 @@
                 generateOnly: true,
                 noUpload: false,
                 cacheProfile: nil,
-                scratchDirectory: nil,
-                coverage: false
+                scratchDirectory: nil
             )
 
             verify(generatorFactory)
@@ -472,7 +472,10 @@
             }
         }
 
-        @Test(.inTemporaryDirectory) func run_buildsRepositoryTargetsWithCoverage_whenWarmingWithCoverage() async throws {
+        @Test(
+            .inTemporaryDirectory,
+            .withMockedEnvironment()
+        ) func run_buildsRepositoryTargetsWithCoverage_whenTheEnvironmentTurnsCoverageOn() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             stubFrameworkBuilds()
             given(xcodeBuildController)
@@ -484,7 +487,7 @@
                 schemes: [.test(name: "Binaries-Cache-iOS")],
                 targetProduct: .framework,
                 projectSettings: .test(defaultSettings: .recommended),
-                coverage: true
+                coverageVariable: "1"
             )
 
             verify(cacheGraphContentHasher)
@@ -550,23 +553,75 @@
                 .called(2)
         }
 
-        @Test(.inTemporaryDirectory) func run_throws_whenWarmingAReleaseConfigurationWithCoverage() async throws {
-            await #expect(throws: CacheWarmCommandServiceError.self) {
-                try await run(
-                    noUpload: true,
-                    configuration: "Release",
-                    schemes: [.test(name: "Binaries-Cache-iOS")],
-                    targetProduct: .framework,
-                    projectSettings: .test(defaultSettings: .recommended),
-                    coverage: true
+        @Test(.inTemporaryDirectory, .withMockedEnvironment())
+        func run_buildsRepositoryTargetsWithCoverage_whenTheConfigTurnsCoverageOn() async throws {
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                coverageOption: true
+            )
+
+            verify(generatorFactory)
+                .binaryCacheWarmingPreload(config: .any, targetsToBinaryCache: .any, coverage: .value(.on))
+                .called(1)
+            verify(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                    coverage: .value(.on)
                 )
-            }
+                .called(1)
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
+                    coverage: .value(.on)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory, .withMockedEnvironment())
+        func run_warmsPlainBinaries_whenTheConfigTurnsCoverageOnForAReleaseConfiguration() async throws {
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                configuration: "Release",
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                coverageOption: true
+            )
+
+            verify(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                    coverage: .value(.off)
+                )
+                .called(1)
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
+                    coverage: .value(.off)
+                )
+                .called(1)
             verify(xcodeBuildController)
                 .build(
                     .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, clean: .any,
-                    arguments: .any, passthroughXcodeBuildArguments: .any
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .matching { arguments in
+                        !arguments.contains { $0.hasPrefix("CLANG_COVERAGE_MAPPING=") }
+                    }
                 )
-                .called(0)
+                .called(2)
         }
 
         @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
@@ -732,10 +787,16 @@
             generateOnly: Bool = false,
             cachedTarget: Bool = false,
             republishError: Error? = nil,
-            coverage: Bool = false
+            coverageVariable: String? = nil,
+            coverageOption: Bool = false
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            if coverage {
+            let config = coverageOption
+                ? Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true)))))
+                : config
+            if coverageVariable != nil || coverageOption {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = coverageVariable
                 given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
                 given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             }
@@ -771,7 +832,8 @@
             given(generatorFactory)
                 .binaryCacheWarmingPreload(
                     config: .value(config),
-                    targetsToBinaryCache: .value([])
+                    targetsToBinaryCache: .value([]),
+                    coverage: .any
                 )
                 .willReturn(preloadGenerator)
             given(preloadGenerator)
@@ -794,7 +856,7 @@
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
                     destination: .value(nil),
-                    coverage: .value(coverage ? .on : .off)
+                    coverage: .any
                 )
                 .willReturn(hashes)
             given(cacheStorage)
@@ -846,8 +908,7 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
-                scratchDirectory: scratchDirectory?.pathString,
-                coverage: coverage
+                scratchDirectory: scratchDirectory?.pathString
             )
         }
 

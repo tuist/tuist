@@ -926,12 +926,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
 
             let got = subject.binaryCacheWarming(
-                config: .test(),
+                config: Tuist.test().resolvingCoverage(.on),
                 targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
-                cacheStorage: MockCacheStoring(),
-                coverage: .on
+                cacheStorage: MockCacheStoring()
             )
 
             let markerIndex = try #require(got.firstIndex(where: { $0 is InstrumentedBinaryCacheWarmGraphMapper }))
