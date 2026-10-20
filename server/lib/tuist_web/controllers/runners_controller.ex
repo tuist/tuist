@@ -387,7 +387,11 @@ defmodule TuistWeb.RunnersController do
   end
 
   defp opt_in_cache_fields(:macos, account) do
-    if FeatureFlags.runner_opt_in_caches_enabled?(account), do: %{automatic_caches: false}, else: %{}
+    cond do
+      Runners.managed_cache_volumes?(account) -> %{automatic_caches: false, managed_cache_volumes: true}
+      FeatureFlags.runner_opt_in_caches_enabled?(account) -> %{automatic_caches: false}
+      true -> %{}
+    end
   end
 
   defp opt_in_cache_fields(_fleet_platform, _account), do: %{}
