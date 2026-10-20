@@ -24,6 +24,7 @@ defmodule Tuist.Runners.Profiles do
   """
   import Ecto.Query
 
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
@@ -31,7 +32,7 @@ defmodule Tuist.Runners.Profiles do
 
   @max_per_account 10
 
-  @resource_fields ~w(vcpus memory_gb xcode_version)
+  @resource_fields ~w(vcpus memory_gb xcode_version macos_release)
 
   @doc """
   Cap on profiles per account. Surfaced so the LiveView can disable
@@ -68,14 +69,14 @@ defmodule Tuist.Runners.Profiles do
 
   Per-account cap applies across platforms.
   """
-  def create(%{id: account_id}, attrs) do
+  def create(%{id: account_id} = account, attrs) do
     attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
 
     if count_for_account(account_id) >= @max_per_account do
       {:error, :max_profiles_reached}
     else
       %Profile{}
-      |> Profile.changeset(attrs, catalog_opts_for(parse_platform(attrs)))
+      |> Profile.changeset(attrs, catalog_opts_for(parse_platform(attrs), account))
       |> Repo.insert()
     end
   end
@@ -184,7 +185,7 @@ defmodule Tuist.Runners.Profiles do
 
     changeset =
       if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
-        do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
+        do: Profile.changeset(profile, attrs, catalog_opts_for(platform, Repo.preload(profile, :account).account)),
         else: Profile.cache_writer_changeset(profile, attrs)
 
     update_revoking_writers(changeset)
@@ -351,4 +352,19 @@ defmodule Tuist.Runners.Profiles do
   defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
 
   defp catalog_opts_for(:macos), do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
+
+  defp catalog_opts_for(platform, account),
+    do: Keyword.put(catalog_opts_for(platform), :macos_release_available?, &macos_release_available?(account, &1, &2))
+
+  @doc """
+  Whether `account` can run a macOS profile with these resources on
+  `release`. Tahoe runs anywhere. Any other release runs only at a site
+  (`Catalog.macos_release_available?/2`), so the account has to be on
+  the `runner_site` flag too.
+  """
+  def macos_release_available?(_account, :tahoe, _resources), do: true
+
+  def macos_release_available?(account, release, resources) do
+    FeatureFlags.runner_site_enabled?(account) and Catalog.macos_release_available?(release, resources)
+  end
 end

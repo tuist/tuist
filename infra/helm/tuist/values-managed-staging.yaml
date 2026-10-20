@@ -1047,8 +1047,9 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 2
-      # Xcode 27.1 on a macOS 27 guest, pinned to the image built on
+      # Xcode 27.1 on Golden Gate (macOS 27) too, pinned to the image built on
       # ber1-runner-b01 until a release carries the `golden-gate-27.1` profile.
       "27.1":
-        guestMacOS: 27
-        imageTag: macos-golden-gate-27-1-a201421d
+        guests:
+          "27":
+            imageTag: macos-golden-gate-27-1-a201421d

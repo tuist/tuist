@@ -1839,8 +1839,8 @@ rackFleet:
   # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
   # entry renders a second macOS pool, on the catalog's default shape, that
   # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
-  # with the same image as the rented fleet's pool for that Xcode unless its
-  # `xcodeOverrides` entry picks a newer guest (`guestMacOS`). Accounts on
+  # with the same image as the rented fleet's pool for that Xcode, plus a set of
+  # pools per newer guest its `xcodeOverrides` entry adds (`guests`). Accounts on
   # the server's `runner_site` flag have their profiles routed to these pools,
   # and the server falls back to the rented fleet for a profile the site has no
   # pool for. The pools select only this fleet, so the runners-controller
@@ -1860,20 +1860,25 @@ rackFleet:
     # rollout:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
-    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The runner labels and pod
-    # sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart from
-    # `guestShapes` below, and so is the image unless `guestMacOS` names a
-    # newer guest macOS major than the catalog's 26. The pool then runs the
-    # `<codename>-<xcode>` runner image profile (`golden-gate-27.1` for 27, see
-    # `tuist.macosCodename`), which has to be in the deployed release's
-    # `infra/runner-image/profiles.json`, or pinned with this entry's own
-    # `imageTag` (a tag pinned in `runnersFleet.xcodeOverrides` names the
-    # macOS 26 guest and is not used). The pool keeps its name, so profiles
-    # route to it as before; a job that spills to the rented fleet runs on its
-    # macOS 26 guest.
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
+    #
+    # `guests`, keyed by macOS major, also runs the Xcode on a newer guest than
+    # the catalog's macOS 26, in pools of their own on this fleet:
+    # `<release>-runner-pool-macos-<site>-<codename>-<xcode-dashes>[-<shape>]`
+    # (`golden-gate` for 27, see `tuist.macosCodename`). Runner Profiles whose
+    # macOS release is that guest route there; every other profile keeps the
+    # macOS 26 pools. Those jobs never spill to the rented fleet, which cannot
+    # boot the guest. Each entry takes `imageTag`, `replicas`, `autoscaling`,
+    # `rollout` and `idleTimeoutSeconds` (autoscaling and rollout default to
+    # this fleet's). Without `imageTag` it runs the release's
+    # `<codename>-<xcode>` runner image profile (`golden-gate-27.1`), which has
+    # to be in that release's `infra/runner-image/profiles.json`.
     xcodeOverrides: {}
     #   "27.1":
-    #     guestMacOS: 27
+    #     guests:
+    #       "27": {}
     # A bigger guest on this fleet for a catalog shape, keyed
     # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
     # shape still route to it and its jobs are recorded, billed and counted

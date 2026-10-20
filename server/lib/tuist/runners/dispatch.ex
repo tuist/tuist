@@ -652,8 +652,17 @@ defmodule Tuist.Runners.Dispatch do
   # An account on the `runner_site` flag runs at a site whenever one racks the
   # profile's pool and can serve it, and on the rented fleet otherwise. In an
   # env that rents no macOS fleet the site is the only home, so its jobs wait
-  # there while it is down.
-  defp profile_pool_name(account, profile) do
+  # there while it is down. A macOS release other than Tahoe runs only at a
+  # site, so its jobs always go there and wait while it is down.
+  defp profile_pool_name(account, %Profile{platform: :macos} = profile) do
+    if Profile.macos_release(profile) == :tahoe,
+      do: tahoe_pool_name(account, profile),
+      else: Catalog.site_pool_name(profile) || Catalog.pool_name(profile)
+  end
+
+  defp profile_pool_name(account, profile), do: tahoe_pool_name(account, profile)
+
+  defp tahoe_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
          site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),
          true <- not Environment.runners_rented_macos_fleet?() or Sites.available?(site_pool) do

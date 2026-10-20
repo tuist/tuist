@@ -141,8 +141,8 @@ apportions a capacity domain across the pools sharing an OS and
 `fleetSelector`, so the rack's pools split the rack's guest slots and the
 rented fleet's split the rented fleet's, and neither counts the other's
 memory. The runner labels are the Xcode's, the same on every placement, and so
-is the image unless a rack placement runs the Xcode on a newer guest
-(`rackFleet.runners.xcodeOverrides[].guestMacOS`, see `tuist.macosRunnerImage`);
+is the image of its macOS 26 pools; a rack placement can add pools running the
+Xcode on a newer guest (`rackFleet.runners.xcodeOverrides[].guests`, below);
 pod sizing is the shape's unless the rack gives that shape a bigger
 guest (`rackFleet.runners.guestShapes`); replicas, autoscaling and rollout are
 the placement's own (`runnersFleet.xcodeOverrides` for the rented fleet,
@@ -255,13 +255,35 @@ shape fails the render, since a job would get less than its profile names.
 {{- range $placement := $placements }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
-{{- $guestMacOS := ternary "26" (dig "guestMacOS" "26" $override | toString) (eq $site "") }}
-{{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion "guestMacOS" $guestMacOS "guestOverride" $override) }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
-{{- $replicas := dig "replicas" 0 $override }}
-{{- $autoscaling := $override.autoscaling | default $placement.autoscaling }}
-{{- $rollout := $override.rollout | default $placement.rollout }}
-{{- $poolName := printf "%s-%s%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag }}
+{{- /*
+Every placement runs the Xcode on a macOS 26 (Tahoe) guest under the pool
+names that predate guest releases. A rack placement can also run it on a newer
+guest, one more set of pools per `rackFleet.runners.xcodeOverrides[].guests`
+entry, keyed by macOS major. Those pools put the release's codename before the
+Xcode (`<release>-runner-pool-macos-<site>-golden-gate-<xcode-dashes>[-<shape>]`),
+which `Catalog.pool_name/1` derives from a Runner Profile's `macos_release`, and
+take their image, replicas, autoscaling, rollout and idle timeout from the
+entry. The rented fleet's hosts run macOS 26 and cannot boot a newer guest.
+*/}}
+{{- $guests := list (dict "major" "26" "settings" $override) }}
+{{- if $site }}
+{{- range $major, $guest := ($override.guests | default dict) }}
+{{- if eq (toString $major) "26" }}
+{{- fail (printf "rackFleet.runners.xcodeOverrides[%s].guests.26: every placement already runs the Xcode on macOS 26" $xcodeVersion) }}
+{{- end }}
+{{- $guests = append $guests (dict "major" (toString $major) "settings" ($guest | default dict)) }}
+{{- end }}
+{{- end }}
+{{- range $guest := $guests }}
+{{- $guestMacOS := $guest.major }}
+{{- $settings := $guest.settings }}
+{{- $releasePart := ternary "" (printf "%s-" (include "tuist.macosCodename" $guestMacOS)) (eq $guestMacOS "26") }}
+{{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion "guestMacOS" $guestMacOS "guestOverride" $settings) }}
+{{- $replicas := dig "replicas" 0 $settings }}
+{{- $autoscaling := $settings.autoscaling | default $placement.autoscaling }}
+{{- $rollout := $settings.rollout | default $placement.rollout }}
+{{- $poolName := printf "%s-%s%s%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $releasePart $xcodeTag }}
 {{- $defaultShapeKey := printf "%dvcpu-%dgb" (div (int $defaultCPU) 1000) (div (int $defaultMem) 1024) }}
 {{- $guestCPU := int $podCPU }}
 {{- $guestMem := int $podMem }}
@@ -306,14 +328,14 @@ spec:
   image: {{ $image | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
-  dispatchLabel: {{ printf "shape-macos-%s%s" $sitePart $xcodeTag | quote }}
+  dispatchLabel: {{ printf "shape-macos-%s%s%s" $sitePart $releasePart $xcodeTag | quote }}
   runnerLabels:
     {{- range $runnerLabels }}
     - {{ . | quote }}
     {{- end }}
   podCPUMilli: {{ $guestCPU }}
   podMemoryMB: {{ $guestMem }}
-  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $override }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $settings }}
   {{- if gt (int $idleTimeout) 0 }}
   idleTimeoutSeconds: {{ $idleTimeout }}
   {{- end }}
@@ -348,7 +370,7 @@ static at replicas 0, which is the safe cold default.
 {{- $memoryGb := required "runnersFleet.shapes[].memoryGb required" $shape.memoryGb | int }}
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
 {{- $shapeAutoscaling := $shape.autoscaling }}
-{{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
+{{- $shapePoolName := printf "%s-%s%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $releasePart $xcodeTag $shapeKey }}
 {{- $shapeGuestVcpus := $vcpus }}
 {{- $shapeGuestMemoryGb := $memoryGb }}
 {{- with get $placement.guestShapes $shapeKey }}
@@ -391,7 +413,7 @@ spec:
   image: {{ $image | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
-  dispatchLabel: {{ printf "shape-macos-%s%s-%s" $sitePart $xcodeTag $shapeKey | quote }}
+  dispatchLabel: {{ printf "shape-macos-%s%s%s-%s" $sitePart $releasePart $xcodeTag $shapeKey | quote }}
   runnerLabels:
     {{- range $runnerLabels }}
     - {{ . | quote }}
@@ -413,6 +435,7 @@ spec:
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

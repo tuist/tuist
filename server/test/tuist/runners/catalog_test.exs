@@ -172,6 +172,74 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "macOS releases" do
+    setup do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      default_shape = Catalog.default_shape(:macos)
+      shape = non_default_macos_shape()
+      shape_key = "#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{
+          "#{prefix}-ber1-27-1" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-golden-gate-27-1" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-golden-gate-27-1-#{shape_key}" => %{site: "ber1", platform: :macos}
+        }
+      end)
+
+      %{prefix: prefix, default_shape: default_shape, shape: shape, shape_key: shape_key}
+    end
+
+    test "a release other than Tahoe names its pools after its slug", %{prefix: prefix, default_shape: default_shape} do
+      profile = %{
+        platform: :macos,
+        macos_release: :golden_gate,
+        xcode_version: "27.1",
+        vcpus: default_shape.vcpus,
+        memory_gb: default_shape.memory_gb
+      }
+
+      assert Catalog.pool_name(profile) == "#{prefix}-golden-gate-27-1"
+      assert Catalog.site_pool_name(profile) == "#{prefix}-ber1-golden-gate-27-1"
+      assert Catalog.pool_name(%{profile | macos_release: :tahoe}) == "#{prefix}-27-1"
+    end
+
+    test "a release's site pool keeps the shape suffix last", %{prefix: prefix, shape: shape, shape_key: shape_key} do
+      profile = %{
+        platform: :macos,
+        macos_release: :golden_gate,
+        xcode_version: "27.1",
+        vcpus: shape.vcpus,
+        memory_gb: shape.memory_gb
+      }
+
+      site_pool = Catalog.site_pool_name(profile)
+
+      assert site_pool == "#{prefix}-ber1-golden-gate-27-1-#{shape_key}"
+
+      assert Catalog.resources_for_fleet(site_pool) ==
+               {:ok, %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+
+    test "a release the rented fleet cannot run has no rented pool to spill to", %{prefix: prefix} do
+      assert Catalog.rented_pool_name("#{prefix}-ber1-golden-gate-27-1") == nil
+      assert Catalog.rented_pool_name("#{prefix}-ber1-27-1") == "#{prefix}-27-1"
+    end
+
+    test "Tahoe runs everything and another release only what a site racks for it", %{
+      default_shape: default_shape,
+      shape: shape
+    } do
+      resources = %{xcode_version: "27.1", vcpus: default_shape.vcpus, memory_gb: default_shape.memory_gb}
+
+      assert Catalog.macos_release_available?(:tahoe, %{resources | xcode_version: "26.5"})
+      assert Catalog.macos_release_available?(:golden_gate, resources)
+      assert Catalog.macos_release_available?(:golden_gate, %{resources | vcpus: shape.vcpus, memory_gb: shape.memory_gb})
+      refute Catalog.macos_release_available?(:golden_gate, %{resources | xcode_version: "26.5"})
+      refute Catalog.macos_release_available?(:golden_gate, %{xcode_version: nil, vcpus: nil, memory_gb: nil})
+    end
+  end
+
   describe "resources_for_fleet/1" do
     test "resolves Linux pool names through the configured shape catalog" do
       Enum.each(Catalog.shapes(:linux), fn shape ->

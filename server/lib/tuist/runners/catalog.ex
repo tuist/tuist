@@ -233,8 +233,11 @@ defmodule Tuist.Runners.Catalog do
     * `:macos` — `<macos-prefix>-<xcode-version-dashes>` for the
       catalog's default shape (e.g. `tuist-runner-pool-macos-26-5`),
       with `-<vcpus>vcpu-<memory_gb>gb` appended for any other shape
-      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). Prefix
-      injected via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
+      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). A
+      `macos_release` other than Tahoe puts its slug before the Xcode
+      (`tuist-runner-pool-macos-golden-gate-27-1`); no rented pool has
+      such a name, only a site's (`site_pool_name/1`). Prefix injected
+      via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
 
   Accepts any map with the relevant fields — `%Profile{}` works, as
   does a plain `%{platform: ..., vcpus: ..., memory_gb: ...}`.
@@ -246,7 +249,13 @@ defmodule Tuist.Runners.Catalog do
 
   def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
       when is_binary(xcode_version) and xcode_version != "" do
-    base = "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+    release_part =
+      case macos_release_slug(Map.get(profile, :macos_release)) do
+        nil -> ""
+        slug -> "#{slug}-"
+      end
+
+    base = "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{release_part}#{xcode_version_tag(xcode_version)}"
 
     case macos_shape_suffix(profile) do
       nil -> base
@@ -272,6 +281,38 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp macos_shape_suffix(_), do: nil
+
+  @doc """
+  The slug a macOS release adds to pool names, and that the chart's
+  `tuist.macosCodename` gives its runner image chain: `nil` for Tahoe
+  (macOS 26), whose names predate releases, `"golden-gate"` for macOS 27.
+  """
+  def macos_release_slug(:golden_gate), do: "golden-gate"
+  def macos_release_slug(_release), do: nil
+
+  @doc """
+  Whether `release` can run a macOS profile with these resources
+  (`:xcode_version`, `:vcpus`, `:memory_gb`). Tahoe runs every catalog
+  entry on the rented fleet. Any other release runs only where a site
+  racks a pool for it (`site_pool_name/1`), which the chart renders from
+  `rackFleet.runners.xcodeOverrides[].guests`.
+  """
+  def macos_release_available?(:tahoe, _resources), do: true
+
+  def macos_release_available?(release, %{xcode_version: xcode_version, vcpus: vcpus, memory_gb: memory_gb})
+      when is_binary(xcode_version) and is_integer(vcpus) and is_integer(memory_gb) do
+    is_binary(
+      site_pool_name(%{
+        platform: :macos,
+        macos_release: release,
+        xcode_version: xcode_version,
+        vcpus: vcpus,
+        memory_gb: memory_gb
+      })
+    )
+  end
+
+  def macos_release_available?(_release, _resources), do: false
 
   @doc """
   Name of the `RunnerPool` CR that runs a macOS profile at a site: the pool
@@ -308,13 +349,16 @@ defmodule Tuist.Runners.Catalog do
   The rented pool a site's catalog pool backs onto: the same Xcode and shape
   without the site (`tuist-runner-pool-macos-ber1-26-6` →
   `tuist-runner-pool-macos-26-6`). `nil` for a fleet that is not a site's
-  catalog pool, such as an explicit pool racked at a site.
+  catalog pool, such as an explicit pool racked at a site, and for a pool of
+  a release the rented fleet cannot run (`tuist-runner-pool-macos-ber1-golden-gate-27-1`),
+  whose jobs wait for the site.
   """
   def rented_pool_name(fleet_name) when is_binary(fleet_name) do
     prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
 
     with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
-         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
+         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-"),
+         false <- String.starts_with?(fleet_name, "#{prefix}#{site}-#{macos_release_slug(:golden_gate)}-") do
       String.replace_prefix(fleet_name, "#{prefix}#{site}-", prefix)
     else
       _ -> nil

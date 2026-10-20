@@ -1286,9 +1286,9 @@ leaves its pools' image as it was: the controller does not roll their Pods
 and hosts keep the golden the ref names. On a macOS 26 guest the image is a
 property of the Xcode, not of the fleet it runs on, so every pool that runs an
 Xcode (the rented fleet's, a rack's, an explicit pool naming `xcodeVersion`)
-takes it from here and follows a release together. Only a rack placement can
-choose another guest (`rackFleet.runners.xcodeOverrides[].guestMacOS`), since
-the rented fleet's hosts run macOS 26 and cannot boot a newer guest.
+takes it from here and follows a release together. Only a rack placement runs
+another guest, in pools of its own (`rackFleet.runners.xcodeOverrides[].guests`),
+since the rented fleet's hosts run macOS 26 and cannot boot a newer guest.
 */}}
 {{- define "tuist.macosRunnerImage" -}}
 {{- $root := .root -}}
@@ -1324,9 +1324,11 @@ the rented fleet's hosts run macOS 26 and cannot boot a newer guest.
 The macOS catalog pools racked at the rack fleet's site, as a list of
 `{name, site}` in JSON: every `runnersFleet.xcodeVersions` entry on the
 catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`
-names. `templates/runner-pool.yaml` renders exactly these, and the server
-learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
-profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
+names, on a macOS 26 guest and on every newer guest its
+`rackFleet.runners.xcodeOverrides[].guests` names. `templates/runner-pool.yaml`
+renders exactly these, and the server learns them through
+TUIST_RUNNERS_SITE_POOLS, which is how it knows which profiles, and which macOS
+releases, a site can serve. Empty unless `rackFleet.runners.enabled`, which
 does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
 another env (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
@@ -1336,14 +1338,22 @@ another env (`rackFleet.borrow`) runs the pools without owning the hosts.
 {{- $site := required "rackFleet.site is required when rackFleet.runners.enabled is true" .Values.rackFleet.site -}}
 {{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
 {{- $rackShapes := dig "runners" "shapes" (dict) .Values.rackFleet -}}
+{{- $rackOverrides := dig "runners" "xcodeOverrides" (dict) .Values.rackFleet -}}
 {{- range $xcode := (.Values.runnersFleet.xcodeVersions | default list) -}}
-{{- $xcodeTag := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString | replace "." "-" -}}
-{{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site) -}}
+{{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString -}}
+{{- $xcodeTag := $xcodeVersion | replace "." "-" -}}
+{{- $releaseParts := list "" -}}
+{{- range $major, $_ := (dig $xcodeVersion "guests" (dict) $rackOverrides) -}}
+{{- $releaseParts = append $releaseParts (printf "%s-" (include "tuist.macosCodename" $major)) -}}
+{{- end -}}
+{{- range $releasePart := $releaseParts -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s%s" $prefix $site $releasePart $xcodeTag) "site" $site) -}}
 {{- range $shape := ($.Values.runnersFleet.shapes | default list) -}}
 {{- if not $shape.default -}}
 {{- $shapeKey := printf "%dvcpu-%dgb" (int $shape.vcpus) (int $shape.memoryGb) -}}
 {{- if hasKey $rackShapes $shapeKey -}}
-{{- $pools = append $pools (dict "name" (printf "%s-%s-%s-%s" $prefix $site $xcodeTag $shapeKey) "site" $site) -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s%s-%s" $prefix $site $releasePart $xcodeTag $shapeKey) "site" $site) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

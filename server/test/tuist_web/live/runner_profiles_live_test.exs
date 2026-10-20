@@ -242,4 +242,64 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
                Profiles.get_by_name(account, "ci")
     end
   end
+
+  describe "macOS release" do
+    setup %{account: account} do
+      macos_shape = %{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true}
+
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [macos_shape]
+      end)
+
+      stub(Catalog, :default_shape, fn
+        :linux -> Enum.find(@catalog, & &1.default?)
+        :macos -> macos_shape
+      end)
+
+      stub(Catalog, :xcode_versions, fn ->
+        [
+          %{xcode_version: "27.1", tag: "27-1", default?: false},
+          %{xcode_version: "26.6", tag: "26-6", default?: true}
+        ]
+      end)
+
+      stub(Catalog, :macos_release_available?, fn
+        :tahoe, _ -> true
+        :golden_gate, %{xcode_version: xcode_version} -> xcode_version == "27.1"
+      end)
+
+      stub(Tuist.FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+
+      :ok
+    end
+
+    test "picking Golden Gate moves the form onto an Xcode it runs and saves the release", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      render_hook(lv, "select_platform", %{"data" => "macos"})
+      html = render_hook(lv, "select_macos_release", %{"data" => "golden_gate"})
+
+      assert html =~ "Golden Gate"
+      assert html =~ "Xcode 27.1"
+
+      render_hook(lv, "update_form_name", %{"value" => "gg"})
+      render_hook(lv, "save_profile", %{})
+
+      assert %{macos_release: :golden_gate, xcode_version: "27.1"} = Profiles.get_by_name(account, "gg")
+    end
+
+    test "an account off the runner site is offered Tahoe only", %{conn: conn} do
+      stub(Tuist.FeatureFlags, :runner_site_enabled?, fn _ -> false end)
+      {:ok, lv, _} = live(conn, ~p"/#{conn.assigns.selected_account.name}/runners/profiles")
+
+      html = render_hook(lv, "select_platform", %{"data" => "macos"})
+
+      assert html =~ "Tahoe"
+      refute html =~ "Golden Gate"
+    end
+  end
 end

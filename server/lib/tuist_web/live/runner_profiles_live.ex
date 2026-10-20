@@ -34,6 +34,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:macos_catalog, Catalog.shapes(:macos))
      |> assign(:xcode_catalog, Catalog.xcode_versions())
+     |> assign(:golden_gate_resources, golden_gate_resources(selected_account))
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -63,6 +64,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
+         |> assign(:form_macos_release, Profile.macos_release(profile))
          |> assign(:form_cache_writer_all_branches, profile.cache_writer_all_branches)
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
@@ -150,6 +152,20 @@ defmodule TuistWeb.RunnerProfilesLive do
     end
   end
 
+  def handle_event("select_macos_release", params, socket) do
+    case Enum.find(Profile.macos_releases(), &(Atom.to_string(&1) == shape_key_from_params(params))) do
+      nil ->
+        {:noreply, socket}
+
+      release ->
+        {:noreply,
+         socket
+         |> assign(:form_macos_release, release)
+         |> fit_form_to_macos_release()
+         |> assign(:form_error, nil)}
+    end
+  end
+
   def handle_event("select_shape", params, socket) do
     case params |> shape_key_from_params() |> parse_shape_key() do
       {vcpus, memory_gb} ->
@@ -170,6 +186,7 @@ defmodule TuistWeb.RunnerProfilesLive do
         {:noreply,
          socket
          |> assign(:form_xcode_version, version)
+         |> fit_form_to_macos_release()
          |> assign(:form_error, nil)}
 
       _ ->
@@ -190,8 +207,13 @@ defmodule TuistWeb.RunnerProfilesLive do
 
     attrs =
       case assigns.form_platform do
-        "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
-        _ -> attrs
+        "macos" ->
+          attrs
+          |> Map.put("xcode_version", assigns.form_xcode_version)
+          |> Map.put("macos_release", Atom.to_string(assigns.form_macos_release))
+
+        _ ->
+          attrs
       end
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
@@ -330,6 +352,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, nil)
+    |> assign(:form_macos_release, nil)
     |> assign(:form_error, nil)
   end
 
@@ -342,7 +365,50 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, default_xcode && default_xcode.xcode_version)
+    |> assign(:form_macos_release, :tahoe)
     |> assign(:form_error, nil)
+  end
+
+  # A release other than Tahoe runs only the Xcode versions and shapes a site
+  # racks for it, so picking one, or another Xcode under it, moves the form onto
+  # the nearest pair that release runs.
+  defp fit_form_to_macos_release(%{assigns: %{form_macos_release: :tahoe}} = socket), do: socket
+  defp fit_form_to_macos_release(%{assigns: %{form_macos_release: nil}} = socket), do: socket
+
+  defp fit_form_to_macos_release(%{assigns: assigns} = socket) do
+    xcodes = xcode_catalog_for(assigns.xcode_catalog, assigns.form_macos_release, assigns.golden_gate_resources)
+
+    xcode_version =
+      if Enum.any?(xcodes, &(&1.xcode_version == assigns.form_xcode_version)),
+        do: assigns.form_xcode_version,
+        else: xcodes |> pick_default() |> then(&(&1 && &1.xcode_version))
+
+    shapes =
+      macos_shape_catalog_for(
+        assigns.macos_catalog,
+        assigns.form_macos_release,
+        xcode_version,
+        assigns.golden_gate_resources
+      )
+
+    shape =
+      Enum.find(shapes, &(&1.vcpus == assigns.form_vcpus and &1.memory_gb == assigns.form_memory_gb)) ||
+        pick_default(shapes)
+
+    socket
+    |> assign(:form_xcode_version, xcode_version)
+    |> assign(:form_vcpus, shape && shape.vcpus)
+    |> assign(:form_memory_gb, shape && shape.memory_gb)
+  end
+
+  # Every Xcode version and shape the account can run on Golden Gate. Empty
+  # unless the account is on a site that racks Golden Gate pools.
+  defp golden_gate_resources(account) do
+    for xcode <- Catalog.xcode_versions(),
+        shape <- Catalog.shapes(:macos),
+        resources = %{xcode_version: xcode.xcode_version, vcpus: shape.vcpus, memory_gb: shape.memory_gb},
+        Profiles.macos_release_available?(account, :golden_gate, resources),
+        do: resources
   end
 
   defp pick_default(list) when is_list(list) do
@@ -442,9 +508,9 @@ defmodule TuistWeb.RunnerProfilesLive do
     ]
 
   @doc """
-  Operating system the runner image for `platform` ships. Surfaces in
-  the form as a static (non-editable) field so customers know what
-  their workflows execute against.
+  Operating system the runner image for `platform` ships, for the form's
+  Operating system field. On macOS that is the default release, Tahoe;
+  `operating_systems/2` lists the others an account can pick.
 
   Named at whatever granularity the image actually holds still.
   Linux pins an exact release (the runner Dockerfile is `FROM
@@ -466,7 +532,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   the table cell stays consistent with the form's read-only field.
   """
   def os_label(%Profile{platform: :linux}), do: os_label_for_form("linux")
-  def os_label(%Profile{platform: :macos}), do: os_label_for_form("macos")
+  def os_label(%Profile{platform: :macos} = profile), do: profile |> Profile.macos_release() |> macos_release_label()
 
   @doc """
   Label for the platform dropdown trigger, resolved from the selected
@@ -501,6 +567,55 @@ defmodule TuistWeb.RunnerProfilesLive do
   def shape_catalog_for(catalog, _macos_catalog, "linux"), do: catalog
   def shape_catalog_for(_catalog, macos_catalog, "macos"), do: macos_catalog
   def shape_catalog_for(catalog, _, _), do: catalog
+
+  @doc """
+  The macOS shapes the form offers for `release` and `xcode_version`:
+  all of them on Tahoe, and on Golden Gate only those a site racks a pool
+  for (`golden_gate_resources`).
+  """
+  def macos_shape_catalog_for(macos_catalog, :golden_gate, xcode_version, golden_gate_resources) do
+    Enum.filter(macos_catalog, fn shape ->
+      Enum.any?(
+        golden_gate_resources,
+        &(&1.xcode_version == xcode_version and &1.vcpus == shape.vcpus and &1.memory_gb == shape.memory_gb)
+      )
+    end)
+  end
+
+  def macos_shape_catalog_for(macos_catalog, _release, _xcode_version, _golden_gate_resources), do: macos_catalog
+
+  @doc """
+  The Xcode versions the form offers for `release`: all of them on Tahoe,
+  and on Golden Gate only those a site racks a pool for.
+  """
+  def xcode_catalog_for(xcode_catalog, :golden_gate, golden_gate_resources) do
+    Enum.filter(xcode_catalog, fn xcode ->
+      Enum.any?(golden_gate_resources, &(&1.xcode_version == xcode.xcode_version))
+    end)
+  end
+
+  def xcode_catalog_for(xcode_catalog, _release, _golden_gate_resources), do: xcode_catalog
+
+  @doc """
+  The operating systems the form offers for `platform`, as `%{value, label}`.
+  macOS offers Golden Gate next to Tahoe when the account can run it
+  anywhere (`golden_gate_resources`).
+  """
+  def operating_systems("macos", golden_gate_resources) do
+    tahoe = %{value: "tahoe", label: macos_release_label(:tahoe)}
+
+    if Enum.empty?(golden_gate_resources),
+      do: [tahoe],
+      else: [tahoe, %{value: "golden_gate", label: macos_release_label(:golden_gate)}]
+  end
+
+  def operating_systems(platform, _golden_gate_resources), do: [%{value: platform, label: os_label_for_form(platform)}]
+
+  @doc """
+  The name of a macOS release.
+  """
+  def macos_release_label(:golden_gate), do: dgettext("dashboard_runners", "Golden Gate")
+  def macos_release_label(_release), do: dgettext("dashboard_runners", "Tahoe")
 
   @doc """
   Label for the Xcode-version dropdown trigger, resolved from the

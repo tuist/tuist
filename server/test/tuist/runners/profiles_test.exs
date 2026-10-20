@@ -160,6 +160,101 @@ defmodule Tuist.Runners.ProfilesTest do
     end
   end
 
+  describe "macOS releases" do
+    setup %{account: account} do
+      macos_shape = %{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true}
+
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [macos_shape]
+      end)
+
+      stub(Catalog, :xcode_versions, fn ->
+        [
+          %{xcode_version: "27.1", tag: "27-1", default?: false},
+          %{xcode_version: "26.6", tag: "26-6", default?: true}
+        ]
+      end)
+
+      stub(Catalog, :macos_release_available?, fn
+        :tahoe, _ -> true
+        :golden_gate, %{xcode_version: xcode_version} -> xcode_version == "27.1"
+      end)
+
+      stub(Tuist.FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+
+      %{attrs: %{"name" => "gg", "platform" => "macos", "vcpus" => 6, "memory_gb" => 14, "xcode_version" => "27.1"}}
+    end
+
+    test "a macOS profile runs Tahoe unless it picks another release", %{account: account, attrs: attrs} do
+      assert {:ok, %Profile{macos_release: :tahoe}} = Profiles.create(account, attrs)
+    end
+
+    test "Golden Gate is available on an Xcode a site racks it for", %{account: account, attrs: attrs} do
+      assert {:ok, %Profile{macos_release: :golden_gate} = profile} =
+               Profiles.create(account, Map.put(attrs, "macos_release", "golden_gate"))
+
+      assert Profile.macos_release(profile) == :golden_gate
+    end
+
+    test "Golden Gate is refused on an Xcode no site racks it for", %{account: account, attrs: attrs} do
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, Map.merge(attrs, %{"macos_release" => "golden_gate", "xcode_version" => "26.6"}))
+
+      assert {"is not available for this Xcode version and resources", _} = errors[:macos_release]
+    end
+
+    test "Golden Gate is refused to an account off the runner site", %{attrs: attrs} do
+      %{account: other} =
+        AccountsFixtures.organization_fixture(
+          name: "profiles-org-off-site-#{System.unique_integer([:positive])}",
+          preload: [:account]
+        )
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(other, Map.put(attrs, "macos_release", "golden_gate"))
+
+      assert errors[:macos_release]
+    end
+
+    test "switching an existing profile's release is validated like its resources", %{account: account, attrs: attrs} do
+      {:ok, profile} = Profiles.create(account, Map.put(attrs, "xcode_version", "26.6"))
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(profile, %{"macos_release" => "golden_gate"})
+      assert errors[:macos_release]
+
+      assert {:ok, %Profile{macos_release: :golden_gate, xcode_version: "27.1"}} =
+               Profiles.update(profile, %{"macos_release" => "golden_gate", "xcode_version" => "27.1"})
+    end
+
+    test "a profile saved before releases existed runs Tahoe", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "legacy",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.6"
+        })
+
+      assert profile.macos_release == nil
+      assert Profile.macos_release(profile) == :tahoe
+    end
+
+    test "a Linux profile has no macOS release", %{account: account} do
+      assert {:ok, %Profile{macos_release: nil} = profile} =
+               Profiles.create(account, %{
+                 "name" => "l",
+                 "vcpus" => 4,
+                 "memory_gb" => 16,
+                 "macos_release" => "golden_gate"
+               })
+
+      assert Profile.macos_release(profile) == nil
+    end
+  end
+
   describe "update/2 against a changed catalog" do
     test "validates the shape only when the update changes it", %{account: account} do
       profile =

@@ -1000,6 +1000,33 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
       assert pool_name == "#{prefix}-ber1-26-6"
     end
+
+    test "a Golden Gate profile waits at its site even while the site is down", %{account: account, prefix: prefix} do
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "golden-gate",
+        platform: :macos,
+        macos_release: :golden_gate,
+        xcode_version: "27.1",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{
+          "#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-golden-gate-27-1" => %{site: "ber1", platform: :macos}
+        }
+      end)
+
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-golden-gate"}} =
+               Dispatch.resolve_dispatch_target(account, ["tuist-golden-gate"])
+
+      assert pool_name == "#{prefix}-ber1-golden-gate-27-1"
+    end
   end
 
   describe "match_pool/1" do

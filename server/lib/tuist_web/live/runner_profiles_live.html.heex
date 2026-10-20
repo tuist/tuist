@@ -95,24 +95,31 @@
                 {dgettext("dashboard_runners", "Operating system")}
               </span>
               <%!--
-                Single-option dropdown today — the OS pins to whatever
-                the runner image's base layer ships (Dockerfile / Packer
-                template). When the catalog grows per-shape OS diversity
-                this becomes a real selector driven by the platform's
-                catalog; for now Noora's dropdown component keeps the
-                form's visual language consistent and the single item
-                already carries the check mark so the selection is
-                explicit.
+                Linux has one operating system. macOS offers Golden Gate
+                next to Tahoe to accounts on a site that racks it.
               --%>
+              <% operating_systems = operating_systems(@form_platform, @golden_gate_resources) %>
               <.dropdown
                 id="runner-profile-os-dropdown"
-                label={os_label_for_form(@form_platform)}
+                label={
+                  if @form_platform == "macos",
+                    do: macos_release_label(@form_macos_release),
+                    else: os_label_for_form(@form_platform)
+                }
               >
                 <.dropdown_item
-                  value={os_label_for_form(@form_platform)}
-                  label={os_label_for_form(@form_platform)}
+                  :for={os <- operating_systems}
+                  value={os.value}
+                  label={os.label}
+                  on_click={if @form_platform == "macos", do: "select_macos_release"}
+                  phx-value-data={os.value}
                 >
-                  <:right_icon><.check /></:right_icon>
+                  <:right_icon :if={
+                    length(operating_systems) == 1 or
+                      os.value == to_string(@form_macos_release)
+                  }>
+                    <.check />
+                  </:right_icon>
                 </.dropdown_item>
               </.dropdown>
             </div>
@@ -127,7 +134,14 @@
                 label={xcode_version_label_for_value(@form_xcode_version)}
               >
                 <.dropdown_item
-                  :for={xcode <- @xcode_catalog}
+                  :for={
+                    xcode <-
+                      xcode_catalog_for(
+                        @xcode_catalog,
+                        @form_macos_release,
+                        @golden_gate_resources
+                      )
+                  }
                   value={xcode.xcode_version}
                   label={xcode_version_label_for_value(xcode.xcode_version)}
                   on_click="select_xcode_version"
@@ -149,7 +163,16 @@
 
             <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Resources")}</span>
-              <% shape_catalog = shape_catalog_for(@catalog, @macos_catalog, @form_platform) %>
+              <% shape_catalog =
+                if @form_platform == "macos",
+                  do:
+                    macos_shape_catalog_for(
+                      @macos_catalog,
+                      @form_macos_release,
+                      @form_xcode_version,
+                      @golden_gate_resources
+                    ),
+                  else: shape_catalog_for(@catalog, @macos_catalog, @form_platform) %>
               <.dropdown
                 :if={not Enum.empty?(shape_catalog)}
                 id="runner-profile-shape-dropdown"

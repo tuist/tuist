@@ -809,13 +809,15 @@ already keys on it and needs no change.
 
 A guest boots only on a host on its major or newer. The rented Scaleway
 fleet and the `vm-image-builder` hosts run macOS 26, the BER1 rack runs
-macOS 27, so a 27 profile is rack-only and per pool:
-`rackFleet.runners.xcodeOverrides[<xcode>].guestMacOS: 27` makes that
-Xcode's rack pools run `golden-gate-<xcode>` while its rented pools keep the
-26 image (`tuist.macosRunnerImage`). The pool keeps its name, so profiles
-route as before, but a job the site spills to the rented fleet runs on
-macOS 26: the guest OS is a property of where the job lands, not of the
-Runner Profile.
+macOS 27, so a 27 guest runs only on the rack, in pools of its own:
+`rackFleet.runners.xcodeOverrides[<xcode>].guests."27"` renders
+`<release>-runner-pool-macos-<site>-golden-gate-<xcode>[-<shape>]` beside
+that Xcode's macOS 26 pools, running the `golden-gate-<xcode>` image
+(`tuist.macosRunnerImage`). The guest OS is the Runner Profile's choice: a
+profile's `macos_release` (Tahoe or Golden Gate, picked in the dashboard
+for accounts on the `runner_site` flag) decides which pools it routes to, and
+Golden Gate jobs never spill to the rented fleet, which cannot boot them
+(`Tuist.Runners.Catalog`).
 
 Do not add a `golden-gate-*` entry to `profiles.json` before a Golden Gates
 builder carries both `vm-image-builder` and `macos-27` (see

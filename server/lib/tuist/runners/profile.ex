@@ -13,10 +13,13 @@ defmodule Tuist.Runners.Profile do
       `Tuist.Runners.Catalog.shapes(:linux)`.
     * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
       picked from `Catalog.shapes(:macos)` and
-      `Catalog.xcode_versions/0`. The pool is keyed on both, so a
-      profile resolves to the pool running that shape on that Xcode.
-      The Xcode version pins the runner image's
-      `:macos-<dashes>-<semver>` tag.
+      `Catalog.xcode_versions/0`, and the guest's `macos_release`. The
+      pool is keyed on all three, so a profile resolves to the pool
+      running that shape on that Xcode and macOS release. The Xcode
+      version pins the runner image's `:macos-<dashes>-<semver>` tag.
+      `macos_release` is `:tahoe` (macOS 26) everywhere, or
+      `:golden_gate` (macOS 27), which only a site's pools run, so it is
+      offered only where one does (`Catalog.macos_release_available?/2`).
 
   The cache writer policy decides which GitHub jobs running on the
   profile save custom cache volumes: jobs on the repository's default
@@ -41,6 +44,8 @@ defmodule Tuist.Runners.Profile do
 
   @platforms [:linux, :macos]
 
+  @macos_releases [:tahoe, :golden_gate]
+
   @max_cache_writer_branches 20
 
   schema "runner_profiles" do
@@ -53,6 +58,9 @@ defmodule Tuist.Runners.Profile do
     field :vcpus, :integer
     field :memory_gb, :integer
     field :xcode_version, :string
+    # nil on Linux, and on macOS profiles created before the column existed,
+    # which run Tahoe. Read it through `macos_release/1`.
+    field :macos_release, Ecto.Enum, values: @macos_releases
     field :protected, :boolean, default: false
     # Every branch of the repository saves. Forks and pull_request_target never
     # have a writer branch, so they never do. When false, only the default
@@ -72,6 +80,19 @@ defmodule Tuist.Runners.Profile do
   """
   def platforms, do: @platforms
 
+  @doc """
+  The macOS releases a profile's guest can run.
+  """
+  def macos_releases, do: @macos_releases
+
+  @doc """
+  The macOS release a macOS profile runs. Profiles saved before releases
+  were selectable have none and run Tahoe. `nil` for Linux.
+  """
+  def macos_release(%__MODULE__{platform: :macos, macos_release: nil}), do: :tahoe
+  def macos_release(%__MODULE__{platform: :macos, macos_release: release}), do: release
+  def macos_release(%__MODULE__{}), do: nil
+
   def max_cache_writer_branches, do: @max_cache_writer_branches
 
   @doc """
@@ -86,10 +107,15 @@ defmodule Tuist.Runners.Profile do
       platform*. Required.
     * `:xcode_versions` — list of supported Xcode versions. Only
       consulted for macOS profiles; ignored for Linux.
+    * `:macos_release_available?` — `fn release, changes -> boolean`,
+      whether a macOS release can run the profile's Xcode version and
+      shape (`changes` carries `:xcode_version`, `:vcpus` and
+      `:memory_gb`). Defaults to Tahoe only.
   """
   def changeset(profile, attrs, opts \\ []) when is_list(opts) do
     shapes = Keyword.get(opts, :shapes, [])
     xcode_versions = Keyword.get(opts, :xcode_versions, [])
+    macos_release_available? = Keyword.get(opts, :macos_release_available?, fn release, _ -> release == :tahoe end)
 
     changeset =
       profile
@@ -100,6 +126,7 @@ defmodule Tuist.Runners.Profile do
         :vcpus,
         :memory_gb,
         :xcode_version,
+        :macos_release,
         :protected,
         :cache_writer_all_branches,
         :cache_writer_default_branch,
@@ -130,6 +157,7 @@ defmodule Tuist.Runners.Profile do
       :linux ->
         changeset
         |> put_change(:xcode_version, nil)
+        |> put_change(:macos_release, nil)
         |> validate_shape(shapes)
 
       :macos ->
@@ -137,6 +165,7 @@ defmodule Tuist.Runners.Profile do
         |> validate_required([:xcode_version])
         |> validate_shape(shapes)
         |> validate_xcode_version(xcode_versions)
+        |> validate_macos_release(macos_release_available?)
 
       _ ->
         changeset
@@ -216,6 +245,31 @@ defmodule Tuist.Runners.Profile do
       true ->
         add_error(changeset, :vcpus, "must match one of the available resource configurations", validation: :shape)
     end
+  end
+
+  # A release outside the catalog stays on the profile until its resources
+  # change, like a shape that left the catalog. A new profile, or one whose
+  # resources change, must pick a release that runs them.
+  defp validate_macos_release(changeset, available?) do
+    changeset =
+      if is_nil(get_field(changeset, :macos_release)),
+        do: put_change(changeset, :macos_release, :tahoe),
+        else: changeset
+
+    release = get_field(changeset, :macos_release)
+
+    changes = %{
+      xcode_version: get_field(changeset, :xcode_version),
+      vcpus: get_field(changeset, :vcpus),
+      memory_gb: get_field(changeset, :memory_gb)
+    }
+
+    if available?.(release, changes),
+      do: changeset,
+      else:
+        add_error(changeset, :macos_release, "is not available for this Xcode version and resources",
+          validation: :macos_release
+        )
   end
 
   defp validate_xcode_version(changeset, catalog) do
