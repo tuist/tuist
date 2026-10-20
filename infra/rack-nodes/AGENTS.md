@@ -1048,24 +1048,29 @@ How it works is "A host lent to another env" in
 **Once per borrowing env** (remote, by a person: it writes a credential into
 1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
 and canary do), which renders the `rack-lender` identity production's operator
-writes that env's leases with. With `S` the borrowing cluster's context, `N`
-its namespace and `E` its name:
+writes that env's leases with. With `C` the borrowing cluster's context, `N`
+its namespace and `E` its name. Every variable is quoted, since zsh does not
+word-split an unquoted one, and each step runs only if the one before it
+succeeded:
 
 ```
-S="--context kube-staging.tuist.dev"; N=tuist-staging; E=STAGING
+C=kube-staging.tuist.dev; N=tuist-staging; E=STAGING
 umask 077; d="$(mktemp -d)"
-kubectl $S -n $N get secret tuist-tuist-rack-lender-token -o json >"$d/s.json"
-server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
-printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' \
-  "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
-jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
-op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+kubectl --context "$C" -n "$N" get secret tuist-tuist-rack-lender-token -o json >"$d/s.json" && server="$(kubectl --context "$C" -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')" && test -n "$server" && test -n "$(jq -r .data.token "$d/s.json")" && printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig" && KUBECONFIG="$d/kubeconfig" kubectl auth whoami && jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json" && op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
 ```
 
-Then set `kubeconfigItem` on the env's entry in `rackFleet.borrowers` in
-values-managed-production.yaml and deploy. Rotating it is deleting the token
-Secret in the borrowing env (its next deploy makes a new one), storing the new
-kubeconfig under the same item, and waiting for ESO's five-minute refresh.
+`kubectl auth whoami` must print
+`system:serviceaccount:<N>:tuist-tuist-rack-lender` before anything is stored.
+To replace an item that exists already, run the same with `op item edit <item>
+--vault tuist-k8s-production --template "$d/item.json"` in place of `op item
+create`.
+
+Staging's and canary's entries in `rackFleet.borrowers` in
+values-managed-production.yaml name their items already; a new borrowing env
+needs an entry with its `kubeconfigItem`, and a production deploy. Rotating it
+is deleting the token Secret in the borrowing env (its next deploy makes a new
+one), storing the new kubeconfig under the same item, and waiting for ESO's
+five-minute refresh.
 
 **Lend a host** (remote):
 
