@@ -10,7 +10,7 @@ public struct TestActionOptions: Equatable, Codable, Sendable {
     public var preferredScreenCaptureFormat: ScreenCaptureFormat?
 
     /// Whether the scheme gathers test coverage data. `nil` follows `Tuist.swift`'s
-    /// `coverage: .coverage(enabled:)` (and its `--coverage` / `TUIST_COVERAGE_ENABLED` overrides): the scheme gathers
+    /// `coverage: .coverage(enabled:)` (and its `TUIST_COVERAGE_ENABLED` override): the scheme gathers
     /// coverage when it's on and doesn't when it's off. Set `true` or `false` to decide for this scheme regardless.
     public var coverage: Bool?
 

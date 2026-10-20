@@ -26,16 +26,10 @@ import XcodeGraph
     enum CacheWarmCommandServiceError: LocalizedError {
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
-        case coverageOnReleaseConfiguration(String)
         case coverageWithoutProject(AbsolutePath)
 
         var errorDescription: String? {
             switch self {
-            case let .coverageOnReleaseConfiguration(configuration):
-                return """
-                The configuration \(configuration) is a release one, and release binaries are never built with coverage. \
-                Warm a debug configuration with --coverage, or drop the flag.
-                """
             case let .coverageWithoutProject(path):
                 return """
                 Warming with coverage needs the checkout the coverage's files are relative to, and \(path.pathString) is \
@@ -169,8 +163,7 @@ import XcodeGraph
             generateOnly: Bool,
             noUpload: Bool,
             cacheProfile: String?,
-            scratchDirectory: String?,
-            coverage coverageFlag: Bool?
+            scratchDirectory: String?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
@@ -183,7 +176,7 @@ import XcodeGraph
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
-            let resolvedCoverage = BinaryCacheCoverage.resolved(flag: coverageFlag, config: config)
+            let resolvedCoverage = BinaryCacheCoverage.resolved(config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
                 targetsToBinaryCache: requestedTargetsToBinaryCache,
@@ -202,11 +195,8 @@ import XcodeGraph
             )
             let isReleaseConfiguration = graph.projects.values.flatMap(\.settings.configurations.keys)
                 .first(where: { $0.name == configuration })?.variant == .release
-            // Release binaries are never instrumented. A release warm driven by the environment or `Tuist.swift`
-            // warms the plain variant, which is what every command reads for release; only an explicit --coverage fails.
-            if coverageFlag == true, resolvedCoverage == .on, isReleaseConfiguration {
-                throw CacheWarmCommandServiceError.coverageOnReleaseConfiguration(configuration)
-            }
+            // Release binaries are never instrumented: a release warm fills the plain variant every command reads
+            // for release.
             let coverage: BinaryCacheCoverage = isReleaseConfiguration ? .off : resolvedCoverage
             // The settings that build the repository's own targets with coverage counters, under the key a
             // run collecting coverage reads. Resolved before anything is built, so a checkout the coverage

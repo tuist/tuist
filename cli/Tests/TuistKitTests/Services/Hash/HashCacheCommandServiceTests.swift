@@ -44,8 +44,7 @@ import XcodeGraph
             await #expect(throws: HashCacheCommandServiceError.generatedProjectNotFound(path)) {
                 try await subject.run(
                     path: path.pathString,
-                    configuration: nil,
-                    coverage: nil
+                    configuration: nil
                 )
             }
         }
@@ -80,7 +79,7 @@ import XcodeGraph
                 graphTarget: .test(hash: hash),
             ])
             // When
-            try await subject.run(path: path.pathString, configuration: "Debug", coverage: nil)
+            try await subject.run(path: path.pathString, configuration: "Debug")
 
             // Then
             #expect(Logger.testingLogHandler.collected[.info, ==].contains(hash) == true)
@@ -90,14 +89,15 @@ import XcodeGraph
             .withMockedLogger(),
             .withMockedEnvironment(),
             arguments: [
-                (flag: Bool?.none, option: true, expected: BinaryCacheCoverage.on),
-                (flag: Bool?.none, option: false, expected: .off),
-                (flag: true, option: false, expected: .on),
-                (flag: false, option: true, expected: .off),
+                (variable: String?.none, option: true, expected: BinaryCacheCoverage.on),
+                (variable: String?.none, option: false, expected: .off),
+                (variable: "1", option: false, expected: .on),
+                (variable: "0", option: true, expected: .off),
             ]
         )
-        func run_hashesTheResolvedVariant(flag: Bool?, option: Bool, expected: BinaryCacheCoverage) async throws {
+        func run_hashesTheResolvedVariant(variable: String?, option: Bool, expected: BinaryCacheCoverage) async throws {
             Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = variable
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: option)))))
             let generator = MockGenerating()
@@ -116,7 +116,7 @@ import XcodeGraph
                 coverage: .any
             ).willReturn([:])
 
-            try await subject.run(path: path.pathString, configuration: nil, coverage: flag)
+            try await subject.run(path: path.pathString, configuration: nil)
 
             verify(generatorFactory).binaryCacheWarmingPreload(
                 config: .any, targetsToBinaryCache: .any, coverage: .value(expected)

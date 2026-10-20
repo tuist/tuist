@@ -30,18 +30,7 @@ public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
     )
     var configuration: String?
 
-    @Flag(
-        name: .long,
-        inversion: .prefixedNo,
-        help: """
-        Whether the hashes are those of the instrumented variant of the binary cache. Repository-owned targets of a \
-        debug configuration differ from the plain hashes; external packages and release configurations keep them. \
-        Overrides `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s `coverage: .coverage(enabled:)`; omit it to follow them.
-        """
-    )
-    var coverage: Bool?
-
     public func run() async throws {
-        try await HashCacheCommandService().run(path: path, configuration: configuration, coverage: coverage)
+        try await HashCacheCommandService().run(path: path, configuration: configuration)
     }
 }

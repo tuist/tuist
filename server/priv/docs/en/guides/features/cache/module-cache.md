@@ -275,18 +275,14 @@ The option applies to every configuration Xcode treats as Debug. Release builds 
 
 A scheme you define follows the option unless it sets coverage itself: `.options(coverage: false)` keeps it off and `.options(coverage: true)` keeps it on whatever the option says. Test plans decide coverage themselves, and `-enableCodeCoverage` still overrides a run, as in Xcode. A run that reads instrumented binaries without collecting coverage builds and tests normally. When a run collects coverage but your project's targets came from the cache as plain binaries, Tuist warns that their coverage isn't measured.
 
-You can override the option for a single command or job, highest precedence first:
-
-1. `--coverage` or `--no-coverage` on `tuist cache`, `tuist hash cache`, `tuist generate` and `tuist test`.
-2. The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`).
-3. `coverage: .coverage(enabled:)` in `Tuist.swift`.
+The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`) takes precedence over `coverage: .coverage(enabled:)`. Set it for a whole environment, such as a CI workflow, rather than for a single command, so that the commands that warm the cache and the ones that read it agree.
 
 `prefixMapping` (see the <.localized_link href="/guides/features/cache/xcode-cache#coverage-with-prefix-mapping">Xcode cache</.localized_link>) has its own override: the `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `coverage: .coverage(prefixMapping:)`.
 
-Overriding to off reads the plain variant, which a cache warmed with coverage on doesn't fill, so those targets build from source. `tuist cache --coverage` on a Release configuration fails; when the option or the environment variable turns coverage on, a Release warm warms plain binaries.
+Overriding to off reads the plain variant, which a cache warmed with coverage on doesn't fill, so those targets build from source. A Release warm always warms plain binaries.
 
 > [!IMPORTANT] KEEP THE VALUES THE SAME EVERYWHERE
-> `enabled` and `prefixMapping` change the build settings and cache keys of your project's targets, and the selective-testing hashes of its test targets. Set them to the same value on every machine that shares the cache, and don't derive them from the environment (for example from `Environment.isCI`): a value that differs between CI and local machines gives them different keys. The same goes for the overrides: a run with `--no-coverage` or `TUIST_COVERAGE_ENABLED=0` doesn't reuse the binaries or the selective-testing results of runs with coverage on.
+> `enabled` and `prefixMapping` change the build settings and cache keys of your project's targets, and the selective-testing hashes of its test targets. Set them to the same value on every machine that shares the cache, and don't derive them from the environment (for example from `Environment.isCI`): a value that differs between CI and local machines gives them different keys. The same goes for the environment variables: a run with `TUIST_COVERAGE_ENABLED=0` doesn't reuse the binaries or the selective-testing results of runs with coverage on.
 
 Keep in mind:
 

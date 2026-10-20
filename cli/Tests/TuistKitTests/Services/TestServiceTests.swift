@@ -682,99 +682,6 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    /// The variant follows `--coverage` / `--no-coverage`, then `TUIST_COVERAGE_ENABLED`, then `Tuist.swift`, and
-    /// never the run's `-enableCodeCoverage`, which only decides whether the run collects coverage.
-    func test_run_reads_the_variant_resolved_from_the_flag_the_environment_and_the_config() async throws {
-        let cases: [(flag: Bool?, variable: String?, option: Bool, expected: BinaryCacheCoverage)] = [
-            (nil, nil, false, .off),
-            (nil, nil, true, .on),
-            (nil, "1", false, .on),
-            (nil, "0", true, .off),
-            (true, "0", false, .on),
-            (false, "1", true, .off),
-        ]
-        for (flag, variable, option, expected) in cases {
-            try await withMockedEnvironment {
-                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-                Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = variable
-                generatorFactory.reset()
-                configLoader.reset()
-                givenGenerator()
-                given(configLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: option))))))
-                given(generator)
-                    .generateWithGraph(path: .any, options: .any)
-                    .willProduce { path, _ in
-                        (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
-                    }
-                given(buildGraphInspector)
-                    .testableTarget(
-                        scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
-                        graphTraverser: .any,
-                        action: .any
-                    )
-                    .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
-                given(simulatorController)
-                    .findAvailableDevice(udid: .any)
-                    .willReturn(.test(device: .test(name: "Test iPhone")))
-
-                try await testRun(
-                    schemeName: "TestScheme",
-                    path: try temporaryPath(),
-                    generateOnly: true,
-                    passthroughXcodeBuildArguments: ["-enableCodeCoverage", "YES"],
-                    coverage: flag
-                )
-
-                verify(generatorFactory)
-                    .testing(
-                        config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
-                        skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
-                        cacheStorage: .any, destination: .any, schemeName: .any,
-                        coverage: .value(expected)
-                    )
-                    .called(1)
-            }
-        }
-    }
-
-    func test_run_reads_the_plain_variant_without_the_feature_flag() async throws {
-        try await withMockedEnvironment {
-            Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = "1"
-            givenGenerator()
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true))))))
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willProduce { path, _ in
-                    (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
-                }
-            given(buildGraphInspector)
-                .testableTarget(
-                    scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
-                    graphTraverser: .any,
-                    action: .any
-                )
-                .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
-            given(simulatorController)
-                .findAvailableDevice(udid: .any)
-                .willReturn(.test(device: .test(name: "Test iPhone")))
-
-            try await testRun(schemeName: "TestScheme", path: try temporaryPath(), generateOnly: true)
-
-            verify(generatorFactory)
-                .testing(
-                    config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
-                    skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
-                    cacheStorage: .any, destination: .any, schemeName: .any,
-                    coverage: .value(.off)
-                )
-                .called(1)
-        }
-    }
-
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
@@ -7026,8 +6933,7 @@ final class TestServiceTests: TuistUnitTestCase {
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = .local,
-        coverage: Bool? = nil
+        mode: TestProcessingMode? = .local
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -7052,7 +6958,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: testPlanConfiguration,
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
-                coverage: coverage,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
@@ -8083,6 +7988,53 @@ private struct SchemePlanningScenario {
     }
 }
 
+struct TestServiceBinaryCacheCoverageTests {
+    /// `tuist test` reads the variant resolved from `TUIST_COVERAGE_ENABLED` and `Tuist.swift`, never from the run's
+    /// `-enableCodeCoverage`, which only decides whether the run collects coverage.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies(),
+        .withMockedEnvironment(),
+        arguments: [
+            // COVERAGE feature flag, TUIST_COVERAGE_ENABLED, Tuist.swift, expected
+            (true, String?.none, false, BinaryCacheCoverage.off),
+            (true, nil, true, .on),
+            (true, "1", false, .on),
+            (true, "0", true, .off),
+            (false, "1", true, .off),
+        ]
+    )
+    func run_readsTheResolvedVariant(
+        featureFlag: Bool,
+        variable: String?,
+        option: Bool,
+        expected: BinaryCacheCoverage
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = featureFlag ? "1" : nil
+        environment.variables["TUIST_COVERAGE_ENABLED"] = variable
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory),
+            config: .test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: option)))))
+        )
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            passthroughXcodeBuildArguments: ["-enableCodeCoverage", "YES"]
+        )
+
+        verify(fixture.generatorFactory)
+            .testing(
+                config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
+                skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
+                cacheStorage: .any, destination: .any, schemeName: .any,
+                coverage: .value(expected)
+            )
+            .called(1)
+    }
+}
+
 struct TestHashStorageCase: Sendable, CustomTestStringConvertible {
     var testTargets: [String] = []
     var passthroughXcodeBuildArguments: [String] = []
@@ -8107,6 +8059,7 @@ private final class TestRunCapture {
 
 private struct TestServiceSchemePlanningFixture {
     let cacheStorage = MockCacheStoring()
+    let generatorFactory = MockGeneratorFactorying()
 
     private let capture: TestRunCapture
     private let runMetadataStorage = RunMetadataStorage()
@@ -8116,11 +8069,10 @@ private struct TestServiceSchemePlanningFixture {
         capture.runs
     }
 
-    init(scenario: SchemePlanningScenario) {
+    init(scenario: SchemePlanningScenario, config: Tuist = .test(project: .testGeneratedProject())) {
         let capture = TestRunCapture()
         self.capture = capture
         let generator = MockGenerating()
-        let generatorFactory = MockGeneratorFactorying()
         let cacheStorageFactory = MockCacheStorageFactorying()
         let xcodebuildController = MockXcodeBuildControlling()
         let buildGraphInspector = MockBuildGraphInspecting()
@@ -8132,7 +8084,7 @@ private struct TestServiceSchemePlanningFixture {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
+            .willReturn(config)
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
             .willReturn(cacheStorage)

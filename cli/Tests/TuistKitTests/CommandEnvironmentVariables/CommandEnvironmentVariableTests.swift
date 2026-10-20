@@ -968,16 +968,13 @@ struct CommandEnvironmentVariableTests {
         let commandWithEnvVars = try HashCacheCommand.parse([])
         #expect(commandWithEnvVars.path == "/hash/path")
         #expect(commandWithEnvVars.configuration == "Debug")
-        #expect(commandWithEnvVars.coverage == nil)
 
         let commandWithArgs = try HashCacheCommand.parse([
             "--path", "/other/path",
             "--configuration", "Release",
-            "--no-coverage",
         ])
         #expect(commandWithArgs.path == "/other/path")
         #expect(commandWithArgs.configuration == "Release")
-        #expect(commandWithArgs.coverage == false)
     }
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
@@ -992,7 +989,6 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
-        #expect(commandWithEnvVars.coverage == nil)
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
@@ -1011,12 +1007,10 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
-            "--coverage",
             "--",
             "Fmk1", "Fmk2",
         ])
         #expect(commandWithArgs.externalOnly == true)
-        #expect(commandWithArgs.coverage == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.noUpload == true)

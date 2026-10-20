@@ -99,7 +99,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
         public struct Coverage: Codable, Hashable, Equatable, Sendable {
             /// Whether the project's own targets read and warm the instrumented variant of the binary cache.
-            /// Generators read the value the run resolved (`--coverage` > `TUIST_COVERAGE_ENABLED` > the manifest).
+            /// Generators read the value the run resolved (`TUIST_COVERAGE_ENABLED` > the manifest).
             public var enabled: Bool
             public var prefixMapping: Bool
 

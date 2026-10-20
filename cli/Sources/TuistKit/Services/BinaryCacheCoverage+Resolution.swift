@@ -1,4 +1,3 @@
-import TuistAlert
 import TuistCache
 import TuistConfig
 import TuistEnvironment
@@ -16,20 +15,11 @@ extension BinaryCacheCoverage {
         return config.project.generatedProject?.generationOptions.coverage.prefixMapping == true
     }
 
-    /// The variant a command reads and warms: `--coverage` / `--no-coverage`, then `TUIST_COVERAGE_ENABLED`,
-    /// then `Tuist.swift`'s `coverage.enabled`, off otherwise. Coverage is in early access behind the
-    /// `COVERAGE` client feature flag, so without it every command stays on the plain variant.
-    public static func resolved(flag: Bool?, config: Tuist) -> BinaryCacheCoverage {
-        guard ClientFeatureFlags.contains("COVERAGE") else {
-            if flag == true {
-                AlertController.current.warning(.alert(
-                    "\(.command("--coverage")) is ignored: coverage is in early access.",
-                    takeaway: "Set \(.command("TUIST_FEATURE_FLAG_COVERAGE=1")) to read and warm the instrumented binaries."
-                ))
-            }
-            return .off
-        }
-        if let flag { return flag ? .on : .off }
+    /// The variant a command reads and warms: `TUIST_COVERAGE_ENABLED`, then `Tuist.swift`'s `coverage.enabled`, off
+    /// otherwise. Coverage is in early access behind the `COVERAGE` client feature flag, so without it every command
+    /// stays on the plain variant.
+    public static func resolved(config: Tuist) -> BinaryCacheCoverage {
+        guard ClientFeatureFlags.contains("COVERAGE") else { return .off }
         if Environment.current.variables[enabledVariable] != nil {
             return Environment.current.isVariableTruthy(enabledVariable) ? .on : .off
         }

@@ -60,14 +60,13 @@ extension Tuist {
             /// Tuist's automatic schemes, and schemes you define that leave `TestActionOptions.coverage` unset, collect
             /// coverage in their test action, and Debug configurations link the profile runtime
             /// (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`). A scheme that sets `coverage` keeps its value, and test plans
-            /// decide coverage themselves. `--coverage` and `--no-coverage`, then the `TUIST_COVERAGE_ENABLED`
-            /// environment variable, take precedence over this value.
+            /// decide coverage themselves. The `TUIST_COVERAGE_ENABLED` environment variable takes precedence over this
+            /// value.
             public var enabled: Bool
 
             /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
-            /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
-            /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
-            /// each binary's target-specific `compilation-prefix-map.json`. Requires `enableCaching`.
+            /// Defaults to `false` because Xcode's coverage report and `xccov` can omit sources with mapped paths.
+            /// The coverage `tuist test` uploads reads them with `llvm-cov`. Requires `enableCaching`.
             /// The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable takes precedence over this value.
             public var prefixMapping: Bool
 

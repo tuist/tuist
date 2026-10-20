@@ -232,17 +232,6 @@
         var binaryCache: Bool = true
 
         @Flag(
-            name: .long,
-            inversion: .prefixedNo,
-            help: """
-            Whether the project's own targets are read from the instrumented variant of the binary cache. Overrides \
-            `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s `coverage: .coverage(enabled:)`; omit it to follow them. \
-            Whether the run collects coverage is up to the scheme, its test plans and `-enableCodeCoverage`.
-            """
-        )
-        var coverage: Bool?
-
-        @Flag(
             help:
             "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
             envKey: .testSelectiveTesting
@@ -462,7 +451,6 @@
                 validateTestTargetsParameters: false,
                 ignoreBinaryCache: !binaryCache,
                 ignoreSelectiveTesting: !selectiveTesting,
-                coverage: coverage,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,

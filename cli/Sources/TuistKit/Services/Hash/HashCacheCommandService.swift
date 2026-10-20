@@ -81,8 +81,7 @@ public struct HashCacheCommandService: HashCacheServicing {
 
     public func run(
         path: String?,
-        configuration: String?,
-        coverage coverageFlag: Bool?
+        configuration: String?
     ) async throws {
         let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
@@ -92,7 +91,7 @@ public struct HashCacheCommandService: HashCacheServicing {
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
-            coverage = .resolved(flag: coverageFlag, config: config)
+            coverage = .resolved(config: config)
 
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(

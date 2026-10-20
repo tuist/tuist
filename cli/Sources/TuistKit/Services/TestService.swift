@@ -262,7 +262,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         validateTestTargetsParameters: Bool = true,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        coverage: Bool? = nil,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
@@ -391,7 +390,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             cacheStorage: cacheStorage,
             destination: destination,
             schemeName: schemeName,
-            coverage: .resolved(flag: coverage, config: config)
+            coverage: .resolved(config: config)
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
@@ -2632,7 +2631,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         guard !targets.isEmpty else { return }
         AlertController.current.warning(.alert(
             "The coverage of \(targets.joined(separator: ", ")) isn't measured: the run collects coverage, but they came from the binary cache as plain binaries.",
-            takeaway: "Turn coverage on with \(.command("coverage: .coverage(enabled: true)")) in Tuist.swift's generation options, or pass \(.command("--coverage")), and warm the cache the same way"
+            takeaway: "Turn coverage on with \(.command("coverage: .coverage(enabled: true)")) in Tuist.swift's generation options, or set \(.command("TUIST_COVERAGE_ENABLED=1")), and warm the cache the same way"
         ))
     }
 

@@ -160,8 +160,7 @@
                 generateOnly: true,
                 noUpload: false,
                 cacheProfile: nil,
-                scratchDirectory: nil,
-                coverage: nil
+                scratchDirectory: nil
             )
 
             verify(generatorFactory)
@@ -476,7 +475,7 @@
         @Test(
             .inTemporaryDirectory,
             .withMockedEnvironment()
-        ) func run_buildsRepositoryTargetsWithCoverage_whenWarmingWithCoverage() async throws {
+        ) func run_buildsRepositoryTargetsWithCoverage_whenTheEnvironmentTurnsCoverageOn() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             stubFrameworkBuilds()
             given(xcodeBuildController)
@@ -488,7 +487,7 @@
                 schemes: [.test(name: "Binaries-Cache-iOS")],
                 targetProduct: .framework,
                 projectSettings: .test(defaultSettings: .recommended),
-                coverage: true
+                coverageVariable: "1"
             )
 
             verify(cacheGraphContentHasher)
@@ -623,26 +622,6 @@
                     }
                 )
                 .called(2)
-        }
-
-        @Test(.inTemporaryDirectory, .withMockedEnvironment())
-        func run_throws_whenWarmingAReleaseConfigurationWithCoverage() async throws {
-            await #expect(throws: CacheWarmCommandServiceError.self) {
-                try await run(
-                    noUpload: true,
-                    configuration: "Release",
-                    schemes: [.test(name: "Binaries-Cache-iOS")],
-                    targetProduct: .framework,
-                    projectSettings: .test(defaultSettings: .recommended),
-                    coverage: true
-                )
-            }
-            verify(xcodeBuildController)
-                .build(
-                    .any, scheme: .any, destination: .any, rosetta: .any, derivedDataPath: .any, clean: .any,
-                    arguments: .any, passthroughXcodeBuildArguments: .any
-                )
-                .called(0)
         }
 
         @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
@@ -808,15 +787,16 @@
             generateOnly: Bool = false,
             cachedTarget: Bool = false,
             republishError: Error? = nil,
-            coverage: Bool? = nil,
+            coverageVariable: String? = nil,
             coverageOption: Bool = false
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let config = coverageOption
                 ? Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true)))))
                 : config
-            if coverage == true || coverageOption {
+            if coverageVariable != nil || coverageOption {
                 Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = coverageVariable
                 given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
                 given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             }
@@ -928,8 +908,7 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
-                scratchDirectory: scratchDirectory?.pathString,
-                coverage: coverage
+                scratchDirectory: scratchDirectory?.pathString
             )
         }
 

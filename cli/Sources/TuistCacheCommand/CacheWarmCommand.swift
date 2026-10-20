@@ -86,25 +86,13 @@
         )
         var printHashes: Bool = false
 
-        @Flag(
-            name: .long,
-            inversion: .prefixedNo,
-            help: """
-            Whether the project's own targets are warmed with code coverage counters, under the key every command that \
-            reads the instrumented variant uses. Overrides `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s \
-            `coverage: .coverage(enabled:)`; omit it to follow them. External packages are always warmed plain. A \
-            release configuration is warmed plain unless --coverage is passed, which fails instead.
-            """
-        )
-        var coverage: Bool?
-
         public func run() async throws {
             if printHashes {
                 AlertController.current.warning(.alert(
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration, coverage: coverage)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration)
                 return
             }
 
@@ -123,8 +111,7 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
-                scratchDirectory: scratchDirectory,
-                coverage: coverage
+                scratchDirectory: scratchDirectory
             )
         }
     }

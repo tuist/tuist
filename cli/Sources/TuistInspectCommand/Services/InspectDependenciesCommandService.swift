@@ -37,7 +37,7 @@
             let generator = generatorFactory.defaultGenerator(
                 config: config,
                 includedTargets: [],
-                coverage: .resolved(flag: nil, config: config)
+                coverage: .resolved(config: config)
             )
             let graph = try await generator.load(
                 path: path,

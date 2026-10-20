@@ -11,37 +11,28 @@ struct BinaryCacheCoverageResolutionTests {
     }
 
     @Test(.withMockedEnvironment(), arguments: [
-        // flag, TUIST_COVERAGE_ENABLED, Tuist.swift, expected
-        (Bool?.none, String?.none, false, BinaryCacheCoverage.off),
-        (nil, nil, true, .on),
-        (nil, "1", false, .on),
-        (nil, "true", false, .on),
-        (nil, "0", true, .off),
-        (nil, "NO", true, .off),
-        (true, nil, false, .on),
-        (true, "0", false, .on),
-        (false, nil, true, .off),
-        (false, "1", true, .off),
+        // TUIST_COVERAGE_ENABLED, Tuist.swift, expected
+        (String?.none, false, BinaryCacheCoverage.off),
+        (nil, true, .on),
+        ("1", false, .on),
+        ("true", false, .on),
+        ("0", true, .off),
+        ("NO", true, .off),
     ])
-    func resolvesFlagThenEnvironmentThenConfig(
-        flag: Bool?,
-        variable: String?,
-        option: Bool,
-        expected: BinaryCacheCoverage
-    ) throws {
+    func resolvesTheEnvironmentThenTheConfig(variable: String?, option: Bool, expected: BinaryCacheCoverage) throws {
         let environment = try #require(Environment.mocked)
         environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         environment.variables["TUIST_COVERAGE_ENABLED"] = variable
 
-        #expect(BinaryCacheCoverage.resolved(flag: flag, config: config(coverage: option)) == expected)
+        #expect(BinaryCacheCoverage.resolved(config: config(coverage: option)) == expected)
     }
 
-    @Test(.withMockedEnvironment(), arguments: [Bool?.none, true])
-    func staysOff_withoutTheFeatureFlag(flag: Bool?) throws {
+    @Test(.withMockedEnvironment())
+    func staysOff_withoutTheFeatureFlag() throws {
         let environment = try #require(Environment.mocked)
         environment.variables["TUIST_COVERAGE_ENABLED"] = "1"
 
-        #expect(BinaryCacheCoverage.resolved(flag: flag, config: config(coverage: true)) == .off)
+        #expect(BinaryCacheCoverage.resolved(config: config(coverage: true)) == .off)
     }
 
     @Test(.withMockedEnvironment())
@@ -49,7 +40,7 @@ struct BinaryCacheCoverageResolutionTests {
         let environment = try #require(Environment.mocked)
         environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
 
-        #expect(BinaryCacheCoverage.resolved(flag: nil, config: .test(project: .testXcodeProject())) == .off)
+        #expect(BinaryCacheCoverage.resolved(config: .test(project: .testXcodeProject())) == .off)
     }
 
     @Test(arguments: [BinaryCacheCoverage.on, .off], [false, true])
