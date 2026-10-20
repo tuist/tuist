@@ -2,8 +2,10 @@
 #
 # Plans a macOS runner image release. A profile in profiles.json is rebuilt
 # when the image's sources changed in a releasable commit, when the previous
-# release did not carry it, or when its macos-tahoe-xcode base digest moved.
-# Every other profile keeps its previous image under the new version.
+# release did not carry it, or when its Xcode base (macos-<codename>-xcode, see
+# macos-image-names.sh) digest moved. Every other profile keeps its previous
+# image under the new version. A rebuilt profile carries the builder labels its
+# guest macOS needs.
 #
 # Env:
 #   SHOULD_RELEASE       `release:check runner-image` verdict for HEAD
@@ -13,7 +15,7 @@
 set -euo pipefail
 
 profiles_file="infra/runner-image/profiles.json"
-base_repository="ghcr.io/tuist/macos-tahoe-xcode"
+names=".github/scripts/macos-image-names.sh"
 
 latest_tag="$(git tag -l | grep -E '^runner-image@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
 previous="${latest_tag#runner-image@}"
@@ -33,7 +35,11 @@ fi
 
 manifest='[]'
 while IFS= read -r xcode; do
-  digest="$(oras resolve "${base_repository}:${xcode//./-}")"
+  profile_names="$("$names" profile "$xcode")"
+  xcode_repository="$(sed -n 's/^xcode_repository=//p' <<< "$profile_names")"
+  xcode_tag="$(sed -n 's/^xcode_tag=//p' <<< "$profile_names")"
+  runs_on="$(sed -n 's/^runs_on=//p' <<< "$profile_names")"
+  digest="$(oras resolve "${xcode_repository}:${xcode_tag}")"
   previous_digest="$(jq -r --arg xcode "$xcode" 'map(select(.xcode == $xcode))[0].base_digest // ""' <<< "$previous_manifest")"
   if [ "$sources_changed" = "true" ] || [ "$previous_digest" != "$digest" ]; then
     action=build
@@ -41,7 +47,8 @@ while IFS= read -r xcode; do
     action=carry
   fi
   manifest="$(jq -c --arg xcode "$xcode" --arg digest "$digest" --arg action "$action" \
-    '. + [{xcode: $xcode, base_digest: $digest, action: $action}]' <<< "$manifest")"
+    --arg repository "$xcode_repository" --argjson runs_on "$runs_on" \
+    '. + [{xcode: $xcode, base_digest: $digest, action: $action, repository: $repository, runs_on: $runs_on}]' <<< "$manifest")"
 done < <(jq -r '.[]' "$profiles_file")
 
 build_count="$(jq '[.[] | select(.action == "build")] | length' <<< "$manifest")"
@@ -57,8 +64,8 @@ else
   version="$previous"
 fi
 
-matrix="$(jq -c --arg repository "$base_repository" \
-  '{include: [.[] | select(.action == "build") | {xcode, base: "\($repository)@\(.base_digest)"}]}' <<< "$manifest")"
+matrix="$(jq -c \
+  '{include: [.[] | select(.action == "build") | {xcode, base: "\(.repository)@\(.base_digest)", runs_on}]}' <<< "$manifest")"
 carry="$(jq -c '[.[] | select(.action == "carry") | .xcode]' <<< "$manifest")"
 build_manifest="$(jq -c '[.[] | {xcode, base_digest}]' <<< "$manifest")"
 

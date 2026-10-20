@@ -9,7 +9,7 @@ packer {
 
 # Build the Tart VM image that bundles macOS + a single Xcode +
 # the dev tools customer iOS/macOS workflows depend on. This is
-# our in-house replacement for `ghcr.io/cirruslabs/macos-tahoe-xcode:N`
+# our in-house replacement for `ghcr.io/cirruslabs/macos-<codename>-xcode:N`
 # — the goal is to be on a new Xcode the day Apple ships it
 # instead of waiting for Cirrus's catalog to catch up.
 #
@@ -51,6 +51,15 @@ packer {
 # costs nothing. The steps below then rename the result by the slug
 # regardless of what xcodes called it.
 #
+# One template serves every guest macOS major. The major picks the
+# cirruslabs base (`macos-tahoe-base` for 26, `macos-golden-gate-base`
+# for 27) and the output name (`macos-tahoe-xcode`,
+# `macos-golden-gate-xcode`); `macos-xcode-image.yml` passes both from
+# `.github/scripts/macos-image-names.sh`. cirruslabs builds both bases
+# from one template, so `admin`, brew, `~/.zprofile` and the
+# `/Users/runner` symlink are the same on either. The 27 base's disk is
+# ASIF rather than RAW, which Tart resizes the same way.
+#
 # This image is the *base layer*. Two downstream images inherit
 # from it and add the Tuist-specific runtime:
 #   - `ghcr.io/tuist/tuist-runner` (infra/runner-image) — adds the
@@ -72,13 +81,13 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Defaults to Cirrus's vanilla macOS+brew base; we layer Xcode + dev tools on top."
+  description = "Base Tart image: cirruslabs' macOS+brew base of the guest macOS major (`macos-tahoe-base` for 26, `macos-golden-gate-base` for 27). We layer Xcode + dev tools on top."
   default     = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
 }
 
 variable "output_image" {
   type        = string
-  description = "Output image name. The push tag uses xcode_version with dots → dashes (e.g. `:26-4-1`)."
+  description = "Output image name, `macos-<codename>-xcode` of the guest macOS major. The push tag uses xcode_version with dots → dashes (e.g. `:26-4-1`)."
   default     = "macos-tahoe-xcode"
 }
 

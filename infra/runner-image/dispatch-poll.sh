@@ -130,7 +130,9 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
-RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+# macOS 27 moved the user database into a data container; tcc-approvals.sh
+# resolves it on either major.
+RUNNER_TCC_DB="$(/opt/tuist/tcc-approvals.sh path 2>/dev/null || echo "/Users/runner/Library/Application Support/com.apple.TCC/TCC.db")"
 TCC_LOG=/var/log/tuist-runner/tcc.log
 TCC_LOG_PID=""
 
