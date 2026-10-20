@@ -193,7 +193,7 @@ jobs:
     permissions:
       contents: read
     env:
-      PUBLISH_WAIT_SECONDS: 60
+      PUBLISH_WAIT_SECONDS: 0
     steps:
       - uses: actions/checkout@v4
         with:
