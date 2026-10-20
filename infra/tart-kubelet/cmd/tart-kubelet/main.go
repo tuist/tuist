@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
@@ -535,6 +536,14 @@ func main() {
 			// costs at most a heartbeat of oldest-queued dispatch.
 			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
 				return volumes.CacheMasterNodeLabels()
+			}},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
 		},
 	}); err != nil {

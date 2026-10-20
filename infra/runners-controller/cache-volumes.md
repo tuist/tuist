@@ -124,7 +124,9 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject size mismatches, foreign mounts,
 symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
-the host cannot advertise volume readiness. Disabling provisioning never deletes
+the host cannot advertise volume readiness. Each reconcile also labels the Node
+`tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
+master and removes the labels of evicted ones. Disabling provisioning never deletes
 the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those

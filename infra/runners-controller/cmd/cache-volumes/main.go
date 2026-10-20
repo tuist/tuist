@@ -36,6 +36,7 @@ type agent struct {
 	store                                  *cachevolumes.Store
 	kube                                   kubernetes.Interface
 	namespace, node, kubelet, authorizeURL string
+	root                                   string
 	http                                   *http.Client
 	requests                               chan struct{}
 	tokenPath                              string
@@ -150,10 +151,35 @@ func (a *agent) reconcile() error {
 	}); err != nil {
 		return err
 	}
-	labels := map[string]any{"tuist.dev/linux-cache-volumes": "local-images-v1"}
-	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": labels}})
+	node, err := a.kube.CoreV1().Nodes().Get(ctx, a.node, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	masters, err := cachevolumes.MasterNodeLabels(a.root)
+	if err != nil {
+		return err
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": nodeLabels(node.Labels, masters)}})
 	_, err = a.kube.CoreV1().Nodes().Patch(ctx, a.node, types.MergePatchType, patch, metav1.PatchOptions{})
 	return err
+}
+
+const readinessLabel, readinessValue = "tuist.dev/linux-cache-volumes", "local-images-v1"
+
+// nodeLabels is the merge patch advertising this node's readiness and the
+// lineages it holds a master of. A master evicted since the last patch has its
+// label removed.
+func nodeLabels(current, masters map[string]string) map[string]any {
+	labels := map[string]any{readinessLabel: readinessValue}
+	for key := range current {
+		if strings.HasPrefix(key, cachevolumes.MasterNodeLabelPrefix) {
+			labels[key] = nil
+		}
+	}
+	for key, value := range masters {
+		labels[key] = value
+	}
+	return labels
 }
 func main() {
 	root := flag.String("root", "/cache", "Dedicated cache filesystem")
@@ -210,7 +236,7 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)

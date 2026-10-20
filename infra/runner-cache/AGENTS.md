@@ -73,6 +73,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
+  scope>` label per lineage with an installed `*.img` master. tart-kubelet
+  publishes it on the node heartbeat and the Linux agent merges it into its Node
+  patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
   the background (one at a time, prefetch admission) before removing it.
   Maintenance and admission skip the scope a refresh download holds. Only a
