@@ -28,7 +28,10 @@ omitting it preserves generic browser login, including self-hosted providers.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
-  Destination, path, fragment, expiry, and state rejections use `invalid_callback`
+  Ignore URL fragments, including an empty `#`, as AppAuth does: code, state, and
+  errors come exclusively from the query. Fragment parameters must never supply,
+  override, or repair missing/invalid query parameters or bypass other checks.
+  Destination, path, expiry, and state rejections use `invalid_callback`
   with distinct fixed messages. Never include the callback URL or its parameters
   in diagnostics.
   Android stores pending grants encrypted so callbacks survive process recreation;
