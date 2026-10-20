@@ -7,7 +7,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   skipped would have covered lines too. The skipped tests are those Tuist
   skipped: every test of a target selective testing skipped (the command
   event names it as a hit, a scheme skipped whole included) and the tests
-  the runs' skip identifiers name (quarantine, `-skip-testing`). A target's tests are the ones it executed in the nearest
+  the runs' skip identifiers name (quarantine, `-skip-testing`), less what
+  another run of their scheme executed at the commit. A target's tests are the ones it executed in the nearest
   ancestor run that ran it, and per-test evidence
   (`Tuist.Tests.Coverage.Evidence`) says which lines each of them ran the
   last time it executed. What a caller's `-only-testing` left out was never
@@ -109,9 +110,10 @@ defmodule Tuist.Tests.Coverage.Reported do
       # A scheme skipped whole measured nothing, and its run's hits are all
       # that say which targets it skipped.
       hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
+      {hits, skips} = unexecuted(project.id, runs, hits, runs ++ clean)
 
       context = %{project: project, repository_id: repository_id, sha: sha}
-      skipping = skipping(context, {runs, hits, skip_identifiers(runs ++ clean), clean})
+      skipping = skipping(context, {runs, hits, skips, clean})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
       if skipping.skipped == [] and skipping.gaps == [] do
@@ -650,6 +652,69 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.uniq()
     |> Enum.map(&String.split(&1, "/", parts: 3))
     |> Enum.reject(&(hd(&1) == ""))
+  end
+
+  # What a run that measured the commit executed is in the commit's figure,
+  # whichever other run of its scheme skipped it, so it is neither carried nor
+  # a gap. A target a run executed, and that its `-only-testing` doesn't name,
+  # ran whole there, but for the tests that run's own skip identifiers name,
+  # which stay skipped. Only a run of the same scheme counts: another scheme's
+  # test plan can run other tests of the same target. Decided before anything
+  # else, so a full run beside a selective one at the commit measures what the
+  # selective one skipped whatever the commit changed.
+  defp unexecuted(_project_id, [], hits, skipping), do: {hits, skip_identifiers(skipping)}
+
+  defp unexecuted(project_id, runs, hits, skipping) do
+    schemes = Map.new(runs ++ skipping, &{&1.test_run_id, &1.scheme})
+    skips = skipping |> Enum.flat_map(fn run -> Enum.map(skip_identifiers([run]), &{run.scheme, &1}) end) |> Enum.uniq()
+    by_id = Map.new(runs, &{&1.test_run_id, &1})
+    modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(skips, fn {_scheme, [module | _]} -> module end))
+    executed = executed_modules(project_id, Map.keys(by_id), modules)
+
+    whole = whole_targets(executed, by_id, [:only_test_identifiers])
+    untouched = whole_targets(executed, by_id, [:only_test_identifiers, :skip_test_identifiers])
+
+    {named, by_target} = Enum.split_with(skips, &match?({_scheme, [_module, _suite, _name]}, &1))
+    by_target = Enum.reject(by_target, fn {scheme, [module | _]} -> MapSet.member?(untouched, {scheme, module}) end)
+
+    {Enum.reject(hits, &MapSet.member?(whole, {schemes[&1.test_run_id], &1.name})),
+     (by_target ++ unexecuted_named(project_id, named, runs)) |> Enum.map(&elem(&1, 1)) |> Enum.uniq()}
+  end
+
+  # The scheme and target of each run's executed targets that none of the
+  # given identifiers of that run name.
+  defp whole_targets(executed, by_id, fields) do
+    for {run_id, module} <- executed,
+        run = by_id[run_id],
+        module not in Enum.flat_map(fields, &named_targets(Map.get(run, &1, []))),
+        into: MapSet.new(),
+        do: {run.scheme, module}
+  end
+
+  defp named_targets(identifiers), do: Enum.map(identifiers, &(&1 |> String.split("/", parts: 2) |> hd()))
+
+  # The identifiers naming a test no run of their scheme executed. One that
+  # names no known test skips nothing.
+  defp unexecuted_named(_project_id, [], _runs), do: []
+
+  defp unexecuted_named(project_id, named, runs) do
+    tests = named_tests(project_id, named |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
+    schemes = MapSet.new(named, &elem(&1, 0))
+
+    ran =
+      runs
+      |> Enum.filter(&MapSet.member?(schemes, &1.scheme))
+      |> Enum.group_by(& &1.scheme, & &1.test_run_id)
+      |> Map.new(fn {scheme, run_ids} -> {scheme, ran(project_id, run_ids)} end)
+
+    Enum.filter(named, fn {scheme, [module | _] = identifier} ->
+      executed = Map.get(ran, scheme, MapSet.new())
+
+      Enum.any?(
+        tests,
+        &(&1.module_name == module and named?(&1, identifier) and not MapSet.member?(executed, &1.test_case_id))
+      )
+    end)
   end
 
   # `-skip-testing` names an XCTest method with or without its parentheses.
