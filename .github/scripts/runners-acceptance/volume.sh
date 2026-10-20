@@ -35,9 +35,20 @@ case "${mode}" in
   verify)
     [ "${CACHE_HIT:-}" = true ] || fail "Cache volumes" "the verify job attached no saved copy (cache-hit=${CACHE_HIT:-unset})"
     saved="$(cat "${target}/run" 2>/dev/null || echo none)"
-    [ "${saved}" = "${run}" ] || fail "Cache volumes" "the verify job attached the copy saved by run ${saved}, not by this run's seed job (${run}): the seed job's changes were discarded or not published within ${PUBLISH_WAIT_SECONDS:-?}s"
+    # Overlapping probe runs share the volume, so a run that seeded after this
+    # one may have published over it. Run ids and attempts only grow, so any
+    # copy at or after this run's proves publication works; only an older one
+    # is stale.
+    if [ "${saved}" = "${run}" ]; then
+      origin="this run's seed job"
+    elif [[ "${saved}" =~ ^([0-9]+)-([0-9]+)$ ]] && [[ "${run}" =~ ^([0-9]+)-([0-9]+)$ ]] &&
+      { [ "${saved%-*}" -gt "${run%-*}" ] || { [ "${saved%-*}" -eq "${run%-*}" ] && [ "${saved##*-}" -gt "${run##*-}" ]; }; }; then
+      origin="run ${saved}, which seeded after this one"
+    else
+      fail "Cache volumes" "the verify job attached the copy saved by run ${saved}, which predates this run's seed job (${run}): the seed job's changes were discarded or not published within ${PUBLISH_WAIT_SECONDS:-?}s"
+    fi
     (cd "${target}" && shasum -a 256 -c -s payload.sha256) || fail "Cache volumes" "the saved payload does not match the checksum the seed job wrote"
-    pass "Attached the copy this run's seed job saved, payload intact"
+    pass "Attached the copy saved by ${origin}, payload intact"
     ;;
   *)
     echo "usage: volume.sh seed|verify <path>" >&2
