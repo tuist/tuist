@@ -39,6 +39,12 @@ Do not add README entries for internal operational details such as env var names
   client. Existing registrations retain their stored settings. Native registration,
   missing/wrong verifier rejection, browser-login continuation, and public refresh
   are covered by `test/atlas_web/controllers/oauth/registration_controller_test.exs`.
+  Authorization must store its full local continuation in `:return_to`, the same
+  session key consumed and cleared by `AuthController` after Google login. Do not
+  use `:user_return_to`, which leaves native clients at the dashboard. The optional
+  allowlisted `provider=google` authorization parameter skips the login page but
+  keeps the same client, callback, state, and PKCE flow. Browser-continuation tests
+  mock only the Google provider boundary and exchange the resulting native code.
 - Client → Atlas OAuth stores opaque `state` in `oauth_tokens.state` as PostgreSQL `text`, not Boruta's default `varchar(255)`. Preserve it verbatim in authorization-code storage and redirects; MCP clients may send longer values. PKCE and long-state exchange coverage lives in `test/atlas_web/controllers/oauth/authorize_controller_test.exs`.
 - `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
 - `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
