@@ -92,19 +92,17 @@ so nothing here depends on it.
 gh workflow run macos-xcode-image.yml -f xcode_version=27.1 -f macos_version=27
 ```
 
-A guest builds and boots only on a host on its major or newer, and
-the `vm-image-builder` fleet runs macOS 26. A 27 build therefore runs
-only on a builder that also carries the `macos-27` label, and waits in
-the queue until one exists. The runner image profile on top is
+A guest builds and boots only on a host on its major or newer. A 27
+build therefore runs only on a builder carrying both `vm-image-builder`
+and `macos-27`: the fleet's Golden Gates hosts, once promoted
+("Moving the fleet to a new macOS release" in
+`infra/vm-image-builder.md`). Until one is, it waits in the queue. The runner image profile on top is
 `golden-gate-<xcode>` (see `infra/runner-image/AGENTS.md`). The
 xcresult-processor stays on the 26 chain: it runs on the rented
 macOS 26 `macosFleet`.
 
 Measured on a BER1 M5 Pro (macOS 27.0, Tart 2.32.1, 2026-10-19): the
-27.1 image built in 12.5 min from a cold base pull. The simulator
-dyld shared cache step reports every runtime's cache "usable" and
-leaves 4 KB directories behind, so on macOS 27 it writes no cache
-there.
+27.1 image built in 12.5 min from a cold base pull.
 
 ## Why a separate layer
 

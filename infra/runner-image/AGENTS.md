@@ -803,9 +803,10 @@ route as before, but a job the site spills to the rented fleet runs on
 macOS 26: the guest OS is a property of where the job lands, not of the
 Runner Profile.
 
-Do not add a `golden-gate-*` entry to `profiles.json` before a builder with
-the `macos-27` label exists: the release's build job for it would queue
-forever and hold every other profile's release behind it.
+Do not add a `golden-gate-*` entry to `profiles.json` before a Golden Gates
+builder carries both `vm-image-builder` and `macos-27` (see
+`infra/vm-image-builder.md`): the release's build job for it would queue
+until one does and hold every other profile's release behind it.
 
 What differs on a macOS 27 guest:
 
