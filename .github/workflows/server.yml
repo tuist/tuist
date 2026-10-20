@@ -262,22 +262,12 @@ jobs:
       # restore its cache. Enter through the bootstrap-aware compile alias first.
       - name: Compile with dependency caching
         run: mix compile --warnings-as-errors
-      # Instrument a disposable copy on main: Coverage.instrument rewrites
-      # BEAMs in place, and the persisted build must stay uninstrumented for PRs.
-      # Keep the copy beside _build/test so relative dependency priv links resolve
-      # while archiving generated NIFs. Remove it before publishing the volume.
-      # The floor plan uses the original build and does not count coverage.
+      # Keep the persisted build plain. Coverage shards instrument their own
+      # downloaded build, which is not retained in a cache volume.
       - name: Build and plan current ClickHouse shards
         id: current
         run: |
-          if [ "$GITHUB_EVENT_NAME" = push ]; then
-            coverage_build="$(mktemp -d "$PWD/_build/coverage.XXXXXX")"
-            trap 'rm -rf "$coverage_build"' EXIT
-            cp -a _build/test/. "$coverage_build/"
-            MIX_BUILD_PATH="$coverage_build" mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test.build --shard-total 4 --warnings-as-errors --no-compile --no-deps-check --cover
-          else
-            mix tuist.test.build --shard-total 4 --warnings-as-errors
-          fi
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
         env:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
@@ -514,7 +504,7 @@ jobs:
       - name: Install aube dependencies
         run: aube install
       - name: Test database setup scripts
-        run: bash mise/tasks/db/migrate-test.sh
+        run: bash ../.github/scripts/server-db.test.sh
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Test frontend interactions

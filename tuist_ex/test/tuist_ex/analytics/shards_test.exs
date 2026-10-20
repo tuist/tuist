@@ -295,37 +295,6 @@ defmodule TuistEx.Analytics.ShardsTest do
       assert File.lstat(Path.join(restored, "lib/lumis/priv/native/outside")) == {:error, :enoent}
     end
 
-    test "archives generated dependency priv from a same-depth coverage copy", %{
-      checkout: checkout,
-      directory: directory,
-      archive: archive
-    } do
-      build = Path.join(checkout, "_build/test")
-      native = Path.join(checkout, "deps/lumis/priv/native")
-      File.mkdir_p!(native)
-      File.write!(Path.join(native, "lumis.so"), "generated NIF")
-      File.mkdir_p!(Path.join(build, "lib/lumis"))
-      File.ln_s!("../../../../deps/lumis/priv", Path.join(build, "lib/lumis/priv"))
-
-      # A RUNNER_TEMP copy breaks this relative link. The CI coverage copy
-      # must stay beside _build/test until the archive packs native libraries.
-      copy = Path.join(checkout, "_build/coverage.fixture")
-      File.mkdir_p!(copy)
-      {output, status} = System.cmd("cp", ["-a", build <> "/.", copy <> "/"])
-      assert status == 0, output
-      assert File.dir?(Path.join(copy, "lib/lumis/priv"))
-      assert :ok = Shards.archive(copy, archive)
-      assert {:ok, entries} = :erl_tar.table(String.to_charlist(archive), [:compressed])
-      assert ~c"lib/lumis/priv/native/lumis.so" in entries
-
-      File.rm_rf!(Path.join(checkout, "deps"))
-      File.rm_rf!(Path.join(checkout, "_build"))
-      restored = Path.join(directory, "cold-copy/_build/test")
-      assert :ok = Shards.extract(archive, restored)
-      assert File.read!(Path.join(restored, "lib/lumis/priv/native/lumis.so")) == "generated NIF"
-      assert File.lstat!(Path.join(restored, "lib/lumis/priv")).type == :directory
-    end
-
     test "preserves project priv links and their checkout-relative resources", %{
       checkout: checkout,
       archive: archive

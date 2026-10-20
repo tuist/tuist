@@ -4,6 +4,7 @@ defmodule TuistEx.Analytics.CoverageTest do
 
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Shards
 
   describe "partial?/1" do
     test "is true when the run's own arguments pick tests" do
@@ -348,7 +349,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert {1, []} = Coverage.instrument(ebin)
     end
 
-    test "instruments a disposable copy without changing the persisted build", %{
+    test "instrumenting a downloaded shard leaves the builder's build unchanged", %{
       directory: directory,
       config: config,
       ebin: ebin
@@ -356,19 +357,17 @@ defmodule TuistEx.Analytics.CoverageTest do
       beam = Path.join(ebin, "Elixir.TuistExNativeFixture.Calc.beam")
       original = File.read!(beam)
       original_stat = File.stat!(beam)
-      copy = Path.join(directory, "coverage-build")
-      File.mkdir_p!(copy)
+      archive = Path.join(directory, "build.tar.gz")
+      shard_build = Path.join(directory, "shard-build")
 
-      # The main CI build uses this copy before in-place instrumentation so
-      # the cache volume published for PRs retains normal compiler outputs.
-      {output, status} = System.cmd("cp", ["-a", config[:build_path] <> "/.", copy <> "/"])
-      assert status == 0, output
-      copy_ebin = Path.join(copy, Path.relative_to(ebin, config[:build_path]))
-      assert {1, []} = Coverage.instrument(copy_ebin)
+      assert :ok = Shards.archive(config[:build_path], archive)
+      assert :ok = Shards.extract(archive, shard_build)
+      shard_ebin = Path.join(shard_build, Path.relative_to(ebin, config[:build_path]))
+      assert {1, []} = Coverage.instrument(shard_ebin)
 
       assert File.read!(beam) == original
       assert File.stat!(beam).mtime == original_stat.mtime
-      refute File.read!(Path.join(copy_ebin, Path.basename(beam))) == original
+      refute File.read!(Path.join(shard_ebin, Path.basename(beam))) == original
     end
 
     # The consolidated protocols are built into a directory of their own.

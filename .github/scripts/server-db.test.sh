@@ -3,21 +3,23 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/../../server/mise/tasks/db" && pwd)"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
 # Exercise the real scripts without databases or a shared Mix VM.
-# shellcheck disable=SC2016
-printf '%s\n' '#!/usr/bin/env bash' \
-  'printf "%s\n" "$@" > "$MIX_ARGUMENTS"' \
-  'case "${MIGRATION_RESULT:-ok}" in' \
-  '  missing) exit 0 ;;' \
-  '  failure) exit 1 ;;' \
-  'esac' \
-  'printf "Repo: Fixture.Repo\n  Status  Migration ID\n"' \
-  'if [ "${MIGRATION_RESULT:-ok}" = pending ]; then printf "  down  20260101000000\n"; fi' \
-  > "$scratch/mix"
+cat > "$scratch/mix" <<'BASH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$MIX_ARGUMENTS"
+case "${MIGRATION_RESULT:-ok}" in
+  missing) exit 0 ;;
+  failure) exit 1 ;;
+esac
+printf 'Repo: Fixture.Repo\n  Status  Migration ID\n'
+if [ "${MIGRATION_RESULT:-ok}" = pending ]; then
+  printf '  down  20260101000000\n'
+fi
+BASH
 chmod +x "$scratch/mix"
 export PATH="$scratch:$PATH"
 export MIX_ARGUMENTS="$scratch/arguments"
