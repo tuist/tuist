@@ -1894,7 +1894,7 @@ site's other hosts, since AMT is reached through it. `PowerReachable` (and
 `capt_racklinuxhost_power_reachable`) says whether the host could be powered on
 that way now: AMT activated, a link on the management port, and the last read
 through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
-tailnet) answered. AMT reports no address while it sees no link, so the
+tailnet, a minute after a read that failed) answered. AMT reports no address while it sees no link, so the
 operator falls back to the static one it gave it (`status.amt.assignedAddress`).
 Nothing powers on an edge while no edge is up: the edges need the firmware's
 Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
