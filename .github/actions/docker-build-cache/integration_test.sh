@@ -73,8 +73,11 @@ build() {
 }
 
 copy_was_cached() {
+  # A registry hit may materialize its remote snapshot instead of printing CACHED.
+  # FROM scratch has no base layer: extraction on this vertex is cache restoration.
   awk '/#[0-9]+ \[.*\] COPY input \/input/ { id = $1 }
        id != "" && $1 == id && $2 == "CACHED" { found = 1 }
+       id != "" && $1 == id && $2 == "extracting" && $3 ~ /^sha256:/ { found = 1 }
        END { exit !found }' "$1"
 }
 
