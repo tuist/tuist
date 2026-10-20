@@ -31,6 +31,14 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "runners_rented_macos_fleet?/1" do
+    test "rents a macOS fleet unless the deployment says it has none" do
+      assert Environment.runners_rented_macos_fleet?(%{})
+      assert Environment.runners_rented_macos_fleet?(%{"TUIST_RUNNERS_RENTED_MACOS_FLEET" => "true"})
+      refute Environment.runners_rented_macos_fleet?(%{"TUIST_RUNNERS_RENTED_MACOS_FLEET" => "false"})
+    end
+  end
+
   describe "atlas_token_issuer/1" do
     test "has no default, so Atlas tokens do not verify until it is configured" do
       assert Environment.atlas_token_issuer(%{}) == nil

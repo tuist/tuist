@@ -6,6 +6,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
 
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
@@ -234,6 +235,32 @@ defmodule Tuist.Runners.VolumePrefetchTest do
       stub_fleet(Enum.map(names, &fleet_node(&1, mac_labels())))
 
       assert [_] = Enum.filter(names, &(VolumePrefetch.for_node(&1) != []))
+    end
+
+    test "lists the saved custom volumes jobs used on the host class to every Node of it" do
+      custom = %{
+        kind: "custom",
+        id: "11111111-1111-4111-8111-111111111111",
+        account_id: 1,
+        scope: String.duplicate("s", 64),
+        generation: 2,
+        image_digest: @tree,
+        content_digest: String.duplicate("c", 64)
+      }
+
+      stub_fleet([
+        fleet_node("mac-01", mac_labels()),
+        fleet_node("mac-02", mac_labels()),
+        fleet_node("m4-01", mac_labels(), @m4)
+      ])
+
+      expect(CacheVolumes, :recent_macos_heads, 2, fn nodes, %DateTime{}, 8 ->
+        assert Enum.sort(nodes) == ["mac-01", "mac-02"]
+        [custom]
+      end)
+
+      assert VolumePrefetch.for_node("mac-01") == [custom]
+      assert VolumePrefetch.for_node("mac-02") == [custom]
     end
 
     test "answers nothing for a Node it cannot read" do

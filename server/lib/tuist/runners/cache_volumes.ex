@@ -424,6 +424,13 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
+  @doc """
+  Whether a use mounted an older saved generation because its base was not on
+  its runner host.
+  """
+  def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
+    do: is_integer(mounted) and is_integer(base) and mounted < base
+
   def scope(volume) do
     :sha256 |> :crypto.hash("#{volume.id}:#{volume.generation}") |> Base.encode16(case: :lower)
   end
@@ -492,6 +499,13 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # Only an older generation of the use's own base is meaningful; anything else
+  # is ignored rather than failing an otherwise valid report.
+  defp mounted_generation(usage, %{"mounted_generation" => generation})
+       when is_integer(generation) and generation > 0 and generation < usage.base_generation, do: generation
+
+  defp mounted_generation(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -507,6 +521,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Map.merge(metrics, %{
           last_reported_at: now,
           warm: params["warm"],
+          mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status)
         })
@@ -564,11 +579,64 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
+  @doc """
+  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
+  `since`, most recently used first. Each is the identity a host restores and
+  then retains its master under: the use that published the HEAD.
+  """
+  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
+    since = DateTime.truncate(since, :second)
+
+    from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
+      where:
+        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.builtin_name) and
+          is_nil(v.deleted_at),
+      group_by: v.id,
+      order_by: [desc: max(u.inserted_at)],
+      limit: ^limit,
+      select: v
+    )
+    |> Repo.all()
+    |> Enum.flat_map(&head_identity/1)
+  end
+
+  defp head_identity(volume) do
+    with %{generation: generation, tree_digest: digest, content_digest: content}
+         when generation > 0 and is_binary(digest) and is_binary(content) <-
+           VolumeHeads.get_head(volume.account_id, storage_name(volume)),
+         id when is_binary(id) <-
+           Repo.one(
+             from(u in Usage,
+               where:
+                 u.volume_id == ^volume.id and u.generation == ^volume.generation and
+                   u.published_generation == ^generation and u.status == "published",
+               limit: 1,
+               select: u.id
+             )
+           ) do
+      [
+        %{
+          kind: "custom",
+          id: id,
+          account_id: volume.account_id,
+          scope: scope(volume),
+          generation: generation,
+          image_digest: digest,
+          content_digest: content
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
   # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
   # reclamation. The custom-volume lock also serializes clearing with publication.
   def image(node, id, params) do
     with {:ok, id} <- Ecto.UUID.cast(id),
-         %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
+         %Usage{} = usage <- image_usage(id, node, params) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
         if volume.builtin_name, do: Repo.rollback(:unsupported)
@@ -580,6 +648,14 @@ defmodule Tuist.Runners.CacheVolumes do
       _ -> {:error, :not_found}
     end
   end
+
+  # Retaining a master and downloading a saved master only read the lineage, so a
+  # host may name a use allocated elsewhere: the server lists HEADs for hosts to
+  # prefetch under the use that published them. Writes stay bound to the node.
+  defp image_usage(id, _node, %{"operation" => operation}) when operation in ["retain", "download"],
+    do: Repo.get(Usage, id)
+
+  defp image_usage(id, node, _params), do: Repo.get_by(Usage, id: id, node_name: node)
 
   # A host validates each local master against the HEAD. The HEAD digests let it
   # name the newer master it can refresh into before discarding the stale one.

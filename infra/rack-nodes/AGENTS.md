@@ -977,6 +977,16 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+Staging and canary rent no macOS runner hosts: their only macOS runners are
+the rack hosts production lends them (b01 and b02, "Lending a host to
+another env" below), and `runner_site` is on for every account there
+(`Tuist.FeatureFlags.runner_site_enabled?/1`). Their `runnersFleet.hostCount`
+is 0, so the chart renders no rented macOS pools and sets
+`TUIST_RUNNERS_RENTED_MACOS_FLEET=false`: dispatch sends every macOS profile
+to the rack's pool, and nothing spills over. A job waits while its env's host
+is down, cordoned or busy. Their Scaleway minis only run the xcresult
+processor (`macosFleet`).
+
 A catalog shape can run a bigger guest on the rack than on the rented fleet
 (`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
 8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
@@ -1003,7 +1013,8 @@ The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 While a pool is down, dispatch routes new jobs to the rented pool for the same
 Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
-minute. A cluster the server cannot read leaves the rack up.
+minute. A cluster the server cannot read leaves the rack up. An env that
+rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
@@ -1023,59 +1034,124 @@ entry on a newer guest needs the hosts updated first.
 
 ### Lending a host to another env
 
-A rack host can run another env's runners while it stays in the rack's env:
-its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
-registers its Node in the other env's cluster, whose runner pools and server
-then drive its guests. Staging borrows production's ber1-runner-b01 and canary
-its ber1-runner-b02 this way, so their jobs run on rack hardware. The
-borrowing env's chart issues the host a node identity
-(`rackFleet.joiningNodes`), and the lending env's RackHost points the
-host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
-kubeconfig, then revokes the host's identity in its own cluster, deletes its
-Node there, and pushes the other cluster's kubeconfig through the drift loop.
-The Machine carries `cluster.x-k8s.io/skip-remediation` while lent, since its
-cluster never sees the Node.
+A rack host can run another env's runners while it stays production's.
+Production keeps the site: the host's Machine, power, MDM, OS updates and
+bootstrap from a reinstall. The borrowing env's operator runs the host's runner
+runtime (tart-kubelet and its config, the VM egress firewall, cache volumes,
+Tailscale, the Node) from its own fleet config and rolls it with its own
+deploys, as it does its rented minis, so a rack runtime change reaches a rack
+host in staging first. The two operators hand the host over through a
+RackHostLease in the borrowing cluster, and never push to it at the same time.
+How it works is "A host lent to another env" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
-1. **Issue the identity** (remote). In the borrowing env's values, add the
-   host's Machine name (`<fleet>-<host>`) to `rackFleet.joiningNodes`, set
-   `rackFleet.name` to the fleet its pools select and `rackFleet.site`, enable
-   `rackFleet.runners`, and deploy.
-2. **Store it in the lending env's vault** (remote, by a person: it writes a
-   credential into 1Password). With `S` the borrowing cluster's context and
-   `M` the Machine name:
+**Once per borrowing env** (remote, by a person: it writes a credential into
+1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
+and canary do), which renders the `rack-lender` identity production's operator
+writes that env's leases with. With `C` the borrowing cluster's context, `N`
+its namespace and `E` its name. Every variable is quoted, since zsh does not
+word-split an unquoted one, and each step runs only if the one before it
+succeeded:
 
-   ```
-   M=tuist-tuist-rack-fleet-ber1-runner-b01; S="--context kube-staging.tuist.dev"
-   umask 077; d="$(mktemp -d)"
-   kubectl $S -n tuist-staging get secret "tart-kubelet-$M-token" -o json >"$d/s.json"
-   server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
-   printf 'apiVersion: v1\nkind: Config\ncurrent-context: tart-kubelet\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: tart-kubelet\n    context:\n      cluster: cluster\n      user: tart-kubelet-%s\nusers:\n  - name: tart-kubelet-%s\n    user:\n      token: %s\n' \
-     "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$M" "$M" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
-   jq -n --rawfile k "$d/kubeconfig" '{title: "BER1_RUNNER_B01_STAGING_KUBECONFIG", category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
-   op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
-   ```
+```
+C=kube-staging.tuist.dev; N=tuist-staging; E=STAGING
+umask 077; d="$(mktemp -d)"
+kubectl --context "$C" -n "$N" get secret tuist-tuist-rack-lender-token -o json >"$d/s.json" && server="$(kubectl --context "$C" -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')" && test -n "$server" && test -n "$(jq -r .data.token "$d/s.json")" && printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig" && KUBECONFIG="$d/kubeconfig" kubectl auth whoami && jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json" && op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+```
 
-3. **Lend it** (remote). Cordon the host's Node in the lending env and let
-   its jobs finish, then set the host's `nodeFleet` (the borrowing env's
-   `rackFleet.name`) and `nodeCluster.kubeconfigItem` (the item above) in the
-   lending env's `rackFleet.hosts`, and deploy. A host that cannot read its
-   kubeconfig keeps serving its own env and records `Not lending ... yet`
-   events on its RackAppleSiliconMachine.
-4. **Check it** (remote): `kubectl $S get node $M -L tuist.dev/fleet` is
-   Ready in the borrowing cluster, and the lending cluster has no Node `$M`.
+`kubectl auth whoami` must print
+`system:serviceaccount:<N>:tuist-tuist-rack-lender` before anything is stored.
+To replace an item that exists already, run the same with `op item edit <item>
+--vault tuist-k8s-production --template "$d/item.json"` in place of `op item
+create`.
 
-Returning the host is the reverse: drop `nodeCluster` and `nodeFleet` in the
-lending env and deploy (the operator mints its identity there again and pushes
-it), then drop it from `joiningNodes` in the borrowing env, deploy, and delete
-the Node there. Rotating the kubeconfig takes a new item name: the Secret is
-named after the item, and the drift loop keys on the Secret's name, not its
-contents.
+Staging's and canary's entries in `rackFleet.borrowers` in
+values-managed-production.yaml name their items already; a new borrowing env
+needs an entry with its `kubeconfigItem`, and a production deploy. Rotating it
+is deleting the token Secret in the borrowing env (its next deploy makes a new
+one), storing the new kubeconfig under the same item, and waiting for ESO's
+five-minute refresh.
 
-Before enabling the flag for any account other than Tuist's own, the rack's
-runner VMs have to be isolated from the rack's private networks and the
-tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
-catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
-runner VM.
+**Lend a host** (remote):
+
+1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
+   deploy. A host not on that list is refused.
+2. In production's `rackFleet.hosts`, set the host's `lendTo` to the borrowing
+   env and deploy.
+3. Watch it: `kubectl get rh` in production shows the lease's state (Offered,
+   Draining while production's jobs on the host finish, then Lent), and
+   `kubectl $S get rhl` in the borrowing env shows the borrower's (Accepted,
+   then Active once its runtime is on the host, with the Node it registers as
+   `<rackFleet.name>-<host>`).
+
+**Return it**: drop `lendTo` in production and deploy. The borrower drains its
+Node, so its running jobs finish, and releases the host; production then takes
+the runtime back and bootstraps its own (Returning, then Reclaimed). Remove the
+host from `rackFleet.borrow.hosts` afterwards. A borrower that is gone cannot
+release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+in production takes it back without it (whatever the borrower ran there is
+lost), and remove the annotation once the host is back.
+
+**Rotate the borrower's key**: delete `rack-lease-<host>-ssh` in the borrowing
+env. Its operator mints a new key and waits for production to authorize it,
+which takes a minute; the host keeps running meanwhile.
+
+**Power-cycle or update a lent host** from the borrowing env, which holds no
+credential for either: annotate its lease, and production does it.
+
+```
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/power-cycle=wedged
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/os-update=26.7
+```
+
+An update drains the borrower's Node first, so its jobs finish, and the
+borrower pushes its runtime again afterwards. Follow it in the lease's
+`SiteRequest` condition, `status.siteRequest` and `spec.siteRequestResult`. A
+reinstall is not a site request: return the host, reinstall it in production,
+and lend it again.
+
+#### Moving ber1-runner-b01 and b02 off the manual lend
+
+b01 (staging) and b02 (canary) were lent the earlier way: production pushed its
+own runtime with a kubeconfig the borrowing env issued (`nodeCluster`,
+`nodeFleet`, `rackFleet.joiningNodes`). The change that brought `lendTo` also
+switches them, and each env takes its host over as soon as it can:
+
+- **canary** on the merge's own cascade. Canary deploys first, with its lease
+  controller and `rack-lender` identity, and its runners acceptance gate still
+  runs on b02's old Node. Production then deploys with `lendTo: canary`, and
+  the lend starts once `RACK_BORROWER_CANARY_KUBECONFIG` exists (above), which a
+  person stores after that canary deploy; ESO picks it up within five minutes.
+- **staging** once it has run the change: a staging deploy of the branch before
+  the merge (with the operator image built from it, `capi_image_tag`) lets
+  `RACK_BORROWER_STAGING_KUBECONFIG` be stored ahead, and production lends b01
+  as soon as it deploys.
+
+Until its item exists and its env runs the change, a host stays exactly as it
+is: production pushes nothing to it, and its old Node keeps running jobs. The
+borrower drains that Node (`tuist-tuist-rack-fleet-<host>`) only once it has
+reached the host with its own key, which needs the staging and canary grants in
+`infra/tailscale/acls.json` pasted, then takes the host over and deletes it.
+Each env's rack jobs wait out that drain and the push, a few minutes.
+
+Afterwards, in a later change: drop canary's `joiningNodes`, staging's leftover
+`tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01` identity, the
+`BER1_RUNNER_B0{1,2}_*_KUBECONFIG` items, and the leftover staging
+RackAppleSiliconMachines and Machines for b01..b03 (step 17 of "Into
+production"); then `nodeCluster`, `nodeFleet` and `rackFleet.joiningNodes` go
+from the chart and the operator.
+
+Any account's jobs can run on a rack host, since staging and canary route all
+of theirs there. A runner VM is isolated from the rack's private networks, the
+host's own listeners, its sibling guests and the tailnet: the VM egress
+firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
+translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
+`vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
+from a VM on the host it lands on; run it on a host before lending it to an
+env, and after a change to either. The one rack target a guest reaches on
+purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
+probe's cluster DNS check fails on a host lent by hand, which has no route to
+the borrowing cluster's Service CIDR.
 
 ## Tests
 

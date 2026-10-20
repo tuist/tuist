@@ -3,8 +3,15 @@
 `../cache_volumes.ex` owns allocation, publication, invalidation and analytics;
 these schemas persist volume identities and per-job uses.
 
-- Account-scope all browser reads and writes. Agent reports are separately
-  authenticated and bound to the node that received the allocation.
+- Account-scope all browser reads and writes. Agent reports, uploads and
+  publications are separately authenticated and bound to the node that received
+  the allocation. Read-only image `retain` and `download` requests may name a use
+  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
+  listed by `VolumePrefetch`) under the use that published it.
+- A report's `mounted_generation` records the older saved generation a macOS host
+  mounted when the use's base was not local; only values below the base are kept.
+  Such uses may still publish (last publication wins). `older_copy?/1` drives the
+  "Older copy" dashboard badge and the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -27,6 +34,8 @@ these schemas persist volume identities and per-job uses.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   runner's `in_progress` job from GitHub's API and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  An agent that is still answered 425 at its deadline reports `execution_pending`
+  (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity

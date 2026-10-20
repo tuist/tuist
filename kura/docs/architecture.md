@@ -10,8 +10,9 @@ restarted stale store from rejoining peers. A preparation-capable named standby
 first reconciles retained data under a Serving grant, while the primary continues
 accepting writes. The controller persists that exact intent for at most 20 minutes;
 the destination serializes it with frozen-corpus repair and uses normal background
-bandwidth admission. It repeats on eviction but never takes a hold or issues a
-receipt. Its completion report is bound to the source epoch and identity and the
+bandwidth admission. It completes one retained walk even if live eviction occurred;
+waiting for an eviction-free walk can starve while the source continues writing.
+It never takes a hold or issues a receipt. Its completion report is bound to the source epoch and identity and the
 complete intent. Cancellation, expiry, drain or an identity change stops this work.
 Completion only allows the controller to start the original five-minute Quiescing
 phase; ongoing writes or later eviction can make more repair necessary. Older

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,14 @@ import (
 
 var ErrConflict = errors.New("cache generation advanced")
 var ErrPoisoned = errors.New("cache image failed write-back verification")
+
+// ErrWithheld discards a finished branch that must not replace the saved version.
+var ErrWithheld = errors.New("cache branch withheld from publication")
+
+// ErrUnchanged and ErrFull withhold a branch the job left as it found it, or
+// one that ran out of space and may hold partial writes.
+var ErrUnchanged = fmt.Errorf("%w: unchanged", ErrWithheld)
+var ErrFull = fmt.Errorf("%w: out of space", ErrWithheld)
 
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
@@ -55,9 +64,13 @@ type LocalImages struct {
 	// of removing it right away. Refreshes take this type's filesystem admission,
 	// not APFSImages' reservations.
 	RefreshWithin time.Duration
-	refresh       refresher
-	locks         sync.Map
-	admission     contextMutex
+	// Replace, when set, is asked to fetch the HEAD that superseded a master used
+	// in the last day. The stale master stays while it reports the fetch queued, so
+	// jobs can mount it until its successor is local. It replaces RefreshWithin.
+	Replace   func(Identity) bool
+	refresh   refresher
+	locks     sync.Map
+	admission contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -184,6 +197,25 @@ func (b *LocalImages) freeBytes(ctx context.Context) (uint64, error) {
 // exactly like the APFS manager, rather than summing logical image sizes.
 func (b *LocalImages) reserve(ctx context.Context) error {
 	return b.reserveBytes(ctx, b.MinFreeBytes)
+}
+
+// reserveSpare admits work only while free space already covers it.
+func (b *LocalImages) reserveSpare(ctx context.Context) error {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return err
+	}
+	defer b.admission.Unlock()
+	if b.FreeBytes == nil && b.FreeBytesContext == nil {
+		return errors.New("missing filesystem admission")
+	}
+	free, err := b.freeBytes(ctx)
+	if err != nil {
+		return err
+	}
+	if free < b.MinFreeBytes {
+		return ErrCapacity
+	}
+	return nil
 }
 
 func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
@@ -558,6 +590,7 @@ func (b *LocalImages) recordMaster(slot Slot, master string) error {
 }
 func (b *LocalImages) Maintain() error {
 	heads, _ := b.Transfer.(HeadReader)
+	b.removeStaleStaging()
 	files, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
 	if err != nil {
 		return err
@@ -574,8 +607,30 @@ func (b *LocalImages) Maintain() error {
 	return errors.Join(failures...)
 }
 
+// maintainMaster asks the server for the lineage's HEAD without the scope lock,
+// so a job cloning that lineage never waits on the request, then re-checks the
+// master under the lock before acting on the answer.
 func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
-	unlock := b.lock(filepath.Base(filepath.Dir(path)))
+	scope := filepath.Base(filepath.Dir(path))
+	var slot Slot
+	var head Identity
+	var headErr error
+	idle := false
+	if info, err := os.Stat(path); err == nil {
+		idle = time.Since(info.ModTime()) >= 7*24*time.Hour
+	}
+	if heads != nil && !idle {
+		data, err := os.ReadFile(path + ".json")
+		if err == nil {
+			if err = json.Unmarshal(data, &slot); err != nil {
+				return err
+			}
+			head, headErr = heads.Head(slot)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	unlock := b.lock(scope)
 	defer unlock()
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -590,28 +645,71 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 	if heads == nil {
 		return nil
 	}
-	data, err := os.ReadFile(path + ".json")
-	if os.IsNotExist(err) {
+	if _, err = os.Stat(path + ".json"); os.IsNotExist(err) {
+		return removeMaster(path)
+	} else if err != nil {
+		return err
+	}
+	if slot.Scope == "" {
+		// The sidecar appeared after the unlocked read; check it next round.
+		return nil
+	}
+	if errors.Is(headErr, ErrConflict) {
 		return removeMaster(path)
 	}
-	if err != nil {
-		return err
+	if headErr != nil {
+		return headErr
 	}
-	var slot Slot
-	if err = json.Unmarshal(data, &slot); err != nil {
-		return err
+	if head.BaseGeneration == slot.BaseGeneration {
+		return nil
 	}
-	head, err := heads.Head(slot)
-	if errors.Is(err, ErrConflict) {
+	if b.Replace != nil {
+		next := slot.Identity
+		next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) && b.Replace(next) {
+			return nil
+		}
 		return removeMaster(path)
 	}
-	if err != nil {
-		return err
-	}
-	if head.BaseGeneration == slot.BaseGeneration || b.queueRefresh(path, slot, head, info.ModTime()) {
+	if b.queueRefresh(path, slot, head, info.ModTime()) {
 		return nil
 	}
 	return removeMaster(path)
+}
+
+// olderMaster is the newest master of the slot's lineage older than its base,
+// with its generation, or "" when this host holds none.
+func (b *LocalImages) olderMaster(slot Slot) (string, int64) {
+	if !scopePattern.MatchString(slot.Scope) {
+		return "", 0
+	}
+	paths, err := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))
+	if err != nil {
+		return "", 0
+	}
+	best, newest := "", int64(0)
+	for _, path := range paths {
+		name := filepath.Base(path)
+		if len(name) < 21 || name[20] != '-' {
+			continue
+		}
+		generation, err := strconv.ParseInt(name[:20], 10, 64)
+		if err != nil || generation <= newest || generation >= slot.BaseGeneration {
+			continue
+		}
+		best, newest = path, generation
+	}
+	return best, newest
+}
+
+// HasMaster reports whether the immutable master a warm identity clones from is
+// already on this host.
+func (b *LocalImages) HasMaster(identity Identity) bool {
+	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
+		return false
+	}
+	_, err := os.Stat(b.master(Slot{Identity: identity}))
+	return err == nil
 }
 
 // Prefetch restores only a validated immutable master. It cannot mount a job's
@@ -626,19 +724,45 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetch(ctx, slot)
 }
 
+// prefetch downloads into staging without the scope lock, so jobs and maintenance
+// keep using the lineage's local masters while it runs, then installs under it.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
-	unlock, err := b.lockContext(ctx, slot.Scope)
-	if err != nil {
-		return err
-	}
-	defer unlock()
 	master := b.master(slot)
 	if _, err := os.Stat(master); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	return b.restoreMaster(ctx, slot, master)
+	staging := filepath.Join(b.Root, "staging")
+	if err := os.MkdirAll(staging, 0700); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(staging, slot.Scope+"-*.img")
+	if err != nil {
+		return err
+	}
+	download := file.Name()
+	_ = file.Close()
+	_ = os.Remove(download)
+	defer os.Remove(download)
+	if err = b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+		return err
+	}
+	unlock, err := b.lockContext(ctx, slot.Scope)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	}
+	if err = os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		return err
+	}
+	if err = durableRename(download, master); err != nil {
+		return err
+	}
+	return b.recordMaster(slot, master)
 }
 func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master string) error {
 	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
@@ -657,4 +781,15 @@ func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master strin
 		return err
 	}
 	return b.recordMaster(slot, master)
+}
+
+// removeStaleStaging deletes downloads a crash left in staging. A live download
+// keeps writing, so its file stays younger than the cutoff.
+func (b *LocalImages) removeStaleStaging() {
+	files, _ := filepath.Glob(filepath.Join(b.Root, "staging", "*"))
+	for _, path := range files {
+		if info, err := os.Stat(path); err == nil && time.Since(info.ModTime()) >= time.Hour {
+			_ = os.Remove(path)
+		}
+	}
 }

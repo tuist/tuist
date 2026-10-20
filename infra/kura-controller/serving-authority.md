@@ -93,7 +93,10 @@ When the destination advertises `preparation_supported`, the controller first
 publishes the named intent while leaving the source in `Serving`. The source
 continues accepting reads and writes with normal 15-second lease renewal. The
 destination performs bounded retained-index catch-up with normal background
-bandwidth admission and no corpus hold. It repeats passes if eviction occurred.
+bandwidth admission and no corpus hold. It completes one retained walk; live
+eviction does not restart preparation. Requiring an eviction-free pass here can
+keep chasing concurrent writes until the preparation deadline. Final Quiescing
+repair still repeats on eviction before atomically taking its retained-corpus hold.
 The source remains mutable: writes and existing peer-read promotions can cause
 normal cache eviction during preparation. The retained-data guarantee covers the
 corpus frozen in Quiescing, not every entry present when preparation began.

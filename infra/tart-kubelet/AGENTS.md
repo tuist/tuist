@@ -60,6 +60,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
+  `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
+  runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
   Admission, convergence and cache eviction also preserve the host's 15% physical
@@ -78,9 +81,20 @@ workflow code runs in the guest. Never expose host credentials or masters.
 
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
-  Background master prefetch is single-slot, bounded, reserved and joined at stop.
-  Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
-  cold request has no archive to budget beside its image.
+  Master prefetch runs one download at a time from a bounded, deduplicated queue:
+  masters a job asked for but did not get within its 25 seconds first, then the
+  custom HEADs the server lists for the host class (free space only, no eviction).
+  Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
+  carry a bounded `reason` and the host logs why; a 425 retried until the
+  deadline is `execution_pending`, not `denied`.
+  A job never waits for a download. Without its base locally it mounts the newest
+  older master of the same lineage (reported as `mounted_generation`), or else an
+  empty image marked `.cold` that reports a miss and is withheld from publication;
+  either way its base is queued. A superseded master used in the last day stays
+  until its successor is downloaded through the queue (`LocalImages.Replace`).
+  Reserve 20 GB for every attach and 40 GB for prefetch, which also holds the
+  archive. Prefetch downloads into `staging/` without the lineage lock, and
+  maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.
 - Publication/reclamation runs independently of bounded per-pod mailbox workers.
@@ -98,3 +112,35 @@ workflow code runs in the guest. Never expose host credentials or masters.
   seeds from the Pod's published readiness for the same VM so a tart-kubelet
   restart does not flap Ready. A wrong probe stalls rollouts and PDBs, so
   probes stay opt-in per PodSpec.
+
+## Tart versions
+
+The operator installs Tart in place (see
+[`macos-host-bootstrap/AGENTS.md`](../macos-host-bootstrap/AGENTS.md)), so a host
+runs VMs started by the previous version beside new invocations of the current
+one, and a fleet runs mixed versions while a release rolls. tart-kubelet must
+work against every release the operator image carries (`TART_RELEASES` in
+`cluster-api-provider-tuist/Dockerfile`).
+
+What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
+
+- VM directories: a standalone VM is `config.json`, `disk.img` and `nvram.bin`
+  in both, and running is a `fcntl` lock on `config.json` in both. Existing
+  goldens, clones and OCI cache entries are reused after an upgrade, not
+  re-pulled, and `tart stop`/`delete` from either version manage the other's
+  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`) that only
+  `clone --stacked` creates; nothing here creates one yet, and 2.32 cannot read
+  one, so rolling back below 2.36 is only safe while no host holds one.
+- `tart run` stays a foreground process for the life of the VM, so the
+  `Setsid` launch and the `pgrep` liveness check are unchanged.
+- JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON
+  keeps `Size` numeric in `list` and a quoted decimal in `get`, and `Disk` may
+  be `null` (2.39). `VM` decodes all of them (`TestVMUnmarshalAcrossTartVersions`).
+- `clone` refuses an existing destination without `--overwrite` from 2.40.1,
+  even one too incomplete for `tart delete` to remove, and older releases reject
+  the flag. `CloneFrom` retries with it only after that refusal.
+- `pull --insecure` and image references naming a `host:port` registry, which
+  the rack's image cache needs, behave the same.
+
+The Node reports the Tart the host runs as its container runtime version
+(`tart://2.41.1`, the CONTAINER-RUNTIME column of `kubectl get nodes -o wide`).

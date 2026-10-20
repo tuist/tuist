@@ -90,6 +90,11 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	identity, err := a.authorize(ctx, body)
 	authorized(err)
 	outcome = err
+	if errors.Is(err, cachevolumes.ErrExecutionPending) {
+		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
+		http.Error(w, "execution pending", http.StatusTooEarly)
+		return
+	}
 	if err != nil {
 		http.Error(w, "unavailable", 403)
 		return

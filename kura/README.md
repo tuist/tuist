@@ -12,7 +12,8 @@ After an API interruption, the same live writer can resume in a new epoch only
 after explicitly fencing publication and draining admitted work; a restarted
 primary still requires quarantine and recovery. A preparation-capable standby first
 catches up while the primary continues accepting reads and writes. This bounded
-preparation grants no serving rights and holds no corpus; the subsequent five-minute
+preparation performs one complete retained walk, without waiting for live eviction
+to stop. It grants no serving rights and holds no corpus; the subsequent five-minute
 quiescing phase still repairs and verifies the complete retained set. Planned handover reconciles
 missing retained records on the named standby before freezing it, then verifies
 the complete corpus. Named repair copies old missing records even when ordinary

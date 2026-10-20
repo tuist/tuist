@@ -110,6 +110,8 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -169,6 +171,8 @@ jobs:
       MISE_LOCKED: 1
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -225,6 +229,8 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
