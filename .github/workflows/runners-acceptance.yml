@@ -33,6 +33,9 @@ on:
         default: ""
   schedule:
     - cron: "23 * * * *"
+  push:
+    branches: [ci/runners-acceptance-volumes]
+    paths: [.github/workflows/runners-acceptance.yml, .github/scripts/runners-acceptance/**]
 
 permissions: {}
 
@@ -51,7 +54,7 @@ jobs:
     steps:
       - id: plan
         env:
-          ENVIRONMENT: ${{ inputs.environment || 'production' }}
+          ENVIRONMENT: ${{ inputs.environment || 'canary' }}
         # Canary's macOS jobs run on ber1-runner-b02, which production lends
         # it (`tuist` is on `runner_site` there), and take canary's public
         # cache, since the rack's cache node belongs to production.
