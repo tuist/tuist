@@ -242,8 +242,15 @@ module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
 whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
-variant and then the coverage variant (`tuist cache --coverage`), which the runs
-with `-enableCodeCoverage YES` look up. Every `tuist test` that uploads coverage
+variant and then the coverage variant (`tuist cache --coverage`, with
+`TUIST_FEATURE_FLAG_COVERAGE=1`, without which newer CLIs ignore `--coverage`).
+The runs that collect coverage read that variant through `TUIST_COVERAGE_ENABLED=1`:
+newer CLIs pick it from `--coverage`, that variable or `Tuist.swift`'s `coverage`
+option, never from `-enableCodeCoverage YES`, which older pins still follow. Keep
+both variables until `Tuist.swift` turns the option on, which waits for the
+backward-compatibility gate's CLI to know it. Plain environment variables never
+reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so they cannot
+flip the CLI's own unit tests. Every `tuist test` that uploads coverage
 passes `--derived-data-path`, because the coverage export reads the test
 products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.

@@ -195,8 +195,8 @@ jobs:
       - name: Cache
         run: tuist cache
       # The coverage variant of the binary cache, read by the runs that collect
-      # coverage: coverage.yml on main, and the unit tests above, which run with
-      # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
+      # coverage: coverage.yml on main, and the unit tests below, which set
+      # TUIST_COVERAGE_ENABLED. Only repository-owned targets are built again,
       # with coverage counters; external packages are the plain warm's. Those
       # builds get no compilation-cache replay: coverage builds leave Xcode's
       # prefix mapping off by default, and `tuist cache` has no xcodebuild
@@ -205,6 +205,10 @@ jobs:
       # backward-compatibility gate's CLI knows it.
       - name: Cache with coverage
         run: tuist cache --coverage
+        env:
+          # Newer CLIs ignore `--coverage` without the client flag; older ones
+          # warm the variant either way.
+          TUIST_FEATURE_FLAG_COVERAGE: "1"
 
   cli-unit-tests:
     name: Unit Tests
@@ -250,6 +254,10 @@ jobs:
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
+          # Reads the coverage variant of the binary cache. Newer CLIs pick the
+          # variant from this (or Tuist.swift's `coverage` option), not from
+          # `-enableCodeCoverage`; older ones ignore it and follow the flag.
+          TUIST_COVERAGE_ENABLED: "1"
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests

@@ -60,6 +60,10 @@ env:
   MISE_GITHUB_SLSA: 0
   # Xcode code coverage is in early access behind this client flag.
   TUIST_FEATURE_FLAG_COVERAGE: "1"
+  # The test runs read the coverage variant of the binary cache. Newer CLIs pick
+  # the variant from this (or Tuist.swift's `coverage` option), not from
+  # `-enableCodeCoverage`; older ones ignore it and follow the xcodebuild flag.
+  TUIST_COVERAGE_ENABLED: "1"
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
@@ -160,8 +164,8 @@ jobs:
       # come from the coverage variant of the binary cache (`tuist cache
       # --coverage` in cli.yml), built with coverage counters, when their hash
       # matches what an earlier commit's warm stored; this commit's own warm runs
-      # at the same time, so the targets it changed are built from source. A run
-      # with coverage on never reads the plain variant. The derived data path is where the export
+      # at the same time, so the targets it changed are built from source.
+      # TUIST_COVERAGE_ENABLED keeps the run off the plain variant. The derived data path is where the export
       # finds the test products and the run's profile: without it the CLI falls
       # back to the result bundle's own report, which never covers cached code.
       # The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
