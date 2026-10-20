@@ -204,6 +204,20 @@ fallback. Retaining only an external source/native-manifest cache is possible,
 but rebuilds workspace state and manifest JSON; benchmark it separately before
 changing the retained layout.
 
+## Server deploy cascade volumes
+
+The production cascade's acceptance job keeps mise's data directory, `~/.rustup`
+and `~/.cargo/bin` on one `server-deploy-acceptance-tools` volume: mise records
+an installed Rust as a link to `~/.cargo/bin`, so splitting them across volumes
+can restore a toolchain mise believes is installed but cannot run. It installs
+only `tuist` and `rust`, prunes superseded Tuist releases from the volume, and
+installs dependencies through `tuist/install@v1`. `Swatinem/rust-cache` keeps the
+target and registry with `cache-bin: false`; never restore an archive into a
+volume path. Jobs that install part of the toolset run tasks with
+`mise run --skip-tools`, otherwise mise first installs every missing root tool
+(about 17 seconds on Linux). The platform chart job installs Helm and kubectl
+from `infra/` for the same reason, which also keeps infra's Helm pin.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
