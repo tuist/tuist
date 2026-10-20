@@ -55,8 +55,9 @@ jobs:
           df -h "${TUIST_XDG_CACHE_HOME}"
           ls -la "${TUIST_XDG_CACHE_HOME}"
           [ -z "${XCODE_XCCONFIG_FILE:-}" ] || cat "${XCODE_XCCONFIG_FILE}"
-          mkdir -p "${TUIST_XDG_CACHE_HOME}/tuist/macos-27-validation"
-          date -u +%FT%TZ > "${TUIST_XDG_CACHE_HOME}/tuist/macos-27-validation/${GITHUB_RUN_ID}"
+          # A new entry in a category the inventory digest covers, so a passing
+          # job promotes the volume.
+          mkdir -p "${TUIST_XDG_CACHE_HOME}/tuist/Runs/$(uuidgen | tr A-Z a-z)"
 
       - name: Build with the compilation cache
         run: |
