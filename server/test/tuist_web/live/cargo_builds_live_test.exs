@@ -341,7 +341,19 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     project: project
   } do
     id =
-      build(project, user, compilations: [%{name: "my-crate", source: "src/lib.rs", duration_ms: 100, status: "success"}])
+      build(project, user,
+        compilations: [
+          %{
+            name: "my-crate",
+            source: "src/lib.rs",
+            kind: "lib",
+            dependencies: [],
+            start_offset_ms: 0,
+            duration_ms: 100,
+            status: "success"
+          }
+        ]
+      )
 
     {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
     render_async(view, 5000)
