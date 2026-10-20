@@ -2543,14 +2543,19 @@ nothing listens on `:22` until someone runs `systemctl reset-failed`. Package
 upgrades and a temporarily broken `sshd_config` under internet scanner traffic
 both get there.
 
-`sshStartLimitDropIns` (`controllers/linux/linux_cloudinit.go`) writes
-`10-tuist-no-start-limit.conf` drop-ins for both units: `StartLimitIntervalSec=0`
-on each, plus `RestartSec=5s` on the service so a failing sshd retries every 5s
-instead of spinning. The self-join writes them, and the kubelet config re-push
-writes them and runs `systemctl daemon-reload`. Their content is part of
-`desiredKubeletConfigHash`, so changing them rolls to every Ready node. The
-re-push never restarts sshd, because it runs over the session sshd serves. A
-host whose `:22` is already dead cannot receive them. Recover it out of band
+`internal/sshd` holds `10-tuist-no-start-limit.conf` drop-ins for both units:
+`StartLimitIntervalSec=0` on each, plus `RestartSec=5s` on the service so a
+failing sshd retries every 5s instead of spinning. On the SSH-bootstrapped
+hosts, `sshStartLimitDropIns` (`controllers/linux/linux_cloudinit.go`) writes
+them: the self-join writes them, and the kubelet config re-push writes them and
+runs `systemctl daemon-reload`. Their content is part of
+`desiredKubeletConfigHash`, so changing them rolls to every Ready node. A rack
+Linux host's install writes them into the installed system
+(`internal/rackinstall`), and its converge keeps them in the `units` group,
+which the node agent loads with `systemctl daemon-reload`; they are in the
+converge's hash, so changing them rolls to every rack host. Neither the re-push
+nor the converge restarts sshd, because both run over the session sshd serves.
+A host whose `:22` is already dead cannot receive them. Recover it out of band
 with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socket`.
 
 ## Node memory governance

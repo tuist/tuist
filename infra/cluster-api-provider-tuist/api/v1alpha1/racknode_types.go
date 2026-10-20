@@ -70,7 +70,8 @@ type RackNodeNftSet struct {
 // RackNodeFile is one file on a rack node. Group names what a change to it
 // takes: modules, sysctl, network (networkd reloaded), networkd or resolved
 // (systemd-networkd or systemd-resolved restarted, for their own
-// configuration), systemd (systemd re-executed), containerd or kubelet
+// configuration), systemd (systemd re-executed), units (systemd reloaded, for
+// unit drop-ins, which leaves the units running), containerd or kubelet
 // (restarted), or none.
 type RackNodeFile struct {
 	Path string `json:"path"`

@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // linuxCloudInitOptions parameterizes the self-join bootstrap across the two
@@ -129,26 +131,12 @@ RuntimeWatchdogSec=30s
 RebootWatchdogSec=5min
 `
 
-	// sshServiceDropInContent and sshSocketDropInContent take sshd out of
-	// systemd's start rate limit. Ubuntu 24.04 socket-activates sshd, and
-	// openssh-server's maintainer scripts restart ssh.service several times in a
-	// few seconds on every unattended upgrade. Five starts within 10s trip the
-	// default limit: ssh.service fails with start-limit-hit, ssh.socket fails with
-	// service-start-limit-hit, and nothing listens on :22 again until someone runs
-	// reset-failed, while kubelet stays Ready. That host then takes no config the
-	// operator pushes over SSH. RestartSec spaces out the restarts the vendor
-	// unit's Restart=on-failure makes, so an sshd that cannot start retries every
-	// 5s instead of spinning.
-	sshServiceDropInPath    = "/etc/systemd/system/ssh.service.d/10-tuist-no-start-limit.conf"
-	sshServiceDropInContent = `[Unit]
-StartLimitIntervalSec=0
-[Service]
-RestartSec=5s
-`
-	sshSocketDropInPath    = "/etc/systemd/system/ssh.socket.d/10-tuist-no-start-limit.conf"
-	sshSocketDropInContent = `[Unit]
-StartLimitIntervalSec=0
-`
+	// The sshd start-limit drop-ins (internal/sshd), which rack hosts' installs
+	// and converges write too.
+	sshServiceDropInPath    = sshd.ServiceDropInPath
+	sshServiceDropInContent = sshd.ServiceDropInContent
+	sshSocketDropInPath     = sshd.SocketDropInPath
+	sshSocketDropInContent  = sshd.SocketDropInContent
 
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
