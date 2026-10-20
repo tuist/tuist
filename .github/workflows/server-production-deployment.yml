@@ -1489,8 +1489,10 @@ jobs:
           install: "erlang elixir"
           working-directory: server
       # Mix links each `_build/<env>/lib/<dep>` directory to `deps/<dep>`
-      # through relative symlinks, and macOS attaches a cache volume as a
-      # symlink, so the deps and build directories share one volume.
+      # through relative symlinks, computed from the dependency's resolved
+      # path, and macOS attaches a cache volume as a symlink. The deps and
+      # build directories therefore share one volume and are addressed by
+      # its resolved path.
       - uses: tuist/cache-volume@v1
         with:
           key: xcresult-processor-release-mix
@@ -1501,10 +1503,12 @@ jobs:
           path: ~/.cache/tuist-ci/xcresult-processor-release/nif
       - name: Point build caches at the volumes
         run: |
+          set -euo pipefail
           cache_root="${HOME}/.cache/tuist-ci/xcresult-processor-release"
+          mix_root="$(cd "${cache_root}/mix" && pwd -P)"
           {
-            echo "MIX_BUILD_ROOT=${cache_root}/mix/build"
-            echo "MIX_DEPS_PATH=${cache_root}/mix/deps"
+            echo "MIX_BUILD_ROOT=${mix_root}/build"
+            echo "MIX_DEPS_PATH=${mix_root}/deps"
             echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
           } >> "$GITHUB_ENV"
       - name: Install Hex and Rebar
