@@ -33,6 +33,8 @@ func macUnavailable(reason string) error {
 		return errors.New("this runner host has no room for the volume right now")
 	case "denied":
 		return errors.New("the Tuist server did not authorize a volume for this job")
+	case "execution_pending":
+		return errExecutionPending
 	default:
 		return errors.New("cache unavailable")
 	}

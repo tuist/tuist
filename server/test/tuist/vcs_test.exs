@@ -2604,6 +2604,115 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "renders a multi-line failure message as a code block that keeps its lines" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      message =
+        Enum.join(
+          [
+            ~s{ui().contains("0190a5c4")},
+            ~s{ui() → "╭────┬─────────╮},
+            ~s{│ ID │ Command │},
+            ~s{╰────┴─────────╯"}
+          ],
+          "\n"
+        )
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          status: "failure",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "failure",
+              duration: 1000,
+              test_suites: [%{name: "MySuite", status: "failure", duration: 1000}],
+              test_cases: [
+                %{
+                  name: "test_failing",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: message,
+                      path: "Tests/MyModule/MyTests.swift",
+                      line_number: 10,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      expected_failed_test =
+        """
+        - [**test_failing**](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_run.test_case_id}) · MyModule · MySuite\\
+        [`Tests/MyModule/MyTests.swift:10`](https://github.com/tuist/tuist/blob/#{@git_commit_sha}/Tests/MyModule/MyTests.swift#L10)
+
+          ```
+          ui().contains("0190a5c4")
+          ui() → "╭────┬─────────╮
+          │ ID │ Command │
+          ╰────┴─────────╯"
+          ```
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ expected_failed_test
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
     test "limits failed tests to 5 in comment and shows truncation note" do
       # Given
       project =

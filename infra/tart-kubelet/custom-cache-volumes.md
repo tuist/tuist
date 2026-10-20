@@ -213,12 +213,15 @@ an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
 
-Acquisition follows Linux's 25-second host budget and 30-second client budget.
-A warm volume whose master does not arrive in time falls back to an empty
-directory, and its master is queued for background download ahead of any
-speculative prefetch so later jobs on the host find it. Cancellation
-reaches APFS creation/cloning, remote restore and admission waits; an expired
-response cannot trigger a guest mount. The unavailable response carries a bounded
+Acquisition follows Linux's 25-second host budget and 30-second client budget,
+but a macOS job never waits for a download. It clones its base master, or the
+newest older master of its lineage, and otherwise starts from an empty image
+marked `.cold`. That branch reports a miss, its master is queued for background
+download ahead of any speculative prefetch, and sealing withholds it
+(`ErrWithheld`) so an empty start never replaces the saved version. Admission
+therefore needs one image of free space for every attach. Cancellation reaches
+APFS creation/cloning and admission waits; an expired response cannot trigger a
+guest mount. The unavailable response carries a bounded
 reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its warning.
 
 A job whose base master is not on the host mounts the newest older master of the
@@ -230,7 +233,10 @@ its successor has been downloaded through the queue, so such a master usually
 exists while the new one arrives.
 
 One worker downloads masters in the background, each within five minutes and with a separate disk
-reservation for the archive and expanded image. Requests for the same master join.
+reservation for the archive and expanded image. Downloads land in `staging/` and
+only take the lineage's lock to install the finished master, and maintenance asks
+the server for a lineage's HEAD before taking that lock, so neither ever delays a
+job cloning the same lineage. Requests for the same master join.
 The converge worker also hands it the saved custom-volume HEADs the server lists
 for the host class: dispatch cannot know which custom volumes a job attaches, so
 every host of the class warms them. These speculative downloads use free space

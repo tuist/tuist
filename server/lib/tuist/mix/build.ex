@@ -25,7 +25,7 @@ defmodule Tuist.Mix.Build do
       :custom_tags,
       :inserted_at
     ],
-    sortable: [:inserted_at, :duration_ms, :status],
+    sortable: [:inserted_at, :duration_ms, :status, :id],
     default_order: %{
       order_by: [:inserted_at],
       order_directions: [:desc]

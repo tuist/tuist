@@ -630,6 +630,17 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "private_endpoint?/1" do
+    test "is true only for a private region's hostname" do
+      assert Regions.private_endpoint?("https://acme-scw-fr-par-runners.kura.tuist.dev")
+      assert Regions.private_endpoint?("https://acme-ber1-runners.kura.tuist.dev/")
+      refute Regions.private_endpoint?("https://acme-eu-west-1.kura.tuist.dev")
+      refute Regions.private_endpoint?("https://acme.cache.tuist.dev")
+      refute Regions.private_endpoint?("")
+      refute Regions.private_endpoint?(nil)
+    end
+  end
+
   describe "serves_runner_platform?/2" do
     test "scaleway region serves only the co-located macOS fleet" do
       scw = Regions.get("scw-fr-par-runners")

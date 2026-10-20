@@ -424,11 +424,10 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
-  """
+  @doc """
   Whether a use mounted an older saved generation because its base was not on
   its runner host.
   """
-
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
 

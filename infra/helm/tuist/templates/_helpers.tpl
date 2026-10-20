@@ -1297,7 +1297,7 @@ names. `templates/runner-pool.yaml` renders exactly these, and the server
 learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
 profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
 does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
-another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
+another env (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
@@ -1319,6 +1319,41 @@ another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
 {{- end -}}
 {{- end -}}
 {{- $pools | toJson -}}
+{{- end -}}
+
+{{/*
+The Secret holding the credential this env's operator reaches a borrowing
+env's RackHostLeases with: `rackFleet.borrowers.<env>`.
+*/}}
+{{- define "tuist.rackBorrowerSecret" -}}
+{{- printf "%s-%s" (include "tuist.componentName" (dict "root" .root "component" "rack-borrower")) .env | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+The identity a lending env's operator writes this env's RackHostLeases with.
+*/}}
+{{- define "tuist.rackLenderName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "rack-lender") -}}
+{{- end -}}
+
+{{/*
+"true" unless the env racks its macOS catalog at a site
+(`tuist.rackCatalogPools`) and rents no Scaleway hosts for it
+(`runnersFleet.hostCount` and every `machineGroups[].hostCount` at 0). Without
+rented hosts the chart renders no rented macOS catalog pools, and the server
+(TUIST_RUNNERS_RENTED_MACOS_FLEET) keeps every site job at the site instead of
+falling back or spilling over to a fleet that is not there.
+*/}}
+{{- define "tuist.runnersFleetRentsMacOS" -}}
+{{- $hosts := int (.Values.runnersFleet.hostCount | default 0) -}}
+{{- range (.Values.runnersFleet.machineGroups | default list) -}}
+{{- $hosts = add $hosts (int (.hostCount | default 0)) -}}
+{{- end -}}
+{{- if and (eq (int $hosts) 0) (include "tuist.rackCatalogPools" . | fromJsonArray) -}}
+false
+{{- else -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{/*
