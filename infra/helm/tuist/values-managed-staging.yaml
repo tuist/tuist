@@ -369,10 +369,6 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
-  # The in-cluster ClickHouse is staging's system of record (spec #73).
-  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
-  # ClickHouse Cloud receives nothing.
-  #
   # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
   # data on that node's XFS `/data`, and one Keeper on the general pool.
   # Deliberately not a highly-available shape: what staging proves is the
@@ -382,10 +378,6 @@ clickhouse:
   # The volume is sized well under the 441 GB `/data` offers, because the
   # staging dataset is a few GiB and the headroom is more useful as page
   # cache than as a reservation nothing fills.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     persistence:

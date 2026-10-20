@@ -272,15 +272,10 @@ spec:
                   fieldPath: metadata.name
             {{- end }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            # This processor writes the test tables, so it needs the in-cluster
-            # server like every other writer: as the mirror destination while
-            # ClickHouse Cloud is the system of record, and as its ClickHouse
-            # once the in-cluster server is.
-            #
-            # The tailnet variant, because this is the one writer that is not
-            # on the pod network: it runs in a Tart VM with a tailnet address,
-            # so the in-cluster Service name every other writer uses does not
-            # resolve here.
+            # The tailnet variant of the in-cluster ClickHouse URL, because this
+            # is the one writer that is not on the pod network: it runs in a
+            # Tart VM with a tailnet address, so the in-cluster Service name
+            # every other writer uses does not resolve here.
             {{- include "tuist.clickhouseManagedTailnetEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
