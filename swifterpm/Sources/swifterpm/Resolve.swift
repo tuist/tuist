@@ -56,6 +56,11 @@ enum PackageResolver {
             }.count
         )
 
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        var seed: Data?
+        if useExistingResolvedFile, writeResolvedFile, try await fileSystem.exists(resolvedPath.absolutePath) {
+            seed = try await fileSystem.readFile(at: resolvedPath.absolutePath)
+        }
         var resolved = try await resolveWithSwiftPackageManagerProcess(
             packageDir: packageDir,
             scratchDir: scratchDir,
@@ -68,13 +73,24 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             forwardOutput: progress != nil
         )
-        resolved.originHash = originHash
+        // SwiftPM leaves Package.resolved untouched, `originHash` included, when no pin
+        // changes. Rewriting only the hash would leave a diff that neither
+        // `swift package resolve` nor Xcode produces, so keep the seed's hash in that case.
+        // `ResolvedFile.isCurrent` still sees these pins as current for the new manifest.
+        var swiftPMKeptTheSeed = false
+        if let seed, try await fileSystem.exists(resolvedPath.absolutePath) {
+            swiftPMKeptTheSeed = try await fileSystem.readFile(at: resolvedPath.absolutePath) == seed
+        }
+        if !swiftPMKeptTheSeed {
+            // SwiftPM hashes the version-specific manifest it picked, which can differ from
+            // the `Package.swift` hash `ResolvedFile.isCurrent` checks.
+            resolved.originHash = originHash
+        }
         resolved.pins = dedupePinsByIdentity(resolved.pins)
         resolved = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
-            // SwiftPM writes Package.resolved with its own originHash; rewrite
-            // with ours so consumers can detect manifest changes.
             try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
+            try await ResolvedFile.recordNativeAcceptance(packageDir: packageDir, scratchDir: scratchDir)
         }
         progress?.finished(pinCount: resolved.pins.count)
         return resolved
@@ -159,6 +175,9 @@ enum PackageResolver {
                 if let workspaceStateSnapshot {
                     try await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
                 }
+            }
+            if writeResolvedFile {
+                try await ResolvedFile.recordNativeAcceptance(packageDir: packageDir, scratchDir: scratchDir)
             }
             return resolved
         } catch {
@@ -338,7 +357,7 @@ enum PackageResolver {
     /// instead of being dropped as unused.
     ///
     /// Only prunes when the manifest actually diverged from the seed
-    /// (originHash mismatch) and only pins whose identity is definitely no
+    /// (`ResolvedFile.isCurrent` is false) and only pins whose identity is definitely no
     /// longer declared by the root manifest or any local package under it.
     /// Direct-dep pins keep their exact recorded versions; transitives of
     /// pruned direct deps are dropped along with them and re-resolved from
@@ -367,11 +386,13 @@ enum PackageResolver {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else { return }
 
-        let resolved = try await ResolvedFile.read(packageDir: packageDir)
+        let data = try await fileSystem.readFile(at: resolvedPath.absolutePath)
+        let resolved = try JSONDecoder().decode(ResolvedPins.self, from: data)
         guard !resolved.pins.isEmpty else { return }
 
-        let currentOriginHash = try await originHash(packageDir: packageDir)
-        guard resolved.originHash != currentOriginHash else { return }
+        guard try await !ResolvedFile.isCurrent(
+            resolved, data: data, packageDir: packageDir, scratchDir: scratchDir
+        ) else { return }
 
         let manifest = try await ManifestLoader.dumpPackage(
             packageDir: packageDir, disableSandbox: disableSandbox
@@ -547,7 +568,7 @@ enum PackageResolver {
             }
         }
         if preferResolvedFile,
-           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir, scratchDir: scratchDir),
            existing.pins.allSatisfy(mirrors.isConsistent(with:)),
            try await mirroredRegistryDependenciesArePinned(
                by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox

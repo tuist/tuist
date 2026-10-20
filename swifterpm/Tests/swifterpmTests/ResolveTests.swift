@@ -1873,6 +1873,89 @@ struct ResolveTests {
     }
 
     @Test
+    func resolveKeepsTheResolvedFileWhenTheManifestChangesButNoPinDoes() async throws {
+        // Native SwiftPM rewrites Package.resolved only when a pin changes, so a manifest edit
+        // that keeps every pin, such as a requirement bumped by a dependency bot, must not leave
+        // a diff that only rewrites `originHash`.
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, fromVersion: "1.0.0")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: root.appendingPathComponent("cache"),
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+            let resolvedPath = try package.appendingPathComponent("Package.resolved").absolutePath
+            let resolvedFile = try await fileSystem.readFile(at: resolvedPath)
+
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, exactVersion: "1.0.0")
+            _ = try await SwifterPM().resolve(request)
+
+            #expect(try await fileSystem.readFile(at: resolvedPath) == resolvedFile)
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: package, scratchDir: scratch) != nil)
+        }
+    }
+
+    @Test
+    func resolveOrLoadTrustsTheResolvedFileANativeResolutionAcceptedForTheManifest() async throws {
+        // The unreachable location makes a fall-through to `swift package resolve` fail.
+        try await withTemporaryDirectory { root in
+            let package = try await writeCurrentResolvedFileWithLocalFeature(
+                at: root,
+                featureDependencies: "",
+                featureTargets: #".target(name: "Feature"),"#,
+                pins: []
+            )
+            let manifestPath = package.appendingPathComponent("Package.swift")
+            let manifest = try await fileSystem.readFile(at: manifestPath.absolutePath)
+            try await fileSystem.atomicWrite(manifest + Data("// Edited\n".utf8), to: manifestPath)
+            try await ResolvedFile.recordNativeAcceptance(
+                packageDir: package, scratchDir: root.appendingPathComponent("scratch")
+            )
+
+            let resolved = try await resolveOrLoadPreferringTheResolvedFile(packageDir: package, root: root)
+
+            #expect(resolved.pins.map(\.identity) == ["kept"])
+        }
+    }
+
+    @Test
+    func readIfCurrentAcceptsOnlyTheResolvedFileANativeResolutionAcceptedForTheManifest() async throws {
+        try await withTemporaryDirectory { root in
+            try await writeMinimalPackageManifest(at: root, name: "Fixture")
+            let pin = ResolvedPin(
+                identity: "foo",
+                kind: "remoteSourceControl",
+                location: "https://github.com/example/foo",
+                state: ResolvedState(branch: nil, revision: "abcdef123456", version: "1.0.0")
+            )
+            var resolved = ResolvedPins(originHash: "stale", pins: [pin], version: 3)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: root) == nil)
+
+            try await ResolvedFile.recordNativeAcceptance(packageDir: root, scratchDir: nil)
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: root)?.pins == [pin])
+
+            resolved.pins[0].state.version = "1.0.1"
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: root) == nil)
+
+            try await ResolvedFile.recordNativeAcceptance(packageDir: root, scratchDir: nil)
+            let manifestPath = root.appendingPathComponent("Package.swift")
+            let manifest = try await fileSystem.readFile(at: manifestPath.absolutePath)
+            try await fileSystem.atomicWrite(manifest + Data("// Edited\n".utf8), to: manifestPath)
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: root) == nil)
+        }
+    }
+
+    @Test
     func resolveOrLoadKeepsTheResolvedFileWhenALocalPackageOnlyTestsAgainstAnUnpinnedDependency() async throws {
         // SwiftPM does not pin a local package's test-only dependencies. The
         // unreachable location makes a fall-through to `swift package resolve` fail.

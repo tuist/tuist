@@ -175,16 +175,71 @@ struct ResolvedState: Codable, Equatable, Sendable {
 }
 
 enum ResolvedFile {
-    static func readIfCurrent(packageDir: URL) async throws -> ResolvedPins? {
+    static func readIfCurrent(packageDir: URL, scratchDir: URL? = nil) async throws -> ResolvedPins? {
         let path = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(path.absolutePath) else { return nil }
 
-        let resolved = try await read(packageDir: packageDir)
-        guard let originHash = resolved.originHash else { return nil }
-        guard try originHash == (await packageOriginHash(packageDir: packageDir)) else {
+        let data = try await fileSystem.readFile(at: path.absolutePath)
+        let resolved = try JSONDecoder().decode(ResolvedPins.self, from: data)
+        guard try await isCurrent(resolved, data: data, packageDir: packageDir, scratchDir: scratchDir) else {
             return nil
         }
         return resolved
+    }
+
+    /// Native SwiftPM rewrites Package.resolved only when a pin changes, so after a manifest
+    /// edit that keeps every pin, the file still carries the `originHash` of the previous
+    /// manifest. Checking the hash alone would send every later resolution back to native
+    /// SwiftPM, so the bytes a native resolution accepted for the current manifest count too.
+    static func isCurrent(
+        _ resolved: ResolvedPins,
+        data: Data,
+        packageDir: URL,
+        scratchDir: URL?
+    ) async throws -> Bool {
+        let originHash = try await packageOriginHash(packageDir: packageDir)
+        if resolved.originHash == originHash {
+            return true
+        }
+        let acceptancePath = acceptancePath(packageDir: packageDir, scratchDir: scratchDir)
+        guard try await fileSystem.exists(acceptancePath.absolutePath),
+              let acceptance = try? JSONDecoder().decode(
+                  Acceptance.self,
+                  from: await fileSystem.readFile(at: acceptancePath.absolutePath)
+              )
+        else {
+            return false
+        }
+        return acceptance.originHash == originHash && acceptance.resolvedFileHash == Hashing.sha256Hex(data)
+    }
+
+    /// Records that a native resolution accepted the Package.resolved on disk for the current
+    /// root manifest.
+    static func recordNativeAcceptance(packageDir: URL, scratchDir: URL?) async throws {
+        let path = packageDir.appendingPathComponent("Package.resolved")
+        let acceptancePath = acceptancePath(packageDir: packageDir, scratchDir: scratchDir)
+        guard try await fileSystem.exists(path.absolutePath) else {
+            try await fileSystem.removePath(acceptancePath)
+            return
+        }
+        let acceptance = try await Acceptance(
+            originHash: packageOriginHash(packageDir: packageDir),
+            resolvedFileHash: Hashing.sha256Hex(fileSystem.readFile(at: path.absolutePath))
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try await fileSystem.atomicWrite(encoder.encode(acceptance), to: acceptancePath)
+    }
+
+    private struct Acceptance: Codable {
+        var originHash: String
+        var resolvedFileHash: String
+    }
+
+    private static func acceptancePath(packageDir: URL, scratchDir: URL?) -> URL {
+        (scratchDir ?? packageDir.appendingPathComponent(".build"))
+            .appendingPathComponent("swifterpm")
+            .appendingPathComponent("native-accepted-resolved-file.json")
     }
 
     static func read(packageDir: URL) async throws -> ResolvedPins {
