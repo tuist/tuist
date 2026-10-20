@@ -384,7 +384,9 @@ defmodule Tuist.Kura.Placement do
 
       candidate =
         totals
-        |> Enum.reject(fn {region, _hits} -> region in context.serving end)
+        |> Enum.reject(fn {region, _hits} ->
+          region in context.serving or recently_given_up?(context, served, served_policy.expand, region)
+        end)
         |> Enum.max_by(fn {_region, hits} -> hits end, fn -> nil end)
 
       with {region, region_hits} <- candidate,
@@ -438,7 +440,8 @@ defmodule Tuist.Kura.Placement do
         totals
         |> Enum.reject(fn {region, _runs} ->
           region == context.primary or region in context.retiring or
-            decided_by_hits?(context, served, served_policy, region)
+            decided_by_hits?(context, served, served_policy, region) or
+            recently_given_up?(context, served, served_policy.expand, region)
         end)
         |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
 
@@ -596,8 +599,8 @@ defmodule Tuist.Kura.Placement do
       end
   end
 
-  # A region the hits closed stays shut for the reopening window, whichever
-  # evidence would reopen it. Leaving it was decided on what it served, which
+  # A region the hits closed stays shut for the reopening window, to an
+  # expansion and to the primary alike, whichever evidence would reopen it. Leaving it was decided on what it served, which
   # outranks a projection from runs or from origins: both read the region
   # through `OriginMap`, and a client the map places near a region is not always
   # one DNS routes to it. Without this the rungs undo each other a month apart.

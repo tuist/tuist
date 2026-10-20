@@ -48,10 +48,13 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     today = Date.utc_today()
     dates = dates_to_refresh(today)
     {:ok, _count} = StorageRollups.refresh(dates)
-    {:ok, _count} = Origins.refresh_hits(dates)
     {:ok, _summary} = ClaimProposals.sweep(today)
 
     apply_within_budget()
+
+    # Last, because only placement reads it: a refresh that fails here retries
+    # the job without having held claim sizing back.
+    {:ok, _count} = Origins.refresh_hits(dates)
 
     :ok
   end

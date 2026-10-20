@@ -913,6 +913,26 @@ defmodule Tuist.Kura.PlacementTest do
 
       assert Placement.evaluate(context) == :none
     end
+
+    test "does not move the primary into a region the hits closed" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily_hits("FR", 14, 15_000) ++ daily_hits("US-VA", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 128},
+          projected_gib: %{"eu-west" => 128},
+          given_up: %{"eu-west" => Date.add(@today, -30)}
+        )
+
+      assert Placement.evaluate(context) == :none
+
+      assert {:relocate, "us-east", "eu-west", _evidence} =
+               Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -91)}))
+    end
   end
 
   defp context(overrides) do

@@ -22,6 +22,8 @@ defmodule Tuist.Kura.PlacementProposals do
   alias Tuist.Kura.OriginRollup
   alias Tuist.Kura.Placement
   alias Tuist.Kura.PlacementProposal
+  alias Tuist.Kura.PlacerClaim
+  alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegion
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
@@ -225,7 +227,7 @@ defmodule Tuist.Kura.PlacementProposals do
 
     reserved = reserved_gib(accounts, account_ids)
     given_up = given_up(account_ids, today, served_policy)
-    accounts_by_id = Map.new(accounts, &{&1.id, &1})
+    projected = projected_gib(accounts, account_ids)
 
     Map.new(account_ids, fn account_id ->
       account_rollups = Map.get(rollups, account_id, [])
@@ -241,7 +243,7 @@ defmodule Tuist.Kura.PlacementProposals do
            |> Enum.filter(&(&1.snapshot_count > 0))
            |> Enum.group_by(& &1.region, & &1.date),
          reserved_gib: Map.get(reserved, account_id, %{}),
-         projected_gib: projected_gib(Map.fetch!(accounts_by_id, account_id)),
+         projected_gib: Map.fetch!(projected, account_id),
          given_up: Map.get(given_up, account_id, %{})
        }}
     end)
@@ -249,13 +251,28 @@ defmodule Tuist.Kura.PlacementProposals do
 
   # What each public region would reserve for the account at its current claim,
   # which is what opening a secondary there would cost.
-  defp projected_gib(account) do
-    claim = Tuist.Kura.effective_storage_claim(account)
+  defp projected_gib(accounts, account_ids) do
+    pinned = PlacerClaims.pinned_claims(account_ids)
 
-    Regions.all()
-    |> Enum.reject(&Regions.private?/1)
-    |> Map.new(fn region ->
-      {region.id, Capacity.resident_gib(region, %Server{region: region.id, storage_claim_size: claim, account: account})}
+    sized =
+      PlacerClaim
+      |> where([claim], claim.account_id in ^account_ids)
+      |> select([claim], {claim.account_id, claim.claim_size})
+      |> Repo.all()
+      |> Map.new()
+
+    public_regions = Enum.reject(Regions.all(), &Regions.private?/1)
+
+    accounts
+    |> Enum.filter(&(&1.id in account_ids))
+    |> Map.new(fn account ->
+      claim = PlacerClaims.resolve_claim_size(account, Map.get(pinned, account.id), Map.get(sized, account.id))
+
+      {account.id,
+       Map.new(public_regions, fn region ->
+         {region.id,
+          Capacity.resident_gib(region, %Server{region: region.id, storage_claim_size: claim, account: account})}
+       end)}
     end)
   end
 
