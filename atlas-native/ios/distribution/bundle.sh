@@ -49,7 +49,7 @@ cp "$tmp/profile.mobileprovision" "$app/embedded.mobileprovision"
 plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.plist"
 plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entitlements.plist"
 # Keep nightly versions increasing without putting delivery metadata in cached outputs.
-bash ios/distribution/version.sh "$app"
+"$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
 
 mkdir -p "$app/Frameworks"
 xcrun swift-stdlib-tool --copy --scan-executable "$app/Atlas" --platform iphoneos --destination "$app/Frameworks"

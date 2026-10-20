@@ -153,10 +153,9 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   app and signed device IPA, gated by all build, test and lint jobs. Only the
   protected publication job's signing step receives 1Password access; upload
   steps do not. Sign the device IPA before uploading any platform, so a signing
-  failure cannot publish a simulator-only nightly. Each publication attempt stamps
-  both iOS delivery copies with the same fresh Unix-timestamp `CFBundleVersion`,
-  outside Once's cache. Re-sign the simulator bundle ad-hoc after stamping while
-  preserving its entitlements; device stamping precedes distribution signing.
-  Credential-free packaging tests run on macOS to verify real ad-hoc signatures
-  and gate publication alongside the build, test and lint jobs. Forks use local caching
+  failure cannot publish a simulator-only nightly. Simulator uploads set
+  `TUIST_PREVIEW_BUILD_VERSION` to a fresh Unix timestamp, avoiding duplicate
+  previews without modifying the bundle or Once's cache. Device packaging already
+  stamps its temporary copy before distribution signing. Credential-free packaging
+  tests gate publication alongside the build, test and lint jobs. Forks use local caching
   and no OIDC; no PR publishes previews or receives distribution credentials.
