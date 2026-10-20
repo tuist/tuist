@@ -58,16 +58,12 @@ scratch="$package/.build"
 package_relative=${package#"$workspace"}
 key=${TUIST_INSTALL_CACHE_KEY:-}
 if [[ -z "$key" ]]; then
-  toolchain=$(swift --version)
-  if [[ $(uname -s) == Darwin ]]; then
-    toolchain+=$'\n'$(xcodebuild -version)
+  key="tuist-install-v1-${GITHUB_JOB:?GITHUB_JOB is required}"
+  location=${package_relative#/}
+  if [[ -n "$location" ]]; then
+    key+="-$(printf '%s' "$location" | tr -c 'a-zA-Z0-9_./-' '-')"
   fi
-
-  digest=$({
-    printf '%s\0' "${GITHUB_JOB:?GITHUB_JOB is required}" "$toolchain" "$package_relative"
-    cat "$package/Package.swift"
-  } | shasum -a 256)
-  key="tuist-install-v1-${digest%% *}"
+  [[ "$key" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]*$ && ${#key} -le 200 ]] || fail 'The generated cache key is too long or invalid; set cache-key.'
 fi
 [[ "$key" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]*$ && ${#key} -le 200 ]] || fail 'cache-key must be 1–200 characters: letters, numbers, _, ., /, or -, starting with a letter or number.'
 backend=github

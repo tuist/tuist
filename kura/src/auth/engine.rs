@@ -221,6 +221,10 @@ pub struct AuthEngine {
     /// Presence holds the next attempt off, so an outage costs one probe per
     /// credential per backoff window rather than one per cold target.
     unreachable: Cache<CredentialKey, ()>,
+    /// Where each confirmed credential was issued, for usage attribution. Held
+    /// as long as an access level can be, and only written for a credential an
+    /// evaluation confirmed.
+    origins: Cache<CredentialKey, Arc<str>>,
     metrics: Metrics,
 }
 
@@ -270,6 +274,11 @@ impl AuthEngine {
                 .max_capacity(config.cache_max_entries as u64)
                 .eviction_policy(EvictionPolicy::lru())
                 .time_to_live(UNAVAILABLE_BACKOFF)
+                .build(),
+            origins: Cache::builder()
+                .max_capacity(config.cache_max_entries as u64)
+                .eviction_policy(EvictionPolicy::lru())
+                .time_to_live(CONFIRMED_TTL)
                 .build(),
             metrics,
         })
@@ -396,6 +405,7 @@ impl AuthEngine {
                     self.revocations.insert(credential_key, Instant::now());
                 }
                 self.remember(entry_key, access, ctx);
+                self.remember_origin(credential_key, access, ctx);
                 respond(access, required, request)
             }
             // Cheap to re-derive — no round trip reached the backend — so
@@ -439,6 +449,24 @@ impl AuthEngine {
                 lifetime,
             },
         );
+    }
+
+    fn remember_origin(&self, credential_key: CredentialKey, access: Access, ctx: &RequestContext) {
+        if access < Access::Read {
+            return;
+        }
+        if let Some(origin) = policy::credential_origin(ctx) {
+            self.origins.insert(credential_key, origin);
+        }
+    }
+
+    /// Where the credential that authorized a request was issued, when it
+    /// carried a signed origin. For usage attribution only.
+    pub fn origin(&self, authorization: &str) -> Option<Arc<str>> {
+        if authorization.is_empty() {
+            return None;
+        }
+        self.origins.get(&fingerprint(authorization))
     }
 
     /// The entry for this key, unless the credential has been reported invalid
@@ -493,6 +521,7 @@ impl AuthEngine {
         self.consultations.invalidate_all();
         self.revocations.invalidate_all();
         self.unreachable.invalidate_all();
+        self.origins.invalidate_all();
         held as usize
     }
 

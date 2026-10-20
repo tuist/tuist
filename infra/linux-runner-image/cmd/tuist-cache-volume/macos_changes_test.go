@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // mountedVolume acquires a volume through the mailbox with a no-op hdiutil, so
@@ -25,15 +27,27 @@ func mountedVolume(t *testing.T, seed map[string]string) (share, mount, base str
 	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	// A job's writes come after the mount; make sure the test's do too.
-	mounted, err := os.Stat(filepath.Join(base, ".tuist-volume"))
-	if err != nil {
+	// A job's writes come after the mount; make sure the test's do too. File
+	// times come from the kernel's coarse clock, which lags time.Now, so wait
+	// until a new file's ctime is past the mount's.
+	var mounted unix.Stat_t
+	if err := unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted); err != nil {
 		t.Fatal(err)
 	}
-	for !time.Now().After(mounted.ModTime()) {
+	probe := filepath.Join(t.TempDir(), "probe")
+	for {
+		if err := os.WriteFile(probe, nil, 0644); err != nil {
+			t.Fatal(err)
+		}
+		var stat unix.Stat_t
+		if err := unix.Lstat(probe, &stat); err != nil {
+			t.Fatal(err)
+		}
+		if stat.Ctim.Nano() > mounted.Ctim.Nano() {
+			return share, mount, base
+		}
 		time.Sleep(time.Millisecond)
 	}
-	return share, mount, base
 }
 
 func writeVolumeFile(t *testing.T, base, name, contents string) {

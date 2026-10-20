@@ -104,6 +104,14 @@ struct CargoTests {
 }
 
 struct CargoReportingTests {
+    @Test func distinguishesMeasuredNextestLabelsFromReservedCargoSchemes() {
+        #expect(CargoNextestRun.scheme(label: nil) == "nextest")
+        #expect(CargoNextestRun.scheme(label: "ci") == "ci")
+        #expect(CargoNextestRun.scheme(label: "cargo test") == "cargo nextest run · cargo test")
+        #expect(CargoNextestRun.scheme(label: "cargo test · ci") == "cargo nextest run · cargo test · ci")
+        #expect(CargoNextestRun.scheme(label: "cargo nextest run · cargo test") == "cargo nextest run · cargo test")
+    }
+
     @Test(.inTemporaryDirectory) func respectsConfiguredCompilerWrappers() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let root = URL(fileURLWithPath: directory.pathString)
