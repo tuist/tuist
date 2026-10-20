@@ -253,16 +253,16 @@ shape fails the render, since a job would get less than its profile names.
 {{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $imageOverride }}
 {{- $podMem := dig "pod" "memoryMB" $defaultMem $imageOverride }}
 {{- range $placement := $placements }}
-{{- $poolImage := $image }}
-{{- if $placement.stacked }}
-{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
-{{- $poolImage = . }}
-{{- end }}
-{{- end }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
 {{- $guestMacOS := ternary "26" (dig "guestMacOS" "26" $override | toString) (eq $site "") }}
 {{- $image := include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" $xcodeVersion "guestMacOS" $guestMacOS "guestOverride" $override) }}
+{{- $poolImage := $image }}
+{{- if and $placement.stacked (eq $guestMacOS "26") }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
+{{- $poolImage = . }}
+{{- end }}
+{{- end }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
 {{- $replicas := dig "replicas" 0 $override }}
 {{- $autoscaling := $override.autoscaling | default $placement.autoscaling }}
