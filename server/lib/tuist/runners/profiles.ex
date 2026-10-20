@@ -290,19 +290,34 @@ defmodule Tuist.Runners.Profiles do
   policy inside a transaction. Returns `nil` for labels that resolved to a
   legacy pool or a profile that no longer exists.
   """
-  def lock_for_dispatch_label(account_id, label) when is_binary(label) do
-    prefix = Profile.prefix()
-
-    case label do
-      ^prefix <> name ->
-        Repo.one(from(p in Profile, where: p.account_id == ^account_id and p.name == ^name, lock: "FOR SHARE"))
-
-      _ ->
-        nil
+  def lock_for_dispatch_label(account_id, label) do
+    case dispatch_label_query(account_id, label) do
+      nil -> nil
+      query -> Repo.one(from(p in query, lock: "FOR SHARE"))
     end
   end
 
-  def lock_for_dispatch_label(_account_id, _label), do: nil
+  @doc """
+  The profile a job was dispatched to, or `nil` for labels that resolved to a
+  legacy pool or a profile that no longer exists.
+  """
+  def get_for_dispatch_label(account_id, label) do
+    case dispatch_label_query(account_id, label) do
+      nil -> nil
+      query -> Repo.one(query)
+    end
+  end
+
+  defp dispatch_label_query(account_id, label) when is_binary(label) do
+    prefix = Profile.prefix()
+
+    case label do
+      ^prefix <> name -> from(p in Profile, where: p.account_id == ^account_id and p.name == ^name)
+      _ -> nil
+    end
+  end
+
+  defp dispatch_label_query(_account_id, _label), do: nil
 
   @doc """
   Resolve `(account, requested_labels)` → profile, mirroring the

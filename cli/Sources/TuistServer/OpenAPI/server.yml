@@ -4648,6 +4648,12 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
+                  default_profile_name:
+                    description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   id:
                     nullable: false
                     type: string
@@ -4662,6 +4668,12 @@ components:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  pending_volume_bytes:
+                    description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   platform:
@@ -4694,18 +4706,27 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
+                  volume_bytes:
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                 required:
                   - architecture
                   - capacity_bytes
+                  - default_profile_name
                   - id
                   - key
                   - last_used_at
+                  - pending_volume_bytes
                   - platform
                   - provider
                   - repository
                   - unmeasured_capacity_copies
                   - unmeasured_copies
                   - used_bytes
+                  - volume_bytes
                 title: RunnerVolume
                 type: object
                 x-struct:
@@ -5360,6 +5381,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        default_profile_name:
+          description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         id:
           nullable: false
           type: string
@@ -5374,6 +5401,12 @@ components:
           format: date-time
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        pending_volume_bytes:
+          description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+          nullable: true
+          type: integer
           x-struct:
           x-validate:
         platform:
@@ -5406,18 +5439,27 @@ components:
           type: integer
           x-struct:
           x-validate:
+        volume_bytes:
+          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
       required:
         - architecture
         - capacity_bytes
+        - default_profile_name
         - id
         - key
         - last_used_at
+        - pending_volume_bytes
         - platform
         - provider
         - repository
         - unmeasured_capacity_copies
         - unmeasured_copies
         - used_bytes
+        - volume_bytes
       title: RunnerVolume
       type: object
       x-struct:
@@ -9744,6 +9786,12 @@ components:
               type: integer
               x-struct:
               x-validate:
+            default_profile_name:
+              description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
             id:
               nullable: false
               type: string
@@ -9758,6 +9806,12 @@ components:
               format: date-time
               nullable: true
               type: string
+              x-struct:
+              x-validate:
+            pending_volume_bytes:
+              description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+              nullable: true
+              type: integer
               x-struct:
               x-validate:
             platform:
@@ -9790,18 +9844,27 @@ components:
               type: integer
               x-struct:
               x-validate:
+            volume_bytes:
+              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
           required:
             - architecture
             - capacity_bytes
+            - default_profile_name
             - id
             - key
             - last_used_at
+            - pending_volume_bytes
             - platform
             - provider
             - repository
             - unmeasured_capacity_copies
             - unmeasured_copies
             - used_bytes
+            - volume_bytes
           title: RunnerVolume
           type: object
           x-struct:
@@ -14002,6 +14065,12 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
+              default_profile_name:
+                description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
               id:
                 nullable: false
                 type: string
@@ -14016,6 +14085,12 @@ components:
                 format: date-time
                 nullable: true
                 type: string
+                x-struct:
+                x-validate:
+              pending_volume_bytes:
+                description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                nullable: true
+                type: integer
                 x-struct:
                 x-validate:
               platform:
@@ -14048,18 +14123,27 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
+              volume_bytes:
+                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
             required:
               - architecture
               - capacity_bytes
+              - default_profile_name
               - id
               - key
               - last_used_at
+              - pending_volume_bytes
               - platform
               - provider
               - repository
               - unmeasured_capacity_copies
               - unmeasured_copies
               - used_bytes
+              - volume_bytes
             title: RunnerVolume
             type: object
             x-struct:
@@ -20970,6 +21054,12 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  default_profile_name:
+                    description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   id:
                     nullable: false
                     type: string
@@ -20984,6 +21074,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  pending_volume_bytes:
+                    description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   platform:
@@ -21016,18 +21112,27 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  volume_bytes:
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                 required:
                   - architecture
                   - capacity_bytes
+                  - default_profile_name
                   - id
                   - key
                   - last_used_at
+                  - pending_volume_bytes
                   - platform
                   - provider
                   - repository
                   - unmeasured_capacity_copies
                   - unmeasured_copies
                   - used_bytes
+                  - volume_bytes
                 title: RunnerVolume
                 type: object
                 x-struct:
@@ -24078,7 +24183,7 @@ paths:
                   x-struct:
                   x-validate:
                 dependency_cache:
-                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  description: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                   items:
                     properties:
                       dependency:
@@ -24088,12 +24193,14 @@ paths:
                         x-struct:
                         x-validate:
                       duration_ms:
+                        description: Lookup/compilation duration, or validation time for up-to-date local reuse.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
                         x-struct:
                         x-validate:
                       key:
+                        description: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         pattern: ^([a-f0-9]{64})?$
                         type: string
                         x-struct:
@@ -24141,6 +24248,7 @@ paths:
                           - unmodeled_input
                           - inputs_changed
                           - store_failed
+                          - up_to_date
                         type: string
                         x-struct:
                         x-validate:
@@ -25809,6 +25917,12 @@ paths:
                               type: integer
                               x-struct:
                               x-validate:
+                            default_profile_name:
+                              description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+                              nullable: true
+                              type: string
+                              x-struct:
+                              x-validate:
                             id:
                               nullable: false
                               type: string
@@ -25823,6 +25937,12 @@ paths:
                               format: date-time
                               nullable: true
                               type: string
+                              x-struct:
+                              x-validate:
+                            pending_volume_bytes:
+                              description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                              nullable: true
+                              type: integer
                               x-struct:
                               x-validate:
                             platform:
@@ -25855,18 +25975,27 @@ paths:
                               type: integer
                               x-struct:
                               x-validate:
+                            volume_bytes:
+                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
                           required:
                             - architecture
                             - capacity_bytes
+                            - default_profile_name
                             - id
                             - key
                             - last_used_at
+                            - pending_volume_bytes
                             - platform
                             - provider
                             - repository
                             - unmeasured_capacity_copies
                             - unmeasured_copies
                             - used_bytes
+                            - volume_bytes
                           title: RunnerVolume
                           type: object
                           x-struct:
@@ -43059,6 +43188,12 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        default_profile_name:
+                          description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         id:
                           nullable: false
                           type: string
@@ -43073,6 +43208,12 @@ paths:
                           format: date-time
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        pending_volume_bytes:
+                          description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                          nullable: true
+                          type: integer
                           x-struct:
                           x-validate:
                         platform:
@@ -43105,18 +43246,27 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        volume_bytes:
+                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
                       required:
                         - architecture
                         - capacity_bytes
+                        - default_profile_name
                         - id
                         - key
                         - last_used_at
+                        - pending_volume_bytes
                         - platform
                         - provider
                         - repository
                         - unmeasured_capacity_copies
                         - unmeasured_copies
                         - used_bytes
+                        - volume_bytes
                       title: RunnerVolume
                       type: object
                       x-struct:

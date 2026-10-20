@@ -506,10 +506,13 @@ The archive contains everything needed to understand the account's complete data
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
-  repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
+  repository or pipeline display name, user-chosen key (a workflow that names no key
+  attaches `tuist-default`, or `tuist-default/<runner profile ID>` when the job ran on a
+  runner profile, which references the account's profile), platform (Linux or macOS), architecture,
   execution UID, generation, published head use UUID, optional built-in storage name,
   a legacy additional writer branch list that is no longer read (empty for every volume),
   the repository's default branch as last reported by GitHub (nullable),
+  the capacity in bytes the latest job that may save requested for the volume (nullable),
   last use, logical deletion and creation/update timestamps. Identity is unique
   per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
@@ -521,7 +524,7 @@ The archive contains everything needed to understand the account's complete data
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
-  node name, a legacy commit intent column that is no longer read (`auto` for new uses), branch the job ran on, from verified push, schedule, dispatch or same-repository pull-request metadata (nullable), whether it was the repository's default branch, ID of the runner profile whose branch list applied (nullable), publication permission, lifecycle status, warm/cold result, the older saved generation a job mounted when its base was not on its host (nullable), logical
+  node name, a legacy commit intent column that is no longer read (`auto` for new uses), branch the job ran on, from verified push, schedule, dispatch or same-repository pull-request metadata (nullable), whether it was the repository's default branch, ID of the runner profile whose branch list applied (nullable), publication permission, lifecycle status, warm/cold result, the older saved generation a job mounted when its base was not on its host (nullable), the capacity in bytes the server allocated for the use's copy (nullable for uses allocated before it was recorded), logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical
@@ -551,7 +554,9 @@ host replicas and superseded S3 objects are not a physical-storage census.
   images under `runner-volume-masters/<account ID>/<platform>-<scope>/<image SHA-1>-<content SHA-256>.image`
   in the existing account object storage. The scope hashes volume UUID and clear
   generation. Contents include anything workflows write, such as dependencies,
-  package metadata and inadvertently cached credentials. Logical filesystem usage
+  package metadata and inadvertently cached credentials. A `.tuist-paths` manifest
+  at the image root maps each workflow path spelling, as written in the workflow,
+  to the subdirectory that holds its contents. Logical filesystem usage
   is not unique physical usage because reflinks share blocks and host replicas are
   evictable; dashboard measurements are not an inventory of every host replica.
 - **Host journal and scratch** (`cacheVolumes.hostPath`, default

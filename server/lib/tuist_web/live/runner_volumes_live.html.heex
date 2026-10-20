@@ -12,7 +12,7 @@
   <div :if={@selected} data-part="header">
     <div data-part="title">
       <div data-part="volume-icon"><.database /></div>
-      <h1>{display_name(@selected)}</h1>
+      <h1>{display_name(@selected, @profile_names)}</h1>
     </div>
     <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
       <.button
@@ -203,7 +203,10 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume_name(volume)} title={display_name(volume)} />
+            <.text_cell
+              label={volume_name(volume, data.profile_names)}
+              title={display_name(volume, data.profile_names)}
+            />
           </:col>
           <:col
             :let={volume}
@@ -238,7 +241,7 @@
             sort_order={@sort_by == "capacity" && @sort_order}
           >
             <.text_cell
-              label={storage_capacity(stats(data, volume))}
+              label={storage_capacity(volume, stats(data, volume))}
               title={measurement_coverage(stats(data, volume)[:unmeasured_capacity_copies])}
             />
           </:col>
@@ -302,7 +305,16 @@
         type="secondary"
         size="large"
         title={dgettext("dashboard_runners", "This volume is almost full")}
-        description={full_snapshot_description(metrics)}
+        description={full_snapshot_description(volume, metrics)}
+      />
+      <.alert
+        :if={pending_volume_bytes(volume, metrics)}
+        id="volume-pending-size-alert"
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "A smaller size was requested")}
+        description={pending_size_description(volume, metrics)}
       />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
@@ -333,7 +345,8 @@
               ><.history />{relative_time(volume.last_used_at)}</span>
             </div>
             <div id="volume-capacity" data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{storage_capacity(
+              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{detail_capacity(
+                volume,
                 metrics
               )}</span>
             </div>

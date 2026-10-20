@@ -45,11 +45,13 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
         previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
-      history: []
+      history: [],
+      profile_names: %{}
     }
 
     %{
       selected_account: %{id: 1, name: "org"},
+      profile_names: %{},
       selected: volume,
       selected_tab: "overview",
       storage_metric: "used_bytes",
@@ -506,18 +508,95 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
+  end
+
+  test "default volumes are named after their runner profile" do
+    assigns = assigns(true)
+    profiled = %{assigns.selected | key: "tuist-default/42"}
+    repository = %{assigns.selected | id: Ecto.UUID.generate(), key: "tuist-default"}
+    deleted = %{assigns.selected | id: Ecto.UUID.generate(), key: "tuist-default/43"}
+    names = %{profiled.id => "macos"}
+    data = %{assigns.data.result | volumes: [profiled, repository, deleted], profile_names: names}
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+    cells = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
+    assert Enum.map(cells, &String.trim/1) == ["Default (tuist-macos)", "Default", "Default"]
+
+    detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: profiled, profile_names: names})
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Default (tuist-macos)"
   end
 
   test "reader sees metrics but no mutation controls" do
