@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -116,6 +117,11 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
+	// Without a baseline the volume reports itself changed, so it is still saved.
+	_ = os.Remove(baselinePath(mountRoot, response.Directory))
+	if names, err := topLevelEntries(base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(names), 0644)
+	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
@@ -215,12 +221,15 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		baseline, _ := os.ReadFile(baselinePath(mountRoot, dir.Name()))
 		var used, capacity int64
+		var changed bool
 		for attempt := 0; attempt < 5; attempt++ {
 			used, capacity, err = measure(base)
 			if err != nil {
 				break
 			}
+			changed = changed || changedSinceMount(base, baseline)
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
@@ -234,14 +243,16 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
-		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity})
+		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity, "changed": changed})
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
 			continue
 		}
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".detached"), id, 0644); err != nil {
 			failures = append(failures, err)
+			continue
 		}
+		_ = os.Remove(baselinePath(mountRoot, dir.Name()))
 	}
 	return errors.Join(failures...)
 }
@@ -270,4 +281,63 @@ func linkMacDirectory(root, source, target string) error {
 		return err
 	}
 	return os.Symlink(filepath.Join(root, source), target)
+}
+
+// baselinePath records a mounted volume's top-level entries outside the volume.
+func baselinePath(mountRoot, dir string) string {
+	return filepath.Join(mountRoot, "."+dir+".inventory")
+}
+
+// topLevelEntries lists the volume root. Entries that start with a dot belong
+// to Tuist or macOS, which creates some of them lazily.
+func topLevelEntries(base string) (string, error) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return "", err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			names = append(names, entry.Name())
+		}
+	}
+	return strings.Join(names, "\n"), nil
+}
+
+var errChangedSinceMount = errors.New("changed since mount")
+
+// changedSinceMount reports whether anything in the volume changed after it was
+// mounted. Writing, renaming, deleting or changing the metadata of an entry
+// updates its ctime or its parent's, which no tool can set back, so the walk
+// stops at the first entry newer than `.tuist-volume`, written at mount.
+func changedSinceMount(base string, baseline []byte) bool {
+	var mounted unix.Stat_t
+	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
+		return true
+	}
+	if names, err := topLevelEntries(base); err != nil || names != string(baseline) {
+		return true
+	}
+	return filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == base {
+			return nil
+		}
+		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		var stat unix.Stat_t
+		if err := unix.Lstat(path, &stat); err != nil {
+			return err
+		}
+		if stat.Ctim.Nano() > mounted.Ctim.Nano() {
+			return errChangedSinceMount
+		}
+		return nil
+	}) != nil
 }

@@ -152,8 +152,14 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 }
 
 // Running guests are the only writers; do not attach their image on the host.
-func (b *APFSImages) Measure(slot Slot, _ string) (int64, int64, error) {
+// A detached branch reports the guest's measurement before it is sealed, so
+// the server learns the size of a branch it will not save.
+func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 	data, err := os.ReadFile(b.image(slot) + ".metrics")
+	if os.IsNotExist(err) && APFSMarker(path, ".detached", slot.ID) {
+		usage, usageErr := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
+		return usage.Used, usage.Capacity, usageErr
+	}
 	if err != nil {
 		return 0, 0, err
 	}
@@ -174,6 +180,16 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) {
 		return ErrWithheld
 	}
+	usage, err := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrPoisoned, err)
+	}
+	if usage.OutOfSpace() {
+		return ErrFull
+	}
+	if !usage.Changed {
+		return ErrUnchanged
+	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
 		return ErrPoisoned
 	} else if !os.IsNotExist(err) {
@@ -192,11 +208,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		if err := b.Verify(image); err != nil {
 			return fmt.Errorf("%w: %v", ErrPoisoned, err)
 		}
-		used, capacity, err := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrPoisoned, err)
-		}
-		metrics, _ := json.Marshal([2]int64{used, capacity})
+		metrics, _ := json.Marshal([2]int64{usage.Used, usage.Capacity})
 		if err = os.WriteFile(image+".metrics", metrics, 0600); err != nil {
 			return err
 		}
