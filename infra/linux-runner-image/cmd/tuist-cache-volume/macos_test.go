@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func TestMacAttachAndDetach(t *testing.T) {
 	if err != nil || dir != response.Directory || id != "lease" || !warm {
 		t.Fatal(dir, id, warm, err)
 	}
-	if err = detachMacAt(share, mount, command, fakeMacMeasure, func() {}); err != nil {
+	if err = detachMacAt(share, mount, command, fakeMacMeasure, func(string, bool) {}, func() {}); err != nil {
 		t.Fatal(err)
 	}
 	marker, _ := os.ReadFile(filepath.Join(share, dir, ".detached"))
@@ -63,7 +64,7 @@ func TestMacFailedDetachWithholdsPublication(t *testing.T) {
 	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
 	_ = os.Mkdir(filepath.Join(share, scope), 0755)
 	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
-	if err := detachMacAt(share, mount, func(...string) error { return errors.New("busy") }, fakeMacMeasure, func() {}); err == nil {
+	if err := detachMacAt(share, mount, func(...string) error { return errors.New("busy") }, fakeMacMeasure, func(string, bool) {}, func() {}); err == nil {
 		t.Fatal("detach should fail")
 	}
 	if _, err := os.Stat(filepath.Join(share, scope, ".detached")); !os.IsNotExist(err) {
@@ -159,7 +160,7 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 			return errors.New("busy")
 		}
 		return nil
-	}, func(string) (int64, int64, error) { measurements++; return int64(measurements), 20, nil }, func() {})
+	}, func(string) (int64, int64, error) { measurements++; return int64(measurements), 20, nil }, func(string, bool) {}, func() {})
 	if err != nil || calls != 3 || measurements != 3 {
 		t.Fatal(calls, measurements, err)
 	}
@@ -193,5 +194,73 @@ func TestMacUnavailableExplainsTheHostReason(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatal(reason, err)
 		}
+	}
+}
+
+func TestMacBusyDetachReleasesHoldersBeforePublishing(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	held := true
+	var releases []bool
+	err := detachMacAt(share, mount, func(args ...string) error {
+		if strings.Contains(strings.Join(args, " "), "force") {
+			t.Fatal("force detach allowed")
+		}
+		if held {
+			return errors.New("hdiutil: exit status 16 ()")
+		}
+		return nil
+	}, fakeMacMeasure, func(base string, kill bool) {
+		if base != filepath.Join(mount, scope) {
+			t.Fatal(base)
+		}
+		releases = append(releases, kill)
+		held = false
+	}, func() {})
+	if err != nil || fmt.Sprint(releases) != "[false]" {
+		t.Fatal(releases, err)
+	}
+	marker, _ := os.ReadFile(filepath.Join(share, scope, ".detached"))
+	if string(marker) != "lease" {
+		t.Fatal(string(marker))
+	}
+}
+
+func TestMacKillsHoldersThatOutliveTermination(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	scope := digest("volume")
+	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
+	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
+	held := true
+	var releases []bool
+	err := detachMacAt(share, mount, func(...string) error {
+		if held {
+			return errors.New("hdiutil: exit status 16 ()")
+		}
+		return nil
+	}, fakeMacMeasure, func(_ string, kill bool) {
+		releases = append(releases, kill)
+		held = held && !kill
+	}, func() {})
+	if err != nil || fmt.Sprint(releases) != "[false true]" {
+		t.Fatal(releases, err)
+	}
+	if _, err := os.Stat(filepath.Join(share, scope, ".detached")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMacHoldersParsesLsofFields(t *testing.T) {
+	out := "p812\nctuist\nf4\nftxt\np901\ncmise\nfcwd\n"
+	got := parseMacHolders([]byte(out))
+	if fmt.Sprint(got) != "[{812 tuist} {901 mise}]" {
+		t.Fatal(got)
+	}
+	if got := parseMacHolders(nil); len(got) != 0 {
+		t.Fatal(got)
 	}
 }

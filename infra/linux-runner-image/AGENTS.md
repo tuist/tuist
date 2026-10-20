@@ -290,7 +290,9 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
 
 - The shared cache client also supports macOS: use unique mailbox requests per
   attempt, remove completed request/response files, and retry busy clean detaches
-  five times. Sample filesystem usage before detach, bind it to the lease, and
+  five times. After a busy attempt, log the user's processes holding the mount
+  (`lsof` on the mount point) and SIGTERM them, then SIGKILL after the next busy
+  attempt; never force-detach. Sample filesystem usage before detach, bind it to the lease, and
   write the detach proof only after both clean detach and the usage report succeed.
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
