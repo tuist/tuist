@@ -124,6 +124,17 @@ render() {
   done
 }
 
+@test "the install keeps sshd out of systemd's start limit" {
+  run render
+  [ "$status" -eq 0 ]
+  late="$(yq -r '.autoinstall.late-commands[] | select(test("no-start-limit"))' "$BATS_TEST_TMPDIR/seed/user-data")"
+  [ -n "$late" ]
+  target="$BATS_TEST_TMPDIR/target"
+  sh -c "$(printf '%s\n' "$late" | sed "s|/target/|$target/|g")"
+  [ "$(cat "$target/etc/systemd/system/ssh.service.d/10-tuist-no-start-limit.conf")" = "$(printf '[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestartSec=5s')" ]
+  [ "$(cat "$target/etc/systemd/system/ssh.socket.d/10-tuist-no-start-limit.conf")" = "$(printf '[Unit]\nStartLimitIntervalSec=0')" ]
+}
+
 @test "a storage node gets a quotaed XFS /data and keeps its kubelet and images there" {
   run render "$(jq -c '.role = "storage"' <<<"$HOST_JSON")"
   [ "$status" -eq 0 ]

@@ -373,6 +373,11 @@ carries the same guard.
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
   seconds;
+- `10-tuist-no-start-limit.conf` drop-ins for `ssh.service` and `ssh.socket`,
+  which the converge also keeps: five sshd starts within 10s otherwise leave
+  nothing listening on `:22`, and the operator reaches the host over SSH alone.
+  See "sshd stays reachable on Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - nothing for the management port (the i226-LM, the host's boot MAC). The
   converge keeps it up with no address, no IPv6 link-local and no ARP
   (`/etc/systemd/network/10-tuist-management.network`), because AMT shares the
