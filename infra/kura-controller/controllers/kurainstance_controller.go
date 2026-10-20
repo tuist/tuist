@@ -69,6 +69,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// teardownTerminationGraceSeconds stops the pods of a deleted instance.
+	// Every path that deletes a KuraInstance has already moved its traffic
+	// away and deletes its data with it, so there is nothing to drain, and an
+	// instance recreated under the same name waits for the old claims.
+	teardownTerminationGraceSeconds int64 = 5
 	// A liveness failure means the serving process is already unable to make
 	// progress. It must not inherit the rollout drain budget: Kubernetes runs
 	// preStop for liveness restarts too, so this gives the hook time to remove
@@ -474,6 +479,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// instead of stranding it. Must run before the finalizer is removed, while
 		// the PVCs still exist to resolve their PVs.
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.releaseWorkload(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
 		r.forgetPodSamples(instance)
@@ -3760,6 +3768,26 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 		before := pv.DeepCopy()
 		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
 		if err := r.Patch(ctx, pv, client.MergeFrom(before)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// releaseWorkload stops a deleted instance's pods on the teardown grace rather
+// than the rollout drain budget garbage collection would give them. The
+// StatefulSet goes first so it cannot replace them.
+func (r *KuraInstanceReconciler) releaseWorkload(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i], client.GracePeriodSeconds(teardownTerminationGraceSeconds)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
