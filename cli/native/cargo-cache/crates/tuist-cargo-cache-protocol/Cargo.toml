@@ -1,0 +1,25 @@
+[package]
+name = "tuist-cargo-cache-protocol"
+version = "0.5.22"
+description = "Shared wire contract for tuist_cargo_cache remote cache clients and servers"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords = ["cache", "build-cache", "protocol", "wire-format"]
+categories = ["development-tools::build-utils", "caching", "network-programming"]
+readme.workspace = true
+
+[dependencies]
+blake3 = "1"
+eyre = "0.6"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_json_canonicalizer = "0.3"
+sha2 = "0.11"
+
+[[bench]]
+name = "verify_bytes"
+harness = false
