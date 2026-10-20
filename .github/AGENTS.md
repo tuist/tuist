@@ -4,12 +4,6 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
-Deployment server-image builds share a volume-backed OCI layer cache through
-`actions/docker-build-cache/` (see its `AGENTS.md`). Keep the registry fallback,
-private-clone publication policy and per-commit security updates. This does not
-persist cache mounts or a live Docker daemon; validate total cost before claiming
-a speedup.
-
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated

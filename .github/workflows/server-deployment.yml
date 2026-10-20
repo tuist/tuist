@@ -291,14 +291,6 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      # Historical deployment SHAs may predate the local cache action.
-      - name: Set up server image layer cache
-        if: hashFiles('.github/actions/docker-build-cache/action.yml') != ''
-        id: server-build-cache
-        uses: ./.github/actions/docker-build-cache
-        with:
-          key: server-image-buildkit-prod-v1
-          registry-cache: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
       - id: buildx
         uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -344,8 +336,11 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           secrets: |
             github_token=${{ secrets.GITHUB_TOKEN }}
-          cache-from: ${{ steps.server-build-cache.outputs.cache-from || format('type=registry,ref={0}/{1}-buildcache:server', env.REGISTRY, env.IMAGE_NAME) }}
-          cache-to: ${{ steps.server-build-cache.outputs.cache-to || format('type=registry,ref={0}/{1}-buildcache:server,mode=max', env.REGISTRY, env.IMAGE_NAME) }}
+          # Shared `buildcache:server` ref, kept warm by the push-to-main
+          # build in server-production-deployment.yml. `mode=max` exports
+          # cache for every stage (deps.compile, builder, og-images).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           # TUIST_VERSION is baked into the image as the value Sentry reports as
           # `release`. The Dockerfile default is `0.0.0`, so without this line
           # every hosted-server event lands in Atlas without a release tag.
@@ -356,11 +351,6 @@ jobs:
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-      - name: Retain the latest server image layer cache
-        if: success() && steps.server-build-cache.outcome == 'success'
-        env:
-          TUIST_DOCKER_CACHE_DIRECTORY: ${{ steps.server-build-cache.outputs.directory }}
-        run: bash .github/actions/docker-build-cache/commit.sh
 
   # The deploy's other images, each in its own job beside `build` so none of
   # them waits on the server image. Their tags match the server image's.

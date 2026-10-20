@@ -39,6 +39,12 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
+# Cache only the shipped artifacts so downstream COPYs do not materialize the
+# Swift toolchain and .build tree on a fresh BuildKit worker.
+FROM scratch AS swift-artifacts
+COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
+
 # ========================================
 # Stage 1: NPM dependencies
 # ========================================
@@ -180,7 +186,7 @@ RUN mix release
 # ========================================
 FROM builder AS release-with-parser
 
-COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
+COPY --from=swift-artifacts /xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
@@ -230,7 +236,7 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # Swift runtime libs the parser links against. Small (~20 MB) but carried by
 # every release image because any pod may run in processor mode
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
 
 # Release taken from release-with-parser so xcactivitylog-parser is already
