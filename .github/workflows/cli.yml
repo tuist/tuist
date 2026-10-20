@@ -195,20 +195,15 @@ jobs:
       - name: Cache
         run: tuist cache
       # The coverage variant of the binary cache, read by the runs that collect
-      # coverage: coverage.yml on main, and the unit tests below, which set
-      # TUIST_COVERAGE_ENABLED. Only repository-owned targets are built again,
-      # with coverage counters; external packages are the plain warm's. Those
-      # builds get no compilation-cache replay: coverage builds leave Xcode's
-      # prefix mapping off by default, and `tuist cache` has no xcodebuild
-      # passthrough for the override the test runs use. The manifest option
-      # (`enableCoveragePrefixMapping`) would turn it on for both, once the
-      # backward-compatibility gate's CLI knows it.
+      # coverage. Only repository-owned targets are built again, with coverage
+      # counters; external packages are the plain warm's. Once mise.toml pins a
+      # CLI with tuist/tuist#14404, the coverage settings in mise.toml's [env]
+      # make the warm above fill this variant too, with prefix mapping, and this
+      # step becomes redundant; dropping it goes with turning the option on in
+      # Tuist.swift. Until then the pinned CLI ignores those settings and only
+      # this step warms the variant.
       - name: Cache with coverage
         run: tuist cache --coverage
-        env:
-          # Newer CLIs ignore `--coverage` without the client flag; older ones
-          # warm the variant either way.
-          TUIST_FEATURE_FLAG_COVERAGE: "1"
 
   cli-unit-tests:
     name: Unit Tests
@@ -246,19 +241,14 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
-      # The derived data path is where the coverage export finds the test
-      # products and the run's profile; cached binaries only show up in the
-      # coverage when it reads them, never in the result bundle's own report.
+      # Coverage comes from mise.toml's [env]: the scheme leaves its test
+      # action's coverage unset, so it follows TUIST_COVERAGE_ENABLED, which CLIs
+      # before tuist/tuist#14404 ignore. The derived data path is where the
+      # coverage export finds the test products and the run's profile; cached
+      # binaries only show up in the coverage when it reads them, never in the
+      # result bundle's own report.
       - name: Run tests
         run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4
-        env:
-          # Xcode code coverage is in early access behind this client flag.
-          TUIST_FEATURE_FLAG_COVERAGE: "1"
-          # Collects coverage and reads the coverage variant of the binary
-          # cache: the scheme leaves its test action's coverage unset, so it
-          # follows this. CLIs before tuist/tuist#14404 ignore it, so until
-          # mise.toml pins one with it these runs collect no coverage.
-          TUIST_COVERAGE_ENABLED: "1"
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests

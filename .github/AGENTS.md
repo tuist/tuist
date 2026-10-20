@@ -241,20 +241,22 @@ build for native coverage, so the shards count without compiling every
 module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
-whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
-variant and then the coverage variant (`tuist cache --coverage`, with
-`TUIST_FEATURE_FLAG_COVERAGE=1`, without which newer CLIs ignore `--coverage`).
-The coverage runs (`cli.yml`'s and `app.yml`'s tests, `coverage.yml`) set
-`TUIST_COVERAGE_ENABLED=1` and pass no `-enableCodeCoverage`: their schemes leave
-the test action's coverage unset, so the resolved option (`--coverage`, that
-variable, then `Tuist.swift`'s `coverage`) both turns collection on and picks the
-coverage variant. CLIs before tuist/tuist#14404 ignore the variable, so until
-`mise.toml` pins one with it these runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending). Keep both variables until
-`Tuist.swift` turns the option on, which waits for the backward-compatibility
-gate's CLI to know it. Plain environment variables never
-reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so they cannot
-flip the CLI's own unit tests. Every `tuist test` that uploads coverage
+whose runs read the binary cache. The coverage settings are set once, in the
+root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
+`TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
+every developer resolve the same variant and the same prefix mapping; both are
+hashed into binary-cache and selective-testing keys, so never set them per step.
+They stand in for `Tuist.swift`'s `coverage` option until the
+backward-compatibility gate's CLI knows it. The test runs pass no
+`-enableCodeCoverage`: schemes that leave their test action's coverage unset
+follow the resolved option, and the acceptance-test schemes set `coverage: false`
+to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
+`mise.toml` pins one with it the runs collect no coverage and stay green
+(`tuist coverage complete` leaves the commit pending), and only `cli.yml`'s
+`tuist cache --coverage` warms the coverage variant; after that the plain
+`tuist cache` warms it too and that step is redundant. Plain environment
+variables never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones
+do), so they cannot flip the CLI's own unit tests. Every `tuist test` that uploads coverage
 passes `--derived-data-path`, because the coverage export reads the test
 products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.

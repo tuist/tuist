@@ -201,14 +201,6 @@ jobs:
         run: tuist install --force-resolved-versions
       - name: Test TuistApp
         run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-        env:
-          # Xcode code coverage is in early access behind this client flag.
-          TUIST_FEATURE_FLAG_COVERAGE: "1"
-          # Collects coverage and reads the coverage variant of the binary
-          # cache: the scheme leaves its test action's coverage unset, so it
-          # follows this. CLIs before tuist/tuist#14404 ignore it, so until
-          # mise.toml pins one with it these runs collect no coverage.
-          TUIST_COVERAGE_ENABLED: "1"
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

@@ -58,14 +58,6 @@ env:
   TUIST_ENABLE_CACHING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
-  # Xcode code coverage is in early access behind this client flag.
-  TUIST_FEATURE_FLAG_COVERAGE: "1"
-  # Turns coverage on for the test runs, whose schemes leave their test action's
-  # coverage unset, and makes them read the coverage variant of the binary
-  # cache. CLIs before tuist/tuist#14404 ignore it, so until mise.toml pins one
-  # with it these runs collect no coverage; `tuist coverage complete` then
-  # leaves the commit pending.
-  TUIST_COVERAGE_ENABLED: "1"
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
@@ -167,22 +159,21 @@ jobs:
       # --coverage` in cli.yml), built with coverage counters, when their hash
       # matches what an earlier commit's warm stored; this commit's own warm runs
       # at the same time, so the targets it changed are built from source.
-      # TUIST_COVERAGE_ENABLED turns collection on and keeps the run off the plain variant. The derived data path is where the export
+      # The coverage settings come from mise.toml's [env], which CLIs before
+      # tuist/tuist#14404 ignore, so until one is pinned these runs collect no
+      # coverage and `tuist coverage complete` leaves the commit pending: the
+      # schemes leave their test action's coverage unset and follow
+      # TUIST_COVERAGE_ENABLED. The derived data path is where the export
       # finds the test products and the run's profile: without it the CLI falls
       # back to the result bundle's own report, which never covers cached code.
       # The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
       # tests run in parallel in one process, and plain increments lose counts.
-      # Coverage builds keep Xcode's prefix mapping, so the compilation cache replays
-      # across runners; the CLI maps the covered paths back (llvm-cov export plus each
-      # target's compilation-prefix-map.json). The generated projects gate the mapping
-      # on TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING), set to NO for
-      # xccov's sake (XcodeCacheSettingsProjectMapper); the override flips it to YES
-      # here. It is an xcodebuild argument, not a project setting, so no cache hash
-      # depends on it, and the cached binaries carry their own portable mapping.
-      # The manifest option (`enableCoveragePrefixMapping`) would do the same but
-      # needs a CLI newer than the backward-compatibility gate's.
+      # TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
+      # builds, so the compilation cache replays across runners; the CLI maps the
+      # covered paths back (llvm-cov export plus each target's
+      # compilation-prefix-map.json).
       - name: Run tests with coverage
-        run: tuist test TuistUnitTests --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=YES
+        run: tuist test TuistUnitTests --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4
 
   app-tests:
     name: App Tests
@@ -234,7 +225,7 @@ jobs:
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       - name: Run tests with coverage
-        run: tuist test TuistApp --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp --no-selective-testing --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   # Only a complete commit joins the coverage trend. A CLI release older than
   # `tuist coverage complete` skips the signal, and the commit stays in progress.
