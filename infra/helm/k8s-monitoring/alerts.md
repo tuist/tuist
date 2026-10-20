@@ -3842,7 +3842,7 @@ GROUP BY br.id, br.ins, minutes
 ORDER BY br.ins
 ```
 
-Then check the two known causes:
+Then check the three known causes:
 
 1. [Kura ingress returning malformed or 502 responses](#kura-ingress-returning-malformed-or-502-responses)
    for the account's instances.
@@ -3850,6 +3850,32 @@ Then check the two known causes:
    with one latency probe per region, and one failed probe moves it to another
    region for at least 10 minutes. Those builds show a stretch where even p10
    sits at the far region's round trip, then an abrupt return.
+3. Slow delivery to the client on the legacy cache. An account with no
+   `kura_servers` rows reads from `cache-<region>.tuist.dev`, so the Kura
+   ingress logs show nothing for it. Compare nginx's total request time (`rt`,
+   which includes writing the response to the client) with the cache app's time
+   (`urt`) for the account's reads in Loki `grafanacloud-logs` (replace
+   `HANDLE` with the account name, and `rt` with `urt` for the second query):
+
+   ```logql
+   quantile_over_time(0.9,
+     {service_name="cache-nginx", path_group="xcode", method="GET"}
+       |= "account_handle=HANDLE"
+       | regexp `rt=(?P<rt>[0-9.]+) .* urt=(?P<urt>[0-9.]+)`
+       | unwrap rt [5m]
+   ) by (instance)
+   ```
+
+   When `urt` stays at a few milliseconds while `rt` rises, the time is spent
+   sending bytes to the client: the client's link or the path to it. Those
+   builds keep p10 at the account's usual round trip while p50 and p90 rise,
+   and other accounts on the same `instance` stay flat. On 2026-10-20 one
+   account's `urt` p90 stayed at 3 ms while `rt` p90 reached 0.3-1.2 s for 30
+   minutes, and other accounts on the host stayed at 2 ms. There is nothing to
+   fix on our side. 2xx lines are sampled at 10% before they reach Loki
+   (`cache/platform/alloy.nix`), which is enough for quantiles, but multiply
+   byte sums by 10. `cache_nginx_request_duration_seconds` is aggregated across
+   hosts and accounts, so it cannot isolate one account.
 
 Limits: only processed builds count, so the rule lags a slow build by its
 duration plus processing time. Hits replayed straight from the local CAS never
