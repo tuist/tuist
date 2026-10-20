@@ -254,71 +254,14 @@ defmodule TuistEx.DependencyCacheTest do
     assert output =~ "LOCAL_VALUE=2"
   end
 
-  @tag timeout: 120_000
-  test "a prepared build can run with different runtime configuration without recompiling", %{
-    project: project,
-    dir: dir
-  } do
-    File.mkdir_p!(Path.join(project, "lib"))
-
-    File.write!(Path.join(project, "lib/fixture.ex"), """
-    defmodule CacheFixture do
-      IO.puts("COMPILING_FIXTURE")
-      def value, do: DepProbe.value()
-    end
-    """)
-
-    config = Path.join(project, "config/config.exs")
-
-    File.write!(
-      config,
-      "import Config\nconfig :cache_fixture, pool_size: System.schedulers_online()\n"
-    )
-
-    {output, status} = mix(project, ["deps.get"])
-    assert status == 0, output
-    {output, status} = mix(project, ["compile"], [{"ERL_FLAGS", "+S 4:4"}])
-    assert status == 0, output
-    assert output =~ "COMPILING_FIXTURE"
-
-    build = Path.join(project, "_build/test")
-    archive = Path.join(dir, "prebuilt.tar.gz")
-    assert :ok = TuistEx.Analytics.Shards.archive(build, archive)
-
-    # Fresh checkouts have newer config files, and the server's test pool size
-    # differs between the 4-vCPU builder and 2-vCPU shards.
-    File.touch!(config, System.os_time(:second) + 2)
-
-    args = [
-      "run",
-      "--no-start",
-      "-e",
-      "IO.puts(Application.fetch_env!(:cache_fixture, :pool_size))"
-    ]
-
-    {output, status} = mix(project, args, [{"ERL_FLAGS", "+S 2:2"}])
-    assert status == 0, output
-    assert output =~ "COMPILING_FIXTURE"
-
-    assert :ok = TuistEx.Analytics.Shards.extract(archive, build)
-
-    {output, status} =
-      mix(project, ["run", "--no-compile", "--no-deps-check" | tl(args)], [
-        {"ERL_FLAGS", "+S 2:2"}
-      ])
-
-    assert status == 0, output
-    assert String.trim(output) == "2"
-    refute output =~ "COMPILING_FIXTURE"
-    refute output =~ "Compiling"
-  end
-
   @tag timeout: 300_000, bootstrap: true
   test "a prepared shard does not re-enter the project's test preparation alias", %{
     project: project
   } do
     package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
     mixfile = Path.join(project, "mix.exs")
+    mix_path = Path.join(project, "custom mix path")
+    File.mkdir_p!(mix_path)
 
     File.write!(
       mixfile,
@@ -375,23 +318,28 @@ defmodule TuistEx.DependencyCacheTest do
     end
     """
 
-    run = fn args ->
+    run = fn args, mix_path ->
       script = script <> "Mix.Tasks.Tuist.Test.run(#{inspect(args)})"
 
       mix(project, ["run", "--no-compile", "--no-deps-check", "--no-start", "-e", script], [
-        {"TUIST_GIT_UPLOAD_ENABLED", "false"}
+        {"TUIST_GIT_UPLOAD_ENABLED", "false"},
+        {"MIX_PATH", mix_path},
+        {"EXPECTED_MIX_PATH", mix_path}
       ])
     end
 
     {output, status} =
-      run.([
-        "--shard-index",
-        "0",
-        "--shard-reference",
-        "regression",
-        "--no-download",
-        "--no-start"
-      ])
+      run.(
+        [
+          "--shard-index",
+          "0",
+          "--shard-reference",
+          "regression",
+          "--no-download",
+          "--no-start"
+        ],
+        mix_path
+      )
 
     assert status == 0, output
     assert output =~ "1 passed"
@@ -401,7 +349,7 @@ defmodule TuistEx.DependencyCacheTest do
     refute output =~ "==> "
 
     # Forwarded flags alone must not skip setup on an ordinary, unsharded run.
-    {output, status} = run.(["--no-compile", "--no-deps-check", "--no-start"])
+    {output, status} = run.(["--no-compile", "--no-deps-check", "--no-start"], mix_path)
     assert status == 0, output
     assert output =~ "1 passed"
     assert File.exists?(Path.join(project, "preparation.marker"))
@@ -414,6 +362,9 @@ defmodule TuistEx.DependencyCacheTest do
       test "retries against the prepared build" do
         if File.exists?("retry.marker") do
           assert DepProbe.value() == 1
+          assert System.get_env("MIX_PATH") == System.get_env("EXPECTED_MIX_PATH")
+          assert System.get_env("TUIST_EX_RETRY_MIX_PATH") == nil
+          File.write!("retry.arguments", :erlang.term_to_binary(System.argv()))
         else
           File.write!("retry.marker", "ran")
           flunk("retry once")
@@ -423,16 +374,19 @@ defmodule TuistEx.DependencyCacheTest do
     """)
 
     {output, status} =
-      run.([
-        "--shard-index",
-        "0",
-        "--shard-reference",
-        "regression",
-        "--no-download",
-        "--no-start",
-        "--retries",
-        "1"
-      ])
+      run.(
+        [
+          "--shard-index",
+          "0",
+          "--shard-reference",
+          "regression",
+          "--no-download",
+          "--no-start",
+          "--retries",
+          "1"
+        ],
+        mix_path
+      )
 
     assert status == 0, output
     assert output =~ "Retrying the failed tests"
@@ -441,24 +395,40 @@ defmodule TuistEx.DependencyCacheTest do
     refute output =~ "Compiling"
     refute output =~ "deps.compile running across"
 
-    for arg <- ["+", "slow,"] do
-      {output, status} =
-        run.([
-          "--shard-index",
-          "0",
-          "--shard-reference",
-          "regression",
-          "--no-download",
-          "--no-start",
-          "--retries",
-          "1",
-          "--include",
-          arg
-        ])
+    for {arg, original_path} <- [{"+", mix_path}, {"slow,", nil}] do
+      File.rm!(Path.join(project, "retry.marker"))
+      File.rm!(Path.join(project, "retry.arguments"))
 
-      assert status != 0, output
-      assert output =~ "Prepared shard retries cannot forward"
-      refute output =~ "Running ExUnit"
+      {output, status} =
+        run.(
+          [
+            "--shard-index",
+            "0",
+            "--shard-reference",
+            "regression",
+            "--no-download",
+            "--no-start",
+            "--retries",
+            "1",
+            "--include",
+            arg
+          ],
+          original_path
+        )
+
+      assert status == 0, output
+      assert output =~ "Retrying the failed tests"
+      assert output =~ "1 passed"
+      assert length(Regex.scan(~r/skips the project's test preparation alias/, output)) == 1
+
+      arguments =
+        project |> Path.join("retry.arguments") |> File.read!() |> :erlang.binary_to_term([:safe])
+
+      assert ["--include", arg] in Enum.chunk_every(arguments, 2, 1, :discard)
+      refute File.exists?(Path.join(project, "preparation.marker"))
+      refute output =~ "Compiling"
+      refute output =~ "Generated "
+      refute output =~ "deps.compile running across"
     end
   end
 

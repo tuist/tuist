@@ -98,6 +98,7 @@ defmodule Mix.Tasks.Tuist.Test do
   @preferred_cli_env :test
   @retry_results "TUIST_EX_RETRY_RESULTS"
   @prepared_build "TUIST_EX_PREPARED_BUILD"
+  @retry_mix_path "TUIST_EX_RETRY_MIX_PATH"
   @suite_failed "\"mix test\" failed"
 
   def run(args) do
@@ -152,7 +153,13 @@ defmodule Mix.Tasks.Tuist.Test do
       # what its parent selected: record what the tests did for the parent,
       # which reports the whole run.
       path ->
-        options = Keyword.put(options, :prepared_build, System.get_env(@prepared_build) == "1")
+        options = Keyword.put(options, :no_download, System.get_env(@prepared_build) == "true")
+
+        if prepared?(options) do
+          # Task discovery is done; do not leak its path into the tests' subprocesses.
+          System.put_env([{"MIX_PATH", System.get_env(@retry_mix_path)}, {@retry_mix_path, nil}])
+        end
+
         configure(Keyword.put(options, :mode, {:collect, path}))
         run_test(test_args, options)
     end
@@ -210,6 +217,7 @@ defmodule Mix.Tasks.Tuist.Test do
               if !File.regular?(app_file),
                 do: Mix.raise("No prepared build found. Run mix tuist.test --prepare-only first.")
 
+              warn_skipped_preparation()
               ["--no-compile", "--no-deps-check"]
             else
               download_build_args(shard, index)
@@ -226,8 +234,7 @@ defmodule Mix.Tasks.Tuist.Test do
           options =
             Keyword.merge(options,
               shard_plan_id: shard["shard_plan_id"],
-              shard_index: index,
-              prepared_build: options[:no_download] == true
+              shard_index: index
             )
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
@@ -318,23 +325,25 @@ defmodule Mix.Tasks.Tuist.Test do
   defp shard_unwrap({:error, reason}) when is_binary(reason), do: Mix.raise(reason)
   defp shard_unwrap({:error, reason}), do: Mix.raise("Tuist sharding failed: #{inspect(reason)}")
 
+  defp prepared?(options), do: options[:no_download] == true
+
   defp run_test(args, options) do
-    if options[:prepared_build] == true do
-      preparation =
-        Mix.Project.config()[:aliases][:test]
-        |> List.wrap()
-        |> Enum.reject(&(&1 in ["test", "tuist.test"]))
+    if prepared?(options),
+      do: Mix.Tasks.Test.run(args),
+      else: Args.run_wrapped("test", Mix.Tasks.Test, args)
+  end
 
-      if preparation != [] do
-        Mix.shell().info(
-          "Tuist: --no-download skips the project's test preparation alias; " <>
-            "run its setup separately with compilation disabled."
-        )
-      end
+  defp warn_skipped_preparation do
+    preparation? =
+      Mix.Project.config()[:aliases][:test]
+      |> List.wrap()
+      |> Enum.any?(&(&1 not in ["test", "tuist.test"]))
 
-      Mix.Tasks.Test.run(args)
-    else
-      Args.run_wrapped("test", Mix.Tasks.Test, args)
+    if preparation? do
+      Mix.shell().info(
+        "Tuist: --no-download skips the project's test preparation alias; " <>
+          "run its setup separately with compilation disabled."
+      )
     end
   end
 
@@ -353,14 +362,6 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   defp run_with_retries(options, test_args, retries) do
-    if options[:prepared_build] == true and
-         Enum.any?(test_args, &(&1 == "+" or String.ends_with?(&1, ","))) do
-      Mix.raise(
-        ~s(Prepared shard retries cannot forward "+" or arguments ending in ","; ) <>
-          "Mix treats them as command separators. Disable retries or change those arguments."
-      )
-    end
-
     configure(Keyword.put(options, :mode, {:defer, self()}))
     history = collect_history(options)
     suite = run_suite(test_args, options)
@@ -568,23 +569,31 @@ defmodule Mix.Tasks.Tuist.Test do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
         args = ["tuist.test", "--failed" | retry_args(test_args)]
-
-        args =
-          if options[:prepared_build] == true,
-            do: ["do", "deps.loadpaths", "--no-compile", "--no-deps-check", "+" | args],
-            else: args
-
-        status =
-          Subprocess.run(mix, args, [
-            {@retry_results, path},
-            {@prepared_build, if(options[:prepared_build] == true, do: "1", else: "0")},
-            {"MIX_ENV", "test"}
-          ])
-
+        status = Subprocess.run(mix, args, retry_env(path, options))
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
       _ ->
         :error
+    end
+  end
+
+  defp retry_env(path, options) do
+    env = [
+      {@retry_results, path},
+      {@prepared_build, to_string(prepared?(options))},
+      {"MIX_ENV", "test"}
+    ]
+
+    if prepared?(options) do
+      original_path = System.get_env("MIX_PATH")
+      separator = if match?({:win32, _}, :os.type()), do: ";", else: ":"
+
+      mix_path =
+        Enum.join([Application.app_dir(:tuist_ex, "ebin") | List.wrap(original_path)], separator)
+
+      [{"MIX_PATH", mix_path}, {@retry_mix_path, original_path} | env]
+    else
+      env
     end
   end
 

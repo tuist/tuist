@@ -92,8 +92,6 @@ MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.loadpaths --no-compile --no-deps-ch
 
 Both commands need the same shard reference. `--prepare-only` requires an uploaded build, and `--no-download` fails if the prepared application artifact is missing. `--no-download` explicitly skips your project's test preparation alias, including on retries, and prints a notice when it skips setup steps. Ordinary runs keep their aliases, even when you forward `--no-compile --no-deps-check`. Keeping database migrations in a separate process also avoids module-redefinition warnings when migration regression tests load those modules themselves.
 
-Prepared retries also use `mix do` to load the restored SDK safely. Forwarded arguments cannot be a standalone `+` or end in `,`, which Mix treats as command separators; the wrapper rejects these before starting a prepared run with retries.
-
 When testing different environments, pass a stable `--scheme` label, such as `--scheme clickhouse-current` or `--scheme clickhouse-floor`. Results with different labels are not treated as flaky reruns of the same configuration.
 
 ### What the shards need {#what-the-shards-need}
