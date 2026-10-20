@@ -1,4 +1,12 @@
 .noora-alert {
+  --noora-alert-default-icon: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-200)
+  );
+  --noora-alert-default-secondary-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-gray-50)
+  );
   --noora-alert-error-icon: light-dark(
     var(--noora-red-500),
     var(--noora-red-400)
@@ -8,7 +16,7 @@
     var(--noora-alpha-red)
   );
   --noora-alert-success-icon: light-dark(
-    var(--noora-green-600),
+    var(--noora-green-500),
     var(--noora-green-400)
   );
   --noora-alert-success-secondary-background: light-dark(
@@ -16,7 +24,7 @@
     var(--noora-alpha-green)
   );
   --noora-alert-warning-icon: light-dark(
-    var(--noora-orange-600),
+    var(--noora-orange-500),
     var(--noora-orange-400)
   );
   --noora-alert-warning-secondary-background: light-dark(
@@ -49,12 +57,54 @@
     flex-shrink: 0;
   }
 
+  & [data-part="actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="action"] {
+      display: flex;
+    }
+
+    /* A single action, and every action after the first, renders without an
+       underline regardless of the link button's `underline` attribute. Only
+       the first of several actions is underlined. */
+    & .noora-link-button:not(:disabled) {
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    &
+      > [data-part="action"]:first-child:not(:last-child)
+      .noora-link-button:not(:disabled) {
+      text-decoration: underline;
+
+      &:hover {
+        text-decoration-style: dotted;
+      }
+    }
+
+    & > [data-part="action-separator"] {
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--noora-surface-label-tertiary);
+      width: 3px;
+      height: 3px;
+    }
+  }
+
   &[data-type="primary"] {
-    box-shadow: var(--noora-border-medium);
+    box-shadow: var(--noora-border-light-default);
     background: var(--noora-surface-background-primary);
   }
 
   &[data-type="secondary"] {
+    &[data-status="default"] {
+      background: var(--noora-alert-default-secondary-background);
+    }
     &[data-status="information"] {
       background: var(--noora-alert-information-secondary-background);
     }
@@ -66,13 +116,6 @@
     }
     &[data-status="error"] {
       background: var(--noora-alert-error-secondary-background);
-    }
-  }
-
-  &[data-size="small"],
-  &[data-size="medium"] {
-    & > [data-part="actions"] {
-      display: flex;
     }
   }
 
@@ -147,6 +190,11 @@
     }
   }
 
+  &[data-status="default"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-default-icon);
+    }
+  }
   &[data-status="information"] {
     & [data-part="icon"] {
       color: var(--noora-alert-information-icon);
