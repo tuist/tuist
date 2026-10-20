@@ -44,7 +44,7 @@ class ClusterCookieTests(unittest.TestCase):
                 for expected in (
                     "kind: ExternalSecret\n",
                     "name: tuist-server-cluster-cookie\n",
-                    'refreshInterval: "1h"',
+                    "refreshPolicy: OnChange\n",
                     "name: onepassword\n",
                     "kind: ClusterSecretStore\n",
                     "creationPolicy: Owner\n",
@@ -54,12 +54,16 @@ class ClusterCookieTests(unittest.TestCase):
                     '{{ fail "The server cluster cookie must not be empty" }}',
                 ):
                     self.assertTrue(expected in external, f"Missing managed wiring: {expected}")
+                self.assertFalse("refreshInterval:" in external, "Cookie must not refresh on a timer")
                 self.assertFalse(document(output, "server-cluster-secret.yaml"), "Competing Helm Secret owner")
                 deployment = document(output, "server-deployment.yaml")
                 self.assertTrue(re.search(
                     r"- name: RELEASE_COOKIE\s+valueFrom:\s+secretKeyRef:\s+"
                     r'name: tuist-server-cluster-cookie\s+key: "release-cookie"', deployment
                 ) is not None, "Missing nonoptional cookie secretKeyRef")
+                cookie_entry = re.search(r"- name: RELEASE_COOKIE\n(.*?)(?=\n\s+- name:|$)", deployment, re.S)
+                self.assertTrue(cookie_entry is not None)
+                self.assertFalse("optional:" in cookie_entry.group(1), "Cookie reference must not be optional")
                 for doc in output.split("---\n"):
                     if doc != deployment:
                         self.assertFalse("name: tuist-server-cluster-cookie" in doc and "kind: ExternalSecret\n" not in doc,

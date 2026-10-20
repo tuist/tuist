@@ -857,7 +857,7 @@ server:
     # existing SecretStore. No ESO dependency for ordinary self-hosted installs.
     externalSecret:
       enabled: false
-      refreshInterval: "1h"
+      # Sync only on ExternalSecret metadata/spec changes, never on a timer.
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
