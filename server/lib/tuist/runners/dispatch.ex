@@ -618,7 +618,8 @@ defmodule Tuist.Runners.Dispatch do
        alias path needed. An account on the `runner_site` flag gets the
        same Xcode and shape racked at a site when one is
        (`Catalog.site_pool_name/1`) and the site can serve it
-       (`Sites.available?/1`).
+       (`Sites.available?/1`), or always when the env rents no macOS fleet
+       (`Environment.runners_rented_macos_fleet?/0`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -649,11 +650,13 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   # An account on the `runner_site` flag runs at a site whenever one racks the
-  # profile's pool and can serve it, and on the rented fleet otherwise.
+  # profile's pool and can serve it, and on the rented fleet otherwise. In an
+  # env that rents no macOS fleet the site is the only home, so its jobs wait
+  # there while it is down.
   defp profile_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
          site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),
-         true <- Sites.available?(site_pool) do
+         true <- not Environment.runners_rented_macos_fleet?() or Sites.available?(site_pool) do
       site_pool
     else
       _ -> Catalog.pool_name(profile)

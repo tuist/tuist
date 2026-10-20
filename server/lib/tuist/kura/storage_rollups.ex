@@ -25,6 +25,7 @@ defmodule Tuist.Kura.StorageRollups do
     :max_live_segment_bytes,
     :last_ring_budget_bytes,
     :min_ring_budget_bytes,
+    :hit_count,
     :updated_at
   ]
 
@@ -38,8 +39,9 @@ defmodule Tuist.Kura.StorageRollups do
   def refresh(dates) do
     evictions = StorageTelemetry.eviction_day_aggregates(dates)
     snapshots = StorageTelemetry.snapshot_day_aggregates(dates)
+    hits = StorageTelemetry.hit_day_aggregates(dates)
 
-    rows = merge_aggregates(evictions, snapshots)
+    rows = merge_aggregates(evictions, snapshots, hits)
     rows = Enum.filter(rows, existing_account_filter(rows))
 
     if rows != [] do
@@ -72,7 +74,7 @@ defmodule Tuist.Kura.StorageRollups do
   end
 
   # Homogeneous keys: `insert_all` requires them.
-  defp merge_aggregates(evictions, snapshots) do
+  defp merge_aggregates(evictions, snapshots, hits) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     eviction_rows =
@@ -106,7 +108,16 @@ defmodule Tuist.Kura.StorageRollups do
         })
       )
     end)
+    |> merge_hits(hits, now)
     |> Map.values()
+  end
+
+  defp merge_hits(rows, hits, now) do
+    Enum.reduce(hits, rows, fn aggregate, rows ->
+      base = Map.get(rows, row_key(aggregate), empty_row(aggregate, now))
+
+      Map.put(rows, row_key(aggregate), Map.put(base, :hit_count, aggregate.hit_count))
+    end)
   end
 
   defp empty_row(aggregate, now) do
@@ -125,6 +136,7 @@ defmodule Tuist.Kura.StorageRollups do
       max_live_segment_bytes: nil,
       last_ring_budget_bytes: nil,
       min_ring_budget_bytes: nil,
+      hit_count: 0,
       inserted_at: now,
       updated_at: now
     }

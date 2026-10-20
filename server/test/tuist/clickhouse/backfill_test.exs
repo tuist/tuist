@@ -122,6 +122,39 @@ defmodule Tuist.ClickHouse.BackfillTest do
     end
   end
 
+  describe "missing_copies/5" do
+    # `ran` stands in for a column with a default, which identity leaves out:
+    # the two `(1, 'success')` rows are one identity written twice, as
+    # `shard_runs` records a shard's status again when it is retried.
+    defp missing_copies(source_rows, destination_rows) do
+      columns = "id UInt8, status String, ran UInt32"
+      source = "values('#{columns}', #{source_rows})"
+      destination = "values('#{columns}', #{destination_rows})"
+      rows = Backfill.missing_copies(["id", "status"], ["id", "status", "ran"], source, destination, {:hash, "1", 0, 1})
+
+      %{rows: rows} = IngestRepo.query!("#{rows} ORDER BY id, ran")
+      rows
+    end
+
+    test "selects the copy of a repeated row the destination lacks, not only rows it lacks entirely" do
+      assert missing_copies("(1, 'success', 10), (1, 'success', 20), (2, 'failure', 5)", "(1, 'success', 20)") ==
+               [[1, "success", 10], [2, "failure", 5]]
+    end
+
+    test "selects nothing for a row the destination holds as many copies of as the source" do
+      assert missing_copies("(1, 'success', 10), (1, 'success', 20)", "(1, 'success', 10), (1, 'success', 20)") == []
+    end
+
+    test "selects nothing for a row the destination holds more copies of than the source" do
+      assert missing_copies("(1, 'success', 10)", "(1, 'success', 10), (1, 'success', 30)") == []
+    end
+
+    test "selects the copies of a repeated row the destination lacks entirely" do
+      assert missing_copies("(1, 'success', 10), (1, 'success', 20)", "(2, 'failure', 5)") ==
+               [[1, "success", 10], [1, "success", 20]]
+    end
+  end
+
   describe "identity_columns/1" do
     test "leaves out the columns with a default on a plain MergeTree" do
       # Each server fills a defaulted column in for itself when a write omits

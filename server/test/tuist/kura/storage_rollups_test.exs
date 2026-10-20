@@ -5,6 +5,7 @@ defmodule Tuist.Kura.StorageRollupsTest do
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageSnapshot
+  alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -81,6 +82,32 @@ defmodule Tuist.Kura.StorageRollupsTest do
       assert rollup.eviction_count == 1
     end
 
+    test "counts the downloads each instance served as its hits", %{account: account} do
+      date = unique_date()
+      insert_snapshot(account.id, "snap-1-#{account.id}", at(date, ~T[12:00:00]))
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+      insert_usage(account.id, "usage-2-#{account.id}", "egress", 2, at(date, ~T[11:00:00]))
+      insert_usage(account.id, "usage-3-#{account.id}", "ingress", 500, at(date, ~T[11:00:00]))
+
+      {:ok, 1} = StorageRollups.refresh([date])
+
+      assert [rollup] = StorageRollups.for_account(account, date)
+      assert rollup.hit_count == 42
+      assert rollup.snapshot_count == 1
+    end
+
+    test "counts a redelivered usage report once", %{account: account} do
+      date = unique_date()
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+
+      {:ok, 1} = StorageRollups.refresh([date])
+
+      assert [rollup] = StorageRollups.for_account(account, date)
+      assert rollup.hit_count == 40
+      assert rollup.snapshot_count == 0
+    end
+
     test "telemetry for accounts that no longer exist is dropped" do
       date = unique_date()
       ghost_id = System.unique_integer([:positive]) + 5_000_000
@@ -119,6 +146,28 @@ defmodule Tuist.Kura.StorageRollupsTest do
         artifact_count: 5,
         bytes: 536_870_912,
         inserted_at: inserted_at || evicted_at
+      }
+    ])
+  end
+
+  defp insert_usage(account_id, event_id, direction, request_count, window_start) do
+    IngestRepo.insert_all(UsageEvent, [
+      %{
+        event_id: event_id,
+        account_id: account_id,
+        project_id: 0,
+        node_id: "kura-0",
+        region: "us-east",
+        traffic_plane: "public",
+        direction: direction,
+        operation: if(direction == "egress", do: "download", else: "upload"),
+        protocol: "grpc",
+        artifact_kind: "reapi",
+        bytes: request_count * 1_024,
+        request_count: request_count,
+        window_start: window_start,
+        window_seconds: 60,
+        inserted_at: window_start
       }
     ])
   end

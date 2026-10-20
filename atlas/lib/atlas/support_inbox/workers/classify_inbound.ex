@@ -14,7 +14,6 @@ defmodule Atlas.SupportInbox.Workers.ClassifyInbound do
     unique: [period: :infinity, fields: [:worker, :args]]
 
   alias Atlas.Support
-  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Classifier
 
   def enqueue(thread_id, message_id) when is_binary(thread_id) and is_binary(message_id) do
@@ -29,20 +28,15 @@ defmodule Atlas.SupportInbox.Workers.ClassifyInbound do
     message_id = args["message_id"]
 
     with thread when not is_nil(thread) <- Support.get_thread(thread_id),
-         message when not is_nil(message) <- Support.get_message(message_id) do
-      # `classify_and_persist/3` always returns {:ok, decision} — a failed
-      # LLM call collapses to a fallback decision that still pings #support,
-      # so from this worker's perspective the notification is always
-      # enqueued once the thread has been classified. Ignore the return
-      # value: any future contract loosening (say the persist step signals
-      # via a tagged tuple) will show up here at review time rather than
-      # silently discarding an Oban job.
-      _ = Classifier.classify_and_persist(thread, message)
-      PostNotification.enqueue(:inbound_received, thread_id, message_id: message_id)
+         message when not is_nil(message) <- Support.get_message(message_id),
+         {:ok, _decision} <- Classifier.classify_and_persist(thread, message) do
       :ok
     else
       nil ->
         {:cancel, :support_thread_or_message_not_found}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 end

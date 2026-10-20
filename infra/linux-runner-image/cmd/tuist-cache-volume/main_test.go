@@ -62,6 +62,16 @@ func TestHTTPFailureDoesNotDecodeOrRedirect(t *testing.T) {
 	}
 }
 
+func TestPendingAuthorizationExplainsTheMissingJobReport(t *testing.T) {
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "execution pending", http.StatusTooEarly) }))
+	defer agent.Close()
+	req, _ := http.NewRequest("POST", agent.URL, nil)
+	var result any
+	if err := requestJSON(agent.Client(), req, &result); !errors.Is(err, errExecutionPending) {
+		t.Fatal(err)
+	}
+}
+
 func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "__w/repo/repo")

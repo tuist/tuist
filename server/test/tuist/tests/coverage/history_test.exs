@@ -470,6 +470,36 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     end
   end
 
+  describe "latest_complete_commit/2" do
+    test "is the newest commit on the branch's graph that chains into its trend", %{
+      project: project,
+      account: account
+    } do
+      commits =
+        for index <- 0..3,
+            do: CoverageFixtures.commit("c#{index}", if(index == 0, do: [], else: ["c#{index - 1}"]), index)
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c3"}])
+
+      run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c1"}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "c2", partial: true}, [0, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c3"}, [1, 1, 1, 0])
+      for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)
+
+      assert History.latest_complete_commit(project, "main") == "c1"
+      assert History.latest_complete_commit(project, "main") == List.last(shas(History.trend_points(project, "main")))
+      assert History.head_commit(project, "main").git_commit_sha == "c3"
+      assert History.latest_complete_commit(project, "other") == nil
+    end
+
+    test "is the newest complete commit labelled with the branch when its ref owns none", %{project: project} do
+      publish(project, Enum.map(0..3, &DateTime.add(@epoch, &1, :hour)), ["c3"])
+
+      assert History.latest_complete_commit(project, "main") == "c2"
+    end
+  end
+
   describe "branches/2" do
     test "lists the branches whose runs never named a pull request, the default branch first, then the most recently measured",
          %{project: project, account: account} do

@@ -17,8 +17,12 @@ import (
 func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identity, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	pending := false
 	for {
 		identity, status, err := a.authorizeOnce(ctx, body)
+		if pending && ctx.Err() != nil && status != http.StatusOK {
+			return identity, cachevolumes.ErrExecutionPending
+		}
 		if err != nil || status == http.StatusOK {
 			return identity, err
 		}
@@ -27,9 +31,10 @@ func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identi
 		}
 		// GitHub may deliver its verified execution binding after the action starts.
 		// Retry only that explicit pending state, never denied provider identity.
+		pending = true
 		select {
 		case <-ctx.Done():
-			return identity, ctx.Err()
+			return identity, cachevolumes.ErrExecutionPending
 		case <-time.After(time.Second):
 		}
 	}

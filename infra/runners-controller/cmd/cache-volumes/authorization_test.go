@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 func TestAuthorizationWaitsOnlyForVerifiedExecutionBinding(t *testing.T) {
@@ -50,6 +53,9 @@ func TestAuthorizationWaitsOnlyForVerifiedExecutionBinding(t *testing.T) {
 			identity, err := a.authorize(ctx, []byte(`{"pod_uid":"u"}`))
 			if (err == nil) != tc.succeeds || (tc.succeeds && identity.ID != "authorized-use") {
 				t.Fatalf("identity=%+v err=%v", identity, err)
+			}
+			if pending := errors.Is(err, cachevolumes.ErrExecutionPending); pending != (tc.name == "bounded wait") {
+				t.Fatalf("execution pending=%v err=%v", pending, err)
 			}
 			if calls != len(tc.statuses) {
 				t.Fatalf("got %d attempts", calls)
