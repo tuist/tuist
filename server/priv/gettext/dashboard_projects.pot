@@ -565,7 +565,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.ex:305
+#: lib/tuist_web/live/project_authentication_live.ex:312
 #: lib/tuist_web/live/project_automation_live.ex:25
 #: lib/tuist_web/live/project_automations_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.ex:19
@@ -3374,7 +3374,7 @@ msgstr[1] ""
 msgid "Average time it takes to complete a Cargo invocation during the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:194
+#: lib/tuist_web/live/project_authentication_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Add trust policy"
 msgstr ""
@@ -3475,7 +3475,7 @@ msgstr ""
 msgid "Claims must be valid JSON of at most 8 KiB."
 msgstr ""
 
-#: lib/tuist_web/live/project_authentication_live.html.heex:188
+#: lib/tuist_web/live/project_authentication_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Advanced configuration"
 msgstr ""
@@ -3534,4 +3534,9 @@ msgstr ""
 #: lib/tuist_web/live/project_authentication_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Template"
+msgstr ""
+
+#: lib/tuist_web/live/project_authentication_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Your manual changes override this template. Review the advanced configuration."
 msgstr ""

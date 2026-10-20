@@ -179,7 +179,12 @@ defmodule TuistWeb.ProjectAuthenticationLive do
 
   defp assign_empty_form(socket) do
     socket
-    |> assign(oidc_template: "custom", fly_template: empty_fly_template(), edited_fields: MapSet.new())
+    |> assign(
+      oidc_template: "custom",
+      fly_template: empty_fly_template(),
+      edited_fields: MapSet.new(),
+      identity_overridden?: false
+    )
     |> assign_form(OIDCTrustPolicy.changeset(%{}), "")
   end
 
@@ -249,8 +254,10 @@ defmodule TuistWeb.ProjectAuthenticationLive do
         if MapSet.member?(socket.assigns.edited_fields, key), do: params, else: Map.put(params, key, value)
       end)
 
+    identity_overridden? = Enum.any?(~w(issuer jwks_url claims), &(params[&1] != values[&1]))
+
     socket
-    |> assign(fly_template: fly)
+    |> assign(fly_template: fly, identity_overridden?: identity_overridden?)
     |> assign_form(OIDCTrustPolicy.changeset(Map.delete(params, "claims")), Map.get(params, "claims", ""))
   end
 

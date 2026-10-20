@@ -173,10 +173,63 @@ defmodule TuistWeb.ProjectAuthenticationLiveTest do
     project: project
   } do
     {:ok, lv, _} = live(conn, authentication_path(organization, project))
-    lv |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => @policy_params}) |> render_change()
+
+    params = %{
+      @policy_params
+      | "name" => "Custom deployment",
+        "issuer" => "https://identity.example.com",
+        "jwks_url" => "https://identity.example.com/jwks",
+        "claims" => ~s({"sub":"service:production"})
+    }
+
+    lv |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => params}) |> render_change()
     select_template(lv, "fly")
-    assert has_element?(lv, "#oidc_trust_policy_name[value='Fly.io production']")
-    assert has_element?(lv, "#oidc-trust-policy-claims", @policy_params["claims"])
+    fill_fly_template(lv)
+    assert has_element?(lv, "#oidc_trust_policy_name[value='Custom deployment']")
+    assert has_element?(lv, "[data-part='advanced'][open] #oidc-trust-policy-claims", params["claims"])
+    assert has_element?(lv, "#oidc-template-overrides", "Your manual changes override this template.")
+    lv |> form("#oidc-trust-policy-form") |> render_submit()
+    assert [policy] = Projects.list_oidc_trust_policies(project)
+    assert policy.issuer == params["issuer"]
+    assert policy.jwks_url == params["jwks_url"]
+    assert policy.claims == %{"sub" => "service:production"}
+  end
+
+  test "overrides are no longer highlighted when helper values match them", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+
+    lv
+    |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => %{"issuer" => "https://oidc.fly.io/another-org"}})
+    |> render_change()
+
+    assert has_element?(lv, "[data-part='advanced'][open]")
+    assert has_element?(lv, "#oidc-template-overrides")
+    fill_fly_template(lv, %{"organization_slug" => "another-org"})
+    refute has_element?(lv, "[data-part='advanced'][open]")
+    refute has_element?(lv, "#oidc-template-overrides")
+  end
+
+  test "editing visible fields does not warn about hidden overrides", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _} = live(conn, authentication_path(organization, project))
+    select_template(lv, "fly")
+    fill_fly_template(lv)
+
+    lv
+    |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => %{"name" => "Production", "audience" => "custom"}})
+    |> render_change()
+
+    refute has_element?(lv, "[data-part='advanced'][open]")
+    refute has_element?(lv, "#oidc-template-overrides")
   end
 
   test "invalid helper values and unknown templates never create policies", %{

@@ -175,6 +175,19 @@
           type="basic"
           placeholder="tuist"
         />
+        <.alert
+          :if={@oidc_template == "fly" and @identity_overridden?}
+          id="oidc-template-overrides"
+          status="warning"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_projects",
+              "Your manual changes override this template. Review the advanced configuration."
+            )
+          }
+        />
         <.identity_fields
           :if={@oidc_template == "custom"}
           form={@oidc_trust_policy_form}
@@ -183,7 +196,7 @@
         <details
           :if={@oidc_template == "fly"}
           data-part="advanced"
-          open={identity_errors?(@oidc_trust_policy_form)}
+          open={identity_errors?(@oidc_trust_policy_form) or @identity_overridden?}
         >
           <summary>{dgettext("dashboard_projects", "Advanced configuration")}</summary>
           <.identity_fields form={@oidc_trust_policy_form} claims_input={@claims_input} />
