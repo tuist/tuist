@@ -1,0 +1,32 @@
+name: Docker build cache
+description: Prefer a volume-backed BuildKit layer cache while retaining the registry cache as a fallback.
+inputs:
+  key:
+    description: Stable cache volume key shared by builds of the same image and configuration.
+    required: true
+  registry-cache:
+    description: Registry cache reference to use when no local snapshot is available and keep updated on every build.
+    required: true
+outputs:
+  directory:
+    description: Cache volume directory, passed to commit.sh after a successful build.
+    value: ${{ steps.prepare.outputs.directory }}
+  cache-from:
+    description: BuildKit cache import configuration.
+    value: ${{ steps.prepare.outputs.cache-from }}
+  cache-to:
+    description: BuildKit cache export configuration.
+    value: ${{ steps.prepare.outputs.cache-to }}
+runs:
+  using: composite
+  steps:
+    - uses: tuist/cache-volume@v1
+      with:
+        key: ${{ inputs.key }}
+        path: ${{ runner.temp }}/docker-build-cache
+    - id: prepare
+      shell: bash
+      env:
+        TUIST_DOCKER_REGISTRY_CACHE: ${{ inputs.registry-cache }}
+        TUIST_DOCKER_CACHE_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_DOCKER_CACHE_ACTION_PATH/prepare.sh"
