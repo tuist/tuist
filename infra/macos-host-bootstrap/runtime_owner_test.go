@@ -167,18 +167,18 @@ func TestValidateLeaseKey(t *testing.T) {
 // device that is already logged in keeps its tags on a plain `up`, so the
 // borrower's tags would never apply. It is per host, so it never moves the
 // fleet's hash.
-func TestRenderTailscaleScript_ForceReauthOnlyWhenAsked(t *testing.T) {
+func TestRenderTailscaleScript_ForceReauthOnlyOnATakeOver(t *testing.T) {
 	cfg := Config{TailscaleTags: []string{"tag:tuist-macmini-staging"}, TailscalePersistentDevice: true}
 	if strings.Contains(renderTailscaleScript(cfg), "--force-reauth") {
 		t.Fatal("a plain push re-authenticates the host")
 	}
 	reauth := cfg
-	reauth.TailscaleForceReauth = true
+	reauth.TakeOver = true
 	if !strings.Contains(renderTailscaleScript(reauth), "--force-reauth") {
-		t.Fatal("TailscaleForceReauth does not reach `tailscale up`")
+		t.Fatal("a takeover does not log the host in afresh")
 	}
 	if HostConfigHash(cfg) != HostConfigHash(reauth) {
-		t.Fatal("TailscaleForceReauth moved the host-config hash")
+		t.Fatal("TakeOver moved the host-config hash")
 	}
 }
 
@@ -246,4 +246,58 @@ func indexOf(calls []string, name string) int {
 		}
 	}
 	return -1
+}
+
+// Usage reports queued for the previous owner's server would be retried
+// against the new owner's forever (it answers 425 for runner sessions it never
+// knew). A takeover drops them, and only them.
+func TestDropPreviousOwnerStateClearsQueuedUsageReports(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		reports := filepath.Join(root, "usage-reports")
+		if err := os.MkdirAll(reports, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"a.json", "b.json", ".pending-1"} {
+			if err := os.WriteFile(filepath.Join(reports, name), []byte("{}"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		other := filepath.Join(root, "custom", "volume.json")
+		if err := os.MkdirAll(filepath.Dir(other), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(other, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		env := passthroughSudo(t)
+
+		scriptOutput(t, shell, renderDropPreviousOwnerStateScript(root), "", env...)
+		left, err := os.ReadDir(reports)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(left) != 1 || left[0].Name() != ".pending-1" {
+			t.Fatalf("%s: left %v in the queue, want only the in-flight temp file", shell, left)
+		}
+		if _, err := os.Stat(other); err != nil {
+			t.Fatalf("%s: dropped a file outside the queue: %v", shell, err)
+		}
+
+		// A host without a cache volume, or one that never queued a report.
+		scriptOutput(t, shell, renderDropPreviousOwnerStateScript(filepath.Join(root, "missing")), "", env...)
+	}
+}
+
+// The queue is dropped on a takeover only, after the fence and before the new
+// tart-kubelet starts reading it.
+func TestPushPathsDropThePreviousOwnersStateBeforeTheKubeletStarts(t *testing.T) {
+	file := parseBootstrapGo(t)
+	for _, push := range []string{"Run", "UpdateTartKubelet"} {
+		calls := orderedCalls(t, file, push)
+		drop := indexOf(calls, "dropPreviousOwnerState")
+		if drop < 0 || drop < indexOf(calls, "claimRuntime") || drop > indexOf(calls, "loadTartKubeletLaunchd") {
+			t.Errorf("%s: dropPreviousOwnerState at %d, want it between claimRuntime and loadTartKubeletLaunchd", push, drop)
+		}
+	}
 }

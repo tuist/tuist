@@ -10,7 +10,9 @@ defmodule TuistWeb.API.MixController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.MixBuild
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportActorPlug
   alias TuistWeb.Plugs.ReportPublishingPlug
 
   plug(ReportPublishingPlug, {:preflight, :mix} when action == :create_build)
@@ -20,7 +22,7 @@ defmodule TuistWeb.API.MixController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(ReportActorPlug when action == :create_build)
   plug(ReportPublishingPlug, :mix when action == :create_build)
   plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
@@ -39,7 +41,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
-      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -390,7 +392,8 @@ defmodule TuistWeb.API.MixController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -410,7 +413,7 @@ defmodule TuistWeb.API.MixController do
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, :invalid_dependency_cache} ->
         conn
