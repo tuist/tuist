@@ -1670,7 +1670,9 @@ jobs:
     name: Backward-Compatibility Acceptance
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos-26-3
+    # Any Xcode 26 works for the build floor below. `tuist-macos` (Xcode 26.6)
+    # keeps a warm runner; the other Xcode 26 pools start cold.
+    runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:
