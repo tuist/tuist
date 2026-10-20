@@ -8,6 +8,11 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
+- `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
+  affinity: the lineage scopes jobs of the same repository, workflow name and job
+  name attached since a cutoff. It starts from the account's volumes so the uses
+  `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
+  account and repository.
 - A report's `mounted_generation` records the older saved generation a macOS host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
