@@ -227,6 +227,11 @@ reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its war
 A job whose base master is not on the host mounts the newest older master of the
 same lineage, if any, instead of an empty directory, and its base is queued. The
 job's tools update the contents and it may still publish (last publication wins).
+The guest fingerprints the paths, types, sizes and modification times of the
+volume's files when it mounts it and again when it detaches it, and reports
+`changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
+at least 99% full that may hold partial writes. Both are still measured, so the
+server's out-of-space reset sees a clone that filled its volume.
 The host reports the generation it mounted; the dashboard shows "Older copy".
 When the HEAD advances, a superseded master used in the last day is kept until
 its successor has been downloaded through the queue, so such a master usually

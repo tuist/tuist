@@ -22,6 +22,11 @@ var ErrPoisoned = errors.New("cache image failed write-back verification")
 // ErrWithheld discards a finished branch that must not replace the saved version.
 var ErrWithheld = errors.New("cache branch withheld from publication")
 
+// ErrUnchanged and ErrFull withhold a branch the job left as it found it, or
+// one that ran out of space and may hold partial writes.
+var ErrUnchanged = fmt.Errorf("%w: unchanged", ErrWithheld)
+var ErrFull = fmt.Errorf("%w: out of space", ErrWithheld)
+
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {

@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,6 +118,11 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
+	// Without a baseline the volume reports itself changed, so it is still saved.
+	_ = os.Remove(baselinePath(mountRoot, response.Directory))
+	if fingerprint, err := inventory(base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(fingerprint), 0644)
+	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
 	}
@@ -159,12 +167,16 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		baseline, _ := os.ReadFile(baselinePath(mountRoot, dir.Name()))
 		var used, capacity int64
+		var changed bool
 		for attempt := 0; attempt < 5; attempt++ {
 			used, capacity, err = measure(base)
 			if err != nil {
 				break
 			}
+			current, inventoryErr := inventory(base)
+			changed = len(baseline) == 0 || inventoryErr != nil || string(baseline) != current
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
@@ -177,14 +189,16 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
-		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity})
+		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity, "changed": changed})
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
 			continue
 		}
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".detached"), id, 0644); err != nil {
 			failures = append(failures, err)
+			continue
 		}
+		_ = os.Remove(baselinePath(mountRoot, dir.Name()))
 	}
 	return errors.Join(failures...)
 }
@@ -213,4 +227,46 @@ func linkMacDirectory(root, source, target string) error {
 		return err
 	}
 	return os.Symlink(filepath.Join(root, source), target)
+}
+
+// baselinePath records a mounted volume's file inventory outside the volume.
+func baselinePath(mountRoot, dir string) string {
+	return filepath.Join(mountRoot, "."+dir+".inventory")
+}
+
+// inventory fingerprints every entry's path, type, size and modification time.
+// Entries at the volume root that start with a dot belong to Tuist or macOS.
+func inventory(base string) (string, error) {
+	hash := sha256.New()
+	err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, _ := filepath.Rel(base, path)
+		if relative == "." {
+			return nil
+		}
+		if !strings.ContainsRune(relative, filepath.Separator) && strings.HasPrefix(relative, ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		target := ""
+		if info.Mode()&fs.ModeSymlink != 0 {
+			if target, err = os.Readlink(path); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(hash, "%q %s %d %d %q\n", relative, info.Mode().Type(), info.Size(), info.ModTime().UnixNano(), target)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }

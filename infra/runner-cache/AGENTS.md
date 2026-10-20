@@ -50,6 +50,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
   A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
   Store treats like a poisoned branch: deleted, never published.
+- APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
+  (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
+  out-of-space rule). A missing `changed` field means changed. `Measure` reads a
+  detached branch's `.usage` before sealing so a withheld branch still reports its size.
 - `prefetch` downloads into `staging/` and takes the scope lock only to install;
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
