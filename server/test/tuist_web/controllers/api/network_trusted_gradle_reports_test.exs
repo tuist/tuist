@@ -34,6 +34,15 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
       |> json_response(201)
 
     refute response["id"] == client_id
+
+    assert response["actor"] == %{
+             "name" => "developer-123",
+             "source" => "reported",
+             "claimed_actor_id" => "developer-123",
+             "submission_auth" => "network_trusted",
+             "verified_account_handle" => nil
+           }
+
     Buffer.flush()
     {:ok, build} = Gradle.get_build(response["id"], project_id: project.id)
     assert build.account_id == 0
@@ -62,6 +71,9 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
 
     duplicate_actor = %{conn | req_headers: [{"x-tuist-actor-id", "one"}, {"x-tuist-actor-id", "two"} | conn.req_headers]}
     response = duplicate_actor |> publish(project) |> json_response(201)
+    assert response["actor"]["source"] == "unknown"
+    assert response["actor"]["claimed_actor_id"] == ""
+    assert response["actor"]["verified_account_handle"] == nil
     Buffer.flush()
     {:ok, build} = Gradle.get_build(response["id"], project_id: project.id)
     assert build.claimed_actor_id == ""

@@ -79,6 +79,8 @@ This is an **instance-wide runtime configuration**, not a dashboard or per-proje
 
 ### Configure the clients {#network-trusted-client-configuration}
 
+Keep credential-free publishing disabled during a rolling upgrade until the server and clients include the required safeguards: Gradle must treat unreadable credential directories and ancestors as errors, and unsigned Swift/Gradle build bodies must omit Git origins before serialization. Upgrading only the server cannot fix an older client's credential-absence decision or prevent a credential-bearing origin from being transmitted or logged by that client. Ordinary authenticated older clients remain supported. Clients using an older server without credential-free publishing support must still authenticate; a client opt-in cannot enable the server feature.
+
 Configure the self-hosted server URL and project on each client and explicitly opt in in the environment used by the reporting command, Gradle daemon, or Xcode scheme post-action:
 
 ```sh

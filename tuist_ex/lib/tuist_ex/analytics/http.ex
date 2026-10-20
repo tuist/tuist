@@ -28,7 +28,7 @@ defmodule TuistEx.Analytics.HTTP do
 
     with {:ok, config} <- Config.resolve(options),
          {:ok, token} <- if(report?, do: Auth.reporting_token(options), else: Auth.token(options)) do
-      body = if report? and is_nil(token), do: report_body(body), else: body
+      body = if report? and is_nil(token), do: report_body(body, suffix), else: body
 
       url =
         config.url <>
@@ -53,16 +53,23 @@ defmodule TuistEx.Analytics.HTTP do
     end
   end
 
-  defp report_body(body) when is_map(body) do
+  defp report_body(body, suffix) when is_map(body) do
     keys = ~w(generation_id build_run_id gradle_build_id shard_plan_id shard_index coverage
               xcode_coverage xcode_coverage_storage_key git_history stress_new_tests
               git_remote_url_origin coverage_evidence enumerated_tests changed_files base_branch
               merge_base_sha is_pull_request pull_request_number git_object_format history_source
               history_fallback_reason git_dirty only_test_identifiers skip_test_identifiers)a
+    # Earlier network-publishing servers reject test runtime metadata they do not store.
+    # Keep unsigned tests on their common contract, without changing build or signed metadata.
+    keys =
+      if suffix == "/tests",
+        do: keys ++ ~w(contract_version elixir_version otp_version mix_env custom_metadata)a,
+        else: keys
+
     Map.drop(body, keys ++ Enum.map(keys, &Atom.to_string/1))
   end
 
-  defp report_body(body), do: body
+  defp report_body(body, _suffix), do: body
 
   defp post_analytics(payload, suffix, options) do
     with {:ok, _body} <- project_request(:post, suffix, payload, options), do: :ok

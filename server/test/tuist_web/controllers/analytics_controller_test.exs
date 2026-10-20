@@ -150,7 +150,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => command_event.id,
                "project_id" => project.id,
@@ -199,7 +199,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,
@@ -405,7 +405,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "id" => response["id"],
                "name" => "generate",
                "project_id" => project.id,
@@ -506,7 +506,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,
