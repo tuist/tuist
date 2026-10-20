@@ -663,6 +663,7 @@ defmodule TuistWeb.API.AnalyticsController do
     |> put_status(:ok)
     |> json(%{
       id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,

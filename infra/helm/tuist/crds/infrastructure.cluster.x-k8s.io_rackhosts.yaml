@@ -386,6 +386,12 @@ spec:
                     borrower:
                       description: Borrower is the env the host is lent to.
                       type: string
+                    borrowerNode:
+                      description: |-
+                        BorrowerNode is the Node the borrower runs the host as, which is also
+                        the host's tailnet device name while it is lent. Taking the host back
+                        clears that device.
+                      type: string
                     keyFingerprint:
                       description: |-
                         KeyFingerprint is the SHA-256 fingerprint of the lease key authorized on

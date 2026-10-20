@@ -324,7 +324,7 @@ func TestAPFSRejectsUnboundAndInvalidUsage(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "volume")
 		_ = os.Mkdir(path, 0755)
 		_ = os.WriteFile(filepath.Join(path, ".usage"), []byte(contents), 0600)
-		if _, _, err := APFSUsage(path, "lease", 20); err == nil {
+		if _, err := APFSUsage(path, "lease", 20); err == nil {
 			t.Fatal("accepted invalid usage", contents)
 		}
 	}

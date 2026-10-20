@@ -13,6 +13,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByCommit
+  alias TuistEx.Analytics.ExUnitFormatter
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Plugs.ReportPublishingPlug
@@ -30,6 +31,75 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     |> put_req_header("content-type", "application/json")
     |> put_req_header("x-tuist-actor-id", "developer-123")
     |> post("/api/projects/#{project.account.name}/#{project.name}#{suffix}", body)
+  end
+
+  defp assert_network_actor(response) do
+    assert response["actor"] == %{
+             "name" => "developer-123",
+             "source" => "reported",
+             "claimed_actor_id" => "developer-123",
+             "submission_auth" => "network_trusted",
+             "verified_account_handle" => nil
+           }
+  end
+
+  test "accepts the real older Mix formatter wire shape with bounded runtime metadata", %{conn: conn, user: user} do
+    project = project(user, :mix)
+
+    environment = %{
+      "GIT_BRANCH" => "main",
+      "GIT_COMMIT" => String.duplicate("a", 40),
+      "TUIST_TAGS" => "compatibility",
+      "TUIST_VALUES" => "submission_auth=token"
+    }
+
+    {:ok, state} =
+      ExUnitFormatter.init(
+        submit: fn _, _ -> :ok end,
+        mode: {:defer, self()},
+        environment: &Map.get(environment, &1),
+        project_config: []
+      )
+
+    {:noreply, state} =
+      ExUnitFormatter.handle_cast(
+        {:test_finished,
+         %ExUnit.Test{
+           name: :test_wire_contract,
+           module: __MODULE__,
+           state: nil,
+           time: 42_000,
+           tags: %{file: "test/compatibility_test.exs", line: 1, async: true}
+         }},
+        state
+      )
+
+    {:noreply, _} = ExUnitFormatter.handle_cast({:suite_finished, %{run: 42_000}}, state)
+    assert_receive {:deferred_test_run, {payload, _, false}}
+    assert Map.has_key?(payload, :contract_version)
+    assert Map.has_key?(payload, :elixir_version)
+    assert Map.has_key?(payload, :otp_version)
+    assert Map.has_key?(payload, :mix_env)
+    assert Map.has_key?(payload, :custom_metadata)
+    # The earlier client's unsigned transport already removed origins, but retained runtime metadata.
+    payload = Map.delete(payload, :git_remote_url_origin)
+
+    for version <- [nil, "99.future"] do
+      body = if version, do: Map.put(payload, :contract_version, version), else: Map.delete(payload, :contract_version)
+      response = conn |> publish(project, "/tests", body) |> json_response(200)
+      assert_network_actor(response)
+      {:ok, test} = Tests.get_test(response["id"], preload: [:test_case_runs])
+      assert test.submission_auth == "network_trusted"
+      assert [run] = test.test_case_runs
+      assert run.status == "success"
+      assert run.actor_account_id == 0
+    end
+
+    assert conn |> publish(project, "/tests", Map.put(payload, :future_report_field, %{})) |> json_response(400)
+
+    assert conn
+           |> publish(project, "/tests", Map.put(payload, :custom_metadata, %{values: %{nested: %{secret: "no"}}}))
+           |> json_response(400)
   end
 
   test "instance enablement applies to newly created private projects across accounts", %{conn: conn, user: user} do
@@ -59,6 +129,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
         |> json_response(200)
 
       refute response["id"] == client_id
+      assert_network_actor(response)
       Builds.Build.Buffer.flush()
       {:ok, build} = Builds.get_build(response["id"], project_id: project.id)
       assert build.account_id == 0
@@ -79,6 +150,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
       conn |> publish(project, "/mix/builds", %{id: client_id, duration_ms: 42, status: "success"}) |> json_response(201)
 
     refute response["id"] == client_id
+    assert_network_actor(response)
     [build] = ClickHouseRepo.all(from(b in Build, where: b.id == ^response["id"]))
     assert build.account_id == 0
     assert build.claimed_actor_id == "developer-123"
@@ -89,7 +161,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     reject(Tuist.VCS, :enqueue_vcs_pull_request_comment, 1)
     reject(Publisher, :publish, 3)
 
-    for system <- [:xcode, :mix, :gradle, :bazel] do
+    for system <- [:xcode, :mix, :gradle, :bazel, :cargo] do
       project = project(user, system)
       client_id = UUIDv7.generate()
 
@@ -111,6 +183,9 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
 
       response = conn |> publish(project, "/tests", body) |> json_response(200)
       refute response["id"] == client_id
+      assert_network_actor(response)
+      assert [child_response] = response["test_case_runs"]
+      assert child_response["actor"] == response["actor"]
       {:ok, test} = Tests.get_test(response["id"], preload: [:test_case_runs])
       assert test.account_id == 0
       assert test.actor_account_id == 0

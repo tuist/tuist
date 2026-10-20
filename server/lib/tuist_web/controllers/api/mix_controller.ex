@@ -10,7 +10,9 @@ defmodule TuistWeb.API.MixController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.MixBuild
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportActorPlug
   alias TuistWeb.Plugs.ReportPublishingPlug
 
   plug(ReportPublishingPlug, {:preflight, :mix} when action == :create_build)
@@ -20,7 +22,7 @@ defmodule TuistWeb.API.MixController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(ReportActorPlug when action == :create_build)
   plug(ReportPublishingPlug, :mix when action == :create_build)
   plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
@@ -39,7 +41,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
-      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -269,7 +271,8 @@ defmodule TuistWeb.API.MixController do
            dependency_cache: %Schema{
              type: :array,
              maxItems: 5_000,
-             description: "Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.",
+             description:
+               "Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.",
              items: %Schema{
                type: :object,
                properties: %{
@@ -284,11 +287,21 @@ defmodule TuistWeb.API.MixController do
                      "custom_compiler",
                      "unmodeled_input",
                      "inputs_changed",
-                     "store_failed"
+                     "store_failed",
+                     "up_to_date"
                    ]
                  },
-                 key: %Schema{type: :string, pattern: "^([a-f0-9]{64})?$"},
-                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 key: %Schema{
+                   type: :string,
+                   pattern: "^([a-f0-9]{64})?$",
+                   description: "Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass."
+                 },
+                 duration_ms: %Schema{
+                   type: :integer,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Lookup/compilation duration, or validation time for up-to-date local reuse."
+                 },
                  read_bytes: %Schema{
                    type: :integer,
                    nullable: true,
@@ -379,7 +392,8 @@ defmodule TuistWeb.API.MixController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -399,7 +413,7 @@ defmodule TuistWeb.API.MixController do
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, :invalid_dependency_cache} ->
         conn

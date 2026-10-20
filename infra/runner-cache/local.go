@@ -22,6 +22,11 @@ var ErrPoisoned = errors.New("cache image failed write-back verification")
 // ErrWithheld discards a finished branch that must not replace the saved version.
 var ErrWithheld = errors.New("cache branch withheld from publication")
 
+// ErrUnchanged and ErrFull withhold a branch the job left as it found it, or
+// one that ran out of space and may hold partial writes.
+var ErrUnchanged = fmt.Errorf("%w: unchanged", ErrWithheld)
+var ErrFull = fmt.Errorf("%w: out of space", ErrWithheld)
+
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {
@@ -62,7 +67,11 @@ type LocalImages struct {
 	// Replace, when set, is asked to fetch the HEAD that superseded a master used
 	// in the last day. The stale master stays while it reports the fetch queued, so
 	// jobs can mount it until its successor is local. It replaces RefreshWithin.
-	Replace   func(Identity) bool
+	Replace func(Identity) bool
+	// Displace, when set, cancels speculative work that holds space on this
+	// filesystem, so admission takes that space before it evicts a master.
+	// Reports whether it cancelled anything.
+	Displace  func(context.Context) bool
 	refresh   refresher
 	locks     sync.Map
 	admission contextMutex
@@ -225,6 +234,11 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	if err != nil {
 		return err
 	}
+	if free < minimum && b.Displace != nil && b.Displace(ctx) {
+		if free, err = b.freeBytes(ctx); err != nil {
+			return err
+		}
+	}
 	entries, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
 	if err != nil {
 		return err
@@ -365,7 +379,11 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	return writeMarker(slot, path)
+	if err = writeMarker(slot, path); err != nil {
+		return err
+	}
+	b.recordBaseline(slot, path)
+	return nil
 }
 
 var loopDevice = regexp.MustCompile(`^/dev/loop[0-9]+$`)
@@ -455,6 +473,15 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	done := b.Observe.Start("publish", "none")
 	defer func() { done(err) }()
+	// A verified branch is already detached and passed these checks; verify
+	// rejects one whose verification was interrupted.
+	_, verified := os.Stat(b.image(slot) + ".verified")
+	_, checking := os.Stat(b.image(slot) + ".checking")
+	if os.IsNotExist(verified) && os.IsNotExist(checking) {
+		if err := b.withheld(slot, path); err != nil {
+			return err
+		}
+	}
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
@@ -545,7 +572,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified", ".entries"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -566,7 +593,7 @@ func (b *LocalImages) Keep(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".verified"} {
+	for _, suffix := range []string{"", ".verified", ".entries"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -732,15 +759,12 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
 	if err := os.MkdirAll(staging, 0700); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(staging, slot.Scope+"-*.img")
-	if err != nil {
-		return err
-	}
-	download := file.Name()
-	_ = file.Close()
+	// One name per saved version, so the next attempt resumes the archive an
+	// interrupted one left beside it. Maintenance removes it once abandoned.
+	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
 	_ = os.Remove(download)
 	defer os.Remove(download)
-	if err = b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
 		return err
 	}
 	unlock, err := b.lockContext(ctx, slot.Scope)

@@ -204,7 +204,12 @@ An unavailable agent retries initialization. Pods receive their mailbox whenever
 the cache filesystem is mounted, including before the agent becomes ready. Each
 attach attempt has a unique request name and cleans up its response. Clean detach
 retries five times for transient busy files; force-detach never permits publication.
-A failed detach logs a warning explaining that affected volumes will not publish.
+Before it, the guest teardown boots out the Tuist CLI's launch agents, which can run
+from a custom volume. After a busy attempt, the client logs the processes of its user
+holding the volume (`lsof` on the mount point) and terminates them, then kills them
+after the next busy attempt. Ending them only lets a later plain detach succeed; that
+clean detach is still what permits publication. A failed detach logs a warning
+explaining that affected volumes will not publish.
 
 The host scans requests once per second with independent per-pod workers (at most
 eight, without a queue), and publishes/reclaims on a separate worker every
@@ -227,13 +232,22 @@ reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its war
 A job whose base master is not on the host mounts the newest older master of the
 same lineage, if any, instead of an empty directory, and its base is queued. The
 job's tools update the contents and it may still publish (last publication wins).
+The guest records the volume's top-level entries when it mounts it. At detach,
+a volume changed if those entries differ or any entry's ctime is newer than
+`.tuist-volume`, written at mount; the walk stops at the first such entry and
+nothing is walked at mount. The guest reports `changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
+at least 99% full that may hold partial writes. Both are still measured, so the
+server's out-of-space reset sees a clone that filled its volume.
 The host reports the generation it mounted; the dashboard shows "Older copy".
 When the HEAD advances, a superseded master used in the last day is kept until
 its successor has been downloaded through the queue, so such a master usually
 exists while the new one arrives.
 
-One worker downloads masters in the background, each within five minutes and with a separate disk
-reservation for the archive and expanded image. Downloads land in `staging/` and
+One worker downloads masters in the background, each turn within five minutes and with a separate disk
+reservation for the archive and expanded image. A download resumes from the
+bytes already received: after a dropped connection or a two-minute stall within
+its turn, and, when its turn ends while bytes are still arriving, on its next
+turn behind the masters queued meanwhile. Downloads land in `staging/` and
 only take the lineage's lock to install the finished master, and maintenance asks
 the server for a lineage's HEAD before taking that lock, so neither ever delays a
 job cloning the same lineage. Requests for the same master join.

@@ -1422,7 +1422,7 @@ msgid "Tuist version"
 msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:161
-#: lib/tuist_web/helpers/test_labels.ex:67
+#: lib/tuist_web/helpers/test_labels.ex:71
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128

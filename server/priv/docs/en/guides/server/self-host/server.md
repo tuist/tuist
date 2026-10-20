@@ -29,6 +29,21 @@ We follow [semantic versioning](https://semver.org/) to ensure predictable versi
 
 See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
+## OAuth upgrade and rollback boundary {#oauth-upgrade-and-rollback-boundary}
+
+The OAuth entity-cache removal requires a staged upgrade for existing installations. Before deploying a version that stops OAuth cache invalidations, first deploy the authoritative-reading compatibility release from [#14040](https://github.com/tuist/tuist/pull/14040) to **every OAuth reader and writer**. This compatibility stage first appears in the **1.355** release line: `ghcr.io/tuist/tuist:1.355.0-rc.1` contains it; production deployments should use a stable `1.355.x` release once promoted. Installations on 1.354 or earlier must complete this stage before upgrading to a later release containing the removal. Keep the 1.355 line compatibility-only: do not backport the invalidation removal into it.
+
+The original compatibility commit is also available as `ghcr.io/tuist/tuist:sha-c8e54471a425`. Another image is suitable as the compatibility stage only if it preserves authoritative reads **and retains legacy invalidations** while older consumers remain. Run that stage's normal database migrations before serving traffic, including the refresh-token lookup index.
+
+Check all web replicas, background workers, scheduled jobs and separately pinned processor images in each environment. Wait for the compatibility rollout to finish and verify that no cache-reading binaries remain before removing invalidations. Do not let a floating image tag skip this stage during an automated upgrade. Fresh installations without older consumers do not need an intermediate deployment.
+
+> [!WARNING]
+> **Keep an authoritative-reading rollback target**
+>
+> After invalidations are removed, an ordinary rolling rollback must target #14040 or another authoritative-reading version. Retained OAuth cache entries may be stale even after every no-invalidation process has stopped, and a restarted cache-reading replica can import them from peers.
+>
+> Rolling back further requires stopping and draining **all** no-invalidation OAuth consumers, then clearing or replacing **every** retained Boruta cache participant before starting any cache-reading consumer. Prevent retained participants from rejoining. Draining only ingress or restarting only web replicas is insufficient; coordinate this recovery with your Tuist support contact rather than clearing caches or rolling back database migrations automatically.
+
 ## Continuous deployment {#continuous-deployment}
 
 We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
@@ -78,6 +93,8 @@ This is an **instance-wide runtime configuration**, not a dashboard or per-proje
 3. Restart or redeploy those replicas. The server reads the variable at startup; changing the deployment environment does not update an already running process. The default is `false`, and only the exact value `true` enables it. Hosted Tuist cannot enable this mode.
 
 ### Configure the clients {#network-trusted-client-configuration}
+
+Keep credential-free publishing disabled during a rolling upgrade until the server and clients include the required safeguards: Gradle must treat unreadable credential directories and ancestors as errors, and unsigned Swift/Gradle build bodies must omit Git origins before serialization. Upgrading only the server cannot fix an older client's credential-absence decision or prevent a credential-bearing origin from being transmitted or logged by that client. Ordinary authenticated older clients remain supported. Clients using an older server without credential-free publishing support must still authenticate; a client opt-in cannot enable the server feature.
 
 Configure the self-hosted server URL and project on each client and explicitly opt in in the environment used by the reporting command, Gradle daemon, or Xcode scheme post-action:
 

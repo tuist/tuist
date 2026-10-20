@@ -381,7 +381,8 @@ abstract class TuistBuildInsightsService :
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
+                    val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
+                    Gson().toJson(body, writer)
                 }
 
                 when (connection.responseCode) {

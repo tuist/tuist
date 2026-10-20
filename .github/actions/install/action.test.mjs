@@ -73,7 +73,7 @@ test('root package and default key survive checkout moves, lock changes and CI m
   f.pkg();
   const first = success(f.prepare());
   assert.equal(first['cache-path'], `${f.workspace}/.build/dependency-cache`);
-  assert.match(first.key, /^tuist-install-v1-[a-f0-9]{64}$/);
+  assert.equal(first.key, 'tuist-install-v1-generate');
   f.write(path.join(f.workspace, 'Package.resolved'), 'changed pins');
   assert.equal(success(f.prepare({ GITHUB_REF: 'another-branch', GITHUB_RUN_ID: '999' })).key, first.key);
   const moved = path.join(f.root, 'other-checkout');
@@ -81,18 +81,20 @@ test('root package and default key survive checkout moves, lock changes and CI m
   assert.equal(success(f.prepare({ GITHUB_WORKSPACE: moved })).key, first.key);
 });
 
-test('keys separate jobs, actual toolchains, manifest contents and package locations', t => {
+test('keys separate jobs and package locations, not toolchains or manifest contents', t => {
   const f = fixture(t);
   f.pkg();
   const key = success(f.prepare()).key;
-  assert.notEqual(success(f.prepare({ GITHUB_JOB: 'test' })).key, key);
-  assert.notEqual(success(f.prepare({ FAKE_SWIFT_VERSION: 'Swift 7' })).key, key);
-  if (process.platform === 'darwin') assert.notEqual(success(f.prepare({ FAKE_XCODE_VERSION: 'Xcode 28' })).key, key);
-  f.pkg('another-project');
-  f.write(path.join(f.workspace, 'another-project', 'Tuist.swift'));
-  assert.notEqual(success(f.prepare({ TUIST_INSTALL_PATH: 'another-project' })).key, key);
+  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'tuist-install-v1-test');
+  assert.equal(success(f.prepare({ FAKE_SWIFT_VERSION: 'Swift 7', FAKE_XCODE_VERSION: 'Xcode 28' })).key, key);
   f.write(path.join(f.workspace, 'Package.swift'), 'changed package structure');
-  assert.notEqual(success(f.prepare()).key, key);
+  assert.equal(success(f.prepare()).key, key);
+  f.pkg('apps/ios app');
+  f.write(path.join(f.workspace, 'apps/ios app', 'Tuist.swift'));
+  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'tuist-install-v1-generate-apps/ios-app');
+  f.pkg('Tuist');
+  assert.equal(success(f.prepare()).key, 'tuist-install-v1-generate-Tuist');
+  assert.notEqual(f.prepare({ GITHUB_JOB: 'j'.repeat(200) }).status, 0);
 });
 
 test('Tuist package takes precedence; nested input locates the project root', t => {

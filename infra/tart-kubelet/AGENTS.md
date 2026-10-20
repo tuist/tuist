@@ -60,12 +60,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
+  `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
+  runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
   Admission, convergence and cache eviction also preserve the host's 15% physical
   free-space floor. Custom admission reclaims its own masters first, then built-in
   masters/convergence staging under the shared lock; remeasure actual space after
   deletion because running CoW clones can pin blocks. Never reclaim live branches.
+  A background prefetch the server listed for the host gives way first: built-in
+  and custom job admission cancel it and drop its 40 GB reservation before
+  evicting any master (`displaceSpareLocked`).
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).

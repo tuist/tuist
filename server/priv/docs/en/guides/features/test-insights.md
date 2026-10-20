@@ -32,7 +32,7 @@ Use Test Insights to monitor your test suite's health by identifying slow tests,
 />
   <.home_card
     title="Rust"
-    details="Track nextest results, durations, failures, and retries without changing plain cargo test behavior."
+    details="Track Cargo test outcomes, suite durations, and doctests with your usual test command."
     link="/guides/features/test-insights/rust"
 />
 </.home_cards>

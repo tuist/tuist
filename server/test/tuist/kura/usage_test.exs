@@ -160,6 +160,28 @@ defmodule Tuist.Kura.UsageTest do
       assert a_id == account.id
     end
 
+    test "keeps the origin a managed node attributed a rollup to, and drops one that is not a label" do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, 3} =
+        Usage.create_events([
+          wire_event(%{"event_id" => "origin-#{account.id}-1", "tenant_id" => account.name, "origin" => "US-IL"}),
+          wire_event(%{"event_id" => "origin-#{account.id}-2", "tenant_id" => account.name, "origin" => "not a label"}),
+          wire_event(%{"event_id" => "origin-#{account.id}-3", "tenant_id" => account.name})
+        ])
+
+      origins =
+        from(e in UsageEvent, where: e.account_id == ^account.id, select: {e.event_id, e.origin})
+        |> ClickHouseRepo.all()
+        |> Map.new()
+
+      assert origins == %{
+               "origin-#{account.id}-1" => "US-IL",
+               "origin-#{account.id}-2" => "",
+               "origin-#{account.id}-3" => ""
+             }
+    end
+
     test "rejects batches exceeding @max_events_per_batch" do
       events = Enum.map(1..5_001, fn i -> wire_event(%{"event_id" => "evt-#{i}"}) end)
 
@@ -184,6 +206,16 @@ defmodule Tuist.Kura.UsageTest do
 
       assert a_id == account.id
       assert p_id == project.id
+    end
+
+    test "drops the origin a self-hosted node reports" do
+      account = AccountsFixtures.organization_fixture().account
+      event_id = "wire-self-hosted-origin-#{account.id}"
+
+      {:ok, 1} =
+        Usage.create_events([wire_event(%{"event_id" => event_id, "origin" => "US-IL"})], account)
+
+      assert [""] = ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id, select: e.origin))
     end
   end
 

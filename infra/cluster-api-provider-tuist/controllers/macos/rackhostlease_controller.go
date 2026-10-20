@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,7 +18,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -93,12 +93,9 @@ func (r *RackHostLeaseReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if getErr := r.Get(ctx, req.NamespacedName, lease); getErr != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(getErr)
 	}
-	patchHelper, err := patch.NewHelper(lease, r.Client)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	base := lease.DeepCopy()
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, lease); patchErr != nil && err == nil {
+		if patchErr := r.writeLease(ctx, base, lease); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -190,14 +187,19 @@ func (r *RackHostLeaseReconciler) takeOver(ctx context.Context, lease *infrav1.R
 	}
 
 	previous := lease.Spec.PreviousNodeName
+	var stranded map[string]*corev1.Pod
 	if previous != "" && previous != node {
 		active, err := drainNodeForLease(ctx, r.Client, previous, r.Env)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		if stranded, err = strandedRunners(ctx, r.Client, previous, time.Now()); err != nil {
+			return ctrl.Result{}, err
+		}
+		active = slices.DeleteFunc(active, func(pod string) bool { return stranded[pod] != nil })
 		if len(active) > 0 {
 			conditions.MarkFalse(lease, BootstrappedCondition, "PreviousNodeDraining", clusterv1.ConditionSeverityInfo,
-				"waiting for %d job(s) on %s to finish: %v", len(active), previous, active)
+				"waiting for %d job(s) on %s to finish: %v. A runner whose Node is gone and that had claimed a job may still run it in its VM; delete its Pod once the job has ended.", len(active), previous, active)
 			return ctrl.Result{RequeueAfter: lendingDrainRequeue}, nil
 		}
 	}
@@ -224,6 +226,9 @@ func (r *RackHostLeaseReconciler) takeOver(ctx context.Context, lease *infrav1.R
 		if err := r.Delete(ctx, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: previous}}); err != nil && !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("delete the previous Node %s: %w", previous, err)
 		}
+	}
+	if err := releaseStrandedRunners(ctx, r.Client, stranded); err != nil {
+		return ctrl.Result{}, err
 	}
 	r.Recorder.Eventf(lease, corev1.EventTypeNormal, "TookOver", "%s runs this env's runtime as Node %s", lease.Name, node)
 	return ctrl.Result{}, nil
@@ -275,7 +280,7 @@ func (r *RackHostLeaseReconciler) push(ctx context.Context, lease *infrav1.RackH
 	if err != nil {
 		return "", err
 	}
-	perHost.TailscaleForceReauth = takeOver
+	perHost.TakeOver = takeOver
 	cfg := applyHostSizing(r.leaseFleetConfig(lease), r.hostSizing(lease), perHost)
 	fingerprint, err := pushRuntime(ctx, cfg)
 	if err != nil && fingerprint == "" && !takeOver {
@@ -585,4 +590,25 @@ func siteRequestFromAnnotations(lease *infrav1.RackHostLease) *infrav1.RackHostL
 		return &infrav1.RackHostLeaseSiteRequest{ID: string(uuid.NewUUID()), Action: infrav1.SiteRequestOSUpdate, Target: strings.TrimSpace(target), RequestedAt: &now}
 	}
 	return nil
+}
+
+// writeLease persists what a reconcile changed: metadata (finalizers, the
+// annotations a request consumed) in one patch, and the whole status in
+// another. One status write, not the patch helper's separate one for
+// conditions: a reconcile reading the lease between the two would see the host
+// taken over (Bootstrapped) with no runtime stamped, and push it all again.
+func (r *RackHostLeaseReconciler) writeLease(ctx context.Context, base, lease *infrav1.RackHostLease) error {
+	status := lease.Status.DeepCopy()
+	if !equality.Semantic.DeepEqual(base.ObjectMeta, lease.ObjectMeta) {
+		if err := r.Patch(ctx, lease, client.MergeFrom(base)); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+	}
+	if equality.Semantic.DeepEqual(base.Status, *status) {
+		return nil
+	}
+	statusBase := lease.DeepCopy()
+	statusBase.Status = base.Status
+	lease.Status = *status
+	return client.IgnoreNotFound(r.Status().Patch(ctx, lease, client.MergeFrom(statusBase)))
 }
