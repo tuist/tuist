@@ -11,7 +11,8 @@ import XcodeGraph
 /// default drops it; with dead stripping off, linking fails. `CLANG_COVERAGE_MAPPING_LINKER_ARGS` adds the runtime
 /// at link time (`-fprofile-instr-generate`) and instruments nothing. It's written in every configuration Xcode
 /// treats as Debug, the ones the instrumented variant is read for, and only for projects without an
-/// `externalHash`, the rule the binary-cache keys follow. A value the project already sets is kept.
+/// `externalHash`, the rule the binary-cache keys follow. A value the project already sets, in its base settings or
+/// a Debug configuration, is kept.
 public struct CoverageLinkerSettingsProjectMapper: ProjectMapping {
     static let setting = "CLANG_COVERAGE_MAPPING_LINKER_ARGS"
 
@@ -22,7 +23,9 @@ public struct CoverageLinkerSettingsProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
-        guard enabled, project.externalHash == nil else { return (project, []) }
+        guard enabled, project.externalHash == nil,
+              project.settings.base[Self.setting] == nil, project.settings.baseDebug[Self.setting] == nil
+        else { return (project, []) }
         Logger.current.debug("Transforming project \(project.name): Linking the profile runtime in Debug configurations")
 
         let configurations = Dictionary(uniqueKeysWithValues: project.settings.configurations

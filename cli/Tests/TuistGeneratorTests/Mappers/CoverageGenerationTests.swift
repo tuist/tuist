@@ -31,10 +31,13 @@ struct CoverageLinkerSettingsProjectMapperTests {
         #expect(got.settings.base == project.settings.base)
     }
 
-    @Test func map_keepsTheProjectsOwnValue() async throws {
-        let project = Project.test(settings: Settings(configurations: [
-            .debug("Debug"): Configuration(settings: ["CLANG_COVERAGE_MAPPING_LINKER_ARGS": "NO"]),
-        ]))
+    @Test(arguments: [
+        Settings(configurations: [.debug("Debug"): Configuration(settings: ["CLANG_COVERAGE_MAPPING_LINKER_ARGS": "NO"])]),
+        Settings(base: ["CLANG_COVERAGE_MAPPING_LINKER_ARGS": "NO"], configurations: [.debug("Debug"): nil]),
+        Settings(baseDebug: ["CLANG_COVERAGE_MAPPING_LINKER_ARGS": "NO"], configurations: [.debug("Debug"): nil]),
+    ])
+    func map_keepsTheProjectsOwnValue(settings: Settings) async throws {
+        let project = Project.test(settings: settings)
 
         let (got, _) = try await CoverageLinkerSettingsProjectMapper(enabled: true).map(project: project)
 
