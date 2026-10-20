@@ -1088,11 +1088,13 @@ host's own listeners, its sibling guests and the tailnet: the VM egress
 firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
 translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
 `vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
-from a VM on the host it lands on; run it on a host before lending it to an
-env, and after a change to either. The one rack target a guest reaches on
-purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
-probe's cluster DNS check always fails on a lent host, which has no route to
-the borrowing cluster's Service CIDR.
+from a VM on the host it lands on (`environment` picks staging's or canary's
+runners); run it on a host before lending it to an env, and after a change to
+either. The one rack target a guest reaches on purpose is the site's Kura
+gateway (`rackFleet.vmCacheGatewayCIDRs`). In staging the probe's cluster DNS
+check always fails: staging stages its cluster DNS into every pool
+(`runnersController.clusterDNS`), and a lent host has no route to staging's
+Service CIDR. Canary stages none, so its probe passes outright.
 
 ## Tests
 
