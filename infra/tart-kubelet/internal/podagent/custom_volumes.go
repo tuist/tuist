@@ -43,6 +43,8 @@ type CustomVolumes struct {
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
+	// spare cancels the running background prefetch; guarded by Builtins.mu.
+	spare context.CancelCauseFunc
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -136,11 +138,13 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: 21_000_000_000, Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
+		Displace:         c.displaceSpare,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
+	c.Builtins.DisplaceCustom = c.displaceSpareLocked
 	c.Builtins.mu.Unlock()
 	if err := os.MkdirAll(c.Root, 0700); err != nil {
 		return err
@@ -170,7 +174,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		if requested {
 			return backend.Prefetch(ctx, slot)
 		}
-		return backend.PrefetchSpare(ctx, slot)
+		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
 	}, backend.HasMaster)
 	c.prefetch.Store(prefetch)
 	defer func() {

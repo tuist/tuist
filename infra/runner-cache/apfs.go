@@ -283,6 +283,9 @@ func (b *APFSImages) MountedGeneration(slot Slot) int64 {
 	return generation
 }
 
+// PrefetchReservation is the Reserve slot ID a prefetch holds while it downloads.
+const PrefetchReservation = "prefetch"
+
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserve)
 }
@@ -303,7 +306,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 	}
 	if b.Reserve != nil {
 		reservation := slot
-		reservation.ID = "prefetch"
+		reservation.ID = PrefetchReservation
 		finish, err := b.Reserve(ctx, reservation)
 		if err != nil {
 			return err
