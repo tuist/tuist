@@ -14,20 +14,17 @@ struct CargoCacheSetup {
     private let fileSystem: any FileSysteming
     private let cacheURLStore: any CacheURLStoring
     private let getCacheTokenService: any GetCacheTokenServicing
-    private let category: CacheCategory
 
     init(
         cacheDirectoriesProvider: any CacheDirectoriesProviding = CacheDirectoriesProvider(),
         fileSystem: any FileSysteming = FileSystem(),
         cacheURLStore: any CacheURLStoring = CacheURLStore(),
-        getCacheTokenService: any GetCacheTokenServicing = GetCacheTokenService(),
-        category: CacheCategory = .cargo
+        getCacheTokenService: any GetCacheTokenServicing = GetCacheTokenService()
     ) {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.fileSystem = fileSystem
         self.cacheURLStore = cacheURLStore
         self.getCacheTokenService = getCacheTokenService
-        self.category = category
     }
 
     struct Session {
@@ -38,13 +35,11 @@ struct CargoCacheSetup {
     func prepare(_ context: CargoExecutionContext, root: URL) async -> Session? {
         guard context.environment["TUIST_CARGO_INNER_WRAPPER"] == nil else { return nil }
         do {
-            let model = category == .cargoNative ? "native-cargo-reapi-v1" : "swift-cargo-v1"
             let identity = SHA256.hash(data: Data(
-                "\(model)/\(context.reporting.serverURL.absoluteString)/\(context.reporting.handle.lowercased())".utf8
+                "swift-cargo-v1/\(context.reporting.serverURL.absoluteString)/\(context.reporting.handle.lowercased())".utf8
             )).map { String(format: "%02x", $0) }.joined()
-            let path = try cacheDirectoriesProvider.cacheDirectory(for: category).appending(component: identity)
+            let path = try cacheDirectoriesProvider.cacheDirectory(for: .cargo).appending(component: identity)
             try await fileSystem.makeDirectory(at: path)
-            if category == .cargoNative { await fileSystem.markCacheEntryUsed(at: path) }
             try? await SupportCachePruner(cacheDirectoriesProvider: cacheDirectoriesProvider, fileSystem: fileSystem).prune()
             let cache = URL(fileURLWithPath: path.pathString)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cache.path)

@@ -76,7 +76,6 @@ let tuistCargoCacheDependency: Target.Dependency = "TuistCore"
 var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistCAS",
     tuistCargoCacheDependency,
-    "TuistHTTP",
     "TuistREAPI",
     .product(name: "Crypto", package: "apple.swift-crypto"),
     processDependency,

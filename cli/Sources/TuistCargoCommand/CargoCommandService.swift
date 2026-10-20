@@ -140,13 +140,9 @@ public struct CargoCommandService {
                 executable: context.executable, directory: context.directory, arguments: context.arguments,
                 environment: environment, reporting: context.reporting
             )
-            let native = await CargoCacheRuntime(process: context.reporting.process).prepare(configured, root: root)
-            let cache = native == nil ? await CargoCacheSetup().prepare(configured, root: root) : nil
-            defer {
-                native?.cancel()
-                cache?.refresh?.cancel()
-            }
-            if let native { environment = native.environment } else if let cache { environment = cache.environment }
+            let cache = await CargoCacheSetup().prepare(configured, root: root)
+            defer { cache?.refresh?.cancel() }
+            if let cache { environment = cache.environment }
             if innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
@@ -156,15 +152,11 @@ public struct CargoCommandService {
                         encoding: .utf8
                     )
                 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: wrapper.path)
-                if native != nil {
-                    environment["TUIST_CARGO_FALLBACK_RUSTC_WRAPPER"] = wrapper.path
-                } else {
-                    environment["RUSTC_WRAPPER"] = wrapper.path
-                    environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
-                }
+                environment["RUSTC_WRAPPER"] = wrapper.path
+                environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
             let child = CargoExecutionContext(
-                executable: native?.executable ?? context.executable,
+                executable: context.executable,
                 directory: context.directory,
                 arguments: context.arguments,
                 environment: environment,

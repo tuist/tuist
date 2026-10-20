@@ -31,7 +31,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     case generationMetadata
 
     case cargo
-    case cargoNative
 
     public var directoryName: String {
         switch self {
@@ -55,8 +54,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "GenerationMetadata"
         case .cargo:
             return "Cargo"
-        case .cargoNative:
-            return "CargoNative"
         }
     }
 
@@ -93,7 +90,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             // Recomputed from the sources they were derived from: a manifest reload, one swiftc
             // invocation, a project generation.
             return .support(maxAge: 7 * Self.day)
-        case .plugins, .selectiveTests, .generationMetadata, .cargo, .cargoNative:
+        case .plugins, .selectiveTests, .generationMetadata, .cargo:
             // Refetched over the network, or read long after the run that wrote them, so these are
             // kept for as long as they plausibly stay relevant.
             return .support(maxAge: 30 * Self.day)
@@ -112,7 +109,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         .generatedAutomationProjects,
         .projectDescriptionHelpers,
         .cargo,
-        .cargoNative,
         .selectiveTests,
         .generationMetadata,
         .plugins,

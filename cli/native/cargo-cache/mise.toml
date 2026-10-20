@@ -1,3 +1,0 @@
-[tools]
-zig = "0.15.2"
-"cargo:cargo-zigbuild" = "0.23.4"

@@ -228,21 +228,6 @@ defmodule TuistWeb.DocsLiveTest do
       assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]), "Elixir cache")
     end
 
-    test "links and serves the dedicated experimental Rust cache guide", %{conn: conn} do
-      {:ok, overview, _} = live(conn, ~p"/en/docs/guides/features/cache")
-      assert has_element?(overview, ~s(a[href="/en/docs/guides/features/cache/rust"]), "Rust cache")
-
-      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/rust")
-      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
-      assert markdown =~ "Mr. Boxington"
-      assert markdown =~ "Swift cache as a fallback"
-      assert markdown =~ "Executable and native-link restores remain disabled"
-      assert markdown =~ "protected GitHub branch-push jobs"
-      assert markdown =~ "not elapsed build time saved"
-      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
-      assert has_element?(view, ~s(a[href="/en/docs/guides/features/build-insights/rust#cache-measurements"]))
-    end
-
     test "owns the shared Elixir setup in Get started", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/en/docs/guides/get-started/elixir-project")
       markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()

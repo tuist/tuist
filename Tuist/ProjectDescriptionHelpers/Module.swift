@@ -1270,7 +1270,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.cas.targetName),
                     .target(name: Module.core.targetName),
-                    .target(name: Module.http.targetName),
                     .target(name: Module.reapi.targetName),
                     .external(name: "Crypto"),
                     .target(name: Module.process.targetName),

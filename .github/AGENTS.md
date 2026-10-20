@@ -257,7 +257,7 @@ CNPG restore drills resolve production to namespace `tuist`, not `tuist-producti
 
 The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-plugin/mise.toml` before running the real Cargo/libtest fixture. Do not assume Rust is preinstalled on the runner image or silently replace the fixture with nextest.
 
-Official CLI bundles include the internal `tuist-cargo-cache` sibling from `cli/native/cargo-cache/`; preserve its pinned Mr. Boxington provenance, LICENSE and NOTICE. Only the private protocol-checked helper is selected, never an executable from PATH. Package/sign/notarize universal macOS and package static x86_64/aarch64 musl Linux helpers. Linux uses pinned Zig/cargo-zigbuild to cross-compile C dependencies, not host musl-gcc. Build the helper before the Swift SDK setup hides host static archives. The Swift implementation remains the fallback for absent/incompatible helpers. Native model/runtime regressions run in `workflows/cargo-cache.yml`; model-only executables never ship. The Xcode CAS plugin and proxy remain separate Rust artifacts.
+Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
 ## CLI Linux builds
 

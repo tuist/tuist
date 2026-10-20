@@ -9,7 +9,7 @@ struct CargoProcess {
     func execute(_ executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         try await runner.runInheritingOutput(
             arguments: ["/usr/bin/env", executable] + arguments,
-            environment: reportingEnvironment(environment),
+            environment: environment,
             workingDirectory: directory
         )
     }
@@ -23,7 +23,7 @@ struct CargoProcess {
         var data = Data()
         for try await event in runner.run(
             arguments: ["/usr/bin/env", executable] + arguments,
-            environment: reportingEnvironment(environment),
+            environment: environment,
             workingDirectory: directory
         ) {
             if case let .standardOutput(bytes) = event {
@@ -35,15 +35,6 @@ struct CargoProcess {
         guard let result = String(data: data, encoding: .utf8)
         else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
         return result
-    }
-
-    func reportingEnvironment(_ environment: [String: String]) -> [String: String] {
-        guard environment["TUIST_CARGO_NATIVE"] == "1",
-              let directory = environment["TUIST_CARGO_CACHE_REPORTS"] else { return environment }
-        var environment = environment
-        environment["TUIST_CARGO_CACHE_STATS_REPORT"] = URL(fileURLWithPath: directory)
-            .appendingPathComponent("\(UUID().uuidString).json").path
-        return environment
     }
 
     func executable(

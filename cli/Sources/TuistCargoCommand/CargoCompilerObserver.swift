@@ -9,7 +9,7 @@ struct CargoCompilerObserver {
 
     func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
-        let invocation = environment["TUIST_CARGO_CACHE_DIR"] == nil ? nil : try? await CargoCacheInvocation.prepare(
+        let invocation = try? await CargoCacheInvocation.prepare(
             arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
         )
         let measurement = invocation.map(CargoCacheMeasurement.init)
