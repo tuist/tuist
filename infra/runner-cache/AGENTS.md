@@ -60,6 +60,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
+- `Identity.VolumeBytes` is the size the server allocated the volume at; zero
+  means the host default (`SizeGB`). `valid` rejects sizes above
+  `MaxVolumeBytes`. Create, admission and guest usage validation all use
+  `volumeBytes(slot)`; never size an image from `SizeGB` directly.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes, `DownloadClient` without a whole-

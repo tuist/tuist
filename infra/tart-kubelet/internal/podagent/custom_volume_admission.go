@@ -13,7 +13,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// customCapacity is the size of a volume the server allocated without one.
 const customCapacity = 20_000_000_000
+
+func customVolumeBytes(slot cachevolumes.Slot) uint64 {
+	return uint64(slot.VolumeSize(customCapacity))
+}
 
 // Custom masters are reclaimed by the shared backend first. If that is not
 // enough, unused built-in masters and convergence staging share the same disk
@@ -53,8 +58,8 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 		if err != nil {
 			allocated = 0
 		}
-		if allocated < customCapacity {
-			total += customCapacity - allocated
+		if size := customVolumeBytes(slot); allocated < size {
+			total += size - allocated
 		}
 	}
 	return total
@@ -62,9 +67,9 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.BaseGeneration > 0 {
-		return 2 * customCapacity
+		return 2 * customVolumeBytes(slot)
 	}
-	return customCapacity
+	return customVolumeBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {

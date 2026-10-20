@@ -135,7 +135,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: 21_000_000_000, Token: c.token},
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: cachevolumes.MaxVolumeBytes, Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,

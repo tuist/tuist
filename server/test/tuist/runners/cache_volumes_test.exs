@@ -84,6 +84,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     profile
   end
 
+  test "allocations carry the size the host creates the volume at", %{job: job} do
+    assert {:ok, %{volume_bytes: 20_000_000_000}} = CacheVolumes.allocate_for_job(job, identity(), attrs("custom"))
+
+    assert {:ok, %{volume_bytes: 30_000_000_000}} =
+             CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("xcode"), :key, "tuist-xcode"))
+  end
+
   test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
     {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
@@ -439,7 +446,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
                scope: ^scope,
                generation: 1,
                image_digest: image_digest,
-               content_digest: content_digest
+               content_digest: content_digest,
+               volume_bytes: 20_000_000_000
              }
            ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
 

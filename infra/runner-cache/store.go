@@ -28,7 +28,24 @@ type Identity struct {
 	ContentDigest  string `json:"content_digest"`
 	CanPublish     bool   `json:"can_publish"`
 	UID            int    `json:"uid"`
+	// VolumeBytes is the size the server allocated the volume at. Zero from a
+	// server that predates per-volume sizes.
+	VolumeBytes int64 `json:"volume_bytes"`
 }
+
+// MaxVolumeBytes bounds the size a server may allocate a volume at, so a
+// host can admit and restore any volume it is handed.
+const MaxVolumeBytes = 32_000_000_000
+
+// VolumeSize is the size the volume's image is created at: the allocated size,
+// or defaultBytes when the server did not send one.
+func (i Identity) VolumeSize(defaultBytes int64) int64 {
+	if i.VolumeBytes > 0 {
+		return i.VolumeBytes
+	}
+	return defaultBytes
+}
+
 type Slot struct {
 	Identity
 	PodUID        string    `json:"pod_uid"`
@@ -127,7 +144,7 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && validHead(identity)
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity)
 }
 func validHead(identity Identity) bool {
 	if identity.BaseGeneration == 0 {
