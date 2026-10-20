@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -132,7 +133,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 func detachMac() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func() {
+	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func(base string, kill bool) { releaseMac(ctx, base, kill) }, func() {
 		select {
 		case <-ctx.Done():
 		case <-time.After(time.Second):
@@ -146,7 +147,62 @@ func measureMac(path string) (int64, int64, error) {
 	}
 	return int64(stat.Blocks-stat.Bfree) * int64(stat.Bsize), int64(stat.Blocks) * int64(stat.Bsize), nil
 }
-func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), pause func()) error {
+
+type macHolder struct {
+	pid     int
+	command string
+}
+
+// releaseMac ends this user's processes that still have files open on the
+// volume mounted at base, so the next plain detach can succeed. Launch agents
+// started during the job outlive the runner's own process cleanup, and a tool
+// installed onto a volume runs from it. Ending them never permits publication
+// by itself: only the clean detach that follows does.
+func releaseMac(ctx context.Context, base string, kill bool) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	// Naming the mount point lists every open file on that filesystem.
+	out, _ := exec.CommandContext(ctx, "lsof", "-n", "-w", "-F", "pc", "--", base).Output()
+	signal, verb := unix.SIGTERM, "terminating"
+	if kill {
+		signal, verb = unix.SIGKILL, "killing"
+	}
+	var names []string
+	for _, holder := range parseMacHolders(out) {
+		if holder.pid == os.Getpid() || holder.pid == os.Getppid() {
+			continue
+		}
+		names = append(names, fmt.Sprintf("%s (pid %d)", holder.command, holder.pid))
+		_ = unix.Kill(holder.pid, signal)
+	}
+	if len(names) == 0 {
+		fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; no process of this user holds it\n", filepath.Base(base))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; %s %s\n", filepath.Base(base), verb, strings.Join(names, ", "))
+}
+func parseMacHolders(out []byte) []macHolder {
+	var holders []macHolder
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 2 {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			pid, err := strconv.Atoi(line[1:])
+			if err != nil {
+				continue
+			}
+			holders = append(holders, macHolder{pid: pid})
+		case 'c':
+			if len(holders) > 0 {
+				holders[len(holders)-1].command = line[1:]
+			}
+		}
+	}
+	return holders
+}
+func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), release func(string, bool), pause func()) error {
 	dirs, err := os.ReadDir(mountRoot)
 	if os.IsNotExist(err) {
 		return nil
@@ -179,6 +235,7 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 				break
 			}
 			if attempt < 4 {
+				release(base, attempt > 0)
 				pause()
 			}
 		}
