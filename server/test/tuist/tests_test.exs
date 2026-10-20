@@ -7681,7 +7681,7 @@ defmodule Tuist.TestsTest do
       opts = [start_datetime: thirty_days_ago, end_datetime: now]
 
       {_results, meta} = Tests.list_flaky_test_cases(project.id, %{}, opts)
-      analytics = Tuist.Tests.Analytics.flaky_tests_analytics(project.id, opts)
+      analytics = Analytics.flaky_tests_analytics(project.id, opts)
 
       assert meta.total_count == analytics.count
       assert meta.total_count == 2
