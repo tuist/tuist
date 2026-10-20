@@ -3724,6 +3724,10 @@ WITH
 recent AS (
   SELECT id, any(account_id) AS acct FROM build_runs
   WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+    AND account_id IN (
+      SELECT account_id FROM kura_usage_events
+      WHERE window_start >= now() - INTERVAL 3 HOUR AND artifact_kind IN ('reapi', 'xcode') AND direction = 'egress'
+    )
   GROUP BY id
 ),
 base AS (
@@ -3777,6 +3781,14 @@ malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
 a far region. No server-side rule can see either. `cacheable_tasks` records what
 Xcode itself waited for.
 
+**Only accounts on Kura are evaluated.** `recent` keeps accounts with Xcode
+cache downloads in `kura_usage_events` (`artifact_kind` `reapi` or `xcode`,
+direction `egress`) in the last 3 hours. Accounts still on the legacy cache
+service (`cache-<region>.tuist.dev`) have no rows there and are skipped: the
+rule exists to catch problems in front of Kura, and a slow legacy client is not
+one. The 3-hour window covers builds that started up to two hours before they
+were ingested.
+
 **Why the account is compared with its own history.** Normal read latency
 differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
 read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
@@ -3803,13 +3815,14 @@ replaced by a fixed time:
 | --- | --- |
 | 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
 | 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
-| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-01 11:00 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 | 2026-09-03 12:00 | No rows |
+| 2026-10-20 13:40 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 
 Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
-account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
-genuine burst: that account's slow builds read at p90 500-700 ms for about two
-hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+account from 2026-09-14 03:00, about a day before the report. The 2026-09-14 and
+09-15 rows were rerun with the Kura filter on 2026-10-20 and returned the same
+values. Accounts with less than 1000 baseline reads (new accounts, or ones whose
 builds moved lane) are skipped.
 
 **Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts
@@ -3842,7 +3855,7 @@ GROUP BY br.id, br.ins, minutes
 ORDER BY br.ins
 ```
 
-Then check the three known causes:
+Then check the two known causes:
 
 1. [Kura ingress returning malformed or 502 responses](#kura-ingress-returning-malformed-or-502-responses)
    for the account's instances.
@@ -3850,32 +3863,6 @@ Then check the three known causes:
    with one latency probe per region, and one failed probe moves it to another
    region for at least 10 minutes. Those builds show a stretch where even p10
    sits at the far region's round trip, then an abrupt return.
-3. Slow delivery to the client on the legacy cache. An account with no
-   `kura_servers` rows reads from `cache-<region>.tuist.dev`, so the Kura
-   ingress logs show nothing for it. Compare nginx's total request time (`rt`,
-   which includes writing the response to the client) with the cache app's time
-   (`urt`) for the account's reads in Loki `grafanacloud-logs` (replace
-   `HANDLE` with the account name, and `rt` with `urt` for the second query):
-
-   ```logql
-   quantile_over_time(0.9,
-     {service_name="cache-nginx", path_group="xcode", method="GET"}
-       |= "account_handle=HANDLE"
-       | regexp `rt=(?P<rt>[0-9.]+) .* urt=(?P<urt>[0-9.]+)`
-       | unwrap rt [5m]
-   ) by (instance)
-   ```
-
-   When `urt` stays at a few milliseconds while `rt` rises, the time is spent
-   sending bytes to the client: the client's link or the path to it. Those
-   builds keep p10 at the account's usual round trip while p50 and p90 rise,
-   and other accounts on the same `instance` stay flat. On 2026-10-20 one
-   account's `urt` p90 stayed at 3 ms while `rt` p90 reached 0.3-1.2 s for 30
-   minutes, and other accounts on the host stayed at 2 ms. There is nothing to
-   fix on our side. 2xx lines are sampled at 10% before they reach Loki
-   (`cache/platform/alloy.nix`), which is enough for quantiles, but multiply
-   byte sums by 10. `cache_nginx_request_duration_seconds` is aggregated across
-   hosts and accounts, so it cannot isolate one account.
 
 Limits: only processed builds count, so the rule lags a slow build by its
 duration plus processing time. Hits replayed straight from the local CAS never
