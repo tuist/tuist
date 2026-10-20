@@ -218,9 +218,9 @@ jobs:
           xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
           xcrun simctl bootstatus "$device" -b
           mkdir -p ui-evidence
-          # Once emits the runnable xctestrun only for its test capability.
-          ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests \
-            --test-unit 'AtlasSettingsUITests::AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete'
+          # Fresh checkouts need whole-target discovery; retain failures while collecting evidence.
+          once_status=0
+          ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
           xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/task-crud.mov" &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
@@ -235,8 +235,11 @@ jobs:
           xcodebuild test-without-building \
             -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
             -destination "id=$device" \
+            -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
+            -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult"
+          exit "$once_status"
       - name: Export native screenshots
         if: always()
         run: |
