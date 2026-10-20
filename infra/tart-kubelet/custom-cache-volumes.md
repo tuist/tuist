@@ -66,10 +66,21 @@ Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
-Each volume is created at the size the server allocates it (`volume_bytes`: 30 GB
-for `tuist-xcode`, 20 GB otherwise; hosts accept up to 32 GB). Cold creation
-reserves one image of that size. Restoration and prefetch retain the
-budget of twice that size for the archive and expanded image. Applying that restore budget
+Each volume is created at the capacity the server chooses for the use
+(`volume_bytes`, 1 to 100 GB; 20 GB when it sends none). The host sends its
+maximum (`--custom-cache-max-volume-gb`, 100 GB by default) with every
+authorization, together with the guest's requested size when valid; a larger
+volume is refused with 507 and the job continues cold with reason `capacity`.
+Guest usage reports and downloads are bounded by that maximum. A warm copy
+smaller than its capacity is extended with `hdiutil resize -imageonly` before the
+guest sees it, never shrunk, and the guest grows the APFS container after
+attaching; a copy that cannot grow attaches warm at its saved size.
+
+Cold creation reserves one image of its capacity. A warm attach reserves the
+larger of its capacity and twice the head's measured used bytes
+(`head_size_bytes`). Restoration and prefetch reserve twice the head's used
+bytes for the archive and expanded image. Without a known head size, warm
+attaches and prefetches reserve twice the capacity. Applying that restore budget
 to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
 with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
 even though a 20 GB image fits. Both the backend's eviction/admission check and
@@ -83,13 +94,11 @@ the APFS mount; no macOS container-volume support is implied.
 
 ## Rollout and rollback
 
-Managed canary and production enable custom volumes fleet-wide through
-`runnersFleet.customCacheVolumes.enabled`. Workflows opt in per directory with
-`tuist/cache-volume@v1`; no project or account allowlist is required. The chart's
-self-hosted default remains disabled. Staging also stays disabled: its 40 GiB
-cache quota cannot fit the built-in reservation plus the custom admission floor.
-Enabling staging requires a separately planned capacity change; setting the flag
-alone does not make that fleet capable of retaining custom volumes.
+Managed staging, canary and production enable custom volumes fleet-wide through
+`runnersFleet.customCacheVolumes.enabled`; staging and canary run them on the
+BER1 rack hosts production lends them (240 GiB cache filesystems). Workflows opt
+in per directory with `tuist/cache-volume@v1`; no project or account allowlist is
+required. The chart's self-hosted default remains disabled.
 
 1. Deploy the platform migration and matching server code while macOS custom
    volumes remain disabled. Linux rows retain `platform=linux` and their existing

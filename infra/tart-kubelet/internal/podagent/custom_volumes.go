@@ -37,12 +37,15 @@ type CustomVolumes struct {
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
-	shareMu                                    sync.Mutex
-	reservations                               map[string]cachevolumes.Slot
-	prefetch                                   atomic.Pointer[customPrefetcher]
-	tokenMu                                    sync.Mutex
-	tokenValue                                 string
-	tokenUntil                                 time.Time
+	// MaxVolumeBytes is the largest volume this host accepts; zero is
+	// cachevolumes.DefaultMaxVolumeBytes.
+	MaxVolumeBytes int64
+	shareMu        sync.Mutex
+	reservations   map[string]cachevolumes.Slot
+	prefetch       atomic.Pointer[customPrefetcher]
+	tokenMu        sync.Mutex
+	tokenValue     string
+	tokenUntil     time.Time
 	// spare cancels the running background prefetch; guarded by Builtins.mu.
 	spare context.CancelCauseFunc
 }
@@ -66,6 +69,13 @@ func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 		return "", err
 	}
 	return path, os.Chmod(path, 0777)
+}
+
+func (c *CustomVolumes) maxVolumeBytes() int64 {
+	if c.MaxVolumeBytes > 0 {
+		return c.MaxVolumeBytes
+	}
+	return cachevolumes.DefaultMaxVolumeBytes
 }
 
 func (c *CustomVolumes) token(ctx context.Context) (string, error) {
@@ -134,12 +144,12 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
-		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: cachevolumes.MaxVolumeBytes, Token: c.token},
+		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, MaxVolumeBytes: c.maxVolumeBytes(),
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
-	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection, Grow: growCustomImage}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
@@ -165,6 +175,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return err
 	}
 	defer store.Close()
+	store.MaxVolumeBytes = c.maxVolumeBytes()
 	c.Store = store
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
@@ -388,8 +399,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key string `json:"key"`
-			UID int    `json:"uid"`
+			Key       string                     `json:"key"`
+			UID       int                        `json:"uid"`
+			Requested cachevolumes.RequestedSize `json:"requested_volume_bytes"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
@@ -402,7 +414,11 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
+		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "max_volume_bytes": c.maxVolumeBytes()}
+		// RequestedSize drops an invalid size, so it never fails the request.
+		if input.Requested > 0 {
+			body["requested_volume_bytes"] = int64(input.Requested)
+		}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
 		// 425 means GitHub has not yet reported which job this runner executes.
 		for status == http.StatusTooEarly {
@@ -416,10 +432,17 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 				break
 			}
 		}
+		// 507: the volume is larger than this host's maximum.
+		if status == http.StatusInsufficientStorage {
+			err = cachevolumes.ErrCapacity
+		}
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
 		if errors.Is(err, cachevolumes.ErrExecutionPending) {
 			response["reason"] = "execution_pending"
 			log.FromContext(ctx).Info("custom cache volume not authorized in time: GitHub has not reported the job running on this pod; job continues cold", "pod", pod.Name)
+		} else if errors.Is(err, cachevolumes.ErrCapacity) {
+			response["reason"] = "capacity"
+			log.FromContext(ctx).Info("custom cache volume larger than this host holds; job continues cold", "pod", pod.Name)
 		} else if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
 		} else {

@@ -80,6 +80,7 @@ func main() {
 		customCacheURL       string
 		customCacheNamespace string
 		customCacheSA        string
+		customCacheMaxGB     int
 		cacheVolumeCapGiB    int
 		cacheVolumeCASGiB    int
 		imageMirrors         imageMirrorList
@@ -146,6 +147,8 @@ func main() {
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
+	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
+		"Largest custom cache volume this host accepts, in decimal GB. Sent with every authorization; the server never allocates a larger volume to this host. At least 20.")
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
@@ -395,7 +398,11 @@ func main() {
 
 	var customVolumes *podagent.CustomVolumes
 	if customCacheURL != "" && volumes.Enabled() {
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes}
+		if customCacheMaxGB < 20 {
+			setupLog.Error(fmt.Errorf("--custom-cache-max-volume-gb=%d", customCacheMaxGB), "custom cache volumes need a maximum of at least the default 20 GB")
+			os.Exit(1)
+		}
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)

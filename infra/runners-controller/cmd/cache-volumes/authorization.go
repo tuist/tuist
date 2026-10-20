@@ -26,6 +26,10 @@ func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identi
 		if err != nil || status == http.StatusOK {
 			return identity, err
 		}
+		// The volume is larger than this host's maximum. Retrying cannot help.
+		if status == http.StatusInsufficientStorage {
+			return identity, cachevolumes.ErrCapacity
+		}
 		if status != http.StatusTooEarly {
 			return identity, fmt.Errorf("authorization rejected: %d", status)
 		}

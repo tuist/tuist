@@ -43,6 +43,8 @@ type agent struct {
 	runtime                                runtimeapi.RuntimeServiceClient
 	observe                                cachevolumes.Observer
 	prefetch                               *prefetcher
+	// maxVolumeBytes is the largest volume this host accepts.
+	maxVolumeBytes int64
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -50,6 +52,8 @@ type request struct {
 	Key          string `json:"key"`
 	Architecture string `json:"architecture"`
 	UID          int    `json:"uid"`
+	// RequestedVolumeBytes is forwarded only when valid; anything else is dropped.
+	RequestedVolumeBytes cachevolumes.RequestedSize `json:"requested_volume_bytes"`
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +90,11 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
-	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID})
+	fields := map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID, "max_volume_bytes": a.maxVolumeBytes}
+	if input.RequestedVolumeBytes > 0 {
+		fields["requested_volume_bytes"] = int64(input.RequestedVolumeBytes)
+	}
+	body, _ := json.Marshal(fields)
 	authorized := a.observe.Start("authorize", "none")
 	identity, err := a.authorize(ctx, body)
 	authorized(err)
@@ -94,6 +102,11 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, cachevolumes.ErrExecutionPending) {
 		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
 		http.Error(w, "execution pending", http.StatusTooEarly)
+		return
+	}
+	if errors.Is(err, cachevolumes.ErrCapacity) {
+		log.Printf("cache volume for pod %s is larger than this host holds", input.PodName)
+		http.Error(w, "unavailable", 503)
 		return
 	}
 	if err != nil {
@@ -190,13 +203,15 @@ func main() {
 	node := flag.String("node", os.Getenv("NODE_NAME"), "Local node")
 	maxSlots := flag.Int("max-slots", 100, "Maximum active clones on this host")
 	minFreeGB := flag.Int("min-free-gb", 40, "Free filesystem reserve before creating a branch")
-	sizeGB := flag.Int("volume-gb", 20, "Capacity of each new volume in decimal GB")
+	sizeGB := flag.Int("volume-gb", 20, "Capacity of a new volume the server sends no size for, in decimal GB")
+	maxGB := flag.Int("max-volume-gb", cachevolumes.DefaultMaxVolumeBytes/1_000_000_000, "Largest volume this host accepts, in decimal GB")
 	runtimeEndpoint := flag.String("runtime-endpoint", "unix:///run/host-containerd.sock", "Host CRI endpoint for writer teardown verification")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
 	flag.Parse()
-	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB {
+	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB {
 		log.Fatal("invalid configuration")
 	}
+	maxBytes := int64(*maxGB) * 1_000_000_000
 	// A full cache must never fill the kubelet/root filesystem. This check is
 	// intentional even though both paths are bind mounts in the DaemonSet.
 	if err := dedicatedFilesystem(*root, *kubelet, *rootDevice); err != nil {
@@ -211,7 +226,7 @@ func main() {
 		log.Fatal(err)
 	}
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.MaxVolumeBytes}
+	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	// A master another host superseded is refreshed in the background when it was
@@ -236,7 +251,8 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	store.MaxVolumeBytes = maxBytes
+	a := &agent{maxVolumeBytes: maxBytes, prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)

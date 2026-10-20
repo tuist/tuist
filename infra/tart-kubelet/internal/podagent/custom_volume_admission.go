@@ -65,11 +65,20 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 	return total
 }
 
+// customAdmissionBytes is what a slot reserves until its VM runs. A prefetch
+// holds the archive beside the expanded image, matching the backend's check. A
+// cold branch needs its capacity; a warm one its capacity or twice the head's
+// used bytes, whichever is larger, and twice its capacity when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
-	if slot.BaseGeneration > 0 {
-		return 2 * customVolumeBytes(slot)
+	switch {
+	case slot.ID == cachevolumes.PrefetchReservation:
+		return uint64(slot.RestoreBytes(customCapacity))
+	case slot.BaseGeneration == 0:
+		return customVolumeBytes(slot)
+	case slot.HeadSizeBytes > 0:
+		return max(customVolumeBytes(slot), 2*uint64(slot.HeadSizeBytes))
 	}
-	return customVolumeBytes(slot)
+	return 2 * customVolumeBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {

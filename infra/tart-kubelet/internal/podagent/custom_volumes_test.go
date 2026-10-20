@@ -511,6 +511,7 @@ func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
 	}{
 		{"binding never arrives", http.StatusTooEarly, "execution_pending"},
 		{"identity rejected", http.StatusForbidden, "denied"},
+		{"volume larger than the host", http.StatusInsufficientStorage, "capacity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -552,6 +553,9 @@ func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
 			}
 			if response["error"] != "unavailable" || response["reason"] != tc.want {
 				t.Fatal(string(data))
+			}
+			if tc.status == http.StatusInsufficientStorage && calls != 1 {
+				t.Fatalf("retried a capacity refusal: %d attempts", calls)
 			}
 			if tc.status == http.StatusTooEarly && calls < 2 {
 				t.Fatalf("gave up after %d attempts", calls)

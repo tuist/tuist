@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -28,14 +30,36 @@ type Identity struct {
 	ContentDigest  string `json:"content_digest"`
 	CanPublish     bool   `json:"can_publish"`
 	UID            int    `json:"uid"`
-	// VolumeBytes is the size the server allocated the volume at. Zero from a
+	// VolumeBytes is the capacity the server chose for this use. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`
+	// HeadSizeBytes is the measured used bytes of the saved head, or zero when
+	// unknown.
+	HeadSizeBytes int64 `json:"head_size_bytes"`
 }
 
-// MaxVolumeBytes bounds the size a server may allocate a volume at, so a
-// host can admit and restore any volume it is handed.
-const MaxVolumeBytes = 32_000_000_000
+// DefaultMaxVolumeBytes is the largest volume a host accepts when its agent
+// configures no maximum.
+const DefaultMaxVolumeBytes = 32_000_000_000
+
+// RequestedVolumeBytes is a guest's requested capacity when it is a whole
+// number of decimal GB from 1 to 100, else zero.
+func RequestedVolumeBytes(bytes int64) int64 {
+	if bytes < 1_000_000_000 || bytes > 100_000_000_000 || bytes%1_000_000_000 != 0 {
+		return 0
+	}
+	return bytes
+}
+
+// RequestedSize is the capacity a guest requested. It decodes any JSON value
+// and keeps only a valid size, so a malformed one never fails the request.
+type RequestedSize int64
+
+func (r *RequestedSize) UnmarshalJSON(data []byte) error {
+	bytes, _ := strconv.ParseInt(string(data), 10, 64)
+	*r = RequestedSize(RequestedVolumeBytes(bytes))
+	return nil
+}
 
 // VolumeSize is the size the volume's image is created at: the allocated size,
 // or defaultBytes when the server did not send one.
@@ -44,6 +68,15 @@ func (i Identity) VolumeSize(defaultBytes int64) int64 {
 		return i.VolumeBytes
 	}
 	return defaultBytes
+}
+
+// RestoreBytes is the free space restoring the head needs: its archive beside
+// the expanded image, twice its used bytes, or twice the volume when unknown.
+func (i Identity) RestoreBytes(defaultBytes int64) int64 {
+	if i.HeadSizeBytes > 0 {
+		return 2 * i.HeadSizeBytes
+	}
+	return 2 * i.VolumeSize(defaultBytes)
 }
 
 type Slot struct {
@@ -80,6 +113,8 @@ type Store struct {
 	path     string
 	backend  Backend
 	MaxSlots int
+	// MaxVolumeBytes is the largest volume this host accepts.
+	MaxVolumeBytes int64
 }
 
 func Open(path string, backend Backend) (*Store, error) {
@@ -96,7 +131,7 @@ func Open(path string, backend Backend) (*Store, error) {
 			return nil, err
 		}
 	}
-	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, locks: map[string]*leaseLock{}}, nil
+	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, MaxVolumeBytes: DefaultMaxVolumeBytes, locks: map[string]*leaseLock{}}, nil
 }
 func (s *Store) Close() error { return s.root.Close() }
 
@@ -136,15 +171,16 @@ func (s *Store) slots() ([]Slot, error) {
 		if err = json.Unmarshal(b, &slot); err != nil {
 			return nil, err
 		}
-		if !valid(slot.Identity, slot.PodName, slot.PodUID) || name != slot.ID+".json" {
+		// A lease journaled under a larger host maximum stays readable.
+		if !valid(slot.Identity, slot.PodName, slot.PodUID, math.MaxInt64) || name != slot.ID+".json" {
 			return nil, errors.New("invalid cache journal")
 		}
 		slots = append(slots, slot)
 	}
 	return slots, nil
 }
-func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity)
+func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= maxVolumeBytes && identity.HeadSizeBytes >= 0 && validHead(identity)
 }
 func validHead(identity Identity) bool {
 	if identity.BaseGeneration == 0 {
@@ -206,7 +242,7 @@ func (s *Store) lock(id string) func() {
 	}
 }
 func (s *Store) Acquire(ctx context.Context, identity Identity, pod, uid string) (bool, error) {
-	if !valid(identity, pod, uid) {
+	if !valid(identity, pod, uid, s.MaxVolumeBytes) {
 		return false, errors.New("invalid identity")
 	}
 	unlock := s.lock(identity.ID)

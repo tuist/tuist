@@ -23,6 +23,10 @@ type APFSImages struct {
 	Reserve func(context.Context, Slot) (func(bool), error)
 	Verify  func(string) error
 	Detach  func(string) error
+	// Grow extends a private copy's image to the given capacity before the guest
+	// sees it, never shrinking it and never attaching its filesystem. The guest
+	// grows the APFS container. Nil leaves copies at their saved size.
+	Grow func(context.Context, string, int64) error
 }
 
 func (b *APFSImages) Init() error {
@@ -93,6 +97,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if err != nil {
 				return err
 			}
+			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
+				// A copy that cannot grow stays warm at its saved size.
+				_ = b.operation("grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
+			}
 		}
 		if cold {
 			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
@@ -157,7 +165,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 	data, err := os.ReadFile(b.image(slot) + ".metrics")
 	if os.IsNotExist(err) && APFSMarker(path, ".detached", slot.ID) {
-		usage, usageErr := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+		usage, usageErr := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 		return usage.Used, usage.Capacity, usageErr
 	}
 	if err != nil {
@@ -180,7 +188,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) {
 		return ErrWithheld
 	}
-	usage, err := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+	usage, err := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPoisoned, err)
 	}
@@ -286,8 +294,10 @@ func (b *APFSImages) MountedGeneration(slot Slot) int64 {
 // PrefetchReservation is the Reserve slot ID a prefetch holds while it downloads.
 const PrefetchReservation = "prefetch"
 
+// Prefetch restores a master, evicting idle masters for room. It needs room for
+// the archive beside the expanded image (Identity.RestoreBytes).
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserve)
+	return b.prefetchWith(ctx, slot, b.reserveBytes)
 }
 
 // PrefetchSpare restores a master like Prefetch, but only into free space: it
@@ -297,11 +307,11 @@ func (b *APFSImages) PrefetchSpare(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserveSpare)
 }
 
-func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context) error) error {
+func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context, uint64) error) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
-	if err := reserve(ctx); err != nil {
+	if err := reserve(ctx, uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
 		return err
 	}
 	if b.Reserve != nil {

@@ -95,10 +95,16 @@ workflow code runs in the guest. Never expose host credentials or masters.
   empty image marked `.cold` that reports a miss and is withheld from publication;
   either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
-  Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
-  server sends none, at most `MaxVolumeBytes`) for every attach and twice that
-  for prefetch, which also holds the
-  archive. Prefetch downloads into `staging/` without the lineage lock, and
+  The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
+  `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
+  authorization alongside the guest's valid `requested_volume_bytes`; a 507 is
+  reason `capacity`. Reserve the volume's capacity (`Identity.VolumeBytes`, 20 GB
+  when the server sends none) for a cold attach, the larger of that and twice
+  `HeadSizeBytes` for a warm one (twice the capacity when the head size is
+  unknown), and twice `HeadSizeBytes` (else twice the capacity) for prefetch,
+  which also holds the archive. A warm copy smaller than its capacity is grown
+  with `hdiutil resize -imageonly` before exposure; never attach it on the host
+  to grow it. The guest grows the APFS container. Prefetch downloads into `staging/` without the lineage lock, and
   maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.
