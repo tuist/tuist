@@ -85,6 +85,13 @@ components:
           type: string
           x-struct:
           x-validate:
+        shard_report_revision:
+          description: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+          maximum: 4294967295
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
         git_object_format:
           description: The repository's Git object format.
           enum:
@@ -293,6 +300,13 @@ components:
             - paths
             - scopes
           type: object
+          x-struct:
+          x-validate:
+        shard_attempt:
+          description: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+          maximum: 4294967295
+          minimum: 0
+          type: integer
           x-struct:
           x-validate:
         git_dirty:
@@ -17108,6 +17122,13 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                shard_report_revision:
+                  description: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
+                  x-struct:
+                  x-validate:
                 git_object_format:
                   description: The repository's Git object format.
                   enum:
@@ -17316,6 +17337,13 @@ paths:
                     - paths
                     - scopes
                   type: object
+                  x-struct:
+                  x-validate:
+                shard_attempt:
+                  description: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
                   x-struct:
                   x-validate:
                 git_dirty:
@@ -17860,7 +17888,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The test run could not be scheduled for processing
+          description: The shard plan is not visible yet or the test run could not be scheduled for processing
       summary: Create a new test run.
       tags:
         - Tests
