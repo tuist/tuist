@@ -199,10 +199,7 @@ defmodule TuistWeb.RunnerProfilesLive do
         _ -> attrs
       end
 
-    attrs =
-      if assigns.form_platform == "macos",
-        do: Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts),
-        else: attrs
+    attrs = Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts)
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end

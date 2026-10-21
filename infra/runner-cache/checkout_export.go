@@ -1,6 +1,7 @@
-package podagent
+package cachevolumes
 
 import (
+	"archive/tar"
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,14 +19,14 @@ import (
 // boundary (`shallow`) and the LFS objects it fetched (`lfs/<oid>`). Everything
 // in it is untrusted: the host reads it without following links, bounds every
 // size, lets git hash-check the pack and hashes LFS objects itself.
-const checkoutExportDir = "checkout-export"
+const CheckoutExportDir = "checkout-export"
 
 const (
 	checkoutHeadMax    = 128
 	checkoutShallowMax = 64 << 10
 	// An export never exceeds half an image: the image holds its objects and the
 	// files checked out from them.
-	checkoutExportMax = checkoutCapacity / 2
+	checkoutExportMax = CheckoutCapacity / 2
 	checkoutLFSMax    = 200_000
 )
 
@@ -204,4 +205,129 @@ func lfsPointers(listing []byte) []string {
 		}
 	}
 	return oids
+}
+
+// ReceiveCheckoutExport writes an export a guest streamed as a tar archive to
+// dst. It takes only the export's own entries: regular files named head,
+// shallow, pack or lfs/<oid>, within the export's bounds. Anything else refuses
+// the whole stream, and nothing is left at dst unless it was complete.
+//
+// admit, when set, is asked for room for each entry before it is written, and
+// the returned release is called once the entry is on disk. Nothing is written
+// that the stream did not carry: a sparse entry, whose holes would expand into
+// real bytes, refuses the stream.
+func ReceiveCheckoutExport(stream io.Reader, dst string, admit func(int64) (func(), error)) (err error) {
+	tmp := dst + ".part"
+	_ = os.RemoveAll(tmp)
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(tmp)
+		}
+	}()
+	if err := os.MkdirAll(filepath.Join(tmp, "lfs"), 0700); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(tmp)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	carried := &countingReader{reader: stream}
+	archive := tar.NewReader(carried)
+	seen := map[string]bool{}
+	var total, written int64
+	objects := 0
+	for {
+		header, err := archive.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		name := header.Name
+		limit := int64(checkoutExportMax)
+		switch {
+		case name == "head":
+			limit = checkoutHeadMax
+		case name == "shallow":
+			limit = checkoutShallowMax
+		case name == "pack":
+		case strings.HasPrefix(name, "lfs/") && checkoutOID.MatchString(strings.TrimPrefix(name, "lfs/")):
+			objects++
+		default:
+			return errors.New("unexpected checkout export entry")
+		}
+		if header.Typeflag != tar.TypeReg || sparseEntry(header) || seen[name] || objects > checkoutLFSMax || header.Size < 0 || header.Size > limit || total+header.Size > checkoutExportMax {
+			return errors.New("checkout export entry out of bounds: " + name)
+		}
+		seen[name] = true
+		total += header.Size
+		release := func() {}
+		if admit != nil {
+			if release, err = admit(header.Size); err != nil {
+				return err
+			}
+		}
+		file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			release()
+			return err
+		}
+		n, err := io.Copy(&carriedWriter{file: file, carried: carried, written: &written}, io.LimitReader(archive, header.Size))
+		if closeErr := file.Close(); err == nil {
+			err = closeErr
+		}
+		release()
+		if err != nil {
+			return err
+		}
+		if n != header.Size {
+			return errors.New("checkout export entry truncated: " + name)
+		}
+	}
+	if !seen["head"] || !seen["pack"] {
+		return errors.New("checkout export is incomplete")
+	}
+	_ = os.RemoveAll(dst)
+	return checkoutRename(tmp, dst)
+}
+
+// sparseEntry reports a GNU or PAX sparse file. Go presents those as regular
+// files and fills their holes with zeros.
+func sparseEntry(header *tar.Header) bool {
+	for key := range header.PAXRecords {
+		if strings.HasPrefix(key, "GNU.sparse.") {
+			return true
+		}
+	}
+	return header.Typeflag == tar.TypeGNUSparse
+}
+
+type countingReader struct {
+	reader io.Reader
+	n      int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.n += int64(n)
+	return n, err
+}
+
+// carriedWriter refuses to write more than the stream has carried so far, so no
+// entry can expand into bytes nobody sent.
+type carriedWriter struct {
+	file    io.Writer
+	carried *countingReader
+	written *int64
+}
+
+func (w *carriedWriter) Write(p []byte) (int, error) {
+	if *w.written+int64(len(p)) > w.carried.n {
+		return 0, errors.New("checkout export entry holds bytes the stream did not carry")
+	}
+	n, err := w.file.Write(p)
+	*w.written += int64(n)
+	return n, err
 }

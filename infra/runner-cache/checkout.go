@@ -1,16 +1,11 @@
-package podagent
+package cachevolumes
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,13 +15,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
-	checkoutCapacity    = 60_000_000_000
+	// CheckoutCapacity is the logical size of a checkout master image.
+	CheckoutCapacity    = 60_000_000_000
 	checkoutBuildRoom   = 20_000_000_000
 	checkoutIngestRoom  = 10_000_000_000
 	checkoutRecentFor   = 14 * 24 * time.Hour
@@ -35,11 +28,6 @@ const (
 	checkoutQueue       = 16
 	checkoutIncomingDir = ".incoming"
 	checkoutVolumesDir  = ".volumes"
-
-	// The git-lfs the populator runs, pinned and verified before it is used.
-	gitLFSURL    = "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-darwin-arm64-v3.8.0.zip"
-	gitLFSSHA256 = "caff76a7d070d8160c89bc39b6e85d98f24135b6fed038a3b4de2590d25102d8"
-	gitLFSEntry  = "git-lfs-3.8.0/git-lfs"
 )
 
 var checkoutScope = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -48,6 +36,26 @@ var checkoutCommit = regexp.MustCompile(`^[a-f0-9]{40}$`)
 var checkoutBranch = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,255}$`)
 var checkoutUse = regexp.MustCompile(`^[a-f0-9-]{36}$`)
 var checkoutImageDigest = regexp.MustCompile(`^[a-f0-9]{40}$`)
+
+// CheckoutImages is the filesystem image a checkout master lives in: an APFS
+// sparse image on macOS, an ext4 image on a reflink filesystem on Linux.
+type CheckoutImages interface {
+	// MasterName is the file name of a master image.
+	MasterName() string
+	// Create formats an empty image of the given logical size.
+	Create(ctx context.Context, path string, bytes int64) error
+	// Clone makes a copy-on-write copy; it must fail rather than copy bytes.
+	Clone(ctx context.Context, src, dst string) error
+	Attach(ctx context.Context, image, mount string, readOnly bool) error
+	// Detach unmounts cleanly or fails, so a master is never installed while written.
+	Detach(ctx context.Context, image, mount string) error
+	// Abandon forcibly unmounts what a failed build left mounted.
+	Abandon(ctx context.Context, image, mount string)
+	// Repository is where the working tree sits inside a mounted image.
+	Repository(mount string) string
+	// Own hands a built tree to the job's user.
+	Own(ctx context.Context, repo string, uid int) error
+}
 
 // Checkouts keeps the host-built masters of checkout volumes: a repository's
 // working tree at a default-branch commit plus its .git and LFS objects. Only
@@ -58,27 +66,36 @@ var checkoutImageDigest = regexp.MustCompile(`^[a-f0-9]{40}$`)
 // restore it instead of waiting for a job of their own. Guests get CoW clones
 // that are never published.
 type Checkouts struct {
-	Root string
-	Run  func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
+	Root   string
+	Images CheckoutImages
+	Run    func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
 	// Room reserves disk for a build until the returned release is called.
 	Room func(context.Context, uint64) (func(), error)
-	Now  func() time.Time
-	// Download fetches the pinned git-lfs release archive.
-	Download func(context.Context) ([]byte, error)
+	// InUse reports whether a job holds or is attaching a clone of a volume's
+	// master. Pressure eviction skips those: the clone shares the master's blocks,
+	// so removing it frees nothing, and an attaching job would lose its seed.
+	InUse func(scope string) bool
+	Now   func() time.Time
+	// Tools installs what the populator runs before git is probed, if anything.
+	Tools func(context.Context) error
+	// Path is the PATH git runs with; Root/.bin, /usr/bin and /bin by default.
+	Path string
 	// Transfer publishes masters and restores the volume's HEAD.
-	Transfer cachevolumes.ImageTransfer
+	Transfer ImageTransfer
+	Observe  Observer
+	Log      *slog.Logger
 
 	mu      sync.Mutex
 	locks   map[string]*sync.Mutex
-	pending map[string]checkoutTask
+	pending map[string]CheckoutTask
 	// waiting holds builds refused for disk room until a reconcile retries them.
-	waiting map[string]checkoutTask
+	waiting map[string]CheckoutTask
 	busy    map[string]bool
 	queue   chan string
 	ready   bool
 }
 
-type checkoutTask struct {
+type CheckoutTask struct {
 	Scope            string
 	Generation       int64
 	CloneURL         string
@@ -90,11 +107,13 @@ type checkoutTask struct {
 	BaseGeneration int64
 	ImageDigest    string
 	ContentDigest  string
-	// Export holds what the job exported; a task without one restores the HEAD.
+	// UID owns the working tree; the volume's identity includes it.
+	UID int
 	// VolumeKey stays the same when the volume is cleared; Scope does not.
 	VolumeKey string
-	Export    string
-	Since     time.Time
+	// Export holds what the job exported; a task without one restores the HEAD.
+	Export string
+	Since  time.Time
 }
 
 type checkoutMeta struct {
@@ -111,10 +130,22 @@ func (c *Checkouts) now() time.Time {
 	return time.Now()
 }
 
+func (c *Checkouts) logError(err error, msg string, args ...any) {
+	logger := c.Log
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.Error(msg, append(args, "error", err)...)
+}
+
 func (c *Checkouts) run(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	if c.Run != nil {
 		return c.Run(ctx, dir, env, name, args...)
 	}
+	return runCheckoutCommand(ctx, dir, env, name, args...)
+}
+
+func runCheckoutCommand(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, name, args...)
 	command.Dir = dir
 	command.Env = env
@@ -144,7 +175,11 @@ func (c *Checkouts) dir(scope string, generation int64) string {
 }
 
 func (c *Checkouts) masterPath(scope string, generation int64) string {
-	return filepath.Join(c.dir(scope, generation), "master.sparseimage")
+	return filepath.Join(c.dir(scope, generation), c.Images.MasterName())
+}
+
+func (c *Checkouts) nextPath(scope string, generation int64) string {
+	return filepath.Join(c.dir(scope, generation), "next"+filepath.Ext(c.Images.MasterName()))
 }
 
 // Incoming is where the host moves a finished job's export before it builds from it.
@@ -167,8 +202,8 @@ func (c *Checkouts) Master(scope string, generation int64) string {
 
 // Seed clones the master into a guest's private branch under the scope lock,
 // so a refresh's rename or an eviction never races the clone.
-func (c *Checkouts) Seed(ctx context.Context, slot cachevolumes.Slot, dst string) error {
-	if slot.Kind != cachevolumes.KindCheckout {
+func (c *Checkouts) Seed(ctx context.Context, slot Slot, dst string) error {
+	if slot.Kind != KindCheckout {
 		return errors.New("not a checkout")
 	}
 	lock := c.lock(slot.Scope)
@@ -178,43 +213,37 @@ func (c *Checkouts) Seed(ctx context.Context, slot cachevolumes.Slot, dst string
 	if master == "" {
 		return errors.New("checkout master unavailable")
 	}
-	if _, err := c.run(ctx, "", nil, "cp", "-c", master, dst); err != nil {
+	if err := c.Images.Clone(ctx, master, dst); err != nil {
 		return err
 	}
 	now := c.now()
 	return os.Chtimes(master, now, now)
 }
 
-// Start runs the single build worker until ctx ends. Builds stay off when the
+// Start runs the single build worker until ctx ends. Builds stay off while the
 // host has no working git or git-lfs; jobs then check out as they do today.
 func (c *Checkouts) Start(ctx context.Context) {
-	c.mu.Lock()
-	if c.queue == nil {
-		c.queue = make(chan string, checkoutQueue)
-	}
-	queue := c.queue
-	c.mu.Unlock()
 	_ = os.RemoveAll(filepath.Join(c.Root, checkoutIncomingDir))
 	for {
-		err := c.probe(ctx)
+		err := c.Prepare(ctx)
 		if err == nil {
 			break
 		}
-		log.FromContext(ctx).Error(err, "cached checkouts unavailable on this host; retrying")
+		c.logError(err, "cached checkouts unavailable on this host; retrying in 10 minutes")
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(10 * time.Minute):
 		}
 	}
-	c.mu.Lock()
-	c.ready = true
-	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
 		c.ready = false
 		c.mu.Unlock()
 	}()
+	c.mu.Lock()
+	queue := c.queue
+	c.mu.Unlock()
 	for {
 		select {
 		case <-ctx.Done():
@@ -225,24 +254,37 @@ func (c *Checkouts) Start(ctx context.Context) {
 			delete(c.pending, scope)
 			c.mu.Unlock()
 			if ok {
-				c.process(ctx, task)
+				c.Process(ctx, task)
 			}
 		}
 	}
 }
 
-func (c *Checkouts) probe(ctx context.Context) error {
+// Prepare checks the host's tools and starts accepting requests. Start calls it
+// until it succeeds.
+func (c *Checkouts) Prepare(ctx context.Context) error {
+	if c.Images == nil {
+		return errors.New("no checkout image backend")
+	}
 	if err := os.MkdirAll(filepath.Join(c.Root, ".home"), 0700); err != nil {
 		return err
 	}
-	if err := c.ensureGitLFS(ctx); err != nil {
-		return err
+	if c.Tools != nil {
+		if err := c.Tools(ctx); err != nil {
+			return err
+		}
 	}
 	for _, tool := range [][]string{{"git", "--version"}, {"git", "lfs", "version"}} {
 		if _, err := c.run(ctx, c.Root, c.baseEnv(), tool[0], tool[1:]...); err != nil {
 			return err
 		}
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.queue == nil {
+		c.queue = make(chan string, checkoutQueue)
+	}
+	c.ready = true
 	return nil
 }
 
@@ -256,10 +298,25 @@ func (c *Checkouts) Ready() bool {
 	return c.ready
 }
 
+// Pending returns the request queued for a volume, if any.
+func (c *Checkouts) Pending(scope string) (CheckoutTask, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	task, ok := c.pending[scope]
+	return task, ok
+}
+
+// Queued is the number of volumes with a queued request.
+func (c *Checkouts) Queued() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.queue)
+}
+
 // Enqueue asks for a build from a job's export, or for a restore of the HEAD.
 // The newest request per volume wins; a full queue drops the request, it never
 // blocks. A dropped or replaced request's export is removed.
-func (c *Checkouts) Enqueue(task checkoutTask) bool {
+func (c *Checkouts) Enqueue(task CheckoutTask) bool {
 	if c == nil || !c.validTask(task) {
 		c.discard(task)
 		return false
@@ -274,7 +331,7 @@ func (c *Checkouts) Enqueue(task checkoutTask) bool {
 		return false
 	}
 	if c.pending == nil {
-		c.pending = map[string]checkoutTask{}
+		c.pending = map[string]CheckoutTask{}
 	}
 	if waiting, ok := c.waiting[task.Scope]; ok {
 		delete(c.waiting, task.Scope)
@@ -300,24 +357,25 @@ func (c *Checkouts) Enqueue(task checkoutTask) bool {
 	}
 }
 
-func (c *Checkouts) replace(previous, next checkoutTask) {
+func (c *Checkouts) replace(previous, next CheckoutTask) {
 	if previous.Export != next.Export {
 		c.discard(previous)
 	}
 }
 
-func (c *Checkouts) discard(task checkoutTask) {
+func (c *Checkouts) discard(task CheckoutTask) {
 	if c != nil && task.Export != "" && filepath.Dir(task.Export) == filepath.Join(c.Root, checkoutIncomingDir) {
 		_ = os.RemoveAll(task.Export)
 	}
 }
 
-func (c *Checkouts) validTask(task checkoutTask) bool {
+func (c *Checkouts) validTask(task CheckoutTask) bool {
 	branch := task.DefaultBranch
 	valid := checkoutScope.MatchString(task.Scope) && task.Generation >= 0 && checkoutRepository.MatchString(task.CloneURL) &&
 		checkoutBranch.MatchString(branch) && !strings.Contains(branch, "..") && !strings.HasPrefix(branch, "-") &&
 		!strings.HasPrefix(branch, "/") && !strings.HasSuffix(branch, "/") &&
-		(task.Commit == "" || checkoutCommit.MatchString(task.Commit)) && checkoutUse.MatchString(task.Use) && task.BaseGeneration >= 0
+		(task.Commit == "" || checkoutCommit.MatchString(task.Commit)) && checkoutUse.MatchString(task.Use) && task.BaseGeneration >= 0 &&
+		task.UID >= 0
 	if task.BaseGeneration > 0 {
 		valid = valid && checkoutImageDigest.MatchString(task.ImageDigest) && checkoutOID.MatchString(task.ContentDigest)
 	}
@@ -327,7 +385,8 @@ func (c *Checkouts) validTask(task checkoutTask) bool {
 	return valid && filepath.Dir(task.Export) == filepath.Join(c.Root, checkoutIncomingDir)
 }
 
-func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
+// Process runs one request now: a build from an export, or a restore of the HEAD.
+func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 	if task.Since.IsZero() {
 		task.Since = c.now()
 	}
@@ -350,7 +409,7 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
-	done := cachevolumes.Observer(observeCustomCache).Start(operation, source)
+	done := c.Observe.Start(operation, source)
 	var err error
 	if task.Export == "" {
 		err = c.restore(ctx, task, room)
@@ -358,11 +417,11 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 		err = c.build(ctx, task, cold, meta, room)
 	}
 	done(err)
-	if errors.Is(err, cachevolumes.ErrCapacity) && c.now().Sub(task.Since) < checkoutWaitFor {
+	if errors.Is(err, ErrCapacity) && c.now().Sub(task.Since) < checkoutWaitFor {
 		// The requesting job usually holds the room; every reconcile retries for a while.
 		c.mu.Lock()
 		if c.waiting == nil {
-			c.waiting = map[string]checkoutTask{}
+			c.waiting = map[string]CheckoutTask{}
 		}
 		if _, queued := c.pending[task.Scope]; !queued {
 			c.waiting[task.Scope] = task
@@ -372,11 +431,11 @@ func (c *Checkouts) process(ctx context.Context, task checkoutTask) {
 		return
 	}
 	if err != nil {
-		log.FromContext(ctx).Error(err, "checkout master not updated", "operation", operation)
+		c.logError(err, "checkout master not updated", "operation", operation)
 	}
 }
 
-func (c *Checkouts) build(ctx context.Context, task checkoutTask, cold bool, meta *checkoutMeta, room uint64) (err error) {
+func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, meta *checkoutMeta, room uint64) (err error) {
 	export, err := openCheckoutExport(task.Export)
 	if err != nil {
 		return err
@@ -401,36 +460,43 @@ func (c *Checkouts) build(ctx context.Context, task checkoutTask, cold bool, met
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	next := filepath.Join(dir, "next.sparseimage")
+	next := c.nextPath(task.Scope, task.Generation)
 	mount := filepath.Join(dir, "next.mnt")
-	c.detach(ctx, mount)
+	c.Images.Abandon(ctx, next, mount)
 	_ = os.Remove(next)
 	defer os.Remove(next)
 	if cold {
 		meta = &checkoutMeta{BuiltAt: c.now(), Recent: map[string]time.Time{}}
-		if _, err := c.run(ctx, dir, nil, "hdiutil", "create", "-size", strconv.FormatInt(checkoutCapacity/1_000_000, 10)+"m", "-type", "SPARSE", "-fs", "APFS", "-volname", "TuistCheckout", "-quiet", next); err != nil {
+		if err := c.Images.Create(ctx, next, CheckoutCapacity); err != nil {
 			return err
 		}
-	} else if _, err := c.run(ctx, dir, nil, "cp", "-c", c.masterPath(task.Scope, task.Generation), next); err != nil {
+	} else if err := c.Images.Clone(ctx, c.masterPath(task.Scope, task.Generation), next); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(mount, 0700); err != nil {
 		return err
 	}
-	if _, err := c.run(ctx, dir, nil, "hdiutil", "attach", next, "-nobrowse", "-noautoopen", "-quiet", "-mountpoint", mount); err != nil {
+	if err := c.Images.Attach(ctx, next, mount, false); err != nil {
 		return err
 	}
 	attached := true
 	defer func() {
 		if attached {
-			c.detach(context.WithoutCancel(ctx), mount)
+			c.Images.Abandon(context.WithoutCancel(ctx), next, mount)
 		}
 	}()
-	moved, err := c.ingest(ctx, mount, export, task, cold, meta)
+	repo := c.Images.Repository(mount)
+	if err := os.MkdirAll(repo, 0755); err != nil {
+		return err
+	}
+	moved, err := c.ingest(ctx, repo, export, task, cold, meta)
 	if err != nil {
 		return err
 	}
-	if err := c.detachStrict(ctx, mount); err != nil {
+	if err := c.Images.Own(ctx, repo, task.UID); err != nil {
+		return err
+	}
+	if err := c.Images.Detach(ctx, next, mount); err != nil {
 		return err
 	}
 	attached = false
@@ -439,17 +505,17 @@ func (c *Checkouts) build(ctx context.Context, task checkoutTask, cold bool, met
 		return err
 	}
 	if moved && task.DefaultBranchJob {
-		done := cachevolumes.Observer(observeCustomCache).Start("checkout_publish", "remote")
+		done := c.Observe.Start("checkout_publish", "remote")
 		err := c.publish(ctx, task)
 		done(err)
 		if err != nil {
-			log.FromContext(ctx).Error(err, "checkout master not published")
+			c.logError(err, "checkout master not published")
 		}
 	}
 	return nil
 }
 
-func (c *Checkouts) install(task checkoutTask, next string, meta *checkoutMeta) error {
+func (c *Checkouts) install(task CheckoutTask, next string, meta *checkoutMeta) error {
 	lock := c.lock(task.Scope)
 	lock.Lock()
 	defer lock.Unlock()
@@ -462,7 +528,7 @@ func (c *Checkouts) install(task checkoutTask, next string, meta *checkoutMeta) 
 // ingest adds a job's export to the mounted master and, when the export's commit
 // should become the tip, writes that commit's working tree. It reports whether
 // the tip moved to a default-branch commit.
-func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExport, task checkoutTask, cold bool, meta *checkoutMeta) (bool, error) {
+func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExport, task CheckoutTask, cold bool, meta *checkoutMeta) (bool, error) {
 	git := func(args ...string) ([]byte, error) { return c.run(ctx, repo, c.gitEnv(), "git", args...) }
 	if cold {
 		if _, err := git("init", "-q", "."); err != nil {
@@ -662,7 +728,7 @@ func writeShallow(repo string, known map[string]bool) error {
 // restore downloads the volume's HEAD into this host's master. It was published
 // by a host from verified exports, and its archive is checked against the HEAD's
 // digest before it is installed.
-func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64) error {
+func (c *Checkouts) restore(ctx context.Context, task CheckoutTask, room uint64) error {
 	if c.Transfer == nil {
 		return errors.New("checkout transfer unavailable")
 	}
@@ -679,9 +745,9 @@ func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	next := filepath.Join(dir, "next.sparseimage")
+	next := c.nextPath(task.Scope, task.Generation)
 	mount := filepath.Join(dir, "next.mnt")
-	c.detach(ctx, mount)
+	c.Images.Abandon(ctx, next, mount)
 	_ = os.Remove(next)
 	defer os.Remove(next)
 	if err := c.Transfer.Download(ctx, c.headSlot(task), next); err != nil {
@@ -690,19 +756,21 @@ func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64)
 	if err := os.MkdirAll(mount, 0700); err != nil {
 		return err
 	}
-	if _, err := c.run(ctx, dir, nil, "hdiutil", "attach", next, "-readonly", "-nobrowse", "-noautoopen", "-quiet", "-mountpoint", mount); err != nil {
+	if err := c.Images.Attach(ctx, next, mount, true); err != nil {
 		return err
 	}
-	tip, err := c.run(ctx, mount, c.gitEnv(), "git", "rev-parse", "HEAD")
+	repo := c.Images.Repository(mount)
+	tip, err := c.run(ctx, repo, c.gitEnv(), "git", "rev-parse", "HEAD")
 	var recent []byte
 	if err == nil {
 		// The publisher's job commits age out here from now on.
-		recent, err = c.run(ctx, mount, c.gitEnv(), "git", "for-each-ref", "--format=%(objectname)", "refs/tuist/recent")
+		recent, err = c.run(ctx, repo, c.gitEnv(), "git", "for-each-ref", "--format=%(objectname)", "refs/tuist/recent")
 	}
-	if detachErr := c.detachStrict(ctx, mount); err == nil {
+	if detachErr := c.Images.Detach(ctx, next, mount); err == nil {
 		err = detachErr
 	}
 	if err != nil {
+		c.Images.Abandon(context.WithoutCancel(ctx), next, mount)
 		return err
 	}
 	_ = os.Remove(mount)
@@ -717,13 +785,13 @@ func (c *Checkouts) restore(ctx context.Context, task checkoutTask, room uint64)
 
 // publish uploads the master as the volume's next HEAD under the job's use.
 // Another host publishing first is not an error: its master is as good.
-func (c *Checkouts) publish(ctx context.Context, task checkoutTask) error {
+func (c *Checkouts) publish(ctx context.Context, task CheckoutTask) error {
 	if c.Transfer == nil {
 		return nil
 	}
 	archive := filepath.Join(c.dir(task.Scope, task.Generation), "master.zst")
 	defer os.Remove(archive)
-	digest, content, err := cachevolumes.CompressImage(c.masterPath(task.Scope, task.Generation), archive)
+	digest, content, err := CompressImage(c.masterPath(task.Scope, task.Generation), archive)
 	if err != nil {
 		return err
 	}
@@ -731,22 +799,26 @@ func (c *Checkouts) publish(ctx context.Context, task checkoutTask) error {
 		return err
 	}
 	_, err = c.Transfer.Publish(c.headSlot(task), archive, digest, content)
-	if errors.Is(err, cachevolumes.ErrConflict) {
+	if errors.Is(err, ErrConflict) {
 		return nil
 	}
 	return err
 }
 
-func (c *Checkouts) headSlot(task checkoutTask) cachevolumes.Slot {
-	return cachevolumes.Slot{Identity: cachevolumes.Identity{
+func (c *Checkouts) headSlot(task CheckoutTask) Slot {
+	return Slot{Identity: Identity{
 		ID: task.Use, Scope: task.Scope, BaseGeneration: task.BaseGeneration,
 		ImageDigest: task.ImageDigest, ContentDigest: task.ContentDigest,
 	}}
 }
 
 func (c *Checkouts) baseEnv() []string {
+	path := c.Path
+	if path == "" {
+		path = filepath.Join(c.Root, ".bin") + ":/usr/bin:/bin"
+	}
 	return []string{
-		"PATH=" + filepath.Join(c.Root, ".bin") + ":/usr/bin:/bin",
+		"PATH=" + path,
 		"HOME=" + filepath.Join(c.Root, ".home"),
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL=/dev/null",
@@ -756,10 +828,12 @@ func (c *Checkouts) baseEnv() []string {
 }
 
 // gitEnv configures git-lfs for one command without touching the master's
-// .git/config, which guests receive.
+// .git/config, which guests receive. The tree belongs to the job's user while the
+// host runs git as another, which git otherwise refuses.
 func (c *Checkouts) gitEnv() []string {
 	settings := [][2]string{
 		{"core.hooksPath", "/dev/null"},
+		{"safe.directory", "*"},
 		{"lfs.fetchinclude", ""},
 		{"lfs.fetchexclude", ""},
 		{"filter.lfs.clean", "git-lfs clean -- %f"},
@@ -772,30 +846,6 @@ func (c *Checkouts) gitEnv() []string {
 		env = append(env, fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, setting[0]), fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, setting[1]))
 	}
 	return env
-}
-
-func (c *Checkouts) detach(ctx context.Context, mount string) {
-	if _, err := os.Stat(mount); err != nil {
-		return
-	}
-	if _, err := c.run(ctx, "", nil, "hdiutil", "detach", mount, "-quiet"); err != nil {
-		_, _ = c.run(ctx, "", nil, "hdiutil", "detach", mount, "-force", "-quiet")
-	}
-}
-
-func (c *Checkouts) detachStrict(ctx context.Context, mount string) error {
-	var err error
-	for attempt := 0; attempt < 3; attempt++ {
-		if _, err = c.run(ctx, "", nil, "hdiutil", "detach", mount, "-quiet"); err == nil {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-	return err
 }
 
 func (c *Checkouts) readMeta(scope string, generation int64) (*checkoutMeta, error) {
@@ -827,7 +877,7 @@ func (c *Checkouts) writeMeta(scope string, generation int64, meta *checkoutMeta
 
 // Track records the scope a volume uses on this host. Clearing a volume gives it
 // a new scope, so the copies kept under the previous one are dropped.
-func (c *Checkouts) Track(task checkoutTask) {
+func (c *Checkouts) Track(task CheckoutTask) {
 	if c == nil || !checkoutScope.MatchString(task.VolumeKey) || !checkoutScope.MatchString(task.Scope) {
 		return
 	}
@@ -865,7 +915,10 @@ type checkoutMaster struct {
 }
 
 func (c *Checkouts) masters() []checkoutMaster {
-	paths, _ := filepath.Glob(filepath.Join(c.Root, "*", "*", "master.sparseimage"))
+	if c.Images == nil {
+		return nil
+	}
+	paths, _ := filepath.Glob(filepath.Join(c.Root, "*", "*", c.Images.MasterName()))
 	masters := make([]checkoutMaster, 0, len(paths))
 	for _, path := range paths {
 		scope := filepath.Base(filepath.Dir(filepath.Dir(path)))
@@ -905,7 +958,7 @@ func (c *Checkouts) Evictable(size func(string) (uint64, error)) uint64 {
 	}
 	var total uint64
 	for _, master := range c.masters() {
-		if c.isBusy(master.scope) {
+		if c.isBusy(master.scope) || c.inUse(master.scope) {
 			continue
 		}
 		if bytes, err := size(master.path); err == nil {
@@ -945,7 +998,7 @@ func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
 	}
 	defer lock.Unlock()
 	// Busy is set under this lock, so a build that started cannot lose its directory.
-	if c.isBusy(master.scope) {
+	if c.isBusy(master.scope) || (try && c.inUse(master.scope)) {
 		return false
 	}
 	return os.RemoveAll(filepath.Dir(master.path)) == nil
@@ -993,78 +1046,23 @@ func checkoutRename(src, dst string) error {
 	return sync(filepath.Dir(dst))
 }
 
-// ensureGitLFS installs the pinned git-lfs next to the masters. Hosts have no
-// git-lfs of their own, and the populator never runs whatever is on PATH.
-func (c *Checkouts) ensureGitLFS(ctx context.Context) error {
-	bin := filepath.Join(c.Root, ".bin")
-	marker := filepath.Join(bin, "git-lfs.sha256")
-	if installed, err := os.ReadFile(marker); err == nil && string(installed) == gitLFSSHA256 {
-		if _, err := os.Stat(filepath.Join(bin, "git-lfs")); err == nil {
-			return nil
-		}
-	}
-	download := c.Download
-	if download == nil {
-		download = downloadGitLFS
-	}
-	archive, err := download(ctx)
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256(archive)
-	if hex.EncodeToString(sum[:]) != gitLFSSHA256 {
-		return errors.New("git-lfs archive checksum mismatch")
-	}
-	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
-	if err != nil {
-		return err
-	}
-	for _, file := range reader.File {
-		if file.Name != gitLFSEntry {
-			continue
-		}
-		if err := os.MkdirAll(bin, 0700); err != nil {
-			return err
-		}
-		in, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-		tmp := filepath.Join(bin, "git-lfs.tmp")
-		out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(out, io.LimitReader(in, 64<<20))
-		if closeErr := out.Close(); err == nil {
-			err = closeErr
-		}
-		if err != nil {
-			return err
-		}
-		if err := checkoutRename(tmp, filepath.Join(bin, "git-lfs")); err != nil {
-			return err
-		}
-		return os.WriteFile(marker, []byte(gitLFSSHA256), 0600)
-	}
-	return errors.New("git-lfs archive has no binary")
+func (c *Checkouts) inUse(scope string) bool {
+	return c.InUse != nil && c.InUse(scope)
 }
 
-func downloadGitLFS(ctx context.Context) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, gitLFSURL, nil)
-	if err != nil {
-		return nil, err
+// DiscardWaiting drops the exports of builds that are waiting for room, and
+// reports how many it dropped. Newer exports take their place.
+func (c *Checkouts) DiscardWaiting() int {
+	if c == nil {
+		return 0
 	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return nil, err
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	dropped := 0
+	for scope, task := range c.waiting {
+		c.discard(task)
+		delete(c.waiting, scope)
+		dropped++
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("git-lfs download status %d", response.StatusCode)
-	}
-	return io.ReadAll(io.LimitReader(response.Body, 64<<20))
+	return dropped
 }

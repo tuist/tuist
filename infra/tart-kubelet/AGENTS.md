@@ -133,16 +133,17 @@ workflow code runs in the guest. Never expose host credentials or masters.
   probes stay opt-in per PodSpec.
 
 - Cached checkouts (spec #99) are custom volumes with the reserved key
-  `checkout`, written only by the host. `checkout_volumes.go` (the populator)
-  keeps one master per (scope, clear generation) under `<custom root>/checkouts`
-  with real git and a pinned, checksum-verified git-lfs it installs into
-  `checkouts/.bin`; the host needs the Command Line Tools (bootstrap installs
+  `checkout`, written only by the host. The populator is the shared
+  `cachevolumes.Checkouts` (`infra/runner-cache/checkout.go`, with
+  `APFSCheckoutImages`); it keeps one master per (scope, clear generation) under
+  `<custom root>/checkouts` with real git and a pinned, checksum-verified git-lfs
+  that `checkout_git_lfs.go` installs into `checkouts/.bin`; the host needs the Command Line Tools (bootstrap installs
   them) and otherwise leaves checkouts off. The host never fetches from GitHub.
   After the job the guest writes `checkout-export/` (pack, head, shallow, LFS
   objects) into its share; `collectCheckout` moves it to `checkouts/.incoming/`
   when the pod's share is cleaned, only for a pod the host granted a checkout,
   and only a real directory. Never mount guest APFS for this. Everything in an
-  export is untrusted (`checkout_export.go`): read through `os.Root` without
+  export is untrusted (runner-cache `checkout_export.go`): read through `os.Root` without
   following links and bounded, the pack goes through `git index-pack --strict`
   after the shallow boundary is recorded, LFS objects are hashed against their
   names, and the host writes the working tree and the index itself. Only LFS
@@ -164,7 +165,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   working git answers `denied`, so guests do not export. `Track` maps the
   server's stable `volume_key` to the current scope and drops the previous
   scope's copies after a clear. Custom-volume admission evicts idle checkout
-  copies before refusing.
+  copies before refusing. Pressure eviction skips masters with a live or attaching
+  clone (`Checkouts.InUse = Store.InUse`).
 - A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
   allocates through `/checkout`, marks the identity `Kind: checkout` itself,
   strips the HEAD fields (the branch is a clone of this host's master) and seeds
@@ -173,7 +175,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   custom admission (`checkoutReserved`) and evict LRU checkout masters only when
   that can make the room; a build refused for room is retried every reconcile
   for an hour.
-  Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test ./internal/podagent -run CheckoutMasterEndToEnd`.
+  Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
+  `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
 ## Tart versions
 

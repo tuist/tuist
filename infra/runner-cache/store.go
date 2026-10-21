@@ -483,3 +483,18 @@ func (s *Store) cleanPod(uid string) error {
 	}
 	return s.root.RemoveAll("pods/" + uid)
 }
+
+// InUse reports whether a job holds, or is attaching, a branch of the scope.
+// It answers true when the journal cannot be read.
+func (s *Store) InUse(scope string) bool {
+	slots, err := s.Snapshot()
+	if err != nil {
+		return true
+	}
+	for _, slot := range slots {
+		if slot.Scope == scope && (slot.State == "allocated" || slot.State == "active") {
+			return true
+		}
+	}
+	return false
+}

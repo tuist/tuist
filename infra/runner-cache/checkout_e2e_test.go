@@ -1,6 +1,6 @@
-//go:build darwin
+//go:build darwin || linux
 
-package podagent
+package cachevolumes
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,16 +18,17 @@ import (
 
 // Builds a real checkout master from what a guest exports after an anonymous,
 // depth-1 clone of a public repository with Git LFS, then mounts a clone of it
-// the way a guest does and runs what actions/checkout runs, with real hdiutil,
-// git and the pinned git-lfs. Opt in with TUIST_CHECKOUT_E2E=1.
+// the way a guest does and runs what actions/checkout runs, with real images,
+// git and git-lfs. Opt in with TUIST_CHECKOUT_E2E=1. On Linux it runs as root,
+// with TUIST_CHECKOUT_E2E_ROOT on a reflink filesystem.
 func TestCheckoutMasterEndToEnd(t *testing.T) {
 	if os.Getenv("TUIST_CHECKOUT_E2E") == "" {
 		t.Skip("set TUIST_CHECKOUT_E2E=1 to build a real checkout master")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	c := &Checkouts{Root: t.TempDir()}
-	if err := c.probe(ctx); err != nil {
+	c := e2eCheckouts(t)
+	if err := c.Prepare(ctx); err != nil {
 		t.Fatal(err)
 	}
 	url := "https://github.com/jimthoburn/github-lfs-example"
@@ -53,7 +56,7 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 	gitIn(guest, "lfs", "fetch", "origin", "HEAD")
 	head := strings.TrimSpace(gitIn(guest, "rev-parse", "HEAD"))
 	task := checkoutTestTask()
-	task.CloneURL, task.Commit, task.Export = url, head, c.Incoming("job")
+	task.CloneURL, task.Commit, task.Export, task.UID = url, head, c.Incoming("job"), e2eUID
 	exportFromGuest(t, guest, task.Export, env, "")
 
 	if err := c.build(ctx, task, true, nil, 0); err != nil {
@@ -61,6 +64,7 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 	}
 	workspace := mountBranch(t, c)
 	git := func(args ...string) string { return gitIn(workspace, args...) }
+	assertOwnedByJob(t, workspace)
 	if origin := strings.TrimSpace(git("config", "remote.origin.url")); origin != url {
 		t.Fatalf("origin %q", origin)
 	}
@@ -116,12 +120,12 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 	}
 	job := strings.TrimSpace(git("rev-parse", "HEAD"))
 	next := checkoutTestTask()
-	next.CloneURL, next.Commit, next.DefaultBranchJob, next.Export = url, job, false, c.Incoming("next")
+	next.CloneURL, next.Commit, next.DefaultBranchJob, next.Export, next.UID = url, job, false, c.Incoming("next"), e2eUID
 	exportFromGuest(t, workspace, next.Export, env, head)
 	if info, _ := os.Stat(filepath.Join(next.Export, "pack")); info.Size() > 4096 {
 		t.Fatalf("a delta export carried %d bytes", info.Size())
 	}
-	exec.Command("hdiutil", "detach", workspace, "-force", "-quiet").Run()
+	unmountBranch(workspace)
 	meta, err := c.readMeta(checkoutTestScope, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +134,9 @@ func TestCheckoutMasterEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	workspace = mountBranch(t, c)
-	if out, err := exec.Command("git", "-C", workspace, "cat-file", "-e", job+"^{commit}").CombinedOutput(); err != nil {
+	catFile := exec.Command("git", "-C", workspace, "cat-file", "-e", job+"^{commit}")
+	catFile.Env = env
+	if out, err := catFile.CombinedOutput(); err != nil {
 		t.Fatalf("the job's commit did not reach the master: %s", out)
 	}
 	if tip := strings.TrimSpace(gitIn(workspace, "rev-parse", "HEAD")); tip != head {
@@ -159,7 +165,9 @@ func exportFromGuest(t *testing.T, repo, dst string, env []string, base string) 
 		t.Fatal(err)
 	}
 	pack.Close()
-	head, _ := exec.Command("git", "-C", repo, "rev-parse", "HEAD").Output()
+	revParse := exec.Command("git", "-C", repo, "rev-parse", "HEAD")
+	revParse.Env = env
+	head, _ := revParse.Output()
 	writeTestFile(t, filepath.Join(dst, "head"), string(head))
 	if shallow, err := os.ReadFile(filepath.Join(repo, ".git", "shallow")); err == nil {
 		writeTestFile(t, filepath.Join(dst, "shallow"), string(shallow))
@@ -181,26 +189,91 @@ func exportFromGuest(t *testing.T, repo, dst string, env []string, base string) 
 	})
 }
 
-func mountBranch(t *testing.T, c *Checkouts) string {
-	t.Helper()
-	branch := filepath.Join(t.TempDir(), "branch.sparseimage")
-	if out, err := exec.Command("cp", "-c", c.Master(checkoutTestScope, 1), branch).CombinedOutput(); err != nil {
-		t.Fatal(string(out))
-	}
-	workspace := filepath.Join(t.TempDir(), "repo")
-	if err := os.MkdirAll(workspace, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := exec.Command("hdiutil", "attach", branch, "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", workspace).CombinedOutput(); err != nil {
-		t.Fatal(string(out))
-	}
-	t.Cleanup(func() { exec.Command("hdiutil", "detach", workspace, "-force", "-quiet").Run() })
-	return workspace
-}
-
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// e2eUID owns the working tree on Linux, as the runner user does in guests.
+var e2eUID = map[bool]int{true: 1000, false: 0}[runtime.GOOS == "linux"]
+
+func e2eCheckouts(t *testing.T) *Checkouts {
+	t.Helper()
+	path := "/usr/bin:/bin"
+	if lfs, err := exec.LookPath("git-lfs"); err == nil {
+		path = filepath.Dir(lfs) + ":" + path
+	}
+	if runtime.GOOS == "darwin" {
+		return &Checkouts{Root: t.TempDir(), Images: &APFSCheckoutImages{}, Path: path}
+	}
+	root := os.Getenv("TUIST_CHECKOUT_E2E_ROOT")
+	if root == "" || os.Geteuid() != 0 {
+		t.Skip("set TUIST_CHECKOUT_E2E_ROOT to a directory on a reflink filesystem and run as root")
+	}
+	root, err := os.MkdirTemp(root, "checkouts-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	return &Checkouts{Root: root, Images: &Ext4CheckoutImages{}, Path: path}
+}
+
+type mountedBranch struct{ image, mount string }
+
+var mountedBranches = map[string]mountedBranch{}
+
+// mountBranch mounts a clone of the master the way a job gets it: attached by
+// the guest on macOS, loop-mounted by the host on Linux.
+func mountBranch(t *testing.T, c *Checkouts) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(c.Root, "branch-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	branch := filepath.Join(dir, "branch"+filepath.Ext(c.Images.MasterName()))
+	if err := c.Images.Clone(context.Background(), c.Master(checkoutTestScope, 1), branch); err != nil {
+		t.Fatal(err)
+	}
+	mount := filepath.Join(dir, "mnt")
+	if err := os.MkdirAll(mount, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "darwin" {
+		if out, err := exec.Command("hdiutil", "attach", branch, "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", mount).CombinedOutput(); err != nil {
+			t.Fatal(string(out))
+		}
+	} else if err := c.Images.Attach(context.Background(), branch, mount, false); err != nil {
+		t.Fatal(err)
+	}
+	workspace := c.Images.Repository(mount)
+	mountedBranches[workspace] = mountedBranch{image: branch, mount: mount}
+	t.Cleanup(func() { unmountBranch(workspace) })
+	return workspace
+}
+
+func unmountBranch(workspace string) {
+	branch, ok := mountedBranches[workspace]
+	if !ok {
+		return
+	}
+	delete(mountedBranches, workspace)
+	if runtime.GOOS == "darwin" {
+		_ = exec.Command("hdiutil", "detach", branch.mount, "-force", "-quiet").Run()
+		return
+	}
+	(&Ext4CheckoutImages{}).Abandon(context.Background(), branch.image, branch.mount)
+}
+
+// assertOwnedByJob checks the tree belongs to the job's user, who writes to it.
+func assertOwnedByJob(t *testing.T, workspace string) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		return
+	}
+	out, err := exec.Command("find", workspace, "!", "-uid", strconv.Itoa(e2eUID), "-print", "-quit").CombinedOutput()
+	if err != nil || len(strings.TrimSpace(string(out))) > 0 {
+		t.Fatalf("not owned by the job's user: %s %v", out, err)
 	}
 }
