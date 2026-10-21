@@ -433,7 +433,9 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
+// +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups=apps,resources=controllerrevisions,verbs=get
 // +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=create
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
@@ -646,6 +648,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
@@ -3430,7 +3435,9 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+			delete(sts.Annotations, cpuResizeHoldAnnotation)
 		}
+		holdCPURequestChange(sts, previousTemplate, time.Now())
 		return nil
 	})
 	return err
