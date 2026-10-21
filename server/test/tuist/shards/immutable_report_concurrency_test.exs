@@ -1,7 +1,6 @@
 defmodule Tuist.Shards.ImmutableReportConcurrencyTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.ClickHouse.SchemaClone
   alias Tuist.IngestRepo
 
   setup do
@@ -65,46 +64,6 @@ defmodule Tuist.Shards.ImmutableReportConcurrencyTest do
   test "a one-shard processing run also expires without a persisted update", context do
     write(context.reader, Map.put(context, :shard_count, 1), 0, "processing", 0, 0, 0, "2000-01-01 00:00:00.000000")
     assert [[context.id, "failure", 100]] == summary(context)
-  end
-
-  test "schema cloning creates the dependent views in source order", context do
-    source = context.opts[:database]
-    target = "shard_report_clone_#{System.unique_integer([:positive])}"
-    Ch.query!(context.reader, "CREATE DATABASE #{target}")
-
-    on_exit(fn ->
-      {:ok, cleanup} = Ch.start_link(context.opts)
-      Ch.query!(cleanup, "DROP DATABASE IF EXISTS #{target}")
-      GenServer.stop(cleanup)
-    end)
-
-    facts =
-      ~w(test_case_runs test_module_runs test_suite_runs test_run_errors test_run_destinations test_run_stress_candidates)
-
-    children = ~w(test_case_failures test_case_run_arguments test_case_run_repetitions test_case_run_attachments)
-
-    for table <- facts ++ children ++ ~w(shard_test_reports test_runs shard_runs) do
-      Ch.query!(context.reader, "CREATE TABLE #{target}.#{table} AS #{source}.#{table}")
-    end
-
-    names =
-      Enum.map(facts ++ children, &("reported_" <> &1)) ++
-        ~w(latest_shard_test_reports reported_test_run_summaries test_run_summaries shard_run_summaries)
-
-    %{rows: views} =
-      Ch.query!(
-        context.reader,
-        "SELECT create_table_query FROM system.tables WHERE database = {database:String} AND name IN {names:Array(String)} ORDER BY name",
-        %{database: source, names: names}
-      )
-
-    assert length(views) == 14
-
-    for [ddl] <- views do
-      Ch.query!(context.reader, SchemaClone.rewrite(ddl, source, target))
-    end
-
-    assert %{rows: [[0]]} = Ch.query!(context.reader, "SELECT count() FROM #{target}.test_run_summaries")
   end
 
   defp writer(context, index) do

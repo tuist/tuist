@@ -145,6 +145,11 @@ server:
     managedSecrets: true
     opsClickHouse:
       enabled: true
+    # Grafana Cloud reads each environment's in-cluster ClickHouse as this
+    # identity. The CLICKHOUSE_GRAFANA item must exist in the environment's
+    # vault before a deploy.
+    grafanaClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -203,6 +208,13 @@ server:
     # env vars will be emitted by the chart.
     enabled: false
     applicationName: tuist
+    # Each environment's onepassword store reads its own tuist-k8s-<env>
+    # vault. Keep the durable cookie outside the disposable workload cluster.
+    cookieExistingSecret: tuist-server-cluster-cookie
+    externalSecret:
+      enabled: true
+      item: SERVER_CLUSTER_COOKIE
+      field: password
 
   strategy:
     type: RollingUpdate
@@ -505,9 +517,7 @@ postgresql:
         field: password
 
 clickhouse:
-  mode: external
-  external:
-    url: ""  # https://<clickhouse-cloud>.clickhouse.cloud:8443/tuist_prod
+  mode: managed
 
 objectStorage:
   mode: external

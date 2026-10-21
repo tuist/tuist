@@ -1,0 +1,247 @@
+name: Runners Acceptance
+
+# End-to-end check of Tuist Runners and the cache path their jobs use, run the
+# way a customer's job runs: a job targets a runner label, dispatch places it
+# on a runner VM or Pod and hands it a cache endpoint, and the job builds with
+# the Xcode compilation cache through that endpoint. Each failure names the
+# layer that broke: Dispatch, Server auth, Kura reachability, Kura auth, Kura
+# data path, Xcode cache setup, Xcode build or Cache hits.
+#
+# The production deploy cascade dispatches this against canary after the
+# canary deploy and gates production on it (server-production-deployment.yml,
+# job `runners-acceptance`, through scripts/runners-acceptance/gate.sh). The
+# hourly schedule runs it against production, which covers breakage that never
+# goes through a server deploy, such as infra and network changes.
+
+run-name: Runners acceptance (${{ inputs.environment || 'production' }}) ${{ inputs.correlation_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment whose runners and caches to exercise
+        type: choice
+        options: [canary, production]
+        default: production
+      correlation_id:
+        description: Set by gate.sh to find the run it dispatched
+        required: false
+        default: ""
+      cache_endpoint:
+        description: Overrides the cache endpoint dispatch hands each job, e.g. to prove a broken endpoint fails fast
+        required: false
+        default: ""
+  schedule:
+    - cron: "23 * * * *"
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Plan
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      server: ${{ steps.plan.outputs.server }}
+      macos: ${{ steps.plan.outputs.macos }}
+      linux: ${{ steps.plan.outputs.linux }}
+      volume_label: ${{ steps.plan.outputs.volume_label }}
+      probe_jobs: ${{ steps.plan.outputs.probe_jobs }}
+    steps:
+      - id: plan
+        env:
+          ENVIRONMENT: ${{ inputs.environment || 'production' }}
+        # Canary's macOS jobs run on ber1-runner-b02, which production lends
+        # it (`tuist` is on `runner_site` there), and take canary's public
+        # cache, since the rack's cache node belongs to production.
+        # Production probes its rented fleet and the rack.
+        # `tuist-runners-acceptance` is a pool on production's rented fleet
+        # (values-managed-production.yaml): the account's profiles prefer the
+        # rack and only spill to the rented fleet, so no profile label lands
+        # there deterministically.
+        run: |
+          set -euo pipefail
+          #
+          # The cache volume round trip runs on canary only. Canary has one
+          # rack host, so the verify job lands where the seed job published;
+          # on production's multi-host fleets it would wait on convergence.
+          case "${ENVIRONMENT}" in
+            canary)
+              server=https://canary.tuist.dev
+              macos='[{"name":"BER1 rack","label":"tuist-canary-macos","cache_host":""}]'
+              linux='[{"name":"default","label":"tuist-canary-linux"}]'
+              volume_label=tuist-canary-macos
+              ;;
+            production)
+              server=https://tuist.dev
+              macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
+              linux='[{"name":"default","label":"tuist-linux"}]'
+              volume_label=""
+              ;;
+            *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
+          esac
+          probe_jobs=$(( $(jq length <<< "${macos}") + $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 1 : 0) ))
+          {
+            echo "server=${server}"
+            echo "macos=${macos}"
+            echo "linux=${linux}"
+            echo "volume_label=${volume_label}"
+            echo "probe_jobs=${probe_jobs}"
+          } >> "$GITHUB_OUTPUT"
+
+  dispatch-watchdog:
+    name: Dispatch watchdog
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Wait for every probe to be picked up
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The rack's acceptance pool starts cold, and a host that has to
+          # pull the golden image takes minutes before the VM boots.
+          MACOS_PICKUP_MINUTES: 15
+          LINUX_PICKUP_MINUTES: 10
+          # The volume verify job only exists once the seed job finishes, so
+          # the watchdog keeps watching until every expected probe has started.
+          EXPECTED_PROBE_JOBS: ${{ needs.plan.outputs.probe_jobs }}
+        run: .github/scripts/runners-acceptance/dispatch-watchdog.sh
+
+  macos:
+    name: macOS ${{ matrix.target.name }} (${{ matrix.target.label }})
+    needs: plan
+    runs-on: ${{ matrix.target.label }}
+    # Healthy runs take a few minutes. The incident this guards against stalled
+    # every cache lookup wave for ~2 minutes before missing, so the bounds are
+    # tight enough that a stall fails here instead of degrading a build.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.macos) }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TUIST_URL: ${{ needs.plan.outputs.server }}
+      ACCOUNT_HANDLE: tuist
+      EXPECTED_CACHE_HOST: ${{ inputs.cache_endpoint == '' && matrix.target.cache_host || '' }}
+    steps:
+      - name: Runner
+        run: |
+          echo "runner     : ${RUNNER_NAME}"
+          echo "macOS      : $(sw_vers -productVersion)"
+          echo "Xcode      : $(xcodebuild -version | head -n 1)"
+          echo "cache      : ${TUIST_CACHE_ENDPOINT:-<none handed by dispatch>}"
+      - name: Override the cache endpoint
+        if: inputs.cache_endpoint != ''
+        env:
+          OVERRIDE: ${{ inputs.cache_endpoint }}
+        run: echo "TUIST_CACHE_ENDPOINT=${OVERRIDE}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            mise
+      - uses: tuist/cache-volume@v1
+        if: matrix.target.label == needs.plan.outputs.volume_label
+        id: volume
+        with:
+          key: runners-acceptance-probe
+          path: ~/runners-acceptance-volume
+      - name: Seed the cache volume
+        if: matrix.target.label == needs.plan.outputs.volume_label
+        # Reported, never blocking: see gate.sh.
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: .github/scripts/runners-acceptance/volume.sh seed "$HOME/runners-acceptance-volume"
+      - name: Kura round trip
+        timeout-minutes: 3
+        run: .github/scripts/runners-acceptance/kura-roundtrip.sh
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate with Tuist
+        timeout-minutes: 3
+        run: tuist auth login
+      - name: Xcode cache hits
+        timeout-minutes: 10
+        run: .github/scripts/runners-acceptance/xcode-cache.sh
+
+  # The host publishes a finished job's volume on a worker that runs every 30
+  # seconds, so this job waits before attaching. It runs on the same label as
+  # the seed job and requires the copy that job saved.
+  macos-volume:
+    name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
+    needs: [plan, macos]
+    if: needs.plan.outputs.volume_label != '' && needs.macos.result == 'success'
+    continue-on-error: true
+    runs-on: ${{ needs.plan.outputs.volume_label }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      PUBLISH_WAIT_SECONDS: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Wait for the seed job's copy to be published
+        run: sleep "${PUBLISH_WAIT_SECONDS}"
+      - uses: tuist/cache-volume@v1
+        id: volume
+        with:
+          key: runners-acceptance-probe
+          path: ~/runners-acceptance-volume
+      - name: Verify the cache volume
+        timeout-minutes: 2
+        env:
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: .github/scripts/runners-acceptance/volume.sh verify "$HOME/runners-acceptance-volume"
+
+  linux:
+    name: Linux ${{ matrix.target.name }} (${{ matrix.target.label }})
+    needs: plan
+    runs-on: ${{ matrix.target.label }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.linux) }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TUIST_URL: ${{ needs.plan.outputs.server }}
+      ACCOUNT_HANDLE: tuist
+    steps:
+      - name: Runner
+        run: |
+          echo "runner     : ${RUNNER_NAME}"
+          echo "kernel     : $(uname -sr)"
+          echo "cache      : ${TUIST_CACHE_ENDPOINT:-<none handed by dispatch>}"
+      - name: Override the cache endpoint
+        if: inputs.cache_endpoint != ''
+        env:
+          OVERRIDE: ${{ inputs.cache_endpoint }}
+        run: echo "TUIST_CACHE_ENDPOINT=${OVERRIDE}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Kura round trip
+        timeout-minutes: 3
+        run: .github/scripts/runners-acceptance/kura-roundtrip.sh

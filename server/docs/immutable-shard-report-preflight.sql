@@ -1,4 +1,4 @@
--- Run directly against the destination database, not the application read router.
+-- Run directly against the application's authoritative read endpoint using its read credentials.
 -- These checks analyze queries without scanning historical execution data.
 SELECT hostName() AS server, currentDatabase() AS database, version() AS version;
 

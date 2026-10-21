@@ -8,6 +8,15 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
+- Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
+  (30 GB, `volume_bytes/1`) and `tuist-module` custom volumes, which the
+  module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
+  attach. Dispatch sends `automatic_caches: false` and
+  `managed_cache_volumes: true`, stamps the untrusted label so the host gives
+  the job an empty built-in image and never promotes it, and omits its HEAD;
+  the cache signing grant still follows trust. The dashboard names the volumes
+  "Xcode cache" and "Module cache" and keeps listing built-in volumes from
+  earlier jobs.
 - `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
   affinity: the lineage scopes jobs of the same repository, workflow name and job
   name attached since a cutoff. It starts from the account's volumes so the uses
@@ -112,15 +121,8 @@ these schemas persist volume identities and per-job uses.
   whole-second precision for the generated Swift client's default ISO8601 decoder.
   Test measured PostgreSQL rows through JSON schema validation, not only empty fixtures.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
-
-- `FeatureFlags.runner_opt_in_caches_enabled?/1` puts `automatic_caches: false`
-  in macOS dispatch responses. The guest then exposes the built-in caches only
-  through the module-cache and xcode-cache actions, Buildkite plugins and GitLab
-  snippets, and a job
-  that uses neither sends no `Builtin` report. Storage identity is unchanged.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
   host-audience endpoint. Resolve job/account/repository from the executed session
@@ -138,3 +140,22 @@ these schemas persist volume identities and per-job uses.
 - The GitHub writer policy is the job's runner profile, resolved from `requested_dispatch_label`. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Other provider and built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
 
 - There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.
+
+- `checkout` is a reserved key: `allocate/1` refuses it, and only
+  `allocate_checkout/1` (host agent, `/runners/cache-volumes/checkout`) creates
+  it, for GitHub jobs whose runner profile keeps cached checkouts on, on github.com
+  installations. No GitHub token is involved: the host builds the master from what
+  jobs export after their own checkout. A use never gets `can_publish`, so a job's
+  own branch is never sealed or published. Instead the host publishes its master
+  under the use through `image/3` (`checkout_publish`): only the generation and the
+  use not having published yet are checked, not the job's outcome or the use's
+  state, and a published checkout use is released (`delete`) when its job is gone.
+  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `default_branch_job` is the resolved identity's `trusted` (same repository,
+  default branch, push/schedule/dispatch), so a fork's branch named like the
+  default branch never qualifies. `volume_key` (sha256 of the volume id) lets
+  hosts drop a cleared volume's copies, and a checkout `download` only needs the
+  current lineage, so a restore outlives the job that asked for it.
+  A job also needs its runner profile's `cached_checkouts` (default true; a job on
+  a legacy label has it on); the profile modal shows the toggle on macOS
+  profiles only while the account has the flag.

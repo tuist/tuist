@@ -363,6 +363,12 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
 /// Re-check cadence of an idle long-poll, the bound on a missed wake.
 pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// How long the internal listener's open connections get to finish once
+/// shutdown stops it accepting, instead of the whole drain budget. Matches the
+/// peer client's 30 s idle read timeout: a transfer that has made no progress
+/// for that long is already abandoned by the peer reading it, and a response
+/// no peer reads holds its HTTP/2 stream open until the budget runs out.
+pub const INTERNAL_SHUTDOWN_GRACE_SECS: u64 = 30;
 /// Ceiling of `kura_region_listing_bound_lag_seconds`. The serving bound is
 /// a wall-clock instant and is `0` while a replica link bounds the listing
 /// whole (design §4.1), so an unclamped `now − bound` would report the epoch;

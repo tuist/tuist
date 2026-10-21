@@ -4,7 +4,6 @@ defmodule TuistWeb.RunnersControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
   alias Tuist.Runners.Claims
@@ -331,15 +330,12 @@ defmodule TuistWeb.RunnersControllerTest do
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
 
-    test "withholds automatic caches from macOS jobs of opted-in accounts", %{conn: conn} do
+    test "puts every macOS job on managed cache volumes", %{conn: conn} do
       account = account_fixture()
-      other_account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
-
-      stub(FeatureFlags, :runner_opt_in_caches_enabled?, fn candidate -> candidate.id == account.id end)
 
       github = %{kind: :github, jit: "JITCONFIG"}
 
@@ -378,11 +374,13 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
       end
 
-      assert dispatch.(account, :macos, github)["automatic_caches"] == false
-      refute Map.has_key?(dispatch.(account, :linux, github), "automatic_caches")
-      assert dispatch.(account, :macos, buildkite)["automatic_caches"] == false
-      assert dispatch.(account, :macos, gitlab)["automatic_caches"] == false
-      refute Map.has_key?(dispatch.(other_account, :macos, github), "automatic_caches")
+      for credential <- [github, buildkite, gitlab] do
+        assert %{"automatic_caches" => false, "managed_cache_volumes" => true} = dispatch.(account, :macos, credential)
+      end
+
+      linux = dispatch.(account, :linux, github)
+      refute Map.has_key?(linux, "automatic_caches")
+      refute Map.has_key?(linux, "managed_cache_volumes")
     end
   end
 

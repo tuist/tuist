@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // Seed is everything one install is rendered from.
@@ -286,11 +288,11 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s%[15]s%[17]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
 		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role), dataMounts(s.Role),
-		networkConfig(s.Edge), edgeResolvers(s.Edge)), nil
+		networkConfig(s.Edge), edgeResolvers(s.Edge), sshStartLimit()), nil
 }
 
 // networkConfig is the install's netplan, which configures the SFP+ uplinks
@@ -346,6 +348,19 @@ func edgeResolvers(e *EdgeNetwork) string {
 	}
 	return fmt.Sprintf("    - |\n      mkdir -p /target%s\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n",
 		path.Dir(EdgeResolvedPath), EdgeResolvedPath, indent(EdgeResolvedConf, "      "))
+}
+
+// sshStartLimit takes sshd out of systemd's start rate limit (internal/sshd)
+// from the first boot, since the operator reaches the host over SSH alone. The
+// converge keeps the drop-ins.
+func sshStartLimit() string {
+	var b strings.Builder
+	b.WriteString("    - |\n")
+	fmt.Fprintf(&b, "      mkdir -p /target%s /target%s\n", path.Dir(sshd.ServiceDropInPath), path.Dir(sshd.SocketDropInPath))
+	for _, f := range [][2]string{{sshd.ServiceDropInPath, sshd.ServiceDropInContent}, {sshd.SocketDropInPath, sshd.SocketDropInContent}} {
+		fmt.Fprintf(&b, "      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n", f[0], indent(f[1], "      "))
+	}
+	return b.String()
 }
 
 // handover boots the rack install on this machine's disks that match selects

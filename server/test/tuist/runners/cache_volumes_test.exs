@@ -4,6 +4,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   import Mimic
 
   alias Tuist.Environment
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.Buildkite
@@ -19,6 +20,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -82,6 +84,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
   defp set_policy(profile, attrs) do
     {:ok, profile} = Profiles.update(Repo.get!(Profile, profile.id), attrs)
     profile
+  end
+
+  test "allocations carry the size the host creates the volume at", %{job: job} do
+    assert {:ok, %{volume_bytes: 20_000_000_000}} = CacheVolumes.allocate_for_job(job, identity(), attrs("custom"))
+
+    assert {:ok, %{volume_bytes: 30_000_000_000}} =
+             CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("xcode"), :key, "tuist-xcode"))
   end
 
   test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
@@ -439,7 +448,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
                scope: ^scope,
                generation: 1,
                image_digest: image_digest,
-               content_digest: content_digest
+               content_digest: content_digest,
+               volume_bytes: 20_000_000_000
              }
            ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
 
@@ -1542,6 +1552,218 @@ defmodule Tuist.Runners.CacheVolumesTest do
       complete(job)
       assert {:ok, %{action: "keep"}} = publish_report("node", main.id)
       assert volume(account).head_id == main.id
+    end
+  end
+
+  describe "allocate_checkout/1" do
+    setup %{account: account, job: job} do
+      job = Map.merge(job, %{head_sha: String.duplicate("a", 40), head_branch: "feature"})
+
+      Repo.insert!(
+        struct(
+          WorkflowJob,
+          Map.merge(job, %{provider: "github", status: "running", fleet_name: "macos", enqueued_at: DateTime.utc_now()})
+        )
+      )
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        executed_workflow_job_id: job.workflow_job_id,
+        fleet_name: "macos",
+        pod_name: "mac-pod",
+        node_name: "mac-node",
+        platform: :macos,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      installation = %{installation_id: "99", client_url: nil}
+      stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, installation} end)
+      stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
+
+      stub(GitHubClient, :get_workflow_run, fn _ ->
+        {:ok,
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "head_branch" => "main",
+           "event" => "push",
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 123}
+         }}
+      end)
+
+      stub(GitHubClient, :get_repository, fn _, _ ->
+        {:ok, %{"id" => 123, "full_name" => job.repository, "default_branch" => "main"}}
+      end)
+
+      params = %{
+        "pod_name" => "mac-pod",
+        "pod_uid" => "mac-uid",
+        "node_name" => "mac-node",
+        "architecture" => "arm64",
+        "uid" => 501
+      }
+
+      %{job: job, params: params}
+    end
+
+    test "allocates the repository's checkout volume with what the host needs to build its master", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      assert {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+
+      assert checkout.clone_url == "https://github.com/org/repo"
+      assert checkout.default_branch == "main"
+      assert checkout.commit == job.head_sha
+      assert checkout.default_branch_job
+      refute Map.has_key?(checkout, :token)
+      assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
+      assert volume(account).key == "checkout"
+      assert volume(account).platform == "macos"
+    end
+
+    test "never lets a use of the checkout volume publish, even from the default branch", %{params: params} do
+      assert {:ok, %{can_publish: false} = checkout} = CacheVolumes.allocate_checkout(params)
+      refute Repo.get!(Usage, checkout.id).can_publish
+    end
+
+    test "a pull request from a fork's branch named like the default branch is not a default-branch job", %{
+      job: job,
+      params: params
+    } do
+      WorkflowJob |> Repo.get!(job.workflow_job_id) |> Ecto.Changeset.change(head_branch: "main") |> Repo.update!()
+
+      stub(GitHubClient, :get_workflow_run, fn _ ->
+        {:ok,
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "head_branch" => "main",
+           "event" => "pull_request",
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 456}
+         }}
+      end)
+
+      assert {:ok, %{default_branch_job: false}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "names the volume with a key that survives a clear", %{account: account, params: params} do
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+      {:ok, _} = CacheVolumes.delete(account.id, Repo.get!(Usage, first.id).volume_id)
+      {:ok, second} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+
+      refute second.scope == first.scope
+      assert second.volume_key == first.volume_key
+    end
+
+    test "a host restores the HEAD under a use whose job is already gone", %{params: params} do
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", first.id, publish)
+
+      {:ok, cold} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "cold-uid"})
+      CacheVolumes.report("mac-node", cold.id, report())
+      CacheVolumes.report("mac-node", cold.id, report("deleted"))
+      stub(Runners, :volume_master_download_url, fn _, _, _, _ -> {:ok, "https://storage/head"} end)
+
+      assert {:ok, %{download_url: "https://storage/head", generation: 1}} =
+               CacheVolumes.image("other-node", cold.id, %{"operation" => "download", "generation" => 1})
+    end
+
+    test "the host publishes its master once, under a use whose job is already gone", %{params: params} do
+      {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+      assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
+      CacheVolumes.report("mac-node", checkout.id, report("deleted"))
+      digest = String.duplicate("b", 40)
+      content = String.duplicate("c", 64)
+      publish = %{"operation" => "publish", "image_digest" => digest, "content_digest" => content}
+
+      assert {:error, :not_found} = CacheVolumes.image("other-node", checkout.id, publish)
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+
+      assert {:error, :conflict} =
+               CacheVolumes.image("mac-node", checkout.id, %{publish | "content_digest" => String.duplicate("d", 64)})
+
+      assert {:ok, %{base_generation: 1, image_digest: ^digest, content_digest: ^content}} =
+               CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+    end
+
+    test "a published checkout use releases its branch and is never prefetched", %{params: params} do
+      since = DateTime.add(DateTime.utc_now(), -60, :second)
+      {:ok, checkout} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
+      assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
+      assert [] = CacheVolumes.recent_macos_heads(["mac-node"], since, 8)
+    end
+
+    test "follows the setting of the profile the job was dispatched to", %{account: account, job: job, params: params} do
+      profile =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          cached_checkouts: false
+        })
+
+      WorkflowJob
+      |> Repo.get!(job.workflow_job_id)
+      |> Ecto.Changeset.change(requested_dispatch_label: Profile.dispatch_label(profile))
+      |> Repo.update!()
+
+      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
+
+      profile |> Ecto.Changeset.change(cached_checkouts: true) |> Repo.update!()
+      assert {:ok, _} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "is unavailable for GitHub Enterprise Server installations", %{params: params} do
+      stub(VCS, :installation_api_url, fn _ -> "https://ghes.example.com/api/v3" end)
+      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "is pending until the executed job is known", %{account: account, params: params} do
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "macos",
+        pod_name: "waiting-pod",
+        node_name: "mac-node",
+        platform: :macos,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      assert {:error, :pending} = CacheVolumes.allocate_checkout(%{params | "pod_name" => "waiting-pod"})
+    end
+
+    test "the reserved name cannot be requested as a custom volume", %{params: params} do
+      assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "key", "checkout"))
+      assert {:ok, _} = CacheVolumes.allocate(Map.put(params, "key", "checkouts"))
     end
   end
 end

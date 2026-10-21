@@ -9,5 +9,6 @@
         </activity>
         <activity android:name="dev.tuist.atlas.preview.TimeOffPreviewActivity" android:exported="true" />
         <activity android:name="dev.tuist.atlas.preview.WorkspacePreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />
+        <activity android:name="dev.tuist.atlas.preview.BusinessPreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

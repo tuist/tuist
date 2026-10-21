@@ -59,6 +59,11 @@ public enum PackageManifestEnvironment {
 
     private static func automaticExcludedVariablePatterns(in variables: [String: String]) -> [String] {
         var patterns = [
+            "_",
+            "OLDPWD",
+            "SHLVL",
+            "TUIST_CACHE_ENDPOINT",
+            "TUIST_CACHE_MAX_BYTES",
             "TUIST_CACHE_SIGNING_GRANT",
             "TUIST_RUNNER_POD_NAME",
             "TUIST_RUNNER_POD_UID",
@@ -86,7 +91,7 @@ public enum PackageManifestEnvironment {
         }
 
         if variables["GITHUB_ACTIONS"] == "true" {
-            patterns += ["ACTIONS_*", "GITHUB_*", "RUNNER_*", "SSH_AUTH_SOCK"]
+            patterns += ["ACTIONS_*", "GITHUB_*", "MISE_GITHUB_TOKEN", "RUNNER_*", "SSH_AUTH_SOCK"]
         }
 
         if variables["BITRISE_IO"] == "true" {

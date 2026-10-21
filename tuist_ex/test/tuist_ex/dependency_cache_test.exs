@@ -130,6 +130,45 @@ defmodule TuistEx.DependencyCacheTest do
     end
   end
 
+  @tag timeout: 300_000, bootstrap: true
+  test "cold shard preparation loads the SDK without compiling unrelated dependencies", %{
+    project: project
+  } do
+    package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "deps: [{:dep_probe,",
+        "deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
+      )
+    )
+
+    {output, status} = mix(project, ["deps.get"])
+    assert status == 0, output
+
+    {output, status} =
+      mix(project, [
+        "do",
+        "deps.compile",
+        "tuist_ex",
+        "--include-children",
+        "+",
+        "deps.loadpaths",
+        "--no-compile",
+        "--no-deps-check",
+        "+",
+        "tuist.test",
+        "--prepare-only"
+      ])
+
+    assert status != 0, output
+    assert output =~ "require a shard index"
+    refute output =~ "Generated dep_probe app"
+  end
+
   test "the bundled compile script preserves cold and changed local dependencies", %{
     project: project
   } do
@@ -215,19 +254,198 @@ defmodule TuistEx.DependencyCacheTest do
     assert output =~ "LOCAL_VALUE=2"
   end
 
-  defp mix(project, args) do
+  @tag timeout: 300_000, bootstrap: true
+  test "a prepared shard does not re-enter the project's test preparation alias", %{
+    project: project
+  } do
+    package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
+    mixfile = Path.join(project, "mix.exs")
+    mix_path = Path.join(project, "custom mix path")
+    File.mkdir_p!(mix_path)
+
+    File.write!(
+      mixfile,
+      mixfile
+      |> File.read!()
+      |> String.replace(
+        "deps: [{:dep_probe,",
+        ~s|aliases: [compile: &compile/1, test: ["fixture.prepare", "tuist.test"]], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
+      )
+      |> String.replace("\nend\n", """
+
+        defp compile(args) do
+          if "--no-compile" not in args do
+            Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+          end
+          Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+          Mix.Task.run("tuist.compile", args)
+        end
+      end
+      """)
+    )
+
+    File.mkdir_p!(Path.join(project, "lib"))
+
+    File.write!(Path.join(project, "lib/prepare.ex"), """
+    defmodule Mix.Tasks.Fixture.Prepare do
+      use Mix.Task
+      def run(_args), do: File.write!("preparation.marker", "ran")
+    end
+    """)
+
+    File.mkdir_p!(Path.join(project, "test"))
+    File.write!(Path.join(project, "test/test_helper.exs"), "ExUnit.start()")
+
+    File.write!(Path.join(project, "test/prebuilt_test.exs"), """
+    defmodule PrebuiltTest do
+      use ExUnit.Case, async: true
+      test "uses the prepared build", do: assert(DepProbe.value() == 1)
+    end
+    """)
+
+    {output, status} = mix(project, ["deps.get"])
+    assert status == 0, output
+    {output, status} = mix(project, ["compile"])
+    assert status == 0, output
+
+    # Only the plan/report endpoints are replaced, inside this fresh VM. The
+    # real wrapper, project alias and Mix test task run together.
+    script = """
+    Code.compiler_options(ignore_module_conflict: true)
+    defmodule TuistEx.Analytics.HTTP do
+      def project_request(:get, _, _, _), do: {:ok, %{"modules" => ["PrebuiltTest"]}}
+      def submit_test_run(_, _), do: :ok
+    end
+    """
+
+    run = fn args, mix_path ->
+      script = script <> "Mix.Tasks.Tuist.Test.run(#{inspect(args)})"
+
+      mix(project, ["run", "--no-compile", "--no-deps-check", "--no-start", "-e", script], [
+        {"TUIST_GIT_UPLOAD_ENABLED", "false"},
+        {"MIX_PATH", mix_path},
+        {"EXPECTED_MIX_PATH", mix_path}
+      ])
+    end
+
+    {output, status} =
+      run.(
+        [
+          "--shard-index",
+          "0",
+          "--shard-reference",
+          "regression",
+          "--no-download",
+          "--no-start"
+        ],
+        mix_path
+      )
+
+    assert status == 0, output
+    assert output =~ "1 passed"
+    refute File.exists?(Path.join(project, "preparation.marker"))
+    refute output =~ "Compiling"
+    refute output =~ "deps.compile running across"
+    refute output =~ "==> "
+
+    # Forwarded flags alone must not skip setup on an ordinary, unsharded run.
+    {output, status} = run.(["--no-compile", "--no-deps-check", "--no-start"], mix_path)
+    assert status == 0, output
+    assert output =~ "1 passed"
+    assert File.exists?(Path.join(project, "preparation.marker"))
+
+    File.rm!(Path.join(project, "preparation.marker"))
+
+    File.write!(Path.join(project, "test/prebuilt_test.exs"), """
+    defmodule PrebuiltTest do
+      use ExUnit.Case, async: true
+      test "retries against the prepared build" do
+        if File.exists?("retry.marker") do
+          assert DepProbe.value() == 1
+          assert System.get_env("MIX_PATH") == System.get_env("EXPECTED_MIX_PATH")
+          assert System.get_env("TUIST_EX_RETRY_MIX_PATH") == nil
+          File.write!("retry.arguments", :erlang.term_to_binary(System.argv()))
+        else
+          File.write!("retry.marker", "ran")
+          flunk("retry once")
+        end
+      end
+    end
+    """)
+
+    {output, status} =
+      run.(
+        [
+          "--shard-index",
+          "0",
+          "--shard-reference",
+          "regression",
+          "--no-download",
+          "--no-start",
+          "--retries",
+          "1"
+        ],
+        mix_path
+      )
+
+    assert status == 0, output
+    assert output =~ "Retrying the failed tests"
+    assert output =~ "1 passed"
+    refute File.exists?(Path.join(project, "preparation.marker"))
+    refute output =~ "Compiling"
+    refute output =~ "deps.compile running across"
+
+    for {arg, original_path} <- [{"+", mix_path}, {"slow,", nil}] do
+      File.rm!(Path.join(project, "retry.marker"))
+      File.rm!(Path.join(project, "retry.arguments"))
+
+      {output, status} =
+        run.(
+          [
+            "--shard-index",
+            "0",
+            "--shard-reference",
+            "regression",
+            "--no-download",
+            "--no-start",
+            "--retries",
+            "1",
+            "--include",
+            arg
+          ],
+          original_path
+        )
+
+      assert status == 0, output
+      assert output =~ "Retrying the failed tests"
+      assert output =~ "1 passed"
+      assert length(Regex.scan(~r/skips the project's test preparation alias/, output)) == 1
+
+      arguments =
+        project |> Path.join("retry.arguments") |> File.read!() |> :erlang.binary_to_term([:safe])
+
+      assert ["--include", arg] in Enum.chunk_every(arguments, 2, 1, :discard)
+      refute File.exists?(Path.join(project, "preparation.marker"))
+      refute output =~ "Compiling"
+      refute output =~ "Generated "
+      refute output =~ "deps.compile running across"
+    end
+  end
+
+  defp mix(project, args, environment \\ []) do
     System.cmd(System.find_executable("mix"), args,
       cd: project,
       stderr_to_stdout: true,
-      env: [
-        {"MIX_ENV", "test"},
-        {"MIX_BUILD_PATH", nil},
-        {"MIX_DEPS_PATH", nil},
-        {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"},
-        {"TUIST_URL", "http://localhost:1"},
-        {"TUIST_PROJECT", "test/cache"},
-        {"TUIST_TOKEN", "test"}
-      ]
+      env:
+        [
+          {"MIX_ENV", "test"},
+          {"MIX_BUILD_PATH", nil},
+          {"MIX_DEPS_PATH", nil},
+          {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"},
+          {"TUIST_URL", "http://localhost:1"},
+          {"TUIST_PROJECT", "test/cache"},
+          {"TUIST_TOKEN", "test"}
+        ] ++ environment
     )
   end
 

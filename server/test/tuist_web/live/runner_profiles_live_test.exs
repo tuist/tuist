@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -240,6 +241,50 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       assert %{cache_writer_all_branches: false, cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
                Profiles.get_by_name(account, "ci")
+    end
+  end
+
+  describe "cached checkouts" do
+    setup %{account: account} do
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [%{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true, pool_dispatch_label: ""}]
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [%{xcode_version: "26.5", tag: "26-5", default?: true}] end)
+
+      profile =
+        Tuist.Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.5"
+        })
+
+      %{profile: profile}
+    end
+
+    test "a macOS profile turns them off", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "Cached checkouts"
+
+      render_hook(lv, "toggle_cached_checkouts", %{})
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "mac").cached_checkouts
+    end
+
+    test "is not offered for Linux profiles", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      refute render_hook(lv, "open_create_modal", %{}) =~ "Cached checkouts"
     end
   end
 end

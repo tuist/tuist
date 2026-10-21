@@ -175,8 +175,10 @@ identities/profiles. `ios/distribution/bundle.sh` therefore copies the built app
 validates the app-specific profile and matching certificate, embeds the profile,
 derives device/Keychain entitlements from it, signs in a disposable keychain and
 packages `delivery/ios-device/Atlas.ipa`. It never mutates cached build outputs or
-imports the private key into the login keychain. Signing inputs stay outside the
-repository and caches. The IPA embeds the provisioning profile, as required by
+imports the private key into the login keychain. The disposable keychain is added
+to the user search list while signing, then the original list is restored on exit;
+`codesign --keychain` alone is insufficient for certificate-chain lookup. Signing
+inputs stay outside the repository and caches. The IPA embeds the provisioning profile, as required by
 iOS, but never the certificate's private key. Only the trusted main-branch
 publication job receives 1Password access; PR and fork builds compile the same
 device target without distribution secrets.
@@ -229,6 +231,13 @@ mise run build:android
   preview track only after all main-branch build, test and lint jobs pass.
   A manual dispatch on `main` also publishes previews. Device signing requires
   the one-time profile setup above and fails visibly if credentials are missing.
+  Signing completes before any previews are uploaded, so signing failures do not
+  publish a simulator-only nightly. Credential-free keychain and icon-packaging
+  tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
+  with a fresh timestamp so cached binaries and delivery reruns do not collide
+  with an existing preview. This changes only preview metadata, leaving the app's
+  internal build version and signature unchanged. Device packaging already stamps
+  its temporary copy before distribution signing.
 - Never publishes from pull requests. Cache authentication failure can fall back
   to a local build; delivery failures remain visible.
 

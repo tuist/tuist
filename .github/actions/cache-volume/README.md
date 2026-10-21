@@ -44,7 +44,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. |
+| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. `checkout` is reserved for Tuist's cached checkouts. |
 | `path` | Required. One or more absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 

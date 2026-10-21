@@ -10,7 +10,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
-  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerVolumesLive
 
   defp assigns(can_manage) do
@@ -549,18 +548,17 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
   end
 
-  test "the built-in volume page is not found for accounts that still get it automatically" do
-    id = Ecto.UUID.generate()
-    expect(CacheVolumes, :get, fn 1, ^id -> %Volume{id: id, key: "tuist-cache", builtin_name: "tuist-cache"} end)
-    socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, include_builtin: false}}
-
-    assert_raise NotFoundError, fn -> RunnerVolumesLive.handle_params(%{"id" => id}, "", socket) end
-  end
-
   test "requesting another account's volume never opens confirmation" do
     id = Ecto.UUID.generate()
     expect(CacheVolumes, :get, fn 1, ^id -> nil end)
     socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, can_manage: true}}
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
+  end
+
+  test "names the managed cache volumes" do
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-xcode"}) == "Xcode cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
   end
 end

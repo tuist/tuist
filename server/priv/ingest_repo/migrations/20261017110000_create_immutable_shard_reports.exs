@@ -153,8 +153,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateImmutableShardReports do
     GROUP BY c.project_id, c.ran_at, c.id, c.shard_index
     """
 
-    # Schema cloning creates ordinary views alphabetically: latest_* must exist
-    # before the reported_* views that select its fact sets.
+    # Create the latest-report view before the current-fact views that select
+    # its fact sets.
     for {name, replacing?, project?} <- @fact_tables do
       source = if replacing?, do: "#{name} AS f FINAL", else: "#{name} AS f"
 

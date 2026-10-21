@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
-import android.view.Menu
 import android.view.MenuItem
 import android.widget.EditText
 import android.widget.Toast
@@ -19,22 +18,28 @@ class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
+    private var profile: AtlasProfileModel? = null
     private var holidays: AtlasTimeOffModel? = null
     private var timeOff: AtlasTimeOffScreen? = null
     private var restoreTimeOff = false
     private var navigation: AtlasWorkspaceModel? = null
     private var workspace: AtlasWorkspaceScreen? = null
     private var recoveredLoginId: String? = null
+    private var businesses = mutableMapOf<String, AtlasBusinessModel>()
+    private var business: AtlasBusinessScreen? = null
+    private var home: AtlasHomeScreen? = null
+    private var tab = "tasks"
+    private var unregisterBack: (() -> Unit)? = null
 
     private data class Retained(
         val authentication: AtlasAuthentication,
         val accounts: AtlasAIAccountsModel?,
+        val profile: AtlasProfileModel?,
         val holidays: AtlasTimeOffModel?,
         val navigation: AtlasWorkspaceModel?,
+        val businesses: MutableMap<String, AtlasBusinessModel>,
+        val tab: String,
     )
-
-    private var restoreSettings = false
-    private var unregisterSettingsBack: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,16 +47,19 @@ class MainActivity : Activity() {
         val retained = lastNonConfigurationInstance as? Retained
         authentication = retained?.authentication ?: AtlasAuthentication(this)
         accounts = retained?.accounts
+        profile = retained?.profile
         holidays = retained?.holidays
+        businesses = retained?.businesses ?: mutableMapOf()
+        tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "tasks"
         navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
         restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
         recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
-        restoreSettings = savedInstanceState?.getBoolean("settings") == true
         if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
-    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts, holidays, navigation)
+    override fun onRetainNonConfigurationInstance(): Any =
+        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab)
 
     override fun onStart() {
         super.onStart()
@@ -66,19 +74,19 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("workspace_group", navigation?.groupId)
-        outState.putBoolean("settings", settings != null || restoreSettings)
+        outState.putString("tab", tab)
         outState.putBoolean("time_off", timeOff != null || restoreTimeOff)
         outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
-        settings?.close(cancelPending = !isChangingConfigurations)
-        timeOff?.close()
-        workspace?.close()
-        if (!isChangingConfigurations && settings == null) accounts?.takeIf { it.pendingLoginId != null }?.load()
-        unregisterSettingsBack?.invoke()
-        if (!isChangingConfigurations) authentication.close()
+        closeScreen(cancelPending = !isChangingConfigurations)
+        unregisterBack?.invoke()
+        if (!isChangingConfigurations) {
+            clearModels()
+            authentication.close()
+        }
         super.onDestroy()
     }
 
@@ -99,21 +107,15 @@ class MainActivity : Activity() {
             authentication.authorizationURL = null
             openBrowser(Uri.parse(url))
         }
-        invalidateOptionsMenu()
         if (authentication.server == null) {
-            settings?.close()
-            settings = null
-            accounts = null
-            timeOff?.close()
-            timeOff = null
-            holidays = null
-            workspace?.close()
-            workspace = null
+            closeScreen()
+            clearModels()
             if (!authentication.busy) {
                 restoreTimeOff = false
                 navigation = null
+                tab = "tasks"
             }
-            updateSettingsBack()
+            updateBack()
             setActionBar(null)
             setContentView(
                 AtlasLoginView(
@@ -126,79 +128,128 @@ class MainActivity : Activity() {
             )
             return
         }
-        if (settings != null || timeOff != null) return
+        if (home != null || timeOff != null) return
         if (restoreTimeOff) {
             restoreTimeOff = false
             showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
             return
         }
-        if (restoreSettings) {
-            restoreSettings = false
-            showSettings()
-            return
-        }
-        val server = authentication.server ?: return
-        val model = navigation ?: catalogNavigation().also { navigation = it }
-        workspace?.close()
-        val screen =
-            AtlasWorkspaceScreen(this, model, Uri.parse(server).host.orEmpty(), { section ->
-                if (section.screen == "time-off") {
-                    showTimeOff(section.title)
-                } else {
-                    openBrowser(section.destination(server))
-                }
-            }, {
-                actionBar?.setDisplayHomeAsUpEnabled(model.canBack)
-                updateSettingsBack()
-            }, authentication.errorMessage)
-        workspace = screen
-        setActionBar(screen.toolbar)
-        actionBar?.setDisplayHomeAsUpEnabled(model.canBack)
-        setContentView(screen.view)
-        updateSettingsBack()
+        showHome()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(0, 1, 0, "Settings").apply {
-            setIcon(android.R.drawable.ic_menu_preferences)
-            setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-        }
+    private fun showHome() {
+        val server = authentication.server ?: return
+        val catalog = navigation ?: catalogNavigation().also { navigation = it }
+        val titles =
+            linkedMapOf(
+                "tasks" to catalog.sections.first { it.screen == "tasks" }.title,
+                "accounts" to catalog.sections.first { it.screen == "accounts" }.title,
+                "invoices" to catalog.groups.first { it.id == "finance" }.title,
+                "browse" to "Browse",
+                "profile" to "Profile",
+            )
+        val content =
+            when (tab) {
+                "browse" -> {
+                    val screen =
+                        AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
+                            when (section.screen) {
+                                "time-off" -> showTimeOff(section.title)
+                                "tasks", "accounts", "invoices" -> selectTab(section.screen)
+                            }
+                        }, ::updateBack, authentication.errorMessage)
+                    workspace = screen
+                    setActionBar(screen.toolbar)
+                    screen.view
+                }
+                "profile" -> {
+                    val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts).also { accounts = it }
+                    recoveredLoginId = null
+                    val identity = profile ?: AtlasProfileModel(authentication::business).also { profile = it }
+                    val screen =
+                        AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::back) {
+                            closeScreen()
+                            clearModels()
+                            navigation = null
+                            tab = "tasks"
+                            authentication.signOut()
+                        }
+                    settings = screen
+                    screen.profile(identity, ::updateBack)
+                    screen.view
+                }
+                else -> {
+                    val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
+                    val screen = AtlasBusinessScreen(this, titles.getValue(tab), model, ::updateBack)
+                    business = screen
+                    setActionBar(screen.toolbar)
+                    screen.view
+                }
+            }
+        val shell = AtlasHomeScreen(this, content, titles, tab, ::selectTab)
+        home = shell
+        setContentView(shell.view)
+        updateBack()
+        business?.load()
+        settings?.load()
+    }
+
+    private fun selectTab(value: String) {
+        if (value == tab || value !in tabIds || businesses[tab]?.saving == true) return
+        closeScreen()
+        tab = value
+        showHome()
+    }
+
+    private fun closeScreen(cancelPending: Boolean = true) {
+        settings?.close(cancelPending)
+        settings = null
+        timeOff?.close()
+        timeOff = null
+        business?.close()
+        business = null
+        workspace?.close()
+        workspace = null
+        home = null
+    }
+
+    private fun clearModels() {
+        businesses.values.forEach { it.clear() }
+        businesses.clear()
+        profile?.clear()
+        profile = null
+        accounts = null
+        holidays = null
+        recoveredLoginId = null
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId != android.R.id.home) return super.onOptionsItemSelected(item)
+        back()
         return true
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(1)?.isVisible = authentication.server != null && settings == null && timeOff == null
-        return super.onPrepareOptionsMenu(menu)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean =
-        when (item.itemId) {
-            1 -> {
-                showSettings()
-                true
-            }
-            android.R.id.home -> {
-                if (timeOff != null) {
-                    leaveTimeOff()
-                } else if (settings != null) {
-                    leaveSettings()
-                } else {
-                    workspace?.back()
-                }
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        if (timeOff != null) {
-            leaveTimeOff()
-        } else if (settings != null) {
-            leaveSettings()
-        } else if (workspace?.back() != true) {
-            super.onBackPressed()
+        if (!back()) super.onBackPressed()
+    }
+
+    private fun back(): Boolean {
+        when {
+            timeOff != null -> {
+                if (timeOff?.back() != true) {
+                    closeScreen()
+                    showHome()
+                }
+            }
+            settings?.back() == true -> Unit
+            business?.back() == true -> Unit
+            workspace?.back() == true -> Unit
+            authentication.server != null && tab != "tasks" -> selectTab("tasks")
+            else -> return false
         }
+        updateBack()
+        return true
     }
 
     private fun catalogNavigation(group: String? = null): AtlasWorkspaceModel {
@@ -207,74 +258,28 @@ class MainActivity : Activity() {
     }
 
     private fun showTimeOff(title: String) {
+        closeScreen()
         val model = holidays ?: AtlasTimeOffModel(authentication::timeOff).also { holidays = it }
         val screen = AtlasTimeOffScreen(this, title, model)
         timeOff = screen
         setActionBar(screen.toolbar)
-        actionBar?.setDisplayHomeAsUpEnabled(true)
         setContentView(screen.view)
-        invalidateOptionsMenu()
-        updateSettingsBack()
+        updateBack()
         screen.load()
     }
 
-    private fun leaveTimeOff() {
-        if (timeOff?.back() == true) return
-        timeOff?.close()
-        timeOff = null
-        updateSettingsBack()
-        render()
-    }
-
-    private fun showSettings() {
-        val server = authentication.server ?: return
-        val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts)
-        accounts = model
-        recoveredLoginId = null
-        val screen =
-            AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::leaveSettings) {
-                settings?.close()
-                settings = null
-                accounts = null
-                updateSettingsBack()
-                actionBar?.setDisplayHomeAsUpEnabled(false)
-                authentication.signOut()
-            }
-        settings = screen
-        updateSettingsBack()
-        actionBar?.setDisplayHomeAsUpEnabled(true)
-        invalidateOptionsMenu()
-        setContentView(screen.view)
-        screen.load()
-    }
-
-    private fun leaveSettings() {
-        if (settings?.back() == true) return
-        settings?.close()
-        settings = null
-        updateSettingsBack()
-        actionBar?.setDisplayHomeAsUpEnabled(false)
-        render()
-    }
-
-    private fun updateSettingsBack() {
-        unregisterSettingsBack?.invoke()
-        unregisterSettingsBack = null
-        if (Build.VERSION.SDK_INT >= 33 &&
-            (settings != null || timeOff != null || (authentication.server != null && navigation?.canBack == true))
-        ) {
-            val callback =
-                OnBackInvokedCallback {
-                    if (timeOff != null) {
-                        leaveTimeOff()
-                    } else if (settings != null) {
-                        leaveSettings()
-                    } else {
-                        workspace?.back()
-                    }
-                }
+    private fun updateBack() {
+        val canUp =
+            timeOff != null || (tab == "profile" && accounts?.page != "settings") ||
+                (business != null && businesses[tab]?.canBack == true) || (workspace != null && navigation?.canBack == true)
+        actionBar?.setDisplayHomeAsUpEnabled(canUp)
+        home?.fullScreen(businesses[tab]?.draft != null || (tab == "profile" && accounts?.page != "settings"))
+        unregisterBack?.invoke()
+        unregisterBack = null
+        if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "tasks")) {
+            val callback = OnBackInvokedCallback { back() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
-            unregisterSettingsBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
+            unregisterBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
         }
     }
 
@@ -300,5 +305,9 @@ class MainActivity : Activity() {
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(this, R.string.no_browser, Toast.LENGTH_LONG).show()
         }
+    }
+
+    companion object {
+        private val tabIds = setOf("tasks", "accounts", "invoices", "browse", "profile")
     }
 }

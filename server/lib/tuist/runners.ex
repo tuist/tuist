@@ -1234,7 +1234,11 @@ defmodule Tuist.Runners do
           # would let a failed dispatch strand a stale account on a Pod that later
           # runs a different one. The volume and untrusted labels ride the same
           # patch so the host sees them atomically. See stamp_account_label/5.
-          stamp_account_label(namespace, pod_name, account, volume_name, trusted)
+          #
+          # macOS jobs keep their Xcode and module caches on custom volumes, so the
+          # host neither materializes nor promotes the built-in one for them.
+          builtin_volume? = trusted and not builtin_volumes?(fleet_name)
+          stamp_account_label(namespace, pod_name, account, volume_name, builtin_volume?)
 
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
@@ -1298,7 +1302,7 @@ defmodule Tuist.Runners do
              # presigned URLs for the account's master archive — trusted jobs
              # only. nil for an untrusted job (no convergence, and the guest has
              # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(trusted, do: volume_head_payload(account, volume_name))
+             volume_head: if(builtin_volume?, do: volume_head_payload(account, volume_name))
            }}
         else
           {:error, reason} = err ->

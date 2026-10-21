@@ -19,7 +19,6 @@ defmodule TuistWeb.RunnersController do
 
   use TuistWeb, :controller
 
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
 
@@ -374,7 +373,7 @@ defmodule TuistWeb.RunnersController do
         _ -> base
       end
 
-    base = Map.merge(base, opt_in_cache_fields(fleet_platform, account))
+    base = Map.merge(base, cache_fields(fleet_platform))
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
@@ -386,11 +385,8 @@ defmodule TuistWeb.RunnersController do
     end
   end
 
-  defp opt_in_cache_fields(:macos, account) do
-    if FeatureFlags.runner_opt_in_caches_enabled?(account), do: %{automatic_caches: false}, else: %{}
-  end
-
-  defp opt_in_cache_fields(_fleet_platform, _account), do: %{}
+  defp cache_fields(:macos), do: %{automatic_caches: false, managed_cache_volumes: true}
+  defp cache_fields(_fleet_platform), do: %{}
 
   # The VM branches on which of these two key sets it receives, so the
   # response stays a single shape per provider rather than a discriminator

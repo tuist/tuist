@@ -16,12 +16,12 @@ and `repo-*` HEADs, objects, local masters, capacities and retention remain in
 place. No migration deletes or renames them. Custom-volume clear affects only
 that custom identity; it does not clear the built-in Tuist or Xcode cache.
 
-The automatic wiring is being retired account by account. With the server's
-`:runner_opt_in_caches` flag on, the host still materializes and the guest still
-mounts the built-in image, but a job reaches it only through `tuist/module-cache`
-and `tuist/xcode-cache`; a job that uses neither is discarded and not reported.
-The storage identity, budgets and lifecycle are unchanged. See the "Opt-in
-caches" paragraph in `infra/runner-image/AGENTS.md`.
+The automatic wiring is retired. The server now puts every macOS job on the
+`tuist-xcode` and `tuist-module` custom volumes, which a job reaches only through
+`tuist/xcode-cache` and `tuist/module-cache`. Dispatch stamps the untrusted label,
+so the host gives the job an empty built-in image and never promotes it. See the
+"Opt-in caches" and "Managed cache volumes" paragraphs in
+`infra/runner-image/AGENTS.md`.
 
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
@@ -66,8 +66,10 @@ Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
-Cold creation reserves one 20 GB image. Restoration and prefetch retain the
-40 GB budget for the archive and expanded image. Applying that restore budget
+Each volume is created at the size the server allocates it (`volume_bytes`: 30 GB
+for `tuist-xcode`, 20 GB otherwise; hosts accept up to 32 GB). Cold creation
+reserves one image of that size. Restoration and prefetch retain the
+budget of twice that size for the archive and expanded image. Applying that restore budget
 to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
 with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
 even though a 20 GB image fits. Both the backend's eviction/admission check and
@@ -141,8 +143,9 @@ volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
 
 Cache admission, built-in convergence and built-in master eviction use the lesser
 of quota free space and physical host free space above the 15% golden-image
-reclamation floor. Raw quota free-space telemetry is unchanged. Probe errors
-decline new allocations. Existing jobs and non-cache host writes can still reduce
+reclamation floor. Free-space telemetry reports the volume within its budget,
+without the host floor. Probe errors decline new allocations. Existing jobs and
+non-cache host writes can still reduce
 physical free space; this admission guard complements the existing golden-image
 reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
 Custom requests first evict their own reusable masters, then may reclaim built-in
@@ -177,6 +180,29 @@ The 512 GiB quota must not be deployed without the physical-space guard.
 Rollback of the chart affects replacement hosts only. Return to a smaller quota
 through the same drained replacement process; never shrink a live filesystem.
 Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
+
+### Budget below the quota
+
+`runnerCacheVolumeGiB` is passed to tart-kubelet as `--runner-cache-budget-gib`:
+the space every cache on the volume may take together. Admission, convergence,
+eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
+free space as the lesser of its quota headroom and the budget less what the
+volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
+the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
+half the disk, or the budget when that is larger. A budget change up to that
+quota applies with the next host-config push and needs no new volume. Above it,
+the quota still bounds the caches until the host is replaced or reinstalled. On
+a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
+job VMs, so the quota is the budget, as before.
+
+BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
+at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it
+runs>`, see "Reinstalling a rack host" in
+[cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)); each
+comes back with a 929 GiB quota and the configured budget. A lent host refuses
+the reinstall until it is returned. Confirm the new quota with
+`node_filesystem_size_bytes{mountpoint="/Volumes/tuist-runner-cache"}` before
+the next host.
 
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
 on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`

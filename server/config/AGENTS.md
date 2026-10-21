@@ -22,3 +22,7 @@ This directory holds Phoenix configuration for the server.
   Helm sets it from the cacheVolumes gate. `TUIST_RUNNER_CACHE_VOLUMES_SA_NAME` selects
   the trusted agent account, and `TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE` its namespace. Reports remain available while allocations are off
   so existing resources can be reclaimed.
+
+## Replica-safety rollout
+
+Distributed release startup requires an explicit private cookie and a numeric fixed listener in 1–65535; remote commands keep ephemeral listeners. The Helm chart rejects multi-replica web configurations without clustering; runtime cannot infer a replica count outside the chart. Configuring discovery is not limited to Tuist-hosted mode. DNS discovers peers but must not explicitly disconnect established connections on failed or partial DNS answers; the BEAM failure detector and node shutdown own connection loss, with OTP partition prevention unchanged. The shared Secret spans image versions, so upgrades form mixed-version clusters; the first migration from image-baked cookies temporarily forms separate old/new islands. Complete and observe OAuth invalidation removal before enabling that overlap.

@@ -22,10 +22,12 @@ replaces the runner's file and the cache runs on the runner's own disk.
 
 ## Saving
 
-Successful jobs from your repository save their changes. Jobs from forks start
-empty and never save. The Xcode cache shares its storage and size budget with
-the [module cache](https://github.com/tuist/module-cache), and Tuist prunes it
-to fit, so there is nothing to size or clear. Directories you keep with
+Successful jobs from your repository save their changes. Fork pull requests use
+the cache but never save. To save only from some branches, limit them on the
+runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
+The cache holds up to 30 GB and Tuist prunes it to fit, so there is nothing to
+size or clear. Directories you keep with
 [`tuist/cache-volume`](https://github.com/tuist/cache-volume) are separate.
 
 ## Other runners

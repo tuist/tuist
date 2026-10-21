@@ -436,9 +436,7 @@ defmodule Tuist.Shards do
   end
 
   # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
-  # that took the write. `ClickHouseRepo` can route reads to the in-cluster ClickHouse
-  # (`Tuist.ClickHouse.ReadRoute`), which only has the rows once `IngestRepo`'s detached mirror
-  # (`Tuist.IngestRepo.ShadowWrite`) has written them there.
+  # that took the write.
   defp read_plan(fun), do: IngestRepo.with_retry(fun)
 
   defp get_shard_for_plan(project, account, plan, shard_index, opts) do

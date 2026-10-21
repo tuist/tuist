@@ -4,9 +4,6 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
-  alias Tuist.ClickHouse.Backfill
-  alias Tuist.ClickHouse.Parity
-  alias Tuist.ClickHouse.SchemaClone
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -35,7 +32,6 @@ defmodule Tuist.Release do
     git_commits
   )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
-  @repair_settle_minutes 15
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
   # Column-level rather than table-level because every table below sits next to a
@@ -70,333 +66,20 @@ defmodule Tuist.Release do
 
     assert_supported_clickhouse_version()
 
-    with_shadow_ingest_repo(fn ->
-      for repo <- repos() do
-        {:ok, _, _} =
-          Ecto.Migrator.with_repo(repo, fn repo ->
-            ensure_database_schema(repo)
-            Ecto.Migrator.run(repo, :up, all: true)
-            assert_all_migrations_up(repo)
-            grant_runtime_role(repo)
-            grant_processor_role(repo)
-            grant_swift_registry_sync_role(repo)
-            grant_grafana_role(repo)
-            reconcile_ops_clickhouse(repo)
-          end)
-      end
-    end)
-
-    reconcile_bare_metal_clickhouse_schema()
-  end
-
-  # Migrating with shadow writes on mirrors every `Tuist.IngestRepo` write to
-  # the in-cluster server, including the `schema_migrations` insert Ecto makes
-  # after each migration. `Ecto.Migrator.with_repo/3` below starts the repo
-  # being migrated and nothing else, so the destination was never started and
-  # every one of those mirrors failed at lookup:
-  #
-  #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
-  #   Tuist.ShadowIngestRepo because it was not started or it does not exist
-  #
-  # That failure is terminal rather than retried, because a repo that is not
-  # started will not become started, so each one was a row the destination
-  # never received, on every deploy that ran migrations.
-  defp with_shadow_ingest_repo(fun) do
-    if is_nil(Environment.clickhouse_bare_metal_url()) do
-      fun.()
-    else
-      {:ok, result, _apps} = Ecto.Migrator.with_repo(Tuist.ShadowIngestRepo, fn _started -> fun.() end)
-      result
+    for repo <- repos() do
+      {:ok, _, _} =
+        Ecto.Migrator.with_repo(repo, fn repo ->
+          ensure_database_schema(repo)
+          Ecto.Migrator.run(repo, :up, all: true)
+          assert_all_migrations_up(repo)
+          grant_runtime_role(repo)
+          grant_processor_role(repo)
+          grant_swift_registry_sync_role(repo)
+          grant_grafana_role(repo)
+          reconcile_ops_clickhouse(repo)
+          reconcile_grafana_clickhouse(repo)
+        end)
     end
-  end
-
-  # Brings the in-cluster ClickHouse's schema back in line with the source, for
-  # as long as one is configured (spec #73).
-  #
-  # Without this the two drift from the moment the schema was cloned:
-  # migrations run against `Tuist.IngestRepo`, which is ClickHouse Cloud, and
-  # nothing applies them to the other server. During the dual write that shows
-  # up as mirrored writes failing and being dropped; at the moment the
-  # in-cluster server becomes primary it stops being tolerable, because those
-  # writes are no longer the mirrored kind and the ingest path breaks.
-  #
-  # Reconciled from the source's DDL rather than by replaying the migrations
-  # onto it. A replay redirects where the statements go without changing what
-  # they say, and the ingest migrations create plain `MergeTree` tables, which
-  # this destination rejects outright with `Code: 56 ... Only tables with a
-  # Replicated engine are allowed in a Replicated database`. The clone already
-  # handles that by rewriting the engine family, so it does this too.
-  #
-  # Best-effort on purpose. Cloud is the system of record for the whole
-  # migration, and a deploy must not fail because the server being reconciled
-  # is unreachable. A failure leaves drift, which the parity check reports,
-  # rather than a blocked release.
-  defp reconcile_bare_metal_clickhouse_schema do
-    if Environment.clickhouse_bare_metal_url() do
-      SchemaClone.reconcile()
-    end
-  rescue
-    error ->
-      Logger.error("Could not reconcile the in-cluster ClickHouse schema: #{Exception.message(error)}")
-      :ok
-  catch
-    :exit, reason ->
-      Logger.error("Could not reconcile the in-cluster ClickHouse schema: #{inspect(reason)}")
-      :ok
-  end
-
-  @doc """
-  Clones the ClickHouse schema from the system of record onto the in-cluster
-  ClickHouse named by `TUIST_CLICKHOUSE_BARE_METAL_URL`.
-
-  A no-op when that variable is unset, which is every environment not
-  currently migrating. Idempotent, so the deploy hook that calls it can run on
-  every release: an already-cloned schema produces a report of zero changes.
-
-  See `Tuist.ClickHouse.SchemaClone` for why the schema is cloned from the
-  source rather than produced by replaying the ingest migrations.
-  """
-  def clone_clickhouse_schema do
-    load_app()
-    do_clone_clickhouse_schema()
-  end
-
-  defp do_clone_clickhouse_schema do
-    case SchemaClone.run() do
-      {:ok, report} ->
-        failed = report.tables.failed ++ report.views.failed
-
-        if failed == [] do
-          Logger.info("ClickHouse schema clone succeeded: #{inspect(report)}")
-          :ok
-        else
-          # Loudly, and by failing the deploy, because a partially cloned
-          # schema that reported success would surface much later as the
-          # backfill failing on a missing table.
-          raise "ClickHouse schema clone failed for: #{inspect(failed)}"
-        end
-
-      {:error, :no_target_configured} ->
-        Logger.info("TUIST_CLICKHOUSE_BARE_METAL_URL is unset; skipping the ClickHouse schema clone")
-        :ok
-
-      {:error, {:target_unreachable, reason}} ->
-        # Expected on the deploy that first introduces the ClickHouse
-        # StatefulSet: this task runs as a pre-upgrade hook, so the workload
-        # does not exist yet. Not a deploy failure, and the next deploy
-        # clones. A target that stays unreachable shows up as a schema that
-        # never gets cloned, which the backfill refuses to run against.
-        Logger.warning("In-cluster ClickHouse is not reachable yet; skipping the schema clone (#{reason})")
-        :ok
-
-      {:error, reason} ->
-        raise "ClickHouse schema clone failed: #{inspect(reason)}"
-    end
-  end
-
-  @doc """
-  Copies existing ClickHouse rows onto the in-cluster server.
-
-  Run explicitly rather than from a deploy hook: it moves the whole dataset,
-  it is resumable, and it should be started and watched deliberately rather
-  than blocking a release. Safe to re-run; completed chunks are skipped.
-  """
-  def backfill_clickhouse do
-    load_app()
-
-    case Backfill.run() do
-      {:ok, report} ->
-        Logger.info("ClickHouse backfill finished: #{inspect(report, limit: :infinity)}")
-        :ok
-
-      {:error, reason} ->
-        raise "ClickHouse backfill could not start: #{inspect(reason)}"
-    end
-  end
-
-  @doc """
-  Copies onto the in-cluster server the rows it lacks between two UTC
-  instants, for every table with a time column. For a span the mirror is
-  known to have lost writes in; see `Tuist.ClickHouse.Backfill.run/1`.
-
-  Raises when a chunk fails, unlike `backfill_clickhouse/0`: a repair is run
-  for one known gap, and a Job that succeeds with part of it unfilled would
-  read as fixed. Running it again retries only the failed chunks.
-
-  The span has to end `#{@repair_settle_minutes}` minutes in the past. A
-  mirrored write can still be retrying for minutes after Cloud took it, and
-  one that lands after the repair copied the same row stores it twice.
-  """
-  def repair_clickhouse(from, to) do
-    window = clickhouse_repair_window(from, to)
-    load_app()
-
-    case Backfill.run(windows: [window]) do
-      {:ok, report} ->
-        Logger.info("ClickHouse repair finished: #{inspect(report, limit: :infinity)}")
-
-        case for({table, %{failed: failed}} when failed > 0 <- report, do: table) do
-          [] -> :ok
-          tables -> raise "ClickHouse repair left failed chunks in: #{Enum.join(Enum.sort(tables), ", ")}"
-        end
-
-      {:error, reason} ->
-        raise "ClickHouse repair could not start: #{inspect(reason)}"
-    end
-  end
-
-  @doc false
-  def clickhouse_repair_window(from, to, now \\ DateTime.utc_now()) do
-    with {:ok, from, _offset} <- DateTime.from_iso8601(from),
-         {:ok, to, _offset} <- DateTime.from_iso8601(to),
-         {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)},
-         :lt <- DateTime.compare(from, to),
-         true <- DateTime.compare(to, DateTime.add(now, -@repair_settle_minutes, :minute)) != :gt do
-      {from, to}
-    else
-      _ ->
-        raise ArgumentError,
-              "a ClickHouse repair needs two ISO 8601 instants, the first before the second and the second at least #{@repair_settle_minutes} minutes ago"
-    end
-  end
-
-  @doc """
-  Compares the two ClickHouse servers and raises unless every table and the
-  migration ledgers agree.
-
-  This is the gate for the backfill and, once dual writes are on, for the
-  ongoing parity between the two.
-  """
-  def check_clickhouse_parity do
-    load_app()
-
-    case Parity.compare() do
-      {:ok,
-       %{
-         differing: [],
-         schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
-         migrations: %{missing_on_destination: [], only_on_destination: []}
-       } = report} ->
-        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas and migration ledgers included")
-        :ok
-
-      # Once the in-cluster server is primary, `migrate/0` runs every version
-      # missing from its ledger again, data migrations included.
-      {:ok,
-       %{differing: [], schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []}} = report} ->
-        raise "ClickHouse schema_migrations drift: #{inspect(report.migrations)}"
-
-      # Gated separately from the row comparison, and deliberately fatal. Until
-      # the in-cluster server is primary a missing column costs a dropped
-      # mirror write; from that moment it breaks the ingest path, so this is
-      # the condition to clear before a cutover rather than after one. A table
-      # only the destination holds is one the source dropped: the reconcile
-      # never drops anything, so it stays until somebody does.
-      {:ok, %{differing: []} = report} ->
-        raise "ClickHouse schema drift: #{inspect(report.schema)}"
-
-      {:ok, report} ->
-        raise "ClickHouse parity failed: #{inspect(report.differing, limit: :infinity)}"
-
-      {:error, reason} ->
-        raise "ClickHouse parity could not run: #{inspect(reason)}"
-    end
-  end
-
-  @doc """
-  Compares the two ClickHouse servers over the read path rather than the
-  ingest path, and raises unless every table agrees.
-
-  Separate from `check_clickhouse_parity/0` because the two paths are not the
-  same connection: the read one is `readonly` and carries the per-query and
-  per-user memory ceilings the dashboards depend on. Those have only ever been
-  exercised against ClickHouse Cloud, and a setting the in-cluster server
-  refuses would break reads at the moment the flag is flipped rather than
-  before it.
-  """
-  def check_clickhouse_reads do
-    load_app()
-
-    opts = [source_repo: Tuist.ClickHouseRepo, target_repo: Tuist.ShadowClickHouseRepo]
-
-    # Inside the flag store, because the read path asks on every query whether
-    # reads have moved, and the flag's cache is an ETS table owned by a process
-    # `bin/tuist eval` does not start. Without it every read through
-    # `Tuist.ClickHouseRepo` fails with "the table identifier does not refer to
-    # an existing ETS table", which is what the first run of this task did.
-    with_flag_store(fn ->
-      # Comparing the two servers only means anything while reads are still
-      # served by the system of record. With the flag already on, the "source"
-      # side of this comparison routes to the destination and the check passes
-      # by comparing it with itself.
-      if Tuist.ClickHouse.ReadRoute.enabled?() do
-        raise "ClickHouse reads are already served by the in-cluster server; this check only means something before that"
-      end
-
-      case Parity.compare(opts) do
-        {:ok, %{differing: []} = report} ->
-          Logger.info("ClickHouse reads agree across #{report.compared} table(s) on both servers")
-          :ok
-
-        {:ok, report} ->
-          raise "ClickHouse read parity failed: #{inspect(report.differing, limit: :infinity)}"
-
-        {:error, reason} ->
-          raise "ClickHouse read parity could not run: #{inspect(reason)}"
-      end
-    end)
-  end
-
-  @doc """
-  Serves the application's ClickHouse reads from the in-cluster server.
-
-  The flag is the switch, so this is only here to set it from a deploy in an
-  environment where nobody can reach `/ops/flags`. Turning it back off is one
-  click there, or `disable_clickhouse_bare_metal_reads/0`.
-  """
-  def enable_clickhouse_bare_metal_reads, do: set_clickhouse_bare_metal_reads(true)
-
-  @doc """
-  Sends the application's ClickHouse reads back to the system of record.
-  """
-  def disable_clickhouse_bare_metal_reads, do: set_clickhouse_bare_metal_reads(false)
-
-  defp set_clickhouse_bare_metal_reads(enabled?) do
-    load_app()
-
-    with_flag_store(fn ->
-      {:ok, _} =
-        if enabled? do
-          FunWithFlags.enable(:clickhouse_bare_metal_reads)
-        else
-          FunWithFlags.disable(:clickhouse_bare_metal_reads)
-        end
-
-      Logger.info("ClickHouse bare-metal reads #{(enabled? && "enabled") || "disabled"}")
-      :ok
-    end)
-  end
-
-  # `bin/tuist eval` loads the application without starting it, so the flag
-  # store's repository, the process that owns its cache, and the one that tells
-  # the running pods to drop their copy of it all have to be started here.
-  # Without the last of those a write lands but nothing notices it for the
-  # length of the cache TTL.
-  defp with_flag_store(fun) do
-    {:ok, result, _apps} =
-      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
-        # `:phoenix_pubsub` first, and as an application rather than a child.
-        # Its adapter registers itself with a process the application itself
-        # owns, so supervising `Phoenix.PubSub` without it fails with "no
-        # process ... possibly because its application isn't started".
-        {:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
-        {:ok, _} = Supervisor.start_link([{Phoenix.PubSub, name: Tuist.PubSub}], strategy: :one_for_one)
-        {:ok, _} = Application.ensure_all_started(:fun_with_flags)
-
-        fun.()
-      end)
-
-    result
   end
 
   # A migration that brings the VM down instead of raising (an exit signal from a
@@ -582,17 +265,37 @@ defmodule Tuist.Release do
   defp ensure_database_schema(_repo), do: :ok
 
   defp reconcile_ops_clickhouse(repo) when repo == IngestRepo do
-    username = Environment.ops_clickhouse_username()
-    password = Environment.ops_clickhouse_password()
-    role = Environment.ops_clickhouse_role()
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.ops_clickhouse_username(),
+      Environment.ops_clickhouse_password(),
+      Environment.ops_clickhouse_role(),
+      &ops_clickhouse_reconciliation_queries/4
+    )
+  end
 
+  defp reconcile_ops_clickhouse(_repo), do: :ok
+
+  defp reconcile_grafana_clickhouse(repo) when repo == IngestRepo do
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.grafana_clickhouse_username(),
+      Environment.grafana_clickhouse_password(),
+      Environment.grafana_clickhouse_role(),
+      &grafana_clickhouse_reconciliation_queries/4
+    )
+  end
+
+  defp reconcile_grafana_clickhouse(_repo), do: :ok
+
+  defp reconcile_clickhouse_identity(repo, username, password, role, reconciliation_queries) do
     if Enum.all?([username, password, role], &(is_binary(&1) and &1 != "")) do
       database = repo.config() |> Keyword.fetch!(:database) |> to_string()
       password_hash = :sha256 |> :crypto.hash(password) |> Base.encode16(case: :lower)
 
       {setup_queries, assignment_queries} =
         database
-        |> ops_clickhouse_reconciliation_queries(username, role, password_hash)
+        |> reconciliation_queries.(username, role, password_hash)
         |> Enum.split(-2)
 
       Enum.each(setup_queries, &run_clickhouse_access_query(repo, &1))
@@ -602,8 +305,6 @@ defmodule Tuist.Release do
 
     :ok
   end
-
-  defp reconcile_ops_clickhouse(_repo), do: :ok
 
   defp revoke_unexpected_clickhouse_roles(repo, username, expected_role) do
     result =
@@ -620,7 +321,7 @@ defmodule Tuist.Release do
 
     Enum.each(result.rows, fn [role] ->
       role = quote_clickhouse_identifier!(role, "granted ClickHouse role")
-      username = quote_clickhouse_identifier!(username, "TUIST_OPS_CLICKHOUSE_USERNAME")
+      username = quote_clickhouse_identifier!(username, "ClickHouse username")
       run_clickhouse_access_query(repo, {"REVOKE #{role} FROM #{username}", []})
     end)
   end
@@ -638,45 +339,78 @@ defmodule Tuist.Release do
 
     # Mode 2 still rejects writes but permits client-supplied query settings.
     # The bounds below prevent callers from raising or disabling resource limits.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 10 MIN 1 MAX 10,
+        max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
+        max_rows_to_read = 100000000 MIN 1 MAX 100000000,
+        max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
+        max_result_rows = 10001 MIN 1 MAX 10001,
+        max_result_bytes = 5242880 MIN 1 MAX 5242880,
+        max_block_size = 10001 MIN 1 MAX 10001,
+        max_threads = 2 MIN 1 MAX 2
+      """,
+      ["#{database}.*", "system.tables", "system.columns"]
+    )
+  end
+
+  @doc false
+  def grafana_clickhouse_reconciliation_queries(database, username, role, password_hash) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+    username = quote_clickhouse_identifier!(username, "TUIST_GRAFANA_CLICKHOUSE_USERNAME")
+    role = quote_clickhouse_identifier!(role, "TUIST_GRAFANA_CLICKHOUSE_ROLE")
+    password_hash = validate_clickhouse_password_hash!(password_hash)
+
+    # Dashboards and alert rules aggregate over weeks of builds, so the bounds
+    # are wider than the ops role's, but still capped so a panel cannot take the
+    # memory or cores the application's own queries need. `system.query_log`
+    # backs the slow-query alert.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 60 MIN 1 MAX 120,
+        max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
+        max_threads = 8 MIN 1 MAX 8
+      """,
+      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
+    )
+  end
+
+  defp readonly_clickhouse_identity_queries(username, role, password_hash, role_settings, readable) do
     [
       {"CREATE ROLE IF NOT EXISTS #{role}", []},
       {"REVOKE ALL ON *.* FROM #{role}", []},
-      {
-        """
-        ALTER ROLE #{role} SETTINGS
-          readonly = 2,
-          max_execution_time = 10 MIN 1 MAX 10,
-          max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
-          max_rows_to_read = 100000000 MIN 1 MAX 100000000,
-          max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-          max_result_rows = 10001 MIN 1 MAX 10001,
-          max_result_bytes = 5242880 MIN 1 MAX 5242880,
-          max_block_size = 10001 MIN 1 MAX 10001,
-          max_threads = 2 MIN 1 MAX 2
-        """,
-        []
-      },
-      {"GRANT SELECT ON #{database}.* TO #{role}", []},
-      {"GRANT SELECT ON system.tables TO #{role}", []},
-      {"GRANT SELECT ON system.columns TO #{role}", []},
-      {
-        """
-        CREATE USER IF NOT EXISTS #{username}
-        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
-        """,
-        []
-      },
-      {
-        """
-        ALTER USER #{username}
-        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
-        """,
-        []
-      },
-      {"REVOKE ALL ON *.* FROM #{username}", []},
-      {"GRANT #{role} TO #{username}", []},
-      {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
-    ]
+      {role_settings, []}
+    ] ++
+      Enum.map(readable, &{"GRANT SELECT ON #{&1} TO #{role}", []}) ++
+      [
+        {
+          """
+          CREATE USER IF NOT EXISTS #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {
+          """
+          ALTER USER #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {"REVOKE ALL ON *.* FROM #{username}", []},
+        {"GRANT #{role} TO #{username}", []},
+        {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
+      ]
   end
 
   defp quote_clickhouse_identifier!(identifier, source) do

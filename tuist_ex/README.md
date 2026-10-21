@@ -325,10 +325,11 @@ each run, which on a large project costs a minute or more. So with `--cover`,
 Tuist recompiles the project's modules once with the runtime's native line
 counters, switches the counters on and counts with them instead of running
 Mix's coverage tool. Later runs recompile only the modules a compile wrote
-since. Only the modules Mimic copies are compiled for `cover`, and swapped
-for Mimic's copies before any test runs, because Mimic keeps a `cover`
-compiled module's counts across the swaps it makes and reloading a module
-resets its native counters.
+since. The modules Mimic copies are swapped for Mimic's copies before any
+test runs, and count natively too: Mimic compiles each original under
+another name with the module's own options, which carry the counters. The
+calls they took before the swap, while the application started, are read
+first and added to the copy's.
 
 Mix's summary and threshold still apply: once the suite finishes, the task
 prints each module's coverage and fails the run (exit status 3) when the

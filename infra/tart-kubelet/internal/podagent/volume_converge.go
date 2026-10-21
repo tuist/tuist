@@ -435,7 +435,7 @@ func (w *ConvergeWorker) refreshPrefetch(ctx context.Context) bool {
 			if w.Custom != nil {
 				w.Custom.PrefetchMaster(cachevolumes.Identity{
 					ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
-					ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest,
+					ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes,
 				})
 			}
 			continue
