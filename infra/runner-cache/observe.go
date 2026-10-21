@@ -197,6 +197,8 @@ func Result(err error) string {
 		return "conflict"
 	case errors.Is(err, ErrReplaced):
 		return "replaced"
+	case errors.Is(err, ErrIncomplete):
+		return "incomplete"
 	case errors.Is(err, ErrPoisoned):
 		return "invalid_image"
 	case errors.Is(err, ErrUnchanged):
