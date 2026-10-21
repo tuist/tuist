@@ -16,6 +16,13 @@ defmodule Tuist.Kura.RolloutServer do
   regression they did not cause. They are excluded from the comparative
   soak only — convergence on the target image is still required, because a
   fix must land on degraded servers too.
+
+  `held_reason` is set while the controller reports that the server's image
+  change waits on an operator procedure (`status.imageHold`: a positively
+  fenced instance's runtime pin or manual replacement, or a replica
+  recovery's rollout hold). Such a server cannot converge on its own, so
+  it does not hold its wave open; it rejoins convergence and the gate as
+  soon as the hold clears.
   """
   use Ecto.Schema
 
@@ -34,6 +41,7 @@ defmodule Tuist.Kura.RolloutServer do
     field :baseline_peer_connection_failures, :integer
     field :baseline_captured_at, :utc_datetime
     field :converged_at, :utc_datetime
+    field :held_reason, :string
 
     belongs_to :rollout, Rollout, foreign_key: :kura_rollout_id, type: :binary_id
     belongs_to :kura_server, Server, type: :binary_id
@@ -54,7 +62,8 @@ defmodule Tuist.Kura.RolloutServer do
       :baseline_peer_connection_failures,
       :baseline_captured_at,
       :deployment_id,
-      :converged_at
+      :converged_at,
+      :held_reason
     ])
     |> validate_required([:kura_rollout_id, :kura_server_id, :wave])
     |> validate_number(:wave, greater_than_or_equal_to: 0)
@@ -72,7 +81,8 @@ defmodule Tuist.Kura.RolloutServer do
       :baseline_peer_connection_failures,
       :baseline_captured_at,
       :deployment_id,
-      :converged_at
+      :converged_at,
+      :held_reason
     ])
     |> validate_number(:attempt, greater_than_or_equal_to: 0)
   end

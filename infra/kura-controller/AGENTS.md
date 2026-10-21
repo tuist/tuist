@@ -25,7 +25,12 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   HTTP errors, malformed status, identity changes and restarts must not use the
   fallback. Runtime admission and publication remain the authority, not the selector.
   An unqualified requested image holds the template at the explicit runtime pin
-  and reports Pending without stopping unrelated workload reconciliation. Same-process resumption needs the exact
+  and reports Pending without stopping unrelated workload reconciliation.
+  Publish `status.imageHold` while a requested image waits on an operator:
+  `FencedImagePin`, `FencedReplacement` (templated, old-revision pods remain
+  under OnDelete) or `RecoveryRolloutHold`. A fully updated set that is not
+  Ready is a failing image, not a hold, and unannotated operator OnDelete is
+  never reported as one; the control plane's rollout gate relies on both. Same-process resumption needs the exact
   holder's fresh Fencing
   observation, publication-fencing epoch and zero mutations; issue a new epoch
   only to that holder. Never infer acknowledgment from expiry, readiness or a

@@ -2059,6 +2059,15 @@ Check `infra/kura-controller/incidents/` for a recovery that left them that
 way, and restore `RollingUpdate` one StatefulSet at a time
 (`infra/kura-controller/node-local-recovery.md`) before you resume.
 
+Instances that keep `OnDelete` by design do not cause this pause. The
+controller publishes `status.imageHold` for a positively fenced instance
+(`FencedImagePin`, `FencedReplacement`) and for a replica recovery's hold
+(`RecoveryRolloutHold`), and the rollout leaves those servers out of
+convergence, recording `server_held` in the rollout's trail and counting them
+in the waves table's Held column. They still need the operator procedure in
+`infra/kura-controller/serving-authority.md`. The canary wave pauses here when
+every canary server is held, because it then has no evidence about the target.
+
 **Why 15 minutes, and why warning.** The orchestrator itself decides when to
 pause, so there is no flapping to smooth over. The pending period only lets an
 operator who pauses on purpose resume without a notification. A pause is a

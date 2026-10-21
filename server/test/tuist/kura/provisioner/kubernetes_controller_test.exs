@@ -1964,6 +1964,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "rollout_health/2" do
+    test "carries the controller's operator image hold with the aggregate" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", _opts ->
+        {:ok, %{"status" => %{"imageHold" => "FencedReplacement", "rolloutHealth" => %{"ready" => true}}}}
+      end)
+
+      assert {:ok, %{ready: true, image_hold: "FencedReplacement"}} =
+               KubernetesController.rollout_health("kura-tuist-local-controller", local_controller_region())
+    end
+
+    test "reads no hold when the controller publishes none" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", _opts ->
+        {:ok, %{"status" => %{"imageHold" => "", "rolloutHealth" => %{"ready" => true}}}}
+      end)
+
+      assert {:ok, %{image_hold: nil}} =
+               KubernetesController.rollout_health("kura-tuist-local-controller", local_controller_region())
+    end
+  end
+
   describe "image_tag_from_image/1" do
     test "extracts the tag from a normal image reference" do
       assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:0.5.2") == "0.5.2"
