@@ -13,10 +13,13 @@ final class AtlasWorkspaceUITests: XCTestCase {
             choice.tap()
             XCTAssertEqual(choice.value as? String, "Selected")
             for mode in ["Light", "Dark"] {
-                let picker = try app.visibleElement("appearance-mode")
+                let picker = try app.visibleElement("appearance-mode", up: false)
                 picker.buttons[mode].tap()
                 XCTAssertTrue(picker.buttons[mode].isSelected)
-                _ = try app.visibleElement("appearance-preview")
+                if theme == "pulse", mode == "Light" { attach(app, "ios-theme-chooser") }
+                let preview = try app.visibleElement("appearance-preview")
+                app.scrollContent()
+                XCTAssertLessThanOrEqual(preview.frame.maxY, app.tabBars.firstMatch.frame.minY)
                 attach(app, "ios-theme-\(theme)-\(mode.lowercased())")
             }
         }
@@ -39,6 +42,10 @@ final class AtlasWorkspaceUITests: XCTestCase {
         _ = try app.visibleElement("theme-atlas")
         XCTAssertFalse(app.buttons["theme-pulse"].exists)
         attach(app, "ios-theme-older-server-large-dark")
+        let preview = try app.visibleElement("appearance-preview")
+        app.scrollContent()
+        XCTAssertLessThanOrEqual(preview.frame.maxY, app.tabBars.firstMatch.frame.minY)
+        attach(app, "ios-theme-older-server-preview-large-dark")
     }
 
     @MainActor func testStableTabsNativeBrowseAndProfile() throws {
