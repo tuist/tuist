@@ -15,6 +15,12 @@ struct AtlasBusinessView: View {
             list.onChange(of: model.page?.page) { _, page in
                 if page == 1 { proxy.scrollTo("business-start", anchor: .top) }
             }
+            .onChange(of: model.filters) { _, _ in
+                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+            }
+            .onChange(of: model.query) { _, _ in
+                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+            }
         }
     }
 

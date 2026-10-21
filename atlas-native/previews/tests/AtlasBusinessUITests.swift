@@ -120,6 +120,7 @@ final class AtlasBusinessUITests: XCTestCase {
         let count = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "15 items")).firstMatch
         XCTAssertTrue(count.waitForExistence(timeout: 5))
         capture(app, "ios-accounts-filtered")
+        _ = try visible("business-item-account-29", in: app)
         app.buttons["business-filters"].tap()
         app.buttons["Reset filters"].tap()
         let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
