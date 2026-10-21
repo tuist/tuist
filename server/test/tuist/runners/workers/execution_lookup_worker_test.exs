@@ -12,8 +12,6 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
 
-  require Logger
-
   setup :verify_on_exit!
 
   setup do
