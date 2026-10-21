@@ -24,7 +24,7 @@ env:
 
 jobs:
   compile:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     name: Compile without warnings (Elixir ${{ matrix.elixir }})
     runs-on: tuist-linux
     timeout-minutes: 20
@@ -53,7 +53,7 @@ jobs:
       - run: mix compile --warnings-as-errors
 
   docs:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     name: Docs without warnings
     runs-on: tuist-linux
     timeout-minutes: 20
@@ -71,7 +71,7 @@ jobs:
       - run: mix docs --warnings-as-errors
 
   test:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     name: Tests pass
     runs-on: tuist-linux
     timeout-minutes: 20
@@ -89,7 +89,7 @@ jobs:
       - run: mix test --warnings-as-errors
 
   format:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     name: Format checks pass
     runs-on: tuist-linux
     timeout-minutes: 20
@@ -107,7 +107,7 @@ jobs:
       - run: mix format --check-formatted
 
   package:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     name: Package builds
     runs-on: tuist-linux
     timeout-minutes: 20

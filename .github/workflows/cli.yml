@@ -132,6 +132,7 @@ jobs:
   # a squash merge can produce a Package.swift that no branch resolved.
   cli-package-resolved:
     name: Package.resolved
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     steps:
