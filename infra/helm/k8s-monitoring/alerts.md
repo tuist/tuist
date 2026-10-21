@@ -698,6 +698,67 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Worker MachineDeployment replica telemetry is missing on the management cluster`
 
+### Management node memory headroom low
+
+The management cluster is one Talos node with 7.5 GiB of memory. When memory
+pressure crosses Talos's OOM controller trigger (PSI `memory_full_avg10` above
+12%), Talos SIGKILLs the highest-ranked pod cgroup. The kernel `oom_kill`
+counter does not move, so this headroom alert is the early signal. On
+2026-10-21 a kubelet v1.36.0 memory leak
+([kubernetes/kubernetes#139823](https://github.com/kubernetes/kubernetes/issues/139823),
+fixed in v1.36.3) had grown the kubelet to 3.2 GiB. Talos killed the
+kube-apiserver and the CAPI controller, and `mgmt-cluster-apply.yml` failed on
+an unreachable admission webhook. Before the leak, the node kept more than 20%
+available.
+
+```promql
+node_memory_MemAvailable_bytes{cluster="tuist-management"}
+/
+node_memory_MemTotal_bytes{cluster="tuist-management"}
+< 0.15
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- Summary: `The management node has under 15% memory available. Talos's OOM controller will start killing pods under pressure`
+
+To find the consumer, read cgroup usage straight from the kubelet. Grafana keeps
+only container-level series, and the kubelet runs outside `kubepods`:
+
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl get --raw \
+  /api/v1/nodes/tuist-mgmt/proxy/metrics/cadvisor \
+  | grep '^container_memory_working_set_bytes{' | grep -E 'id="/(podruntime|kubepods|system)[^/]*"'
+```
+
+If `/podruntime/kubelet` is the large one, `talosctl service kubelet restart`
+frees it without restarting any containers. See
+[`infra/k8s/mgmt/talos/README.md`](../../k8s/mgmt/talos/README.md) for talosctl
+access.
+
+### Management control plane restarted
+
+```promql
+sum by (container) (
+  increase(
+    kube_pod_container_status_restarts_total{
+      cluster="tuist-management",
+      namespace="kube-system",
+      container=~"kube-apiserver|kube-controller-manager|kube-scheduler"
+    }[15m]
+  )
+) > 0
+```
+
+- Pending period: 0 minutes
+- Severity: warning
+- Summary: `{{ $labels.container }} restarted on the management cluster`
+
+On the single-node management cluster, a kube-apiserver restart takes the CAPI
+API and its admission webhooks down for a minute or more. Check
+`talosctl logs machined | grep OOM` first. A Talos OOM kill shows up in
+Kubernetes only as a `SandboxChanged` event and exit code 137.
+
 ### Node exporter coverage incomplete
 
 ```promql
@@ -3435,6 +3496,46 @@ makes one replica unavailable for a long, legitimate window. Deliberately
 does not subsume the metrics rules: a Pod whose VM booted but whose
 release never started counts as available here.
 
+### xcresult processor rollout failed
+
+```promql
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_status_condition{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor",
+    condition="Progressing",
+    reason="ProgressDeadlineExceeded",
+    status="false"
+  }
+) > 0
+```
+
+- Pending period: 1 minute
+- Severity: warning
+- Receiver: notification policy tree (production lands in `#notifications`)
+- Grafana rule: `cg1vm0wbjij28d`
+- Summary: `The xcresult processor rollout in {{ $labels.namespace }}
+  ({{ $labels.cluster }}) made no progress for 30 minutes and stopped`
+
+Production deploys do not wait for the processor rollout, so this is
+what reports a new processor release or image that never turns Ready
+there. Kubernetes flips `Progressing` to `False` with
+`ProgressDeadlineExceeded` once no new replica has become available for
+`progressDeadlineSeconds` (1800s), so the condition already carries the
+30-minute budget and the pending period only debounces it. It resolves
+when a later rollout completes.
+
+`maxSurge: 0` and the PDB stop the rollout after one Tart VM, so the
+replicas still on the previous release keep draining the queue; this
+rule reports the failed version, and `Remote processing queue has no
+consumer` covers the case where nothing is left.
+
+Only production exports `kube_deployment_status_condition` for this
+Deployment. Canary and staging deploys still wait for the rollout in
+`server-deployment.yml`. Backtested against the build processor's
+`ProgressDeadlineExceeded` on 2026-10-09 at 13:12Z, which the same
+expression matched for 3 minutes.
+
 ### Tuist license invalid or near expiration
 
 ```promql
@@ -3714,7 +3815,8 @@ Every rack mini must come back as its own series.
 
 ### CI remote compilation-cache reads slow for an account
 
-Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`).
+Data source: ClickHouse `Tuist Production ClickHouse` (uid `cg1vnyjs65blsc`), the
+in-cluster server, through the PDC agent.
 This is rule `dfybzqdz5rh1cb` ("Xcode cache - CI remote reads slow for an
 account"), folder `Alerts`, group `Cache client latency`, which evaluates every
 10 minutes.
@@ -3724,6 +3826,10 @@ WITH
 recent AS (
   SELECT id, any(account_id) AS acct FROM build_runs
   WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+    AND account_id IN (
+      SELECT account_id FROM kura_usage_events
+      WHERE window_start >= now() - INTERVAL 3 HOUR AND artifact_kind IN ('reapi', 'xcode') AND direction = 'egress'
+    )
   GROUP BY id
 ),
 base AS (
@@ -3777,6 +3883,14 @@ malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
 a far region. No server-side rule can see either. `cacheable_tasks` records what
 Xcode itself waited for.
 
+**Only accounts on Kura are evaluated.** `recent` keeps accounts with Xcode
+cache downloads in `kura_usage_events` (`artifact_kind` `reapi` or `xcode`,
+direction `egress`) in the last 3 hours. Accounts still on the legacy cache
+service (`cache-<region>.tuist.dev`) have no rows there and are skipped: the
+rule exists to catch problems in front of Kura, and a slow legacy client is not
+one. The 3-hour window covers builds that started up to two hours before they
+were ingested.
+
 **Why the account is compared with its own history.** Normal read latency
 differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
 read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
@@ -3803,13 +3917,14 @@ replaced by a fixed time:
 | --- | --- |
 | 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
 | 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
-| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-01 11:00 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 | 2026-09-03 12:00 | No rows |
+| 2026-10-20 13:40 | No rows (before the Kura filter, this fired for an account on the legacy cache lane) |
 
 Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
-account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
-genuine burst: that account's slow builds read at p90 500-700 ms for about two
-hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+account from 2026-09-14 03:00, about a day before the report. The 2026-09-14 and
+09-15 rows were rerun with the Kura filter on 2026-10-20 and returned the same
+values. Accounts with less than 1000 baseline reads (new accounts, or ones whose
 builds moved lane) are skipped.
 
 **Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts
@@ -4876,7 +4991,7 @@ with the pod and volume events in the `kura` namespace.
 ### Kura region admission headroom running out
 
 ```promql
-predict_linear(
+(
   (
     max by (cluster, region) (
       tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
@@ -4886,6 +5001,19 @@ predict_linear(
       floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
       - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
     )
+  )
+  - (
+    predict_linear(
+      max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})[3d:30m],
+      3 * 86400
+    )
+    - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+  )
+)
+or
+predict_linear(
+  max by (cluster, region) (
+    tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
   )[3d:30m],
   3 * 86400
 )
@@ -4901,12 +5029,20 @@ predict_linear(
 - Summary: `Kura region {{ $labels.region }} in {{ $labels.cluster }} is on
   course to stop admitting enterprise instances within three days (projected
   headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
-- Description: `Extrapolates the last three days of capacity admission
-  headroom (see "Kura region admission cannot take an enterprise instance")
-  three days forward. A box takes days to order and join, so this is the tier
-  to act on: order a node for the region's pool, or find what is reserving
-  disk it does not use (instances that have stored nothing, claims far above
-  their rings).`
+- Description: `Subtracts three more days of the region's reserved-disk growth,
+  extrapolated from the last three, from its capacity admission headroom (see
+  "Kura - region admission cannot take an enterprise instance"). Reserved disk
+  does not move when a box joins, leaves or is evacuated, so adding or
+  retiring a box does not read as burn; private runner-cache regions, which
+  report no reserved series, use the headroom trend instead. A box takes days
+  to order and join, so this is the tier to act on: order a node for the
+  region's pool, or find what is reserving disk it does not use (instances
+  that have stored nothing, claims far above their rings). Regions fill at
+  very different rates (week to 2026-09-17: us-central ~95 GiB/day, us-west
+  ~40), which is why this is a trend rather than an absolute threshold. The 2h
+  pending period keeps a region's first hours of samples from firing.
+  Background: infra/helm/k8s-monitoring/alerts.md, section 'Kura region
+  admission headroom running out'.`
 
 The lead-time tier for **Kura region admission cannot take an enterprise
 instance**. An absolute threshold does not give lead time here, because
@@ -4917,12 +5053,29 @@ history is the time an order takes. The 2-hour pending period keeps a region
 that has just started reporting, whose first samples are a steep drop, from
 firing on its first hour: eu-east did that for 1.5 hours on 2026-09-10.
 
+**The trend is of reserved disk, not of headroom.** Headroom moves both when
+instances reserve disk and when the region gains or loses a box, and only the
+first is burn. Extrapolating headroom read a box's retirement as consumption:
+when us-central's two old boxes left on 2026-10-19, headroom stepped from 2576
+GiB to 1161 and stayed there, and the rule projected -1289 GiB for three days.
+It also read a new box as a reversal of the burn, which hid eu-west's queued
+claim growth taking about 440 GiB of its fifth box within a day of it joining
+on 2026-10-15. Reserved disk does not move when a box joins, leaves, or is
+evacuated, so its slope is the burn alone. The private runner-cache regions
+(`ber1-runners`, `scw-fr-par-runners`) report headroom but no reserved series,
+so they fall through the `or` to the headroom trend.
+
 Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
 2026-09-11 14:33 and eu-west from 2026-09-11 12:03, four and five days before
 each crossed 32 GiB, for us-central from 2026-09-11 12:33, and for
 ap-southeast from 2026-09-16 12:33 (121 GiB left, projected -329 on
 2026-09-17). us-east fired from 2026-09-04 16:33, dropping out whenever
-archival released reservations.
+archival released reservations. These are the times of the headroom form;
+the reserved form, at a 6-hour step over the same window, starts within the
+same 6 hours in each region. Over 2026-10-17 to 2026-10-21 it reads
+us-central at about 1080 GiB where the headroom form read -1300, eu-west at
+-535 on 2026-10-17 where the headroom form read +576, and ber1-runners at
+-284 in both.
 
 ### Kura admission refusing instances
 
@@ -6705,17 +6858,11 @@ sum by (cluster, namespace, result) (
 - Folder `Alerts`, group `Server`
 - Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
 - `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
-  for reads against both physical Cloud and shadow ClickHouse repositories.
-  The `repo` label distinguishes `clickhouse_read` from
-  `clickhouse_shadow_read`; this rule aggregates both. Adding shadow event
-  coverage can surface failures that were previously unobserved, without a
-  threshold change. `result` is `ok`,
-  `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
-  `TIMEOUT_EXCEEDED`, which the Cloud repo's `max_execution_time` produces for a
-  slow read; `clickhouse_241` the memory limit), `transport_closed` for a
-  connection the client dropped, `queue_timeout` for a pool checkout that never
-  got a connection. The shadow repo does not configure `max_execution_time`:
-  a client timeout alone does not establish that its server-side query stopped.
+  for ClickHouse reads. `result` is `ok`, `clickhouse_<code>` for an error
+  ClickHouse returned (`clickhouse_159` is `TIMEOUT_EXCEEDED`, which the repo's
+  `max_execution_time` produces for a slow read; `clickhouse_241` the memory
+  limit), `transport_closed` for a connection the client dropped,
+  `queue_timeout` for a pool checkout that never got a connection.
 - The threshold is `> 0` on purpose, the same reasoning as the Kura
   NetworkPolicy rule above: the errors are rare enough that any magnitude floor
   would be tuned blind and hide a low-rate variant. Duration does the
@@ -6743,14 +6890,10 @@ histogram_quantile(
 - Severity: warning
 - Folder `Alerts`, group `Server`
 - Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
-- Same histogram as the failures rule, aggregating Cloud and shadow physical
-  read repositories. Newly instrumented shadow reads can change the observed
-  p90 and make this rule fire. All outcomes are included so a query that ran
-  into its timeout counts as slow rather than disappearing from the distribution.
-  Cloud reads have a 15 s server-side limit and a 20 s client timeout. Shadow
-  reads do not configure a server-side execution limit and use the driver's
-  default 15 s client timeout; a client timeout does not guarantee server-side
-  cancellation. The histogram's top finite buckets are 15 000, 20 000 and
+- Same histogram as the failures rule. All outcomes are included so a query
+  that ran into its timeout counts as slow rather than disappearing from the
+  distribution. Reads have a 15 s server-side limit and a 20 s client timeout.
+  The histogram's top finite buckets are 15 000, 20 000 and
   30 000; longer observations fall into `+Inf`.
 - This is the rule that covers dashboard pages. They are LiveViews: the
   initial render returns in milliseconds and the data is loaded afterwards
@@ -6767,6 +6910,10 @@ Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
 not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
 query") since 2026-09-15. Its definition before then could not have fired on
 the 2026-09-05 Modules page outage, and errored on every evaluation.
+
+Paused since 2026-10-21. ClickHouse Cloud stopped receiving production traffic
+on 2026-10-20, and the in-cluster data source cannot run `clusterAllReplicas`:
+that needs the `REMOTE` grant, which `tuist_grafana` deliberately lacks.
 
 ```sql
 SELECT
@@ -6837,64 +6984,6 @@ LIMIT 20
   `numeric-multi` frame per `(query_hash, query_preview)` for both `A` and
   `B`, and the first scheduled evaluation after the update reported
   `health: ok` with no error.
-
-### ClickHouse shadow write lost
-
-```promql
-(
-  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
-  - sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
-)
-or
-(
-  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
-  unless sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
-)
-```
-
-- Condition: expression `C`, **Threshold** on `A`, `IS ABOVE 0`. Query `A`
-  relative time range: 15 minutes.
-- Pending period: 0 minutes; keep firing for 10 minutes
-- Label `severity=warning`
-- Folder `Alerts`, group `Server`; no receiver set on the rule
-- Summary: `{{ $values.A.Value }} shadow ClickHouse {{ $labels.kind }} write(s) {{ $labels.result }} in {{ $labels.cluster }} in the last 10 minutes`
-- Set **No Data** to Normal: the counter only has `error` and `dropped` series
-  once a mirror has failed. Error state: Error.
-- `tuist_clickhouse_shadow_write_count` is emitted by
-  `Tuist.IngestRepo.ShadowWrite` for every write it mirrors onto the
-  in-cluster ClickHouse. `result=retried` is a failed attempt that will be
-  tried again and is not alerted on. `result=error` is a write given up on
-  after its last attempt, and `result=dropped` one never attempted because the
-  mirror's `Task.Supervisor` was at its bound. Both mean ClickHouse Cloud holds
-  rows the in-cluster server does not, which parity would only find later. The
-  `kind` label is the write form: `insert_all`, `insert` (which includes the
-  buffer flushes), `alter`.
-- The threshold is `> 0` on purpose: every count is a lost row set, and once
-  `clickhouse_bare_metal_reads` is on it is a wrong read too. On 2026-10-14 at
-  20:22Z the mirror gave up on 7 `coverage_files` inserts from one test run
-  while the run's one-row `coverage_runs` total arrived, so every fold of
-  commit `4eec2ec` read the run but none of its files and published 3.1%
-  coverage instead of 44.4%. This rule would have fired at 20:25Z.
-- This counter is the only signal. `ShadowWrite` logs every give-up with
-  `Logger.error("Shadow ClickHouse write ...")`, but none of those lines reached
-  Loki in the seven days to 2026-10-15 while the counter recorded hundreds of
-  errors.
-- Why not `increase()`: Grafana Cloud adaptive metrics aggregates `instance`
-  away on this metric, and `increase`/`rate` over the stored aggregation
-  return nothing. The rule diffs the summed counter against its value 10
-  minutes earlier instead. The `unless` arm keeps a series that did not exist
-  10 minutes ago, so the first failure on a pod is not lost. A pod restart
-  lowers the sum and makes the difference negative, so it cannot fire the
-  rule, but a restart inside a failure window can hide that window's count.
-- Recovering: once the window is at least 15 minutes old, run
-  `mise run clickhouse:migration <env> repair --from <start> --to <end>` from
-  `infra/` with a few minutes of margin on each side
-  (see [`infra/clickhouse/migration.md`](../../clickhouse/migration.md#repairing-known-gaps)),
-  then refold any coverage commit folded inside the window
-  (`Tuist.Tests.Coverage.Workers.CommitWorker.enqueue/2`).
-- Validated on 2026-10-15 against the past seven days: the expression returns
-  `insert` 44 and `insert_all` 7 at 20:25Z on 2026-10-14, is above zero in
-  about nine hourly samples over the week, and was 0 when evaluated.
 
 ### etcd write-ahead-log synchronization latency
 

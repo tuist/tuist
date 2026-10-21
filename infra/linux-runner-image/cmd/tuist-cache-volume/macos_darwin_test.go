@@ -106,7 +106,8 @@ func TestMacRealDetachEndsAProcessRunningFromTheVolume(t *testing.T) {
 }
 
 func realAttach(image, mountPoint string) error {
-	return attachMacImage(context.Background(), image, mountPoint, macRun)
+	ctx := context.Background()
+	return attachMacVolume(ctx, image, mountPoint, macRun, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
 
 func TestMacRealAttachGrowsTheContainerToTheEnlargedImage(t *testing.T) {

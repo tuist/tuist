@@ -581,7 +581,7 @@ attach_cache_image() {
     return 1
   fi
   mkdir -p "${CACHE_MOUNTPOINT}" 2>/dev/null || true
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_MOUNTPOINT}" 2>&1); then
     cache_diag "hdiutil attach ${CACHE_IMAGE}: ${err}"
     return 1
@@ -1628,7 +1628,7 @@ capture_settled_inventory() {
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   mkdir -p "${CACHE_VERIFY_MOUNTPOINT}" 2>/dev/null || true
   local err
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_VERIFY_MOUNTPOINT}" 2>&1); then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING settled cache image would not attach read-only: ${err}"
     return 1
@@ -2232,11 +2232,18 @@ while true; do
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
       rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      # The hook also mounts the job's cached checkout at its workspace before
+      # the first step, so a stock actions/checkout reuses it instead of
+      # cloning. The host decides whether there is one; any miss leaves the
+      # workspace empty and the job checks out exactly as before.
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
+fi
 exit 0
 HOOK
       chmod +x "${JOB_STARTED_HOOK}"
@@ -2484,6 +2491,11 @@ HOOK
         report_cache_dirty "${CACHE_PASSED}"
         report_volume_head "${CACHE_PASSED}"
       fi
+      # Hand the host what the job's checkout added; the host verifies it and
+      # builds the next cached checkout from it. Never affects the exit code.
+      if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+        /usr/local/bin/tuist-cache-volume --checkout-export || true
+      fi
       # A managed compilation cache follows the built-in image's order: its
       # publications reach the remote before the volume holding their store is
       # saved, and the store is bounded before the volume is measured. The drain
@@ -2498,7 +2510,7 @@ HOOK
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
         elif [ "${JOB_PASSED}" = "1" ]; then
           CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
-          prune_cas_stores teardown
+          prune_cas_stores managed-teardown
         fi
         CAS_STORE_ROOT=""
       fi

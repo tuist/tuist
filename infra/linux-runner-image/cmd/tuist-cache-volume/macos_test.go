@@ -37,7 +37,7 @@ func TestMacAttachAndDetach(t *testing.T) {
 	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}
 	data, _ := json.Marshal(response)
 	respondMac(t, share, data)
-	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
+	makeShare(t, share, response.Directory)
 	calls := 0
 	attachImage := func(image, mountPoint string) error {
 		calls++
@@ -124,7 +124,7 @@ func (f *fakeMacTools) run(_ context.Context, stdin []byte, name string, args ..
 
 func TestMacAttachGrowsTheContainerBeforeMounting(t *testing.T) {
 	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":49999998976}`}
-	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+	if err := attachGrownMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
@@ -140,7 +140,7 @@ func TestMacAttachGrowsTheContainerBeforeMounting(t *testing.T) {
 
 func TestMacAttachLeavesAFullContainerAsItIs(t *testing.T) {
 	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":19999997952}`}
-	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+	if err := attachGrownMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
 		t.Fatal(err)
 	}
 	for _, call := range tools.calls {
@@ -152,7 +152,7 @@ func TestMacAttachLeavesAFullContainerAsItIs(t *testing.T) {
 
 func TestMacAttachMountsAtTheOldSizeWhenGrowingFails(t *testing.T) {
 	tools := &fakeMacTools{limits: `{"CurrentSize":19999997952,"MaximumSize":49999998976}`, failures: map[string]error{"diskutil apfs resizeContainer disk7 0": errors.New("resize failed")}}
-	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
+	if err := attachGrownMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err != nil {
 		t.Fatal(err)
 	}
 	if last := tools.calls[len(tools.calls)-1]; last != "diskutil mount nobrowse -mountPoint /mount /dev/disk7s1" {
@@ -162,7 +162,7 @@ func TestMacAttachMountsAtTheOldSizeWhenGrowingFails(t *testing.T) {
 
 func TestMacAttachDetachesTheImageWhenMountingFails(t *testing.T) {
 	tools := &fakeMacTools{limits: `{"CurrentSize":1,"MaximumSize":1}`, failures: map[string]error{"diskutil mount": errors.New("mount failed")}}
-	if err := attachMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err == nil {
+	if err := attachGrownMacImage(context.Background(), "cache.sparseimage", "/mount", tools.run); err == nil {
 		t.Fatal("reported a failed mount as attached")
 	}
 	if last := tools.calls[len(tools.calls)-1]; last != "hdiutil detach /dev/disk6 -quiet" {
@@ -173,7 +173,7 @@ func TestMacFailedDetachWithholdsPublication(t *testing.T) {
 	share, mount := t.TempDir(), t.TempDir()
 	scope := digest("volume")
 	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
-	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	makeShare(t, share, scope)
 	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
 	if err := detachMacAt(share, mount, func(...string) error { return errors.New("busy") }, fakeMacMeasure, func(string, bool) {}, func() {}); err == nil {
 		t.Fatal("detach should fail")
@@ -237,7 +237,7 @@ func TestMacRetryIgnoresStaleResponseAndCleansMailbox(t *testing.T) {
 	_ = os.WriteFile(stale, []byte(`{"error":"unavailable"}`), 0600)
 	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}
 	data, _ := json.Marshal(response)
-	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
+	makeShare(t, share, response.Directory)
 	respondMac(t, share, data)
 	for range 2 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -259,7 +259,7 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 	share, mount := t.TempDir(), t.TempDir()
 	scope := digest("volume")
 	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
-	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	makeShare(t, share, scope)
 	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
 	calls, measurements := 0, 0
 	err := detachMacAt(share, mount, func(args ...string) error {
@@ -284,6 +284,76 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 	marker, _ := os.ReadFile(filepath.Join(share, scope, ".detached"))
 	if string(marker) != "lease" {
 		t.Fatal(string(marker))
+	}
+}
+
+func TestMacCheckoutMountsAtTheWorkspace(t *testing.T) {
+	share := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "repo", "repo")
+	response := macResponse{Directory: digest("checkout"), ID: "lease", Warm: true}
+	data, _ := json.Marshal(response)
+	respondMac(t, share, data)
+	makeShare(t, share, response.Directory)
+	var attached []string
+	result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), func(args ...string) error {
+		attached = args
+		return nil
+	})
+	if result != "reused" {
+		t.Fatal(result)
+	}
+	if attached[0] != "attach" || attached[1] != filepath.Join(share, response.Directory, "cache.sparseimage") || attached[len(attached)-1] != workspace {
+		t.Fatal(attached)
+	}
+	if marker, _ := os.ReadFile(filepath.Join(share, response.Directory, ".mounted")); string(marker) != "lease" {
+		t.Fatal("the host was not told the branch is mounted")
+	}
+	if entries, _ := os.ReadDir(workspace); len(entries) != 0 {
+		t.Fatal("wrote into the workspace")
+	}
+}
+
+func TestMacCheckoutLeavesTheWorkspaceAloneWhenUnavailable(t *testing.T) {
+	share := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "repo")
+	respondMac(t, share, []byte(`{"error":"unavailable","reason":"cold"}`))
+	never := func(...string) error { t.Fatal("attached without a checkout"); return nil }
+	if result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (cold)" {
+		t.Fatal(result)
+	}
+	if _, err := os.Stat(workspace); !os.IsNotExist(err) {
+		t.Fatal("created the workspace")
+	}
+}
+
+func TestMacCheckoutNeverMountsOverExistingContent(t *testing.T) {
+	share := t.TempDir()
+	workspace := t.TempDir()
+	_ = os.WriteFile(filepath.Join(workspace, "file"), nil, 0644)
+	never := func(...string) error { t.Fatal("mounted over a workspace"); return nil }
+	if result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), never); !strings.HasPrefix(result, "skipped") {
+		t.Fatal(result)
+	}
+	if result := checkoutMacAt(context.Background(), "relative/path", share, filepath.Join(t.TempDir(), "state.json"), never); !strings.HasPrefix(result, "skipped") {
+		t.Fatal(result)
+	}
+}
+
+func TestMacCheckoutTimesOutWithoutAnAnswer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	never := func(...string) error { t.Fatal("attached without an answer"); return nil }
+	if result := checkoutMacAt(ctx, filepath.Join(t.TempDir(), "repo"), t.TempDir(), filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (timeout)" {
+		t.Fatal(result)
+	}
+}
+
+func TestMacCheckoutSanitizesHostReasons(t *testing.T) {
+	share := t.TempDir()
+	respondMac(t, share, []byte(`{"error":"unavailable","reason":"::error::injected"}`))
+	never := func(...string) error { return errors.New("unexpected") }
+	if result := checkoutMacAt(context.Background(), filepath.Join(t.TempDir(), "repo"), share, filepath.Join(t.TempDir(), "state.json"), never); result != "unavailable (error)" {
+		t.Fatal(result)
 	}
 }
 
@@ -312,7 +382,7 @@ func TestMacBusyDetachReleasesHoldersBeforePublishing(t *testing.T) {
 	share, mount := t.TempDir(), t.TempDir()
 	scope := digest("volume")
 	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
-	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	makeShare(t, share, scope)
 	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
 	held := true
 	var releases []bool
@@ -344,7 +414,7 @@ func TestMacKillsHoldersThatOutliveTermination(t *testing.T) {
 	share, mount := t.TempDir(), t.TempDir()
 	scope := digest("volume")
 	_ = os.Mkdir(filepath.Join(mount, scope), 0755)
-	_ = os.Mkdir(filepath.Join(share, scope), 0755)
+	makeShare(t, share, scope)
 	_ = os.WriteFile(filepath.Join(mount, scope, ".tuist-volume"), []byte("lease"), 0600)
 	held := true
 	var releases []bool
@@ -373,5 +443,16 @@ func TestMacHoldersParsesLsofFields(t *testing.T) {
 	}
 	if got := parseMacHolders(nil); len(got) != 0 {
 		t.Fatal(got)
+	}
+}
+
+// makeShare creates a volume's share directory with the image the host links into it.
+func makeShare(t *testing.T, share, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(share, dir), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(share, dir, "cache.sparseimage"), nil, 0644); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -31,7 +31,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
          {:ok, page, size} <- pagination(params) do
       {:ok,
        %{
-         jobs: Enum.map(CacheVolumes.history(account_id, found.id, page, size), &usage/1),
+         jobs: Enum.map(CacheVolumes.history(account_id, found.id, page, size), &usage(&1, found)),
          pagination_metadata: metadata(page, size, CacheVolumes.history_count(account_id, found.id))
        }}
     end
@@ -48,7 +48,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
          %{
            volumes:
              Enum.map(uses, fn use ->
-               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{}), names), usage: usage(use)}
+               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{}), names), usage: usage(use, use.volume)}
              end)
          }}
 
@@ -183,8 +183,8 @@ defmodule Tuist.Runners.CacheVolumes.Query do
     }
   end
 
-  defp usage(use) do
-    {status, description} = status(use.status)
+  defp usage(use, volume) do
+    {status, description} = status(use, volume)
 
     description =
       if CacheVolumes.older_copy?(use),
@@ -207,6 +207,16 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       mounted_at: iso(use.attached_at)
     }
   end
+
+  # No job ever saves a checkout volume: the host fills it from GitHub.
+  defp status(%{status: status, warm: warm}, %{key: key})
+       when key == "checkout" and status in ["attached", "discarded"] do
+    if warm,
+      do: {"reused", "The job started from the cached checkout of its repository."},
+      else: {"cold", "The job checked out its repository from GitHub."}
+  end
+
+  defp status(use, _volume), do: status(use.status)
 
   defp status("allocated"), do: {"preparing", "The volume is being prepared for this job."}
   defp status("attached"), do: {"attached", "The volume is mounted for this job. Changes have not been saved yet."}

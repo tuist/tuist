@@ -237,6 +237,18 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(back.commits, & &1.git_commit_sha) == ["c5", "c2"]
       assert {back.has_previous_page?, back.has_next_page?} == {false, true}
 
+      first = History.commit_cursor_page(project, "main", page_size: 2, status: "measured")
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["c3", "c1"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
+
       assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) ==
                ["c4"]
 
@@ -273,6 +285,9 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       # Labelled commits are all measured.
       assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "measured").commits, & &1.git_commit_sha) ==
+               ["c", "b", "a"]
 
       assert Enum.map(History.commit_cursor_page(project, "main", status: "in-progress").commits, & &1.git_commit_sha) ==
                [

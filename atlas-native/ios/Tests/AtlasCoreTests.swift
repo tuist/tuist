@@ -7,30 +7,29 @@ struct AtlasCoreTests {
         let sections = AtlasCore.sections()
         #expect(Array(sections.prefix(5).map(\.title)) == ["Accounts", "Tasks", "Notes", "AI accounts", "Time off"])
         #expect(sections.first { $0.id == "time-off" }?.screen == "time-off")
-        #expect(sections.first?.screen == "browser")
+        #expect(sections.first?.screen == "accounts")
         #expect(sections.allSatisfy { !$0.description.isEmpty })
         #expect(sections.count == Int(atlas_section_count()))
         #expect(AtlasCore.groups().count == Int(atlas_group_count()))
         #expect(sections.first { $0.id == "insurance" }?.requiredScope == "insurance:read")
     }
 
-    @Test func groupsAllDomainsWithoutTurningFeaturesIntoTabs() {
+    @Test func showsOnlyNativeDestinationsAndTheirNonemptyAncestors() {
         let catalog = AtlasCatalog()
-        #expect(catalog.children().map(\.id) == [
-            "overview", "commercial", "outbound", "engineering", "people", "operations", "library", "admin"
-        ])
-        #expect(catalog.children(of: "commercial").map(\.id) == ["sales", "finance", "gtm"])
-        #expect(catalog.children(of: "operations").map(\.id) == ["hardware"])
+        #expect(catalog.children().map(\.id) == ["overview", "commercial", "people"])
+        #expect(catalog.children(of: "commercial").map(\.id) == ["sales", "finance"])
+        #expect(catalog.children(of: "operations").isEmpty)
         #expect(catalog.shortcuts.map(\.id) == ["tasks", "time-off"])
         #expect(catalog.entries(in: "people").map(\.id) == ["time-off"])
-        #expect(!catalog.workspaceSections.contains { $0.group == "settings" })
+        #expect(catalog.workspaceSections.map(\.id) == ["accounts", "tasks", "time-off", "finance"])
+        #expect(!catalog.workspaceSections.contains { $0.screen == "browser" })
     }
 
     @Test func searchesFeaturesAndTheirDomainBreadcrumbs() throws {
         let catalog = AtlasCatalog()
-        #expect(catalog.search("  FINANCE vendor ").map(\.id) == ["vendors"])
-        #expect(catalog.search("engineering").count == 5)
-        #expect(catalog.search("insurance").map(\.id) == ["insurance"])
+        #expect(catalog.search("  FINANCE ").map(\.id) == ["finance"])
+        #expect(catalog.search("engineering").isEmpty)
+        #expect(catalog.search("insurance").isEmpty)
         #expect(catalog.search("time off").map(\.id) == ["time-off"])
         #expect(catalog.search("ChatGPT").isEmpty)
         #expect(catalog.search("does-not-exist").isEmpty)

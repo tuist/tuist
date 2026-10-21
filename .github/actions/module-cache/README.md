@@ -23,10 +23,12 @@ copy lives.
 
 ## Saving
 
-Successful jobs from your repository save their changes. Jobs from forks start
-empty and never save. The module cache shares its storage and size budget with
-the [Xcode cache](https://github.com/tuist/xcode-cache), so there is nothing to
-size or clear. Directories you keep with
+Successful jobs from your repository save their changes. Fork pull requests use
+the cache but never save. To save only from some branches, limit them on the
+runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
+The cache holds up to 20 GB and the Tuist CLI keeps it within that size, so there
+is nothing to size or clear. Directories you keep with
 [`tuist/cache-volume`](https://github.com/tuist/cache-volume) are separate.
 
 ## Other runners

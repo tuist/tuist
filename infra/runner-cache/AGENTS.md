@@ -55,6 +55,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
   detached branch's `.usage` before sealing so a withheld branch still reports its size.
+- APFS `Seal` poisons a branch whose share no longer exposes the branch image
+  itself (`ErrReplaced`, result `replaced`): the guest's writes went elsewhere.
+  `publish` withholds a branch whose content digest equals its base's
+  (`ErrIdentical`, result `identical`): the guest reported changes that never
+  reached the host, and publishing would only advance the generation.
 - `LocalImages` (Linux) decides the same on the host, while the volume is still
   mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
   when the top-level entries match `<image>.entries` and no entry's ctime is
@@ -118,3 +123,38 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.
+
+- `Identity.Kind` is set by the host agent, never decoded from a guest or
+  trusted from a custom allocation. `checkout` identities carry their volume's
+  clear `Generation`, have no HEAD, can never publish, and their branches are
+  seeded from a host-built master; attach fails rather than format an empty image.
+  The host publishes and restores checkout masters itself, with `CompressImage`
+  and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `Checkouts` (`checkout.go`) is the one populator for both hosts: it builds,
+  ingests, publishes, restores and evicts checkout masters, and the host only
+  wires it to its admission (`Room`), transfer and tools. `CheckoutImages` is the
+  only platform part. `APFSCheckoutImages` (macOS) keeps the tree at the image
+  root and leaves ownership to the guest's `-owners off` attach.
+  `Ext4CheckoutImages` (Linux) formats sparse ext4 with inode tables and journal
+  zeroed at mkfs (free on a sparse file, and no clone's mount starts the
+  kernel's background zeroing), clones with `cp --reflink=always`, loop-mounts
+  builds in the agent, keeps the tree in `checkout/` beside the volume's own
+  files, and chowns it to the job's UID. git runs as root on that tree, so the
+  populator passes `safe.directory=*` per command. A Linux checkout slot is
+  seeded through `LocalImages.Seed`, never formatted, and admitted only while
+  free space covers the whole checkout image, since it holds the job's workspace.
+  That check never evicts (`reserveSpare`); the usual reserve admission does.
+- `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
+  off masters a job holds or is attaching: their blocks are shared, so evicting
+  them frees nothing and the attaching job loses its seed.
+- `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
+  share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
+  within the export bounds, written through `os.Root`, else the whole stream is
+  refused. Sparse entries are refused and no write may exceed what the stream
+  carried, so holes cannot expand into real bytes. Its `admit` hook asks for room
+  per entry; the Linux agent admits above the job reserve and caps exports held
+  on the host. `openCheckoutExport` validates it again before a build.
+- Run the real-tools checkout test with `TUIST_CHECKOUT_E2E=1 go test -run
+  CheckoutMasterEndToEnd .`; on Linux it runs as root with
+  `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
+  in runners-controller provides one).

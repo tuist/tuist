@@ -28,6 +28,11 @@ var ErrWithheld = errors.New("cache branch withheld from publication")
 var ErrUnchanged = fmt.Errorf("%w: unchanged", ErrWithheld)
 var ErrFull = fmt.Errorf("%w: out of space", ErrWithheld)
 
+// ErrIdentical withholds a branch whose image is byte-identical to the master it
+// was cloned from although the job reported changes: its writes never reached
+// the host, and publishing it would only advance the generation.
+var ErrIdentical = fmt.Errorf("%w: identical to its base", ErrWithheld)
+
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {
@@ -71,6 +76,8 @@ type LocalImages struct {
 	// in the last day. The stale master stays while it reports the fetch queued, so
 	// jobs can mount it until its successor is local. It replaces RefreshWithin.
 	Replace func(Identity) bool
+	// Seed clones the host-built master of a checkout slot to the given path.
+	Seed func(context.Context, Slot, string) error
 	// Displace, when set, cancels speculative work that holds space on this
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
@@ -369,6 +376,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, b.attachBytes(slot)) }); err != nil {
 			return err
 		}
+		// A checkout clone holds the job's whole workspace, so free space must cover
+		// what it can grow to, as the reserve covers one custom volume. A checkout is
+		// optional, so it never evicts anything for that room.
+		if slot.Kind == KindCheckout {
+			if err = b.operation("admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
+				return err
+			}
+		}
 		tmp := image + ".tmp"
 		_ = os.Remove(tmp)
 		if slot.BaseGeneration > 0 {
@@ -396,6 +411,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 			unlock()
 			if err == nil {
 				b.growClone(slot, tmp)
+			}
+		} else if slot.Kind == KindCheckout {
+			// Never fall back to an empty image: the guest mounts it over its workspace.
+			if b.Seed == nil {
+				err = errors.New("checkout seeding unavailable")
+			} else {
+				source = "local"
+				err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
 			}
 		} else {
 			var f *os.File
@@ -565,10 +588,13 @@ func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")
-	digest, content, err := compressImage(b.image(slot), archive)
+	digest, content, err := CompressImage(b.image(slot), archive)
 	compressDone(err)
 	if err != nil {
 		return err
+	}
+	if slot.BaseGeneration > 0 && content == slot.ContentDigest {
+		return ErrIdentical
 	}
 	uploadDone := b.Observe.Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)

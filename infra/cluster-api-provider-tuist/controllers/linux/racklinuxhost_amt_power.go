@@ -58,6 +58,9 @@ const (
 	// amtPowerCheckInterval is how often AMT is read for a host on the
 	// tailnet, to keep PowerReachable current.
 	amtPowerCheckInterval = time.Hour
+	// amtPowerRetryInterval is how soon a failed read of a host on the
+	// tailnet is tried again.
+	amtPowerRetryInterval = time.Minute
 	// amtPowerChangeBackoff spaces the power changes spec.online asks for,
 	// doubling with each one that does not take, up to amtPowerChangeBackoffMax.
 	amtPowerChangeBackoff    = 5 * time.Minute
@@ -150,7 +153,7 @@ func (r *RackLinuxHostReconciler) reconcileReboot(ctx context.Context, host *inf
 
 // reconcilePower holds the host to spec.online. A host connected to the
 // tailnet is on, and its AMT is read every amtPowerCheckInterval to keep
-// PowerReachable current. A host that is not is read from AMT at once, as
+// PowerReachable current, or amtPowerRetryInterval after a read that failed. A host that is not is read from AMT at once, as
 // whatever took it off the tailnet may have taken its power, and every
 // amtPowerObserveInterval after. A host that should be off is shut down over
 // SSH while it is on the tailnet, and powered off through AMT otherwise; one
@@ -169,7 +172,7 @@ func (r *RackLinuxHostReconciler) reconcilePower(ctx context.Context, host *infr
 	case connected:
 		observePower(host, rackPowerOn, powerSourceTailnet, now)
 		if r.amtCanPower(host) {
-			if read := host.Status.AMT.LastPowerRead; read == nil || now.Sub(read.At.Time) >= amtPowerCheckInterval {
+			if read := host.Status.AMT.LastPowerRead; read == nil || now.Sub(read.At.Time) >= amtPowerReadInterval(read) {
 				_, _ = r.readAMTPower(ctx, host)
 			}
 		}
@@ -205,6 +208,9 @@ func (r *RackLinuxHostReconciler) reconcilePower(ctx context.Context, host *infr
 	if host.Status.Power.State == want {
 		host.Status.Power.Changes = 0
 		conditions.MarkTrue(host, PowerCondition)
+		if connected && host.Status.AMT != nil && host.Status.AMT.LastPowerRead != nil {
+			return min(amtPowerReadInterval(host.Status.AMT.LastPowerRead), amtPowerObserveInterval)
+		}
 		return amtPowerObserveInterval
 	}
 	if wait := r.powerChangeWait(host, now); wait > 0 {
@@ -233,6 +239,16 @@ func (r *RackLinuxHostReconciler) reconcilePower(ctx context.Context, host *infr
 		host.Spec.Hostname, strings.ToLower(want), strings.ToLower(host.Status.Power.State), host.Status.Power.Changes)
 	conditions.MarkFalse(host, PowerCondition, "PowerChanging", clusterv1.ConditionSeverityInfo, "powering %s", strings.ToLower(want))
 	return r.powerChangeWait(host, now)
+}
+
+// amtPowerReadInterval is how long after read AMT of a host on the tailnet is
+// read again: amtPowerRetryInterval after a failed read, as a moment with no
+// edge on the tailnet would otherwise hold PowerReachable false for an hour.
+func amtPowerReadInterval(read *infrav1.RackLinuxHostAMTPowerAction) time.Duration {
+	if read.Error != "" {
+		return amtPowerRetryInterval
+	}
+	return amtPowerCheckInterval
 }
 
 // observePower records the host's power state, keeping the count of changes

@@ -185,7 +185,7 @@ defmodule Tuist.Runners.Profiles do
     changeset =
       if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
         do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
-        else: Profile.cache_writer_changeset(profile, attrs)
+        else: Profile.cache_settings_changeset(profile, attrs)
 
     update_revoking_writers(changeset)
   end
@@ -291,21 +291,14 @@ defmodule Tuist.Runners.Profiles do
   legacy pool or a profile that no longer exists.
   """
   def lock_for_dispatch_label(account_id, label) do
-    case dispatch_label_query(account_id, label) do
-      nil -> nil
-      query -> Repo.one(from(p in query, lock: "FOR SHARE"))
-    end
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(lock(query, "FOR SHARE"))
   end
 
   @doc """
-  The profile a job was dispatched to, or `nil` for labels that resolved to a
-  legacy pool or a profile that no longer exists.
+  The profile a job was dispatched to, or `nil` like `lock_for_dispatch_label/2`.
   """
   def get_for_dispatch_label(account_id, label) do
-    case dispatch_label_query(account_id, label) do
-      nil -> nil
-      query -> Repo.one(query)
-    end
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(query)
   end
 
   defp dispatch_label_query(account_id, label) when is_binary(label) do

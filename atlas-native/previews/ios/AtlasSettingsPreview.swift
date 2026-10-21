@@ -5,6 +5,7 @@ import SwiftUI
 struct AtlasSettingsPreview: App {
     @State private var openedURL: URL?
     @StateObject private var holidays = AtlasTimeOffPreviewData()
+    @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var accounts = AtlasAIAccounts { request in
         let response: String
         switch request["action"] as? String {
@@ -33,8 +34,9 @@ struct AtlasSettingsPreview: App {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
-                    AtlasWorkspaceView(server: URL(string: "https://atlas.example.org")!, holidayRequest: holidays.request) {
-                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                    AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request) {
+                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts,
+                                          signOut: {}, profileRequest: business.request)
                     }
                 } else {
                     NavigationStack {

@@ -2,8 +2,12 @@
 
 This crate owns OAuth discovery (RFC 8414), dynamic public-client registration
 (RFC 7591), authorization code + S256 PKCE, callback validation, token exchange,
-and refresh. Atlas already provides the required endpoints; native apps use the
-existing server login page rather than implementing Google sign-in themselves.
+and refresh. Atlas provides the required endpoints; native apps use server-owned
+browser authentication rather than implementing Google sign-in themselves. The
+optional `begin` command's `provider: "google"` appends an allowlisted provider hint
+to the discovered authorization URL, skipping the server's provider-selection page.
+It never changes the origin, issuing client, callback, state, or PKCE requirements;
+omitting it preserves generic browser login, including self-hosted providers.
 
 ## Boundaries
 
@@ -11,11 +15,13 @@ existing server login page rather than implementing Google sign-in themselves.
   one connection-pooled HTTPS client, rejects redirects, and bounds request time
   and response size. Endpoint origins must match the selected server. Do not
   disable certificate validation or cache token responses as build artifacts.
-- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `ai_accounts`, `time_off`). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
+- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `ai_accounts`, `time_off`, `business`). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
   registrations, and sessions are opaque JSON to native storage adapters. Tokens,
   state, and verifiers must not appear in logs, Debug implementations, errors, or
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
 - `time_off.rs` implements only the fixed owner-scoped `/api/me/time-off` list/create/update/cancel routes. It validates calendar dates and request IDs before networking, filters responses through personal request/public-holiday types, and never accepts owner/status/approval parameters or an arbitrary path. The API transport has feature-specific fixed error mappings so holiday errors do not become account-login expiry errors. Keep Rust sources in both production Once targets and test sources in the host test target.
+- `business.rs` implements allowlisted tasks/accounts/invoices CRUD and task completion under `/api/native`, plus read-only caller Profile. Validate fields/IDs/dates before networking and filter response fields; preserve decimal strings and currency-separated summaries. Server contexts remain authoritative for scopes, manual-invoice provenance and audit attribution. Keep feature networking independent after serialized session refresh/persistence so unrelated work can run in parallel.
+- Business `list` accepts optional default-empty `filters: BTreeMap<String, String>`. Validate resource-specific keys and values before networking, then encode each as an ordinary top-level query parameter alongside page/search, never nested `filters[...]`. Tasks allow status (`open`, `completed`), assignee UUID, reminder (`overdue`, `upcoming`, `none`), and `group_by=reminder`; accounts allow schema segment/status/deal-stage enums; invoices allow schema status. Keep these allowlists aligned with the [server contract](../../atlas/lib/atlas_web/controllers/AGENTS.md). Empty values mean All/no grouping only for allowed keys. Unknown/wrong-resource keys, including page/query overrides, must fail locally. Profile accepts no filters. Forward task `reminder_group` as a read-only response field, never a mutation attribute. The server owns the UTC cutoff and global grouping before 25-row pagination; native feature models append pages without recomputing groups or filtering partial data.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential
@@ -24,6 +30,12 @@ existing server login page rather than implementing Google sign-in themselves.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
+  Ignore URL fragments, including an empty `#`, as AppAuth does: code, state, and
+  errors come exclusively from the query. Fragment parameters must never supply,
+  override, or repair missing/invalid query parameters or bypass other checks.
+  Destination, path, expiry, and state rejections use `invalid_callback`
+  with distinct fixed messages. Never include the callback URL or its parameters
+  in diagnostics.
   Android stores pending grants encrypted so callbacks survive process recreation;
   invalid callbacks must not discard another pending login.
 - Sessions persist server origin, token endpoint, issuing client ID, tokens, and

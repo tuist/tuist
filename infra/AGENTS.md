@@ -106,6 +106,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
+- `mgmt/talos/` — Talos machine config patches for the single mgmt node, applied by hand with `talosctl` (not by CI or Flux). `control-plane-resources.yaml` sets memory limits on the control-plane static pods so Talos's userspace OOM controller never picks them. See `mgmt/talos/README.md`.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
   The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
@@ -304,7 +305,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
   - When staging has a platform experiment that must survive an application smoke deployment, `staging_platform_revision` restores that existing Helm revision through the normal deployment identity instead of applying the branch's platform chart. Verify the revision with `helm history platform -n platform` first. This override is rejected outside staging; omitting it keeps normal platform reconciliation.
-- `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
+- `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests, runners acceptance and the Kura rollout gate → production, with hotfix fast-path). Runners acceptance (`runners-acceptance.yml`, see `.github/AGENTS.md`) dispatches jobs onto canary's runner fleets and requires remote compilation-cache hits through the endpoint dispatch hands them; production's fleets, the BER1 rack included, are probed hourly by the same workflow because infra and network changes reach them without a server deploy. One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Kura runtime (hosted)** pins the newest `kura@X.Y.0-canary.N` tag contained in the deployed commit (falling back to the newest stable for commits that predate canaries). The cascade publishes that canary itself: when `kura/` changed, `server-production-deployment.yml` calls `kura-release.yml` before its canary and hotfix legs. Fresh staging deploys still build and pin `sha-<commit>` from the deployed commit. The `kura_runtime_image_tag` input overrides it for one deploy. Self-hosted Kura (the `kura` chart's `appVersion`, GHCR `:latest`, GitHub "Latest") still moves only on `kura-promote.yml`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
@@ -327,10 +328,11 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   idempotent provisioning init container for the bounded reflink filesystem.
   Host preparation and agent readiness precede volume attachment; runner scheduling
   only prefers ready hosts so ordinary jobs remain available. See
-  [workflow setup and rollout](runners-controller/cache-volumes.md).
+  [workflow setup and rollout](runners-controller/cache-volumes.md). The same agent builds and
+  serves cached checkouts (`checkout` volumes) with the shared runner-cache
+  populator.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).

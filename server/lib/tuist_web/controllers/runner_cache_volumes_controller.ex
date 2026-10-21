@@ -29,6 +29,23 @@ defmodule TuistWeb.RunnerCacheVolumesController do
     end
   end
 
+  def checkout(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, checkout} <- CacheVolumes.allocate_checkout(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(checkout)
+    else
+      {:error, :pending} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_resp_header("retry-after", "1")
+        |> put_status(425)
+        |> json(%{error: "job execution pending"})
+
+      _ ->
+        conn |> put_status(:forbidden) |> json(%{error: "checkout unavailable"})
+    end
+  end
+
   def report(conn, %{"node_name" => node, "id" => id} = params) do
     case authenticate(conn) do
       :ok ->

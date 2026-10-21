@@ -55,7 +55,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Optional stable name within the repository, architecture and execution user, such as `spm-checkouts`. Omit it to use the default volume of the runner profile and repository. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. Keys starting with `tuist-` are reserved. |
+| `key` | Optional stable name within the repository, architecture and execution user, such as `spm-checkouts`. Omit it to use the default volume of the runner profile and repository. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. `checkout` and keys starting with `tuist-` are reserved for Tuist. |
 | `path` | Required. Up to 16 absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `size` | Optional volume capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
@@ -123,7 +123,7 @@ new volume starts at `20gb` and an existing volume keeps its capacity.
 
 Account administrators configure **Save cache from** on each runner profile under
 **Runners → Profiles**. The settings apply to every custom volume attached by
-GitHub Actions jobs that run on the profile, including volumes created later.
+jobs that run on the profile, including volumes created later.
 
 By default every successful job from the repository saves its changes. Turn on
 **Limit to specific branches** to save only from some branches:
@@ -137,8 +137,8 @@ Successful push, schedule and manual-dispatch jobs, and pull requests from the
 same repository, save their changes when their branch matches. On push and
 manual-dispatch runs, a tag with a matching name also matches.
 
-Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
-built-in macOS volume policies are unchanged. Narrowing these settings or deleting
+Fork pull requests and `pull_request_target` never save. Buildkite and GitLab CI
+jobs follow the same settings. Narrowing these settings or deleting
 the profile revokes pending saves they no longer allow; a deleted profile falls
 back to saving from every branch. Additions apply to new volume attachments. A
 job that doesn't change a volume leaves the saved version in place.

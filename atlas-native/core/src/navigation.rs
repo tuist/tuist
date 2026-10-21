@@ -157,7 +157,7 @@ pub static SECTIONS: &[Section] = &[
         "Customer relationships and sales",
         "/commercial/sales/accounts",
         "sales",
-        "browser",
+        "accounts",
         false,
         ""
     ),
@@ -167,7 +167,7 @@ pub static SECTIONS: &[Section] = &[
         "Your team's work and reminders",
         "/tasks",
         "overview",
-        "browser",
+        "tasks",
         true,
         ""
     ),
@@ -257,7 +257,7 @@ pub static SECTIONS: &[Section] = &[
         "Revenue, costs, and financial performance",
         "/commercial/finance",
         "finance",
-        "browser",
+        "invoices",
         false,
         "finance:read"
     ),

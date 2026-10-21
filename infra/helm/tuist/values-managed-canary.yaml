@@ -48,7 +48,10 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
-  replicaCount: 1
+  # Exercise distribution between real replicas before production promotion.
+  replicaCount: 2
+  cluster:
+    enabled: true
 
   kuraCapacityAdmission:
     enabled: true
@@ -288,13 +291,6 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
-  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
-  # Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB
@@ -379,10 +375,11 @@ pdcAgent:
   enabled: true
   # Canary mirrors staging's sizing; production is the env that needs HA.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
 
 capi:
   ovhPrivateNetwork:
@@ -822,6 +819,8 @@ rackFleet:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:
     enabled: true
+    # Every BER1 host runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
     # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
     guestShapes:

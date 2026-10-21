@@ -184,6 +184,23 @@
 
             <.line_divider />
 
+            <div data-part="cached-checkouts">
+              <.toggle
+                id={"runner-profile-cached-checkouts-#{@form_cached_checkouts}"}
+                label={dgettext("dashboard_runners", "Cached checkouts")}
+                description={
+                  dgettext(
+                    "dashboard_runners",
+                    "Keeps each repository checked out on a \"checkout\" cache volume, so actions/checkout only fetches what changed."
+                  )
+                }
+                checked={@form_cached_checkouts}
+                phx-click="toggle_cached_checkouts"
+              />
+            </div>
+
+            <.line_divider />
+
             <section data-part="cache-saving-section">
               <button
                 id="runner-profile-cache-saving-toggle"

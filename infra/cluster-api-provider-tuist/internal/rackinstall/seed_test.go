@@ -11,6 +11,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"sigs.k8s.io/yaml"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // The installed system hashes the console password itself: the installer's
@@ -270,6 +272,21 @@ func TestUserDataKeepsTheBluetoothDriverOut(t *testing.T) {
 	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
 	if !strings.Contains(late, "cat > /target/etc/modprobe.d/tuist-rack.conf <<'TUIST_EOF'\nblacklist btusb\nTUIST_EOF") {
 		t.Fatalf("late-commands do not keep btusb out:\n%s", late)
+	}
+}
+
+// The operator reaches a rack host over SSH alone, so the install takes sshd
+// out of systemd's start rate limit before the host first boots.
+func TestUserDataKeepsSSHDOutOfTheStartLimit(t *testing.T) {
+	_, seed := renderEdge(t)
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	for path, content := range map[string]string{
+		sshd.ServiceDropInPath: sshd.ServiceDropInContent,
+		sshd.SocketDropInPath:  sshd.SocketDropInContent,
+	} {
+		if !strings.Contains(late, "cat > /target"+path+" <<'TUIST_EOF'\n"+content+"TUIST_EOF") {
+			t.Errorf("late-commands do not write %s:\n%s", path, late)
+		}
 	}
 }
 

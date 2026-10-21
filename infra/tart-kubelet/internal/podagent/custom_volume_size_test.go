@@ -19,13 +19,15 @@ import (
 func TestCustomReservationsFollowTheAllocatedVolumeSize(t *testing.T) {
 	m, _ := m2L(t)
 	c := &CustomVolumes{Builtins: m, reservations: map[string]cachevolumes.Slot{}}
-	restoring := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 1, VolumeBytes: 30_000_000_000}}
+	saved := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 1, VolumeBytes: 30_000_000_000}}
 	cold := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222", VolumeBytes: 30_000_000_000}}
-	c.reservations[restoring.ID] = restoring
+	prefetch := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1, VolumeBytes: 30_000_000_000}}
+	c.reservations[saved.ID] = saved
 	c.reservations[cold.ID] = cold
+	c.reservations[prefetch.ID] = prefetch
 
-	// A restore holds an archive beside the expanded image; a cold volume holds the image.
-	if got, want := c.reservedBytes(), uint64(2*30_000_000_000+30_000_000_000); got != want {
+	// A job holds its image; a prefetch holds an archive beside the expanded image.
+	if got, want := c.reservedBytes(), uint64(30_000_000_000+30_000_000_000+2*30_000_000_000); got != want {
 		t.Fatalf("reserved %d bytes, want %d", got, want)
 	}
 }
@@ -39,9 +41,8 @@ func TestCustomAdmissionScalesWithTheVolumeAndItsHead(t *testing.T) {
 		{"cold 5 GB", cachevolumes.Identity{VolumeBytes: 5_000_000_000}, 5_000_000_000},
 		{"cold 100 GB", cachevolumes.Identity{VolumeBytes: 100_000_000_000}, 100_000_000_000},
 		{"cold without a size", cachevolumes.Identity{}, customCapacity},
-		{"warm with a small head", cachevolumes.Identity{BaseGeneration: 1, VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000}, 50_000_000_000},
-		{"warm with a large head", cachevolumes.Identity{BaseGeneration: 1, VolumeBytes: 50_000_000_000, HeadSizeBytes: 40_000_000_000}, 80_000_000_000},
-		{"warm with an unknown head", cachevolumes.Identity{BaseGeneration: 1, VolumeBytes: 50_000_000_000}, 100_000_000_000},
+		{"warm with a large head", cachevolumes.Identity{BaseGeneration: 1, VolumeBytes: 50_000_000_000, HeadSizeBytes: 40_000_000_000}, 50_000_000_000},
+		{"warm with an unknown head", cachevolumes.Identity{BaseGeneration: 1, VolumeBytes: 50_000_000_000}, 50_000_000_000},
 		{"prefetch of a known head", cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1, VolumeBytes: 100_000_000_000, HeadSizeBytes: 10_000_000_000}, 20_000_000_000},
 		{"prefetch of an unknown head", cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1, VolumeBytes: 30_000_000_000}, 60_000_000_000},
 	} {

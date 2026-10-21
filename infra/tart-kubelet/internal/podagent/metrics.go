@@ -250,14 +250,14 @@ var cacheVolumeResidentCount = prometheus.NewGauge(
 	},
 )
 
-// cacheVolumeRootFreeBytes is statfs free space on the quota-bounded
-// runner-cache volume — the ground truth behind admission and watermark
-// eviction. A sustained decline toward the low watermark is the eviction-
-// pressure signal.
+// cacheVolumeRootFreeBytes is the runner-cache volume's free space within its
+// budget (--runner-cache-budget-gib, or the quota without one) — the ground
+// truth behind admission and watermark eviction. A sustained decline toward
+// the low watermark is the eviction-pressure signal.
 var cacheVolumeRootFreeBytes = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "tart_kubelet_cache_volume_root_free_bytes",
-		Help: "Free bytes on the quota-bounded runner-cache root volume.",
+		Help: "Free bytes on the runner-cache root volume within its budget.",
 	},
 )
 

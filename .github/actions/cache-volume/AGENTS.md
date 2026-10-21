@@ -27,6 +27,5 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
   own mounting; never add workflow sudo or symlink helpers.
 
 - macOS uses symlink targets and rejects node_modules; preserve its documented limitations.
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

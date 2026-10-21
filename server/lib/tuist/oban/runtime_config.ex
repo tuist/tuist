@@ -77,10 +77,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
     {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
-    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker},
-    # Inert unless a second ClickHouse is configured and mirrored to, which is
-    # only true mid-migration (spec #73).
-    {"@hourly", Tuist.ClickHouse.Workers.ParityWorker}
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
   ]
 
   @database_artifact_retention_resource_types [

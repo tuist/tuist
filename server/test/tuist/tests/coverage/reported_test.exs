@@ -1924,4 +1924,159 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "measured", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
     assert Reported.compute(project, "unknown") == nil
   end
+
+  # Another run of the commit's scheme, as a second pipeline runs it beside a
+  # selective one: every test, or those its caller selected.
+  defp other_run(project, account, attrs \\ %{}) do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [
+        file("Sources/Math.swift", [1, 1, 0]),
+        file("Sources/Text.swift", [1, 1, 1, 0]),
+        file("Tests/AppTests.swift", [1, 1], is_test: true)
+      ],
+      Map.merge(
+        %{
+          git_commit_sha: "head",
+          test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+        },
+        attrs
+      )
+    )
+  end
+
+  defp change_tracked_file(account) do
+    track_default_files()
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+  end
+
+  test "a target selective testing skipped that another run of the commit executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+    change_tracked_file(account)
+
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0, carried_tests_count: 0, gap_files_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == []
+  end
+
+  test "carries only the skipped targets no other run of the commit executed", %{project: project, account: account} do
+    target_only_runs(project, account, head: :skipped)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0} =
+             Reported.compute(project, "head")
+  end
+
+  test "a skipped target another run of the commit executed is no gap when its test files changed", %{
+    project: project,
+    account: account
+  } do
+    baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-changed"}])
+    assert :test_list_changed in reasons(Reported.compute(project, "head"))
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+      %{git_commit_sha: "head", test_modules: modules([test_case("testAdd()", "MathTests")])}
+    )
+
+    assert %{kind: "measured"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a target another run executed only the tests its caller selected of stays skipped", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+
+    other_run(project, account, %{
+      only_test_identifiers: ["AppTests/MathTests"],
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    # What the caller's run executed is measured; the rest of the target is carried.
+    assert %{skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+
+    change_tracked_file(account)
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+  end
+
+  test "a test a skip identifier names that another run of the commit executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    change_tracked_file(account)
+
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a suite the other run skipped itself stays skipped and is carried", %{project: project, account: account} do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+
+    other_run(project, account, %{
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
+  test "a suite a skip identifier names that another run executed is measured, whatever the commit changed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    change_tracked_file(account)
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a test a skip identifier names that another scheme's run executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    change_tracked_file(account)
+
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+
+    other_run(project, account, %{scheme: "Other"})
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
 end

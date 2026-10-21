@@ -54,8 +54,8 @@ func parseSize(value string) (int64, error) {
 func main() {
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
-		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
-			err = mountWorker()
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
+			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
 			err = serveMounts(os.Args[2], os.Args[3])
 		} else {
@@ -76,6 +76,24 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		os.Exit(2)
+	}
+	if opts.checkout != "" {
+		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
+		if runtime.GOOS == "darwin" {
+			fmt.Println("Tuist cached checkout: " + checkoutMac(opts.checkout))
+		} else {
+			fmt.Println("Tuist cached checkout: " + checkoutLinux(opts.checkout))
+		}
+		return
+	}
+	if opts.export {
+		// Never fails the teardown: without an export the host keeps its master.
+		if runtime.GOOS == "darwin" {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutMac())
+		} else {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutLinux())
+		}
+		return
 	}
 	if opts.detach {
 		if runtime.GOOS != "darwin" {
@@ -100,10 +118,12 @@ func main() {
 }
 
 type options struct {
-	detach  bool
-	key     string
-	targets []string
-	size    int64
+	detach   bool
+	checkout string
+	export   bool
+	key      string
+	targets  []string
+	size     int64
 }
 
 // parseArguments validates the command line before anything is acquired. The
@@ -112,6 +132,8 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 	flags := flag.NewFlagSet("tuist-cache-volume", flag.ContinueOnError)
 	flags.SetOutput(output)
 	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
+	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
+	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
 	key := flags.String("key", defaultKey, "Stable cache name; change it to invalidate")
 	var targets paths
 	flags.Var(&targets, "path", "Directory to cache (repeatable, up to 16; relative to the working directory)")
@@ -122,6 +144,12 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 		}
 		// The flag set has already printed the error and the usage.
 		return options{}, errArguments
+	}
+	if *checkout != "" {
+		return options{checkout: *checkout}, nil
+	}
+	if *export {
+		return options{export: true}, nil
 	}
 	if *detach {
 		return options{detach: true}, nil

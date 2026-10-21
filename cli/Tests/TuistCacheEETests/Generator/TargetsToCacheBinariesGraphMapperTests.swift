@@ -829,7 +829,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage,
-            coverage: .scheme("App")
+            coverage: .on
         )
         let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
         let project = Project.test(path: path, targets: [framework])
@@ -850,7 +850,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         verify(cacheGraphContentHasher)
             .contentHashes(
                 for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .value(.scheme("App"))
+                coverage: .value(.on)
             )
             .called(1)
     }
