@@ -417,6 +417,12 @@ impl PromotionQueue {
 pub enum RefreshTrigger {
     /// Background promotion of an artifact just served from an Old segment.
     Serve,
+    /// A sibling's promotion hint for an artifact this node holds too.
+    Sibling,
+    /// A named handover's retained walk listing an artifact this destination
+    /// already holds, so its ring evicts data the source no longer retains
+    /// before data it still does.
+    Retained,
     /// A `GetActionResult` that passed its presence gate and is being served.
     ActionCache,
     /// A `FindMissingBlobs` that reported the blob present.
@@ -427,6 +433,8 @@ impl RefreshTrigger {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Serve => "serve",
+            Self::Sibling => "sibling",
+            Self::Retained => "retained",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
         }
@@ -435,7 +443,13 @@ impl RefreshTrigger {
     /// Whether this refresh backs a lifetime the node has vouched for, and so
     /// runs under the wider pressure gate.
     fn extends_vouched_lifetime(self) -> bool {
-        !matches!(self, Self::Serve)
+        matches!(self, Self::ActionCache | Self::FindMissing)
+    }
+
+    /// Whether siblings are told about this refresh. Refreshes that mirror
+    /// another node's retention are never echoed back.
+    fn hints_siblings(self) -> bool {
+        !matches!(self, Self::Sibling | Self::Retained)
     }
 }
 
@@ -2640,6 +2654,38 @@ impl Store {
         self.promotion_notify.notify_one();
     }
 
+    /// Queues this node's copy of `artifact_id` for promotion when it holds
+    /// `version_ms` or newer in an Old segment: the counterpart of a
+    /// sibling's promotion hint or a handover source's retained listing.
+    pub fn refresh_from_hint(&self, artifact_id: &str, version_ms: u64, trigger: RefreshTrigger) {
+        let segment_state = self.segment_state_snapshot();
+        if segment_state.state.old.is_empty() {
+            return;
+        }
+        let Ok(Some(manifest)) = self.manifest(artifact_id) else {
+            return;
+        };
+        if manifest_version_ms(&manifest) < version_ms {
+            return;
+        }
+        let Some(segment_id) = manifest.segment_id.as_deref() else {
+            return;
+        };
+        if segment_state.generations.get(segment_id).copied() == Some(SegmentGeneration::Old) {
+            self.enqueue_promotion(artifact_id, trigger);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_promotion(&self, artifact_id: &str) -> Option<RefreshTrigger> {
+        self.promotion_queue
+            .lock()
+            .expect("promotion queue lock")
+            .pending
+            .get(artifact_id)
+            .copied()
+    }
+
     /// Whether any segment has aged into the Old generation, which is the only
     /// state in which lifetime extension has work to do. Read-path callers
     /// hoist this so a node whose data all sits in live segments pays one
@@ -2991,6 +3037,18 @@ impl Store {
             segment_artifact_index_key(&location.segment_id, &current.artifact_id).as_bytes(),
             [],
         );
+        let hint = trigger
+            .hints_siblings()
+            .then(|| {
+                self.stage_sync_feed_row(
+                    &mut batch,
+                    SyncFeedKind::Refresh,
+                    &refreshed.artifact_id,
+                    manifest_version_ms(&refreshed),
+                    Some(refreshed.size),
+                )
+            })
+            .flatten();
         self.write_batch_with_segment_pins(
             batch,
             "refreshed manifest",
@@ -2998,6 +3056,7 @@ impl Store {
             vec![source_pin, location.pin.clone()],
         )
         .await?;
+        commit_sync_feed_tickets(hint.into_iter().collect());
         // The promoted entry keeps its original version, which the max-only
         // stat semantics absorb without dragging the destination segment's
         // seal-time max down.
@@ -17564,6 +17623,91 @@ mod tests {
             })
             .expect("failed to seed segment state");
         aged.artifact_id
+    }
+
+    fn refresh_rows(store: &Store) -> Vec<SyncFeedRow> {
+        store
+            .sync_feed_page(0, 1024)
+            .expect("feed page should read")
+            .into_iter()
+            .filter(|row| row.kind == SyncFeedKind::Refresh)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_client_promotion_hints_siblings_with_a_refresh_row() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.sync_feed_activate().await.unwrap();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        let version = manifest_version_ms(&store.manifest(&aged_id).unwrap().unwrap());
+
+        store
+            .promote_artifact(&aged_id, RefreshTrigger::Serve)
+            .await
+            .unwrap();
+
+        let rows = refresh_rows(&store);
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].record_id, aged_id);
+        assert_eq!(rows[0].version_ms, version);
+        assert_eq!(rows[0].size, Some(4));
+    }
+
+    #[tokio::test]
+    async fn promotions_mirroring_another_node_do_not_hint_back() {
+        for trigger in [RefreshTrigger::Sibling, RefreshTrigger::Retained] {
+            let (_temp_dir, _config, store) = temp_store();
+            store.sync_feed_activate().await.unwrap();
+            let aged_id = store_with_one_aged_blob(&store).await;
+            let aged_segment = store.manifest(&aged_id).unwrap().unwrap().segment_id;
+
+            store.promote_artifact(&aged_id, trigger).await.unwrap();
+
+            assert_ne!(
+                store.manifest(&aged_id).unwrap().unwrap().segment_id,
+                aged_segment,
+                "{trigger:?} still promotes the local copy"
+            );
+            assert!(refresh_rows(&store).is_empty(), "{trigger:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_hint_queues_only_a_copy_held_in_an_old_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        let aged_version = manifest_version_ms(&store.manifest(&aged_id).unwrap().unwrap());
+        let live = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .unwrap();
+
+        store.refresh_from_hint(&aged_id, aged_version + 1, RefreshTrigger::Sibling);
+        assert_eq!(
+            store.pending_promotion(&aged_id),
+            None,
+            "a hint for a newer version than this node holds names a different record"
+        );
+        store.refresh_from_hint(&aged_id, aged_version, RefreshTrigger::Sibling);
+        store.refresh_from_hint(
+            &live.artifact_id,
+            manifest_version_ms(&live),
+            RefreshTrigger::Sibling,
+        );
+        store.refresh_from_hint("absent", 1, RefreshTrigger::Sibling);
+
+        assert_eq!(
+            store.pending_promotion(&aged_id),
+            Some(RefreshTrigger::Sibling)
+        );
+        assert_eq!(store.pending_promotion(&live.artifact_id), None);
+        assert_eq!(store.pending_promotion("absent"), None);
     }
 
     #[tokio::test]

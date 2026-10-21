@@ -47,7 +47,10 @@ use crate::{
     reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
+    store::{
+        ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, RefreshTrigger,
+        StagedArtifactPath,
+    },
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -573,6 +576,18 @@ async fn list_entry(
             .metrics
             .record_backfill_listed_tuple("present");
         context.update_stats(|stats| stats.tuples_present += 1);
+        // The source still retains this record. An Old copy here would be
+        // evicted ahead of data the source dropped, and repair would have to
+        // copy it back over other retained records.
+        if kind == BackfillRecordKind::SegmentArtifact
+            && matches!(context.tuning.source, PassSource::RetainedIndex)
+        {
+            context.state.store.refresh_from_hint(
+                &entry.record_id,
+                entry.version_ms,
+                RefreshTrigger::Retained,
+            );
+        }
         return Ok(());
     }
 
@@ -3371,6 +3386,63 @@ mod tests {
                 .expect("bounced artifact should land");
             assert_eq!(manifest.version_ms, 1_000 + index);
             assert_eq!(read_body(&local, &manifest).await, b"bounced-body");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_retained_walk_keeps_alive_records_the_destination_holds_in_old_segments() {
+        for (source, expected) in [
+            (
+                PassSource::RetainedIndex,
+                Some(crate::store::RefreshTrigger::Retained),
+            ),
+            (PassSource::PeerIndex, None),
+        ] {
+            let peer = test_context(|_| {}).await;
+            seed_segmented(&peer, "kept", b"kept-body", 1_000).await;
+            build_index(&peer);
+            let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+            let local = test_context(|_| {}).await;
+            seed_segmented(&local, "kept", b"kept-body", 1_000).await;
+            let artifact_id = crate::utils::artifact_storage_id(
+                ArtifactProducer::Gradle,
+                &local.state.config.tenant_id,
+                "ios",
+                "kept",
+            );
+            let aged_segment = local
+                .state
+                .store
+                .manifest_from_db(&artifact_id)
+                .unwrap()
+                .unwrap()
+                .segment_id
+                .unwrap();
+            local
+                .state
+                .store
+                .install_segment_state_for_testing(SegmentState {
+                    old: vec![SegmentReference::new(aged_segment, 1)],
+                    current: Vec::new(),
+                    new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+                })
+                .await
+                .expect("ring state should install");
+
+            let mut walk = tuning();
+            walk.source = source.clone();
+            let (outcome, _claims) = run_pass(&local, &peer_url, walk).await;
+            let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+                panic!("expected completion, got {outcome:?}");
+            };
+            assert_eq!(stats.tuples_present, 1, "{source:?}");
+
+            assert_eq!(
+                local.state.store.pending_promotion(&artifact_id),
+                expected,
+                "{source:?}"
+            );
         }
     }
 }

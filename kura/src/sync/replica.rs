@@ -30,6 +30,7 @@ use crate::{
     },
     replication::read_bounded_body,
     state::SharedState,
+    store::RefreshTrigger,
     sync::{
         coordinator::{
             LinkFrontier, LinkPhase, LinkStatusCell, PEER_UNSUPPORTED, backoff, pass_backoff,
@@ -242,6 +243,7 @@ async fn apply_page(
 ) -> Result<bool, String> {
     let mut entries = Vec::new();
     let mut watermarks = Vec::new();
+    let mut refreshes = Vec::new();
     for entry in &page.entries {
         match SyncFeedKind::from_wire_name(&entry.kind) {
             Some(SyncFeedKind::Record(_)) => entries.push(BackfillEntry {
@@ -252,6 +254,9 @@ async fn apply_page(
             }),
             Some(SyncFeedKind::Watermark) => {
                 watermarks.push((entry.record_id.clone(), entry.version_ms));
+            }
+            Some(SyncFeedKind::Refresh) => {
+                refreshes.push((entry.record_id.as_str(), entry.version_ms));
             }
             None => {
                 // A newer sibling may write kinds this binary does not know;
@@ -278,6 +283,10 @@ async fn apply_page(
             continue;
         }
         app.store.advance_sync_watermark(&region, watermark).await?;
+    }
+    for (artifact_id, version_ms) in refreshes {
+        app.store
+            .refresh_from_hint(artifact_id, version_ms, RefreshTrigger::Sibling);
     }
     Ok(true)
 }
