@@ -234,12 +234,25 @@ jobs:
           gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.name | test("probe")) | "\(.id)\t\(.name)"' > jobs.tsv
           : > checkouts.tsv
           : > warnings.tsv
+          : > unavailable.tsv
           while IFS=$'\t' read -r id name; do
             gh api "repos/$REPO/actions/jobs/$id/logs" > "log-$id.txt" 2>/dev/null || continue
             checkout=$(grep -o 'Tuist cached checkout: [^\r]*' "log-$id.txt" | head -1 | sed 's/Tuist cached checkout: //' || true)
             printf '%s\t%s\n' "$name" "${checkout:-none}" >> checkouts.tsv
             grep -o 'Cache volume unavailable: [^\r]*' "log-$id.txt" | sed "s|^|$name\t|" >> warnings.tsv || true
+            # The job-local fallback can sit on its own disk, so the client's
+            # warning, not the probe's mount check, decides unavailability.
+            job=$(echo "$name" | sed -E 's# / probe$##; s#^(seed|final)$#\1-0#; s#^concurrent \(([0-9]+)\)$#concurrent-\1#')
+            awk -v job="$job" '
+              match($0, /id=[a-z]+\.attach/) { step = substr($0, RSTART + 3, RLENGTH - 10) }
+              /Cache volume unavailable: / && step != "" { print job "\t" step }
+            ' "log-$id.txt" >> unavailable.tsv
           done < jobs.tsv
+          while IFS=$'\t' read -r job volume; do
+            jq -c --arg job "$job" --arg volume "$volume" \
+              'if (.phase + "-" + .index) == $job and .volume == $volume then .state = "unavailable" else . end' all.jsonl > all.next
+            mv all.next all.jsonl
+          done < unavailable.tsv
 
           {
             echo "## Cache reuse e2e (run $RUN_ID)"
