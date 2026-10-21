@@ -92,6 +92,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   A background prefetch the server listed for the host gives way first: built-in
   and custom job admission cancel it and drop its reservation (twice its volume
   size) before evicting any master (`displaceSpareLocked`).
+- The heartbeat labels the Node `tuist.dev/cache-volume-capacity-gib` with that
+  budgeted capacity (`CustomVolumes.CapacityNodeLabels`), and none while the
+  cache filesystem is unmounted. The server subtracts the volumes of every job
+  with an open runner session here, attached or only predicted, because a job
+  reserves its volumes at attach, minutes after dispatch. Dispatch affinity and
+  macOS Pod placement prefer this host for a job only while its volumes fit.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).

@@ -18,11 +18,16 @@ these schemas persist volume identities and per-job uses.
   the cache signing grant still follows trust. The dashboard names the volumes
   "Xcode cache" and "Module cache" and keeps listing built-in volumes from
   earlier jobs.
-- `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
-  affinity and for the macOS Pod placement preferences in the scaling signals: the lineage scopes jobs of the same repository, workflow name and job
-  name attached since a cutoff. It starts from the account's volumes so the uses
-  `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
-  account and repository.
+- `recent_job_volumes/3` predicts a queued job's custom volumes for dispatch
+  affinity and for the macOS Pod placement preferences in the scaling signals:
+  the volumes jobs of the same repository, workflow name and job name attached
+  since a cutoff, each with the cache disk room a host reserves for it (its
+  capacity, or the checkout growth reservation). It starts from the account's
+  volumes so the uses `(volume_id, inserted_at)` index applies;
+  `VolumeAffinities` caches it per account and repository.
+  `allocated_reserved_bytes/2` is the same room for the volumes running jobs
+  already allocated, which `VolumeAffinities` subtracts from a host's advertised
+  capacity so affinity never prefers a host that cannot fit a job's volumes.
 - A report's `mounted_generation` records the older saved generation a macOS host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the

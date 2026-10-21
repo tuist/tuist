@@ -17,9 +17,10 @@ type Signals struct {
 	Queued                int32  `json:"queued"`
 	Withheld              int32  `json:"withheld"`
 	P95ConcurrentLastHour int32  `json:"p95_concurrent_last_hour"`
-	// PreferredNodeLabels are the Node labels advertising the custom cache
-	// volumes the pool's oldest queued jobs are predicted to attach.
-	PreferredNodeLabels []string `json:"preferred_node_labels,omitempty"`
+	// PreferredNodes holds one Node per oldest queued job, in queue order: a
+	// host that holds the custom cache volumes the job is predicted to attach
+	// and has cache disk room for them. A Node repeats once per job it fits.
+	PreferredNodes []string `json:"preferred_nodes,omitempty"`
 }
 
 // CurrentOccupancy returns the server's complete capacity-held signal.
