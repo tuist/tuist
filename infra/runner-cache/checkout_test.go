@@ -33,6 +33,8 @@ type fakeCheckoutHost struct {
 	fail  func(checkoutCall) bool
 	// lfs is what `git lfs ls-files --long` lists for any commit.
 	lfs []string
+	// parents is what `git cat-file commit` names as each commit's parents.
+	parents map[string][]string
 }
 
 func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
@@ -41,6 +43,7 @@ func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name
 	f.calls = append(f.calls, call)
 	fail := f.fail
 	lfs := append([]string(nil), f.lfs...)
+	parents := f.parents
 	f.mu.Unlock()
 	if fail != nil && fail(call) {
 		return nil, os.ErrInvalid
@@ -59,6 +62,12 @@ func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name
 	case name == "git" && args[0] == "index-pack":
 		pack := args[len(args)-1]
 		return []byte(strings.Repeat("9", 40) + "\n"), os.WriteFile(strings.TrimSuffix(pack, ".pack")+".idx", nil, 0644)
+	case name == "git" && args[0] == "cat-file" && args[1] == "commit":
+		object := "tree " + strings.Repeat("7", 40) + "\n"
+		for _, parent := range parents[args[2]] {
+			object += "parent " + parent + "\n"
+		}
+		return []byte(object + "author t <t@t> 0 +0000\n\nparent " + checkoutTestOther + "\n"), nil
 	case name == "git" && args[0] == "rev-parse":
 		return []byte(checkoutTestCommit + "\n"), nil
 	case name == "git" && len(args) > 1 && args[0] == "lfs" && args[1] == "ls-files":
@@ -493,31 +502,78 @@ func TestCheckoutEligibleBranchJobStartsALineageWithoutAHead(t *testing.T) {
 }
 
 func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
-	cases := map[string]func(*CheckoutTask){
+	merge := []string{strings.Repeat("5", 40), checkoutTestOther}
+	cases := map[string]struct {
+		change func(*CheckoutTask)
+		// parents are the exported commit's.
+		parents []string
+	}{
 		// The server never allows forks or events that run untrusted code.
-		"not eligible": func(task *CheckoutTask) {},
+		"not eligible": {change: func(task *CheckoutTask) {}},
 		// A host without a master of a lineage that has a HEAD restores it instead.
-		"lineage has a HEAD": func(task *CheckoutTask) {
+		"lineage has a HEAD": {change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.BaseGeneration = true, 2
 			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
-		},
-		"export is not the job's commit": func(task *CheckoutTask) {
+		}},
+		"lineage has a HEAD, export merges the job's commit": {parents: merge, change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit, task.BaseGeneration = true, checkoutTestOther, 2
+			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+		}},
+		"export is not the job's commit": {change: func(task *CheckoutTask) {
 			task.MayStartMaster, task.Commit = true, checkoutTestOther
-		},
+		}},
+		"export merges another commit": {parents: merge, change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, strings.Repeat("6", 40)
+		}},
+		// The fake commit message is a line naming checkoutTestOther as a parent.
+		"export's message names the job's commit": {parents: merge[:1], change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		}},
+		"export merges more than two commits": {parents: append(merge, strings.Repeat("4", 40)), change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		}},
 	}
-	for name, change := range cases {
+	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
 			c, host := newCheckouts(t)
+			host.parents = map[string][]string{checkoutTestCommit: test.parents}
 			transfer := &fakeCheckoutTransfer{}
 			c.Transfer = transfer
 			task := exportFrom(t, c, "branch", checkoutTestCommit, nil)
 			task.DefaultBranchJob = false
-			change(&task)
+			test.change(&task)
 			c.Process(context.Background(), task)
-			if c.Master(checkoutTestScope, 1) != "" || host.ran("hdiutil", "create") || len(transfer.published) != 0 {
+			if c.Master(checkoutTestScope, 1) != "" || len(transfer.published) != 0 {
 				t.Fatal("a branch job started a master")
 			}
 		})
+	}
+}
+
+// actions/checkout checks out a pull request's test merge commit, not its head,
+// and fetches it at depth 1, so its parents are not in the export.
+func TestCheckoutEligiblePullRequestMergeStartsALineage(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	merge := strings.Repeat("5", 40)
+	host.parents = map[string][]string{merge: {checkoutTestOther, checkoutTestCommit}}
+	task := exportFrom(t, c, "pull-request", merge, nil)
+	task.DefaultBranchJob, task.MayStartMaster = false, true
+
+	c.Process(context.Background(), task)
+
+	if c.Master(checkoutTestScope, 1) == "" || !host.ran("git", "checkout", "-q", "--detach", "--force", merge) {
+		t.Fatal("the job's test merge did not start the master")
+	}
+	if host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("a pull request job moved the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != merge {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+	if len(transfer.published) != 1 || transfer.published[0].BaseGeneration != 0 {
+		t.Fatalf("published %+v", transfer.published)
 	}
 }
 

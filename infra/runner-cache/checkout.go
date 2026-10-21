@@ -104,9 +104,10 @@ type CheckoutTask struct {
 	DefaultBranch    string
 	Commit           string
 	DefaultBranchJob bool
-	// MayStartMaster lets the job's commit start the lineage's master when it has
-	// no HEAD: the server sets it for same-repository branches its runner profile
-	// saves from, never for forks or events that run untrusted code.
+	// MayStartMaster lets the job's checkout (its commit, or its pull request's
+	// test merge of it) start the lineage's master when it has no HEAD: the
+	// server sets it for same-repository branches its runner profile saves from,
+	// never for forks or events that run untrusted code.
 	MayStartMaster bool
 	// The job's use names the lineage a master is published to and restored from.
 	Use            string
@@ -448,8 +449,9 @@ func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, met
 	}
 	defer export.Close()
 	// A master starts from a default-branch commit, or from an eligible job's while
-	// the lineage has no HEAD; other exports only add to one.
-	if cold && !onDefault(task, export) && !startsLineage(task, export) {
+	// the lineage has no HEAD; other exports only add to one. Whether the eligible
+	// job's export is its commit needs the export's objects, so ingest decides.
+	if cold && !onDefault(task, export) && !mayStartLineage(task) {
 		return nil
 	}
 	// The image grows by about twice the export: its objects and their checked-out files.
@@ -612,10 +614,16 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 		}
 	}
 	// The tip's tree is what every later job is handed, so it only moves to a
-	// default-branch commit, or starts at an eligible job's commit when the lineage
-	// has no HEAD, and only when all its LFS objects are here: a pointer left in
-	// the working tree would be served as the file's content.
-	tip := defaultTip || (cold && startsLineage(task, export))
+	// default-branch commit, or starts at an eligible job's checkout (its commit or
+	// its pull request's test merge) when the lineage has no HEAD, and only when
+	// all its LFS objects are here: a pointer left in the working tree would be
+	// served as the file's content.
+	tip := defaultTip
+	if !tip && cold && mayStartLineage(task) {
+		if tip, err = jobCheckout(git, export.Head, task.Commit); err != nil {
+			return false, err
+		}
+	}
 	if !tip || export.Head == meta.Tip || !complete {
 		if cold {
 			return false, errors.New("checkout export cannot start a master")
@@ -654,10 +662,33 @@ func onDefault(task CheckoutTask, export *checkoutExport) bool {
 	return task.DefaultBranchJob && export.Head == task.Commit
 }
 
-// startsLineage reports whether the export may start a lineage that has no HEAD
-// yet: the job's own verified commit, on a branch the server let it start from.
-func startsLineage(task CheckoutTask, export *checkoutExport) bool {
-	return task.MayStartMaster && task.BaseGeneration == 0 && export.Head == task.Commit
+// mayStartLineage reports whether the job may start a lineage that has no HEAD yet.
+func mayStartLineage(task CheckoutTask) bool {
+	return task.MayStartMaster && task.BaseGeneration == 0
+}
+
+// jobCheckout reports whether head is what the job checked out: its verified
+// commit, or a pull request's test merge of it, which actions/checkout checks out
+// instead and whose parents a depth-1 fetch leaves out. The raw commit object
+// still names them, and shallow history does not hide them from cat-file.
+func jobCheckout(git func(...string) ([]byte, error), head, commit string) (bool, error) {
+	if head == commit {
+		return true, nil
+	}
+	object, err := git("cat-file", "commit", head)
+	if err != nil {
+		return false, err
+	}
+	var parents []string
+	for _, line := range strings.Split(string(object), "\n") {
+		if line == "" {
+			break
+		}
+		if parent, ok := strings.CutPrefix(line, "parent "); ok {
+			parents = append(parents, parent)
+		}
+	}
+	return len(parents) == 2 && (parents[0] == commit || parents[1] == commit), nil
 }
 
 // addPack lets git index the exported pack: `--strict` hashes every object and

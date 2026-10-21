@@ -169,8 +169,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   it would be served as the file. While the lineage has no HEAD
   (`base_generation` 0), a job with `may_start_master` (a same-repository writer
   branch its profile saves from; never forks or pull_request_target) may also
-  start the master at its own verified commit; once a master exists, its exports
-  only add objects. Branches stay
+  start the master at its own verified commit, or at its pull request's test
+  merge of it (two parents, one of them that commit); once a master exists, its
+  exports only add objects. Branches stay
   `refs/remotes/origin/*` (actions/checkout deletes local branches before
   fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
   smudged files' mtimes before the final `update-index --really-refresh`: racily
