@@ -175,6 +175,7 @@
           variant="secondary"
           href={@github_app_installation.html_url}
           target="_blank"
+          rel="noopener noreferrer"
         >
           <:icon_right><.external_link /></:icon_right>
         </.button>
@@ -285,45 +286,13 @@
           </:footer>
         </.modal>
       </div>
-      <.card_section
-        :for={vcs_connection <- Enum.filter(@vcs_connections, &(&1.provider == :github))}
-        data-part="connection-card-section"
-        data-value={vcs_connection.id}
+      <.project_connection
+        :for={connection <- Enum.filter(@vcs_connections, &(&1.provider == :github))}
+        connection={connection}
+        actions_id={"connection-actions-#{connection.id}"}
       >
-        <div data-part="header">
-          <div data-part="item">
-            <div data-part="icon">
-              <.brand_tuist />
-            </div>
-            <span data-part="label">{vcs_connection.project.name}</span>
-          </div>
-          <div data-part="icon">
-            <.arrows_exchange />
-          </div>
-          <div data-part="item">
-            <div data-part="icon">
-              <.brand_github />
-            </div>
-            <span data-part="label">{vcs_connection.repository_full_handle}</span>
-          </div>
-        </div>
-        <div data-part="footer">
-          <span data-part="subtitle">{get_connection_info(vcs_connection)}</span>
-          <.inline_dropdown
-            id={"connection-actions-#{vcs_connection.id}"}
-            label={dgettext("dashboard_integrations", "Manage")}
-          >
-            <.dropdown_item
-              label={dgettext("dashboard_integrations", "Remove connection")}
-              value="remove"
-              phx-click="delete-connection"
-              phx-value-connection_id={vcs_connection.id}
-            >
-              <:left_icon><.trash /></:left_icon>
-            </.dropdown_item>
-          </.inline_dropdown>
-        </div>
-      </.card_section>
+        <:repository_icon><.brand_github /></:repository_icon>
+      </.project_connection>
     </div>
   </.card_section>
   <.card_section
@@ -335,7 +304,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_integrations",
-          "Connect your Origin account and link repositories to your Tuist projects."
+          "Connect any of your Origin repositories to a project"
         )}
       </span>
     </div>
@@ -353,7 +322,6 @@
           )
         }
       />
-      <.origin_repository_status :if={@origin_installations != []} result={@origin_details} />
       <div data-part="actions">
         <.button
           :if={@origin_installations == []}
@@ -361,7 +329,7 @@
             if @origin_configured?,
               do: ~p"/integrations/origin/start?#{[account_id: @selected_account.id]}"
           }
-          label={dgettext("dashboard_integrations", "Connect")}
+          label={dgettext("dashboard_integrations", "Install Origin App")}
           variant="primary"
           disabled={not @origin_configured?}
         />
@@ -511,77 +479,13 @@
           </:footer>
         </.modal>
       </div>
-      <.card_section
-        :for={installation <- @origin_installations}
-        data-part="installation-card-section"
-        data-value={installation.id}
-      >
-        <div data-part="header">
-          <div data-part="item">
-            <div data-part="icon"><.git_branch /></div>
-            <span data-part="label">{origin_namespace_label(assigns, installation.id)}</span>
-          </div>
-        </div>
-        <div data-part="footer">
-          <span data-part="subtitle">
-            {dgettext("dashboard_integrations", "Connected %{time_ago}",
-              time_ago: DateFormatter.from_now(installation.inserted_at)
-            )}
-          </span>
-          <.inline_dropdown
-            id={"origin-installation-actions-#{installation.id}"}
-            label={dgettext("dashboard_integrations", "Manage")}
-          >
-            <.dropdown_item
-              label={dgettext("dashboard_integrations", "Disconnect")}
-              value="disconnect"
-              phx-click="disconnect-origin"
-              phx-value-id={installation.id}
-              data-confirm={
-                dgettext(
-                  "dashboard_integrations",
-                  "Disconnect this Origin account and remove its project connections?"
-                )
-              }
-            >
-              <:left_icon><.trash /></:left_icon>
-            </.dropdown_item>
-          </.inline_dropdown>
-        </div>
-      </.card_section>
-      <.card_section
+      <.project_connection
         :for={connection <- Enum.filter(@vcs_connections, &(&1.provider == :origin))}
-        data-part="connection-card-section"
-        data-value={connection.id}
+        connection={connection}
+        actions_id={"origin-connection-actions-#{connection.id}"}
       >
-        <div data-part="header">
-          <div data-part="item">
-            <div data-part="icon"><.brand_tuist /></div>
-            <span data-part="label">{connection.project.name}</span>
-          </div>
-          <div data-part="icon"><.arrows_exchange /></div>
-          <div data-part="item">
-            <div data-part="icon"><.git_branch /></div>
-            <span data-part="label">{connection.repository_full_handle}</span>
-          </div>
-        </div>
-        <div data-part="footer">
-          <span data-part="subtitle">{get_connection_info(connection)}</span>
-          <.inline_dropdown
-            id={"origin-connection-actions-#{connection.id}"}
-            label={dgettext("dashboard_integrations", "Manage")}
-          >
-            <.dropdown_item
-              label={dgettext("dashboard_integrations", "Remove connection")}
-              value="remove"
-              phx-click="delete-connection"
-              phx-value-connection_id={connection.id}
-            >
-              <:left_icon><.trash /></:left_icon>
-            </.dropdown_item>
-          </.inline_dropdown>
-        </div>
-      </.card_section>
+        <:repository_icon><.git_branch /></:repository_icon>
+      </.project_connection>
     </div>
   </.card_section>
   <.card_section :if={@runner_integrations_visible?} data-part="gitlab-card-section">

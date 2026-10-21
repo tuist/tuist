@@ -176,27 +176,6 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   @impl true
-  def handle_event(
-        "disconnect-origin",
-        %{"id" => id},
-        %{assigns: %{selected_account: account, current_user: user}} = socket
-      ) do
-    case Origin.disconnect(account, user, id) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(origin_installations: Origin.list_installations(account.id))
-         |> assign(vcs_connections: vcs_connections(account, force: true))
-         |> reset_origin_selection()
-         |> select_default_origin_installation()
-         |> assign_origin_details()}
-
-      _ ->
-        {:noreply, socket}
-    end
-  end
-
-  @impl true
   def handle_event("save-gitlab", params, %{assigns: %{selected_account: account}} = socket) do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
@@ -549,6 +528,44 @@ defmodule TuistWeb.IntegrationsLive do
     selected_account.projects
     |> Enum.reject(fn project -> MapSet.member?(connected_project_ids, project.id) end)
     |> Enum.sort_by(& &1.name, :asc)
+  end
+
+  attr(:connection, Projects.VCSConnection, required: true)
+  attr(:actions_id, :string, required: true)
+  slot(:repository_icon, required: true)
+
+  defp project_connection(assigns) do
+    ~H"""
+    <.card_section data-part="connection-card-section" data-value={@connection.id}>
+      <div data-part="header">
+        <div data-part="item">
+          <div data-part="icon"><.brand_tuist /></div>
+          <span data-part="label">{@connection.project.name}</span>
+        </div>
+        <div data-part="icon"><.arrows_exchange /></div>
+        <div data-part="item">
+          <div data-part="icon">{render_slot(@repository_icon)}</div>
+          <span data-part="label">{@connection.repository_full_handle}</span>
+        </div>
+      </div>
+      <div data-part="footer">
+        <span data-part="subtitle">{get_connection_info(@connection)}</span>
+        <.inline_dropdown
+          id={@actions_id}
+          label={dgettext("dashboard_integrations", "Manage")}
+        >
+          <.dropdown_item
+            label={dgettext("dashboard_integrations", "Remove connection")}
+            value="remove"
+            phx-click="delete-connection"
+            phx-value-connection_id={@connection.id}
+          >
+            <:left_icon><.trash /></:left_icon>
+          </.dropdown_item>
+        </.inline_dropdown>
+      </div>
+    </.card_section>
+    """
   end
 
   attr(:result, Phoenix.LiveView.AsyncResult, required: true)
